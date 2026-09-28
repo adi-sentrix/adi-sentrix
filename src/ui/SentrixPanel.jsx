@@ -3408,6 +3408,91 @@ function CapitalBarras({ barras, onAsk }) {
 }
 
 const _CAP_PAGINA = 50;   // cuántas filas se dibujan de una vez · el resto entra con "ver más"
+
+/* ── DÍAS SIN VENTA · el ranking con capital acumulado (owner 2026-09-28, §7.3·34c, experiencia APROBADA) ──────
+ * Reemplaza el corte por tramos fijos que vivía en `cap.cortes.vistas` (0-30/31-60/61-90/>90, retirado — R4 del
+ * diseño, el "60 universal" que el owner rechazó). CERO CÁLCULO ACÁ: `data` es `cap.diasSinVenta`
+ * (`mesaCapital.js`), ya ordenado, ya acumulado, con cada hecho armado en el módulo — esta vista solo pinta los
+ * campos que trae cada fila (`capitalFmt`, `texto`, `acumuladoFmt`…), nunca arma una frase con datos crudos. */
+function DiasSinVentaTabla({ data, onAsk }) {
+  const [tope, setTope] = useState(_CAP_PAGINA);
+  if (!data || !data.filas.length) return <div style={{ fontSize: 14, color: C.textSub, lineHeight: 1.5 }}>Sin filas de inventario para este período.</div>;
+  const filas = data.filas.slice(0, tope);
+  const chipSituacion = (s) => {
+    if (s === "Crítico") return { color: C.amber, border: "rgba(255,180,64,0.4)" };
+    if (s === "Sobrestock") return { color: C.celeste, border: "rgba(47,184,218,0.4)" };
+    return null;
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 14, color: C.text, lineHeight: 1.5 }}>
+        Ranking por días sin venta — arriba lo que lleva más tiempo sin venderse. El capital se acumula al recorrerlo, sin cortes, hasta <Num>{data.totalFmt}</Num> ({data.n} SKU).
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, minWidth: 760 }}>
+          <thead><tr>
+            <th style={{ ..._RC_TH, textAlign: "left" }}>SKU</th>
+            <th style={{ ..._RC_TH, textAlign: "left" }}>Bodega</th>
+            <th style={_RC_TH}>Días sin venta</th>
+            <th style={_RC_TH}>Capital</th>
+            <th style={{ ..._RC_TH, textAlign: "left" }}>Situación</th>
+            {data.frenado.evaluado ? <th style={{ ..._RC_TH, textAlign: "left" }}>Venta</th> : null}
+            <th style={{ ..._RC_TH, textAlign: "left" }}>El período</th>
+            <th style={_RC_TH}>Acumulado</th>
+          </tr></thead>
+          <tbody>{filas.map((f) => { const chip = chipSituacion(f.situacion); return (
+            <tr key={f.sku}>
+              <td style={{ ..._RC_TD, textAlign: "left", fontFamily: "'DM Sans', system-ui, sans-serif", fontWeight: 600 }}>
+                {onAsk ? (
+                  <button onClick={() => onAsk(f.ask)} title={`Pregúntale a ADI: ${f.ask}`}
+                    style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{f.sku}</button>
+                ) : f.sku}
+              </td>
+              <td style={{ ..._RC_TD, textAlign: "left", fontFamily: "'DM Sans', system-ui, sans-serif", color: C.textSub }}>{f.bodega || "—"}</td>
+              <td style={_RC_TD}>{f.sinDato ? "sin dato" : `${f.diasSinVenta}d`}</td>
+              <td style={_RC_TD}>{f.capitalFmt}</td>
+              <td style={{ ..._RC_TD, textAlign: "left", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                {chip ? <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.5px", textTransform: "uppercase", color: chip.color, border: `1px solid ${chip.border}`, borderRadius: 3, padding: "1px 5px" }}>{f.situacion}</span> : <span style={{ color: C.textSub }}>—</span>}
+              </td>
+              {data.frenado.evaluado ? (
+                <td style={{ ..._RC_TD, textAlign: "left", fontFamily: "'DM Sans', system-ui, sans-serif", color: f.frenado === "Frenada" ? C.amber : C.textSub }}>{f.frenado}</td>
+              ) : null}
+              <td style={{ ..._RC_TD, textAlign: "left", fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 11.5, color: C.textMuted }}>{f.texto}</td>
+              <td style={_RC_TD}>{f.acumuladoFmt} <span style={{ color: C.textMuted }}>({f.acumuladoPct}%)</span></td>
+            </tr>
+          ); })}</tbody>
+        </table>
+      </div>
+      {/* SIEMPRE se dice cuántas hay detrás: una tabla que corta en silencio se lee como si eso fuera todo */}
+      {data.filas.length > filas.length ? (
+        <button onClick={() => setTope((t) => t + _CAP_PAGINA)}
+          style={{ alignSelf: "flex-start", background: "transparent", border: "none", padding: 0, color: C.celeste, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+          Ver {Math.min(_CAP_PAGINA, data.filas.length - filas.length)} más ▾
+        </button>
+      ) : null}
+      {/* EL CRUCE CON INMOVILIZADO, con la procedencia de su criterio — una vez, a nivel de vista (diseño §4.1: la
+          procedencia se imprime UNA vez por superficie, nunca estampada en cada cifra). */}
+      <div style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.5 }}>
+        «Crítico»/«Sobrestock» cruzan con el criterio de inventario ({data.procedenciaInmovilizado}).
+      </div>
+      {/* FRENADO: con umbral declarado, el total y su procedencia; sin umbral, la nota que abre la conversación
+          con ADI — nunca un veredicto que el dato no autoriza (§7.3·32a). */}
+      {data.frenado.evaluado ? (
+        <div style={{ fontSize: 14, color: C.text, lineHeight: 1.5 }}>
+          {data.frenado.n} SKU con venta frenada · <Num>{data.frenado.usdFmt}</Num> · {data.frenado.nota}.
+        </div>
+      ) : (
+        <div style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.5 }}>
+          {data.notaUmbral}
+          {onAsk && data.askUmbral ? <div style={{ marginTop: 6 }}>{_btnADI(() => onAsk(data.askUmbral), data.askUmbral)}</div> : null}
+        </div>
+      )}
+      {/* nota fija de naturaleza del dato — parte de la DEFINICIÓN, no una advertencia aparte (decisión ·34c/d) */}
+      <div style={{ fontSize: 11.5, color: C.textMuted, lineHeight: 1.5, fontStyle: "italic" }}>{data.notaNaturaleza}</div>
+    </div>
+  );
+}
+
 function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
   const [bodega, setBodega] = useState("todas");
   const [familia, setFamilia] = useState("todas");
@@ -3448,6 +3533,11 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
     if (c.key === "diasSinVenta") return f.diasSinVenta == null ? "—" : `${f.diasSinVenta}d`;
     if (c.key === "ventaDiaria") return f.ventaDiaria == null ? "—" : `${f.ventaDiaria}/d`;
     if (c.key === "stockUnd") return f.stockUnd == null ? "—" : f.stockUnd.toLocaleString("es-CL");
+    // decisión del owner §7.3·31/34a/34c: columnas nuevas de la pestaña "Capital inmovilizado" — «Situación»
+    // (Crítico | Sobrestock, el cruce con la jerarquía única) y «Venta» (Frenada | Con venta, solo si hay umbral
+    // declarado — la columna no aparece sin él, ver `columnas` en `mesaCapital.js`).
+    if (c.key === "situacion") return f.situacion || "—";
+    if (c.key === "venta") return f.venta;
     return f[c.key] ?? "—";
   };
   const colorCelda = (f, c) => {
@@ -3455,6 +3545,8 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
     if (c.key === "doh" && f.urgente) return C.red;                    // menos de 5 días: se corta ya
     if (c.key === "desvio") return f.bajoBenchmark ? C.amber : C.textSub;
     if (c.key === "usd") return f.destacar ? C.text : C.textSub;       // el capital grande, destacado
+    if (c.key === "situacion") return f.situacion === "Crítico" ? C.amber : f.situacion === "Sobrestock" ? C.celeste : C.textSub;
+    if (c.key === "venta") return f.venta === "Frenada" ? C.amber : C.textSub;
     return C.textSub;
   };
   const filtro = (valor, set, opciones, label) => (
@@ -3591,6 +3683,10 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
      2026-08-27: un contexto describe algo que se puede señalar en pantalla, y ya no hay qué señalar. Las
      cuatro cards tienen contexto PROPIO (ver `_CAP_KPI_COMPONENTES`), así que no perdieron nada. */
   const vCapCortes = useViewContext("capital/01/cortes", cap, { ..._oC, controles: { corte } });
+  // decisión del owner §7.3·34c: "Días sin venta" dejó de ser un corte más de `cap.cortes` (tramos fijos,
+  // retirado) y pasa a su propia pieza (`cap.diasSinVenta`, `mesaCapital.js`), con su propio contexto declarado
+  // en el manifiesto (`capital/01/dias-sin-venta`).
+  const vCapDiasSinVenta = useViewContext("capital/01/dias-sin-venta", cap, _oC);
   const vCapReponer = useViewContext("capital/01/reponer", cap, _oC);
   const vCapLiquidar = useViewContext("capital/01/liquidar", cap, _oC);
   const vCapBarras = useViewContext("capital/01/barras", cap, _oC);
@@ -3615,14 +3711,23 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
       {num ? <span style={{ color: C.celeste, opacity: 0.85 }}>{num}</span> : null}{title}<InfoDot def={def} align="left"/>
     </div>
   );
-  const vistaCorte = (cap.cortes && cap.cortes.vistas.find((v) => v.key === corte)) || (cap.cortes && cap.cortes.vistas[0]);
+  // "Días sin venta" es un centinela FUERA de `cap.cortes.vistas` (decisión ·34c: ya no es un corte por tramos) —
+  // se guarda antes de resolver `vistaCorte` para que un corte no encontrado nunca caiga por accidente al
+  // primero de la lista (bodega) cuando lo que el usuario pidió fue el ranking.
+  const mostrandoDiasSinVenta = corte === "diasSinVenta";
+  const vistaCorte = mostrandoDiasSinVenta ? null
+    : (cap.cortes && cap.cortes.vistas.find((v) => v.key === corte)) || (cap.cortes && cap.cortes.vistas[0]);
   // la referencia de largo de las barras del bloque 02 · la fila más grande llena el riel, las demás se miden
   // contra ella. Es dibujo, no aritmética: los montos y los porcentajes salen intactos del módulo.
   const maxFila = vistaCorte ? Math.max(...vistaCorte.filas.map((f) => f.usd || 0), 1) : 1;
   return (<>
     {/* ── 01 · QUÉ ESTÁ PASANDO · veredicto + KPIs + distribución + el inventario general, cerrado ── */}
     <div>
-      <MovHead num="01" title="Qué está pasando" def={`El mapa del capital: cuánto trabaja en rango, cuánto está por cortarse (quiebre próximo), cuánto sobra (sobrestock) y cuánto está inmovilizado — los estados del motor contra tu benchmark (rotación ${POLICY.rotacionMin}x · ${POLICY.dohMax} días de inventario). Los tramos suman exacto tu capital total. Toca un tramo, la leyenda o un KPI y ADI abre esa historia al lado.`}/>
+      {/* decisión del owner 2026-09-28, §7.3·32b: la definición del movimiento 01 nombraba "tu benchmark" con el
+          valor de POLICY calculado ACÁ MISMO, en JSX — cero cálculo en React (CLAUDE.md §2): la frase completa,
+          con la procedencia del criterio (empresa / ADI / mixta), ahora la arma el módulo (`mesaCapital.js`,
+          `defMovimiento01`) y esta vista solo la pinta. */}
+      <MovHead num="01" title="Qué está pasando" def={cap.mapa.defMovimiento01}/>
       {/* ⚠️ ACÁ IBA EL VEREDICTO DEL CAPITAL — «Tu capital está donde no se vende, y escasea donde sí», con su
           soporte y su cierre recomendando qué proteger primero. Fuera el 2026-08-27, misma orden que vació la
           «Lectura ejecutiva» de Comercial: Sentrix muestra, ADI concluye.
@@ -3714,20 +3819,35 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
           obsolescencia, ni sobrecompra, ni temporada, y ya se declara que no se pueden inferir. Lo que sí hay son
           los dos ejes que enmarcan el problema —dónde está el capital y desde cuándo no se mueve—, así que eso
           es lo que promete el título. Prometer causa sería repetir el "revisar costo" de Comercial. */}
-      <MovHead num="02" title="Dónde y desde cuándo" def={`El mismo capital repartido de tres maneras: por bodega, por familia y por días sin venta. Cada corte suma exacto tu capital total (${cap.totalFmt}) — son el mismo dinero visto distinto, no tres cuentas, y la barra de cada fila muestra en qué estado está. Los dos ejes enmarcan el problema pero ninguno lo explica: que se concentre en una bodega dice DÓNDE está, y la antigüedad dice DESDE CUÁNDO; por qué se detuvo —obsolescencia, sobrecompra, temporada— no está en este dato. Y como cada SKU aparece en una sola bodega, tampoco se puede evaluar si conviene mover stock de una a otra. Ojo con los días: son días SIN VENTA, no días almacenado — no hay fecha de recepción en el dato.`}/>
-      {cap.cortes && vistaCorte ? (<>
+      {/* decisión ·34c: antes → "de tres maneras: por bodega, por familia y por días sin venta" (el tercero era un
+          corte por tramos fijos, retirado). Ahora "días sin venta" es un ranking con capital acumulado, no un
+          corte más — el def lo dice sin prometer una tercera partición del mismo tipo. */}
+      <MovHead num="02" title="Dónde y desde cuándo" def={`El mismo capital repartido por bodega y por familia — cada corte suma exacto tu capital total (${cap.totalFmt}), son el mismo dinero visto distinto, no dos cuentas, y la barra de cada fila muestra en qué estado está. Que se concentre en una bodega dice DÓNDE está, nunca por qué. "Días sin venta" es una tercera pestaña con otra forma: un ranking de lo que lleva más tiempo sin venderse, con el capital acumulado al recorrerlo — son días SIN VENTA, no días almacenado (no hay fecha de recepción en el dato).`}/>
+      {(cap.cortes && cap.cortes.vistas.length) || (cap.diasSinVenta && cap.diasSinVenta.n) ? (<>
         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:8 }}>
           <span style={{ display:"flex", gap:3 }}>
-            {cap.cortes.vistas.map((v) => (
-              // cambiar de corte cambia el EJE que el usuario mira (bodega / familia / edad): informa el contexto
-              <button key={v.key} onClick={() => { setCorte(v.key); if (vCapCortes.ctx) setUISignal({ viewContext: vCapCortes.ctx }); }} aria-pressed={vistaCorte.key === v.key}
-                style={{ padding:"3px 11px", borderRadius:6, border:`1px solid ${vistaCorte.key === v.key ? "rgba(255,255,255,0.35)" : C.border}`, background: vistaCorte.key === v.key ? "rgba(255,255,255,0.10)" : "transparent", color: vistaCorte.key === v.key ? C.text : C.textMuted, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
+            {(cap.cortes ? cap.cortes.vistas : []).map((v) => (
+              // cambiar de corte cambia el EJE que el usuario mira (bodega / familia): informa el contexto
+              <button key={v.key} onClick={() => { setCorte(v.key); if (vCapCortes.ctx) setUISignal({ viewContext: vCapCortes.ctx }); }} aria-pressed={!mostrandoDiasSinVenta && vistaCorte && vistaCorte.key === v.key}
+                style={{ padding:"3px 11px", borderRadius:6, border:`1px solid ${!mostrandoDiasSinVenta && vistaCorte && vistaCorte.key === v.key ? "rgba(255,255,255,0.35)" : C.border}`, background: !mostrandoDiasSinVenta && vistaCorte && vistaCorte.key === v.key ? "rgba(255,255,255,0.10)" : "transparent", color: !mostrandoDiasSinVenta && vistaCorte && vistaCorte.key === v.key ? C.text : C.textMuted, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
                 {v.label} ({v.n})
               </button>
             ))}
+            {/* la tercera pestaña: "Días sin venta" — un ranking, no un corte por tramos (decisión ·34c) */}
+            {cap.diasSinVenta ? (
+              <button onClick={() => { setCorte("diasSinVenta"); if (vCapDiasSinVenta.ctx) setUISignal({ viewContext: vCapDiasSinVenta.ctx }); }} aria-pressed={mostrandoDiasSinVenta}
+                style={{ padding:"3px 11px", borderRadius:6, border:`1px solid ${mostrandoDiasSinVenta ? "rgba(255,255,255,0.35)" : C.border}`, background: mostrandoDiasSinVenta ? "rgba(255,255,255,0.10)" : "transparent", color: mostrandoDiasSinVenta ? C.text : C.textMuted, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
+                Días sin venta ({cap.diasSinVenta.n})
+              </button>
+            ) : null}
           </span>
-          <span style={{ fontFamily:MONO, fontSize:11, letterSpacing:"0.5px", textTransform:"uppercase", color: vistaCorte.reconcilia ? C.green : C.amber, border:`1px solid ${vistaCorte.reconcilia ? C.green : C.amber}55`, borderRadius:3, padding:"1px 5px" }}>{vistaCorte.reconcilia ? "concilia" : "otro corte"}</span>
+          {!mostrandoDiasSinVenta && vistaCorte ? (
+            <span style={{ fontFamily:MONO, fontSize:11, letterSpacing:"0.5px", textTransform:"uppercase", color: vistaCorte.reconcilia ? C.green : C.amber, border:`1px solid ${vistaCorte.reconcilia ? C.green : C.amber}55`, borderRadius:3, padding:"1px 5px" }}>{vistaCorte.reconcilia ? "concilia" : "otro corte"}</span>
+          ) : null}
         </div>
+        {mostrandoDiasSinVenta ? (
+          <DiasSinVentaTabla data={cap.diasSinVenta} onAsk={vCapDiasSinVenta.ask}/>
+        ) : vistaCorte ? (<>
         {/* LA REGLA 80/20 SOBRE EL CAPITAL (owner 2026-08-09) · la frase viene del módulo y nombra los dos
             universos, cabeza y cola, que cierran con el total */}
         {vistaCorte.pareto ? (
@@ -3779,6 +3899,7 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
         {/* EL "DETALLE POR SKU" SE ELIMINÓ (owner 2026-08-09): era una lista sin encabezados —había que
             adivinar qué era cada número— y la card "Capital total" ya abre los mismos SKU con columnas
             nombradas, buscador y filtros. Era una mala versión de algo que ya está bien hecho. */}
+        </>) : null}
       </>) : (
         <div style={{ fontSize:14, color:C.textSub, lineHeight:1.5 }}>Sin cortes disponibles para el capital del período.</div>
       )}

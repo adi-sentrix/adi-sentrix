@@ -30,7 +30,19 @@
  * más dos fixtures derivados de la misma planilla: con `frenadoDiasSinVenta` declarado en el perfil, y con
  * `diasSinVenta` variados para que la intersección frenado∩inmovilizado no sea trivial.
  *
- * Determinístico · sin red · sin credenciales · sin modelo · sin dependencias nuevas. */
+ * ETAPA 3 (diseño §8.3, `_ADI_CONTRATO_ENCARGO_V1.md` §7.3·34c): la Mesa Capital y la pantalla leen la fuente
+ * única. Agrega la comprobación (e) del diseño PARA LA PANTALLA (`buildMesaCapital`, `src/adi/sentrix/mesaCapital.js`):
+ *   · los mismos SKU y montos que `jerarquiaInventario`/`kpiInventario` en la pestaña "Capital inmovilizado"
+ *     (`drill.detenido`) y en "Días sin venta" (`diasSinVenta`);
+ *   · cada veredicto que depende de un umbral lleva su ORIGEN (una de las cuatro `ETIQUETA_ORIGEN`), en la
+ *     definición de cada tramo y en el cruce de "Días sin venta";
+ *   · SIN umbral declarado, ninguna fila de "Días sin venta" se marca «Frenada» (el candado (c), ahora también
+ *     para la pantalla);
+ *   · los HECHOS de "Días sin venta" (unidades vendidas, "última venta") salen de CAMPOS DEL DATO
+ *     (`vendidoMes`/`diasSinVenta` del inventario), nunca de un texto armado a mano — se releen los campos crudos
+ *     y se comparan byte a byte contra lo que la vista emite.
+ * El estándar es SEMÁNTICO (decisión ·34d): no se barre una lista de palabras prohibidas, se comprueba la
+ * ESTRUCTURA (mismos conjuntos, misma procedencia, mismos campos de origen). */
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { TENANT_EMPRESA2 } from "./src/data/tenants/empresa2.js";
@@ -40,11 +52,12 @@ import { plantillaEjemplo } from "./src/ingesta/plantilla/generarPlantilla.js";
 import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js";
 import { validarPlantilla } from "./src/ingesta/plantilla/validarPlantilla.js";
 import { jerarquiaInventario, kpiInventario } from "./src/adi/diagnosis/economicDiagnosis.js";
-import { umbral, umbralesDeInventario, ORIGEN, ETIQUETA_ORIGEN, POLICY_CONFIG } from "./src/config/businessPolicy.js";
+import { umbral, umbralesDeInventario, ORIGEN, ETIQUETA_ORIGEN, POLICY_CONFIG, setCriterioOverride } from "./src/config/businessPolicy.js";
 import { deriveKpis } from "./src/engine/scenarios.js";
 import { getInvKPI } from "./src/engine/metrics.js";
 import { calcularDataset } from "./src/ingesta/plantilla/motorKpi.js";
 import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
+import { buildMesaCapital } from "./src/adi/sentrix/mesaCapital.js";
 import { readFileSync } from "node:fs";
 
 let pass = 0, fail = 0;
@@ -291,6 +304,107 @@ console.log("\n── inmutabilidad ──");
 ok("ORIGEN está Object.freeze()ado", Object.isFrozen(ORIGEN));
 ok("ETIQUETA_ORIGEN está Object.freeze()ado", Object.isFrozen(ETIQUETA_ORIGEN));
 ok("ETIQUETA_ORIGEN tiene las cuatro llaves de ORIGEN, ninguna más", Object.keys(ETIQUETA_ORIGEN).sort().join(",") === Object.values(ORIGEN).sort().join(","));
+
+/* ── ETAPA 3 (e) · LA PANTALLA lee la fuente única, con procedencia, y sin marcar «frenado» sin umbral ────────
+ * `buildMesaCapital()` (mesaCapital.js) es la única entrada de la cara Capital. Se compara SU salida contra
+ * `jerarquiaInventario()`/`kpiInventario()` llamadas aparte con las MISMAS filas — un oráculo independiente del
+ * builder, mismo patrón que usa `_mesa_capital_gate.mjs`. */
+console.log("\n── ETAPA 3 (e) · la pantalla usa la fuente única, con procedencia ──");
+initTenant(TENANT_DEMO);
+for (const sc of ["bonanza", "tension", "crisis"]) {
+  const inv = applyScenarioToSkuInventario(sc) || [];
+  const J = jerarquiaInventario(inv);
+  const K = kpiInventario(inv);
+  const mc = buildMesaCapital(sc);
+
+  // (e·1) MISMOS SKU Y MONTOS · la pestaña "Capital inmovilizado" (drill.detenido) es el universo ∪ de J
+  const skuDrill = mc.drill.detenido.filas.map((f) => f.sku).sort();
+  ok(`pestaña "Capital inmovilizado": mismos SKU que J.inmovilizado @${sc}`,
+    JSON.stringify(skuDrill) === JSON.stringify(J.inmovilizado.skus.slice().sort()));
+  ok(`pestaña "Capital inmovilizado": mismo $ que J.inmovilizado (suma de filas) @${sc}`,
+    mc.drill.detenido.filas.reduce((a, f) => a + f.usd, 0) === J.inmovilizado.usd && mc.drill.detenido.n === J.inmovilizado.n);
+  ok(`pestaña "Capital inmovilizado": el subtotal crítico declarado === J.critico @${sc}`,
+    mc.drill.detenido.criticoN === J.critico.n && mc.drill.detenido.filas.filter((f) => f.situacion === "Crítico").reduce((a, f) => a + f.usd, 0) === J.critico.usd);
+  // (e·1b) el KPI de la card y `cap.jerarquia` (expuesto por el módulo) concuerdan con el MISMO J — el KPI y el
+  // total de la pestaña usan LA MISMA cadena formateada (una sola verdad entre las dos superficies)
+  const kpiDet = mc.kpis.find((k) => k.key === "detenido");
+  ok(`KPI "Capital inmovilizado" y la pestaña muestran el MISMO $ formateado @${sc}`, kpiDet.value === mc.drill.detenido.totalFmt);
+  ok(`cap.jerarquia expuesto === J (mismos SKU/usd para inmovilizado/crítico/sobrestock) @${sc}`,
+    JSON.stringify(mc.jerarquia.inmovilizado.skus.slice().sort()) === JSON.stringify(J.inmovilizado.skus.slice().sort())
+    && mc.jerarquia.inmovilizado.usd === J.inmovilizado.usd && mc.jerarquia.critico.usd === J.critico.usd);
+  // (e·2) "Días sin venta": mismos SKU/monto que J.inmovilizado/J.critico, fila por fila
+  const dsv = mc.diasSinVenta;
+  ok(`"Días sin venta": mismos SKU que el inventario completo @${sc}`, dsv.filas.length === inv.length && dsv.totalUsd === J.total);
+  const byJ2 = {}; for (const s of J.porSku) byJ2[s.sku] = s;
+  ok(`"Días sin venta": inmovilizado/crítico por fila === J.porSku @${sc}`,
+    dsv.filas.every((f) => byJ2[f.sku].inmovilizado === f.inmovilizado && byJ2[f.sku].critico === f.critico));
+
+  // (e·3) CADA VEREDICTO LLEVA SU ORIGEN · los tramos (def) y "Días sin venta" (procedenciaInmovilizado) citan
+  // una de las cuatro ETIQUETA_ORIGEN — nunca un umbral sin decir de dónde viene (§7.3·32b)
+  const ETQ = Object.values(ETIQUETA_ORIGEN);
+  const tCritico = mc.mapa.tramos.find((t) => t.key === "capital_frenado");
+  ok(`el tramo "inmovilizado crítico" declara su origen en la def @${sc}`, !!tCritico && ETQ.some((e) => tCritico.def.includes(e)));
+  ok(`"Días sin venta" declara la procedencia del criterio de inmovilizado @${sc}`, ETQ.some((e) => dsv.procedenciaInmovilizado.includes(e)));
+  ok(`el KPI "Capital inmovilizado" (linea) no promete procedencia sin declararla en el criterio del tramo @${sc}`,
+    typeof dsv.procedenciaInmovilizado === "string" && dsv.procedenciaInmovilizado.length > 0);
+
+  // (e·4) SIN UMBRAL, NINGUNA MARCA «FRENADO» EN LA PANTALLA (candado (c) del diseño, ahora también en
+  // `buildMesaCapital`): en el demo nadie declara `frenadoDiasSinVenta`, así que J.frenado.evaluado === false y
+  // ninguna fila de "Días sin venta" ni columna "Venta" de la pestaña puede decir "Frenada".
+  ok(`sin umbral declarado, J.frenado.evaluado === false @${sc}`, J.frenado.evaluado === false);
+  ok(`sin umbral, ninguna fila de "Días sin venta" dice "Frenada" @${sc}`, dsv.filas.every((f) => f.frenado !== "Frenada"));
+  ok(`sin umbral, la pestaña "Capital inmovilizado" NO trae columna "Venta" @${sc}`,
+    !mc.drill.detenido.columnas.some((c) => c.key === "venta"));
+  ok(`sin umbral, la nota de "Días sin venta" abre la conversación (nunca "no hay frenados") @${sc}`,
+    typeof dsv.notaUmbral === "string" && !/no hay/i.test(dsv.notaUmbral) && typeof dsv.askUmbral === "string" && dsv.askUmbral.length > 0);
+}
+
+// con umbral declarado (perfil de la empresa, C.2): la pestaña SÍ trae la columna "Venta" y "Días sin venta"
+// marca "Frenada" solo donde el hecho lo sostiene — el veredicto se mide, nunca se asume
+{
+  setCriterioOverride("frenadoDiasSinVenta", 60);
+  const inv = applyScenarioToSkuInventario("bonanza") || [];
+  const J = jerarquiaInventario(inv);
+  const mc = buildMesaCapital("bonanza");
+  ok("con umbral declarado, J.frenado.evaluado === true", J.frenado.evaluado === true);
+  ok("con umbral, la pestaña SÍ trae la columna \"Venta\"", mc.drill.detenido.columnas.some((c) => c.key === "venta"));
+  const frenadosEnVista = new Set(mc.diasSinVenta.filas.filter((f) => f.frenado === "Frenada").map((f) => f.sku));
+  ok("con umbral, \"Frenada\" en la vista === J.frenado.skus exacto", JSON.stringify([...frenadosEnVista].sort()) === JSON.stringify(J.frenado.skus.slice().sort()));
+  ok("con umbral, el total de frenado de la vista concuerda con J.frenado", mc.diasSinVenta.frenado.usd === J.frenado.usd && mc.diasSinVenta.frenado.n === J.frenado.n);
+  ok("con umbral, la vista declara la procedencia del umbral", mc.diasSinVenta.frenado.procedencia === ETIQUETA_ORIGEN[J.frenado.umbral.origen]);
+  setCriterioOverride("frenadoDiasSinVenta", undefined);
+}
+
+/* ── ETAPA 3 (e) · LOS HECHOS DE LA VISTA SALEN DE CAMPOS DEL DATO, no de texto armado a mano ─────────────────
+ * Se relee el inventario CRUDO (`skuInventario`, con `vendidoMes`/`diasSinVenta` tal como los trae el archivo) y
+ * se compara, fila por fila, contra lo que "Días sin venta" emite: el hecho declarado tiene que salir de esos dos
+ * campos, nunca de un string inventado. Es el estándar SEMÁNTICO del diseño (·34d): no se barre una lista de
+ * palabras, se verifica que la ESTRUCTURA (número de unidades, "hace Nd"/"hoy") sea la que el dato trae. */
+console.log("\n── ETAPA 3 (e) · los hechos de \"Días sin venta\" salen de campos del dato ──");
+{
+  const inv = applyScenarioToSkuInventario("bonanza") || [];
+  const mc = buildMesaCapital("bonanza");
+  const bySku = {}; for (const r of inv) bySku[r.sku] = r;
+  for (const f of mc.diasSinVenta.filas) {
+    const r = bySku[f.sku];
+    ok(`"Días sin venta" · ${f.sku}: diasSinVenta === el campo crudo del dato`, f.diasSinVenta === (typeof r.diasSinVenta === "number" ? r.diasSinVenta : null));
+    ok(`"Días sin venta" · ${f.sku}: vendidoMes === el campo crudo del dato`, f.vendidoMes === (typeof r.vendidoMes === "number" ? r.vendidoMes : null));
+    // la fecha de "última venta" es SIEMPRE derivada de `diasSinVenta` (hoy / hace Nd) — nunca un calendario
+    // inventado, porque el dato no trae fecha de calendario (solo el relativo)
+    const esperado = typeof r.diasSinVenta !== "number" ? "sin dato" : r.diasSinVenta === 0 ? "hoy" : `hace ${r.diasSinVenta}d`;
+    ok(`"Días sin venta" · ${f.sku}: "última venta" sale de diasSinVenta, no de texto a mano`, f.ultimaVentaTexto === esperado);
+  }
+  // sin ventas en el período: la frase exacta, para TODAS las filas con vendidoMes === 0 (nunca una variante).
+  // Ningún SKU del demo trae `vendidoMes: 0` de fábrica, así que se muta UNA fila (fixture derivado, mismo
+  // patrón que usa `_jerarquia_inventario_gate` para el resto de sus carnadas) para no dejar la rama sin probar.
+  const tenantMutado = { ...TENANT_DEMO, skuInventario: TENANT_DEMO.skuInventario.map((s, i) => i === 0 ? { ...s, vendidoMes: 0 } : s) };
+  initTenant(tenantMutado);
+  const mcMutado = buildMesaCapital("bonanza");
+  const filaMutada = mcMutado.diasSinVenta.filas.find((f) => f.sku === TENANT_DEMO.skuInventario[0].sku);
+  ok('con vendidoMes:0, la fila dice exactamente "Sin ventas registradas en el período."',
+    !!filaMutada && filaMutada.vendidoMes === 0 && filaMutada.texto === "Sin ventas registradas en el período.");
+  initTenant(TENANT_DEMO);   // deja el tenant activo en un estado conocido para el resto del proceso
+}
 
 console.log(`\n── _jerarquia_inventario_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

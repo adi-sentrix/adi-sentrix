@@ -212,10 +212,13 @@ const kpisB = buildEntityKPIs("bodega", "Santiago", SC);
 ok(!kpisB.some((k) => /inmoviliz/i.test(k.label)), "ningún KPI de bodega usa la palabra «inmovilizado» para la regla de alerta",
   kpisB.filter((k) => /inmoviliz/i.test(k.label)).map((k) => k.label).join(" | "));
 /* R5 del examen 1 del agente (2026-08-31): la palabra del concepto en la cara pasó a «frenado» (el dinero de la
- * card ES el subconjunto frenado — la palabra sigue a la cifra, doctrina del owner). La INTENCIÓN del chequeo no
- * cambia: el concepto tiene UN dueño (la cara Capital) y las columnas de bodega siguen sin usurpar la palabra. */
-const kpiCap = (buildMesaCapital(SC).kpis || []).find((k) => /frenado/i.test(k.label || ""));
-ok(kpiCap != null, "la cara Capital SÍ conserva la palabra del concepto (hoy «frenado»): es el dueño");
+ * card ERA el subconjunto frenado — la palabra seguía a la cifra, doctrina del owner). DECISIÓN DEL OWNER
+ * 2026-09-28, §7.3·31/34a: «frenado» deja de nombrar esta regla en superficie — pasa a «inmovilizado crítico»
+ * (antes: `k.label` contenía "frenado"; ahora la card dice «Capital inmovilizado» y su `linea` distingue el
+ * subconjunto «en situación crítica»). La INTENCIÓN del chequeo no cambia: el concepto tiene UN dueño (la cara
+ * Capital) y las columnas de bodega (5a, arriba) siguen sin usurpar ni «inmovilizado» ni «crítico». */
+const kpiCap = (buildMesaCapital(SC).kpis || []).find((k) => /inmovilizado/i.test(k.label || "") || /cr[ií]tic/i.test(k.linea || ""));
+ok(kpiCap != null, "la cara Capital SÍ conserva la palabra del concepto (hoy «inmovilizado» / «crítico»): es el dueño");
 // y el glosario no puede contradecirse consigo mismo sobre esa palabra
 const gInm = resolveGlossary("Inmovilizado");
 ok(gInm && /detector|rotaci/i.test(gInm.def) && /detector|rotaci/i.test(METRIC_DEFS["Inmovilizado"] || ""),

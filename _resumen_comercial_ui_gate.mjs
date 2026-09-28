@@ -804,11 +804,14 @@ H("[5] LO QUE SALE DE COMERCIAL · tiras legacy · capital · bodegas · evoluci
   fireEvent.click(porTexto(container, "Comercial"));
   // …y lo que salió NO se perdió: el mismo supuesto vive en la cara Capital
   fireEvent.click(porTexto(container, "Capital"));
-  // "detenido" → "inmovilizado" (owner 2026-08-09) → "frenado" (R5 del examen 1 del agente, 2026-08-31): la
-  // palabra sigue a la cifra — el dinero de la cara es el subconjunto FRENADO, no el inmovilizado amplio. Esta
-  // vez las `ask` SÍ migraron con la pantalla: la equivalencia vieja↔nueva está probada campo por campo en el
-  // arnés 20b de _mesa_capital_gate (coerceFloor resuelve ambas al MISMO pedido).
-  ok(/capital frenado/i.test(container.textContent), "el supuesto de liberar capital frenado sigue vivo en la cara Capital (se movió, no se borró)");
+  /* "detenido" → "inmovilizado" (owner 2026-08-09) → "frenado" (R5 del examen 1 del agente, 2026-08-31) →
+   * "inmovilizado crítico" (decisión del owner 2026-09-28, §7.3·31/34a: «frenado» deja de nombrar esta regla en
+   * superficie). ANTES esta aserción buscaba "capital frenado" —el KPI decía literal «Capital frenado»—; AHORA
+   * el KPI dice «Capital inmovilizado» (el universo) y el tramo crítico se nombra «inmovilizado crítico» en el
+   * mapa, la pestaña y la lista "Recuperar liquidez" ("… en inmovilizado crítico …"). Las `ask` migraron con la
+   * pantalla igual que antes — probado campo por campo en el arnés 20b de `_mesa_capital_gate`. */
+  ok(/capital inmovilizado/i.test(container.textContent) && /inmovilizado cr[ií]tico/i.test(container.textContent),
+    "el supuesto de liberar capital inmovilizado sigue vivo en la cara Capital (se movió, no se borró — el rótulo pasó de «capital frenado» a «capital inmovilizado» / «inmovilizado crítico»)");
   ok(!/capital detenido/i.test(container.textContent), "…y la cara ya no dice «capital detenido» en ninguna parte");
   fireEvent.click(porTexto(container, "Comercial"));
   ok(!R.kpis.some((k) => k.key === "capital"), "el KPI de CAPITAL no está entre los KPI principales (su historia vive en la cara Capital)");
@@ -976,10 +979,14 @@ H("[8b] LAS BARRAS DE CAPITAL · monto al final, unidades adentro, dos filtros")
   fireEvent.click(btn);
   ok(inm.barras.every((b) => G().includes(b.sku)), `al filtrar quedan los ${inm.n} inmovilizados`);
   ok(G().includes(inm.totalFmt), `…con su total ${inm.totalFmt}`);
-  // la leyenda ACOMPAÑA al filtro: en "Inmovilizado" hay un solo estado, y prometer los otros tres sería falso
+  /* la leyenda ACOMPAÑA al filtro. Decisión del owner 2026-09-28, §7.3·31: antes "Inmovilizado" filtraba SOLO
+   * `capital_frenado` (un único estado posible); ahora filtra el UNIVERSO (capital_frenado ∪ sobrestock) — hasta
+   * DOS estados pueden aparecer en la leyenda, nunca los otros dos (quiebre próximo · en rango), que es lo que
+   * seguiría siendo falso prometer. Se compara contra los estados que el propio filtro realmente contiene. */
   const fuera = gen.leyenda.filter((l) => !inm.leyenda.some((i) => i.estado === l.estado));
-  ok(inm.leyenda.length === 1 && fuera.every((l) => !G().includes(l.label)),
-    `…y la clave se reduce al único estado presente (salen ${fuera.map((l) => l.label).join(" · ")})`);
+  const estadosPresentes = new Set(inm.barras.filter((b) => !b.agrupado).map((b) => b.estado));
+  ok(inm.leyenda.length === estadosPresentes.size && fuera.every((l) => !G().includes(l.label)),
+    `…y la clave se reduce a los estados presentes en el filtro (salen ${fuera.map((l) => l.label).join(" · ")})`);
   const salieron = gen.barras.filter((b) => !b.agrupado && !inm.barras.some((i) => i.sku === b.sku));
   ok(salieron.length > 0 && salieron.every((b) => !G().includes(b.sku)), `…y los ${salieron.length} que no están detenidos salen del gráfico`);
   cleanup();

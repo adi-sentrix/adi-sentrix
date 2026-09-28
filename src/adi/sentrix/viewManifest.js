@@ -530,19 +530,25 @@ export const VIEW_MANIFEST = {
   // `campo` es la del builder (clave interna que nadie lee en pantalla) y por eso se conserva tal cual; lo que sí
   // se ve —el componentId, que viaja en la dirección y compone la etiqueta del CTA— usa la palabra del producto.
   "capital/01/kpi-inmovilizado": {
-    // R5 (examen 1 del agente, 2026-08-31): el label dice FRENADO — la cifra de la card es el subconjunto
-    // frenado, no el inmovilizado amplio. El componentId es histórico y NO cambia (viaja en direcciones/CTA).
-    vista: "capital", seccion: "01", tipo: "kpi", label: "Capital frenado",
+    /* decisión del owner 2026-09-28, §7.3·31/34a: antes → label "Capital frenado" · universo "los SKU que el
+     * detector clasifica como capital frenado" · concordancia "reconciled" contra `inventoryStatus{focus:'frenado'}`
+     * (la cifra de la card ERA el subconjunto crítico, la misma que emite ese focus). Ahora la card muestra el
+     * UNIVERSO (crítico ∪ sobrestock, `jerarquiaInventario().inmovilizado` — economicDiagnosis.js) con el crítico
+     * distinguido como subconjunto (`mesaCapital.js:buildMesaCapital` kpi "detenido"). `inventoryStatus{focus:...}`
+     * sigue sin un focus que devuelva ESE universo — específicamente devuelve el crítico solo — así que el cruce
+     * builder↔ledger SÍ encuentra un par comparable (los dos hablan de "capital") y mide una DIVERGENCIA, no una
+     * ausencia: `divergent`, no `unsupported` (medido por `_concordancia_numerica_gate`: $43K en pantalla vs $33K
+     * en el ledger en el demo bonanza, $56K vs $33K en tensión). specRetrieval.js migra a `jerarquiaInventario()`
+     * en la etapa 4 del plan (`diseno_inventario/DISENO.md` §8), y esa migración cierra la divergencia. El
+     * componentId es histórico y NO cambia (viaja en direcciones/CTA). */
+    vista: "capital", seccion: "01", tipo: "kpi", label: "Capital inmovilizado",
     campo: "kpis[key='detenido']", metrica: "capital", eje: "sku", periodo: "foto de inventario a hoy",
-    universo: { kind: "estado", label: "los SKU que el detector clasifica como capital frenado", cierraCon: "diagnoseInventario sobre doh/rotación" },
+    universo: { kind: "estado", label: "los SKU inmovilizados (crítico ∪ sobrestock), con el crítico distinguido", cierraCon: "diagnoseInventario sobre doh/rotación" },
     comparacion: "estado", estatusDefault: "indicado", estatusCampo: null, controles: ["drill"],
-    // `frenado`, no `capital_frenado`: el VOCABULARIO del arg es {frenado|quiebre|sobrestock} y `capital_frenado` es
-    // el nombre INTERNO del estado al que ese focus mapea (specRetrieval.js:_FOCUS_ESTADO). Escribir el estado en vez
-    // del focus caía al default `|| "capital_frenado"` en SILENCIO — acá coincidía por casualidad, en kpi-quiebres no.
     evidencia: [{ tool: "inventoryStatus", args: {}, focus: "frenado" }],
     sinTool: null,
-    concordancia: { estado: "reconciled",
-      razon: "con el focus `frenado` la tool emite «capital inmovilizado», el mismo subconjunto que cuenta la card, y concuerda exacto en el cruce del gate de concordancia. Con el focus mal escrito caía al default y respaldaba esta cabecera con otro estado — por eso el arg va declarado" },
+    concordancia: { estado: "divergent", campos: ["value"], toolsQueNoReconcilian: ["inventoryStatus"],
+      razon: "la card muestra el UNIVERSO inmovilizado (crítico ∪ sobrestock, decisión del owner §7.3·31/34a); `inventoryStatus{focus:'frenado'}` solo conoce el subconjunto crítico —la misma fórmula, otro universo— hasta que specRetrieval.js migre a `jerarquiaInventario()` (etapa 4 del plan de inventario, `diseno_inventario/DISENO.md` §8). Medido: el universo siempre es ≥ el crítico solo, así que la card nunca puede leer MENOS que lo que la tool afirma" },
     _provisional: true,
   },
   "capital/01/kpi-quiebres": {
@@ -573,12 +579,32 @@ export const VIEW_MANIFEST = {
     vista: "capital", seccion: "01", tipo: "tabla", label: "El capital por corte",
     campo: "cortes", universoCampo: "cortes.vistas", metrica: "capital", eje: "bodega",
     periodo: "foto de inventario a hoy",
-    universo: { kind: "eje", label: "el capital repartido por bodega, familia o edad", cierraCon: "cada corte declara si reconcilia con el total" },
+    // decisión del owner 2026-09-28, §7.3·34c: el corte "edad" (tramos fijos de días sin venta) se RETIRA de acá
+    // — la experiencia aprobada para "Días sin venta" es un ranking con capital acumulado, no una partición en
+    // tramos, y vive en su propia entrada del manifiesto (`capital/01/dias-sin-venta`, más abajo). `cortes.vistas`
+    // pasa de 3 a 2 (bodega, familia).
+    universo: { kind: "eje", label: "el capital repartido por bodega o familia", cierraCon: "cada corte declara si reconcilia con el total" },
     comparacion: null, estatusDefault: "indicado", estatusCampo: null, controles: ["corte"],
     evidencia: [{ tool: "queryMetric", args: { metric: "capital", dimension: "bodega" } }],
     sinTool: null,
-    concordancia: { estado: "unsupported", campos: ["vistas[key='familia']", "vistas[key='edad']"],
-      razon: "el corte por BODEGA concuerda exacto con `queryMetric{capital, bodega}` en el cruce del gate de concordancia. Los otros dos cortes que este control ofrece no tienen equivalente en el oráculo: `metricRegistry` declara la métrica `capital` sólo sobre los ejes `sku` y `bodega`, mientras que Sentrix arma el corte por FAMILIA desde `skuInventario.sfamilia` y el corte por EDAD desde tramos de días sin venta. Los tres reparten el mismo total, pero ADI sólo puede demostrar uno" },
+    concordancia: { estado: "unsupported", campos: ["vistas[key='familia']"],
+      razon: "el corte por BODEGA concuerda exacto con `queryMetric{capital, bodega}` en el cruce del gate de concordancia. El corte por FAMILIA no tiene equivalente en el oráculo: `metricRegistry` declara la métrica `capital` sólo sobre los ejes `sku` y `bodega`, mientras que Sentrix arma este corte desde `skuInventario.sfamilia`. Los dos reparten el mismo total, pero ADI sólo puede demostrar uno" },
+    _provisional: true,
+  },
+  /* decisión del owner 2026-09-28, §7.3·34c — experiencia APROBADA para "Días sin venta": un ranking (lo que
+   * lleva más tiempo sin venderse primero), con el capital acumulado SIN CORTES, el cruce con inmovilizado y su
+   * procedencia, y la nota de umbral cuando la empresa no lo declaró. Nueva entrada — antes vivía DENTRO de
+   * `cortes.vistas` como un corte más (tramos fijos 0-30/31-60/61-90/>90, retirado). */
+  "capital/01/dias-sin-venta": {
+    vista: "capital", seccion: "01", tipo: "tabla", label: "Días sin venta",
+    campo: "diasSinVenta", universoCampo: "diasSinVenta.filas", metrica: "capital", eje: "sku",
+    periodo: "foto de inventario a hoy",
+    universo: { kind: "negocio", label: "todo el inventario, ordenado por días sin venta", cierraCon: "el acumulado del ranking cierra con el capital total" },
+    comparacion: null, estatusDefault: "indicado", estatusCampo: null, controles: [],
+    evidencia: [{ tool: "inventoryStatus", args: {}, focus: "estado" }],
+    sinTool: null,
+    concordancia: { estado: "unsupported", campos: ["filas", "frenado"],
+      razon: "el TOTAL del ranking concuerda con `inventoryStatus{focus:'estado'}` (el mismo capital total). El ranking por días sin venta y el acumulado no tienen tool equivalente: `inventoryStatus` no ordena por días sin venta ni acumula fila a fila. El veredicto de venta frenada (con umbral declarado) tampoco tiene tool que lo autorice todavía: specRetrieval.js migra a `jerarquiaInventario()` en la etapa 4 del plan de inventario (`diseno_inventario/DISENO.md` §8)" },
     _provisional: true,
   },
   "capital/01/focos": {
@@ -613,7 +639,9 @@ export const VIEW_MANIFEST = {
     vista: "capital", seccion: "01", tipo: "lista", label: "Qué liquidar",
     campo: "liquidar", universoCampo: "liquidar.filas", metrica: "capital", eje: "sku",
     periodo: "foto de inventario a hoy",
-    universo: { kind: "estado", label: "los SKU con capital inmovilizado", cierraCon: "diagnoseInventario" },
+    // decisión ·34a: antes "los SKU con capital inmovilizado" — impreciso ahora que «inmovilizado» nombra el
+    // universo (crítico ∪ sobrestock): esta lista sigue acotada al CRÍTICO (no rota), no al universo entero.
+    universo: { kind: "estado", label: "los SKU en inmovilizado crítico (no rotan)", cierraCon: "diagnoseInventario" },
     comparacion: "estado", estatusDefault: "indicado", estatusCampo: null, controles: [],
     evidencia: [{ tool: "inventoryStatus", args: {}, focus: "frenado" }],   // vocabulario del arg, no el estado
     sinTool: null,

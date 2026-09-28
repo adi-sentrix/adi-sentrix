@@ -27,8 +27,8 @@
  * Registro EJECUTIVO y lenguaje formal en todo texto emitido (_registro_gate · benchmark, no vara).
  * Puro · client-side · CERO cálculo nuevo (agrupar y formatear lo que el motor ya afirma) · motor sellado intacto. */
 import { applyScenarioToSkuInventario } from "../../engine/scenarios.js";
-import { diagnoseInventario, concentracion } from "../diagnosis/economicDiagnosis.js";
-import { POLICY } from "../../config/businessPolicy.js";
+import { diagnoseInventario, jerarquiaInventario, concentracion } from "../diagnosis/economicDiagnosis.js";
+import { POLICY, ETIQUETA_ORIGEN } from "../../config/businessPolicy.js";
 import { rotacionPonderada } from "./headline.js";   // la ÚNICA rotación media del producto (ponderada por capital)
 import { transferenciaCapability } from "./capability.js";   // la ÚNICA cuenta de "¿se puede evaluar transferir?"
 // Solo para saber A QUIÉN le calza un producto detenido. De acá NO entra plata: ver `_compradoresDe`.
@@ -62,13 +62,47 @@ export const CAPITAL_ESTADOS = {
     def: "Rota rápido (" + POLICY.quiebreRotMin + "x o más) y le quedan " + POLICY.quiebreDohMax + " días de inventario o menos: el stock no alcanza hasta la próxima compra." },
   sobrestock:      { label: "sobrestock",      color: "cyan",  ask: "¿Dónde sobra inventario?",
     def: "Vende, pero le quedan entre " + POLICY.sobrestockDohMin + " y " + POLICY.dohMax + " días de inventario: capital inmovilizado de más." },
-  /* R5 del examen 1 del agente (2026-08-31): la card dice FRENADO — su dinero es el subconjunto crítico
-   * (rotación bajo piso / DOH sobre techo), no el inmovilizado AMPLIO (estado ≠ Activo, otra cifra). Doctrina
-   * textual del owner (Examen 2): «usá la palabra que corresponde a la cifra que estés citando». La clave
-   * interna `capital_frenado`/`detenido` no cambia (campo de API, decisión 6). */
-  capital_frenado: { label: "frenado",     color: "amber", ask: "¿Dónde está frenado mi capital?",
-    def: "Sin rotación según tu benchmark (rotación bajo " + POLICY.rotacionMin + "x o más de " + POLICY.dohMax + " días de inventario): capital que no trabaja." },
+  /* decisión del owner 2026-09-28, §7.3·34a: «frenado» deja de nombrar esta regla en SUPERFICIE — pasa a
+   * «inmovilizado crítico» (antes: label "frenado" · ask "¿Dónde está frenado mi capital?"). Es el mismo tramo de
+   * siempre (rotación bajo piso / DOH sobre techo) — ahora nombrado como lo que es: el subconjunto CRÍTICO dentro
+   * de INMOVILIZADO (= este tramo ∪ sobrestock, decisión ·31). La CLAVE interna `capital_frenado`/`detenido` NO
+   * cambia (campo de API, decisión ·31). `def` queda como fallback ESTÁTICO sin procedencia (compatibilidad de
+   * quien lea `CAPITAL_ESTADOS` directo); la definición CON procedencia del criterio la arma `_defConProcedencia()`
+   * más abajo, a partir de `jerarquiaInventario().umbrales` — es la que usa la pantalla (decisión ·32b). */
+  capital_frenado: { label: "inmovilizado crítico", color: "amber", ask: "¿Dónde está inmovilizado mi capital?",
+    def: "Sin rotación según el criterio de inventario (rotación bajo " + POLICY.rotacionMin + "x o más de " + POLICY.dohMax + " días de inventario): capital que no trabaja." },
 };
+/* ── PROCEDENCIA DEL CRITERIO, EN PROSA (decisión del owner §7.3·32b: «ningún veredicto debe esconder de dónde
+ * proviene su criterio» — la MISMA procedencia llega al indicador, a la pantalla y a la Entrega). `U` es
+ * `jerarquiaInventario().umbrales` (economicDiagnosis.js/businessPolicy.js, ya con valor Y origen resueltos). Si
+ * los tres umbrales del detector (piso de rotación · techo de días · umbral de sobrestock) vienen del MISMO
+ * origen, se nombra una vez; si difieren, se nombran por separado (diseño §4.1). */
+function _procedenciaCriterio(U) {
+  const claves = [["rotacionMin", "piso de rotación"], ["dohMax", "techo de días de inventario"], ["sobrestockDohMin", "umbral de sobrestock"]];
+  const origenes = claves.map(([k]) => U[k].origen);
+  if (origenes.every((o) => o === origenes[0])) return ETIQUETA_ORIGEN[origenes[0]];
+  // orígenes distintos: se nombran por separado, pero AGRUPADOS — si dos comparten origen no se repite la
+  // etiqueta dos veces (diseño §4.1: "se nombran por separado", no "cada uno su propia frase aunque coincidan").
+  const porOrigen = new Map();
+  for (const [i, [, label]] of claves.entries()) {
+    const o = origenes[i];
+    if (!porOrigen.has(o)) porOrigen.set(o, []);
+    porOrigen.get(o).push(label);
+  }
+  return [...porOrigen.entries()].map(([o, labels]) => `${labels.join(" y ")}: ${ETIQUETA_ORIGEN[o]}`).join(" · ");
+}
+// la definición CON procedencia — la que usa la pantalla (tramos, marca de crítico, movimiento 01). El fallback
+// estático de CAPITAL_ESTADOS[e].def (arriba) sigue existiendo para quien lea el catálogo sin pasar por acá.
+function _defConProcedencia(estado, U) {
+  const proc = _procedenciaCriterio(U);
+  const TXT = {
+    capital_sano: `Rota dentro del criterio de inventario (rotación sobre ${U.rotacionMin.valor}x y menos de ${U.dohMax.valor} días de inventario) — capital trabajando. Criterio ${proc}.`,
+    riesgo_quiebre: `Rota rápido (${U.quiebreRotMin.valor}x o más) y le quedan ${U.quiebreDohMax.valor} días de inventario o menos: el stock no alcanza hasta la próxima compra.`,
+    sobrestock: `Vende, pero le quedan entre ${U.sobrestockDohMin.valor} y ${U.dohMax.valor} días de inventario: capital inmovilizado de más. Criterio ${proc}.`,
+    capital_frenado: `Sin rotación: rotación bajo ${U.rotacionMin.valor}x o más de ${U.dohMax.valor} días de inventario (inmovilizado crítico). Criterio ${proc}.`,
+  };
+  return TXT[estado] || (CAPITAL_ESTADOS[estado] || {}).def || "";
+}
 // LAS CUATRO ACCIONES PERMITIDAS, textuales del owner (2026-08-08, decisión 9) · una por estado y ninguna otra.
 // El detenido dice EVALUAR una salida: que un SKU no rote no prueba que haya que rematarlo.
 const ACCION_POR_ESTADO = {
@@ -78,20 +112,33 @@ const ACCION_POR_ESTADO = {
 const _ORDEN = ["capital_sano", "riesgo_quiebre", "sobrestock", "capital_frenado"];
 const _RANK = { capital_frenado: 0, riesgo_quiebre: 1, sobrestock: 2, capital_sano: 3 };
 
-// el diagnóstico del motor + el join con la alerta del dato (crítico) · la ÚNICA entrada de todo el módulo
+// el diagnóstico del motor + la jerarquía única (inmovilizado/crítico/frenado con procedencia) + el join con la
+// alerta del dato · la ÚNICA entrada de todo el módulo. `J` es `jerarquiaInventario()` (economicDiagnosis.js,
+// diseño §2): NO recalcula el estado — envuelve `diagnoseInventario` (que sigue viviendo en `D`, para lo que ya
+// consumía el motor directo). Sin `consulta`: esta cara no recibe todavía un umbral planteado en el turno (eso
+// es contrato del encargo/agente, etapa 4-5); el umbral de frenado sale del perfil de la empresa o queda
+// sin_declarar, nunca de un default de la cara.
 function _diag(scenario) {
   const inv = applyScenarioToSkuInventario(scenario || ESCENARIO_INICIAL) || [];
   const D = diagnoseInventario(inv, {});
+  const J = jerarquiaInventario(inv);
   const bySku = {}; for (const r of inv) bySku[r.sku] = r;
-  return { inv, D, bySku };
+  return { inv, D, J, bySku };
 }
 
 /* buildMesaCapital(scenario) → { kpis, mapa, focos, reponer, liquidar, simulaciones, alertas } · todo formateado */
 export function buildMesaCapital(scenario) {
-  const { inv, D, bySku } = _diag(scenario);
+  const { inv, D, J, bySku } = _diag(scenario);
   const dist = (e) => D.dist[e] || { usd: 0, count: 0, pct: 0 };
   const frenado = dist("capital_frenado"), quiebre = dist("riesgo_quiebre"), sobre = dist("sobrestock"), sano = dist("capital_sano");
-  const criticos = D.perSku.filter((s) => s.estado === "capital_frenado" && bySku[s.sku] && bySku[s.sku].alerta === "crit").length;
+  /* decisión del owner 2026-09-28, §7.3·34a: la alerta del archivo (`alerta === "crit"`) deja de llamarse
+   * «crítico» en superficie — pasa a «con alerta en el archivo». Antes esta variable se llamaba `criticos` y
+   * MEZCLABA dos condiciones (capital_frenado ∧ alerta==='crit'), aunque el manifiesto (`viewManifest.js`,
+   * "capital/01/alertas") ya declaraba esa pata como "los SKU críticos DEL DETECTOR" — sin la alerta del archivo.
+   * Ahora que «crítico» tiene una sola definición (el tramo `capital_frenado` = INMOVILIZADO CRÍTICO, `J.critico`),
+   * la severidad de las cards se decide con esa cifra, sin la alerta del archivo. La alerta del archivo se
+   * conserva como HECHO propio de cada fila (`conAlertaArchivo`, más abajo) con su rótulo nuevo. */
+  const conAlertaArchivo = (s) => !!(bySku[s.sku] && bySku[s.sku].alerta === "crit");
   // LA ROTACIÓN MEDIA VIVE EN UN SOLO LUGAR (owner 2026-08-09, decisión 6 · hallazgo E): `_rotPond` era local de este
   // builder, así que la tabla de drill de más abajo —y la tool del oráculo— podían tener su propia idea de qué
   // significa "rotación media". Tenían: 6,0x acá y 5,8x ahí, con el mismo nombre y en la misma cara. Ahora la
@@ -104,23 +151,35 @@ export function buildMesaCapital(scenario) {
     key: e, label: CAPITAL_ESTADOS[e].label, color: CAPITAL_ESTADOS[e].color,
     usd: dist(e).usd, usdFmt: _money(dist(e).usd), n: dist(e).count,
     pct: D.total ? (dist(e).usd / D.total) * 100 : 0,
-    ask: CAPITAL_ESTADOS[e].ask, def: CAPITAL_ESTADOS[e].def,
+    ask: CAPITAL_ESTADOS[e].ask, def: _defConProcedencia(e, J.umbrales),
   }));
-  const _frase = { capital_sano: "trabajan en rango", riesgo_quiebre: "con quiebre próximo", sobrestock: "en sobrestock", capital_frenado: "frenados" };   // R5: el adjetivo sigue a la cifra
+  // decisión del owner 2026-09-28, §7.3·34a: antes → "frenados"; ahora → "en inmovilizado crítico" ("frenado" ya
+  // no nombra esta regla en superficie). El resto de las frases sigue a la cifra igual que antes.
+  const _frase = { capital_sano: "trabajan en rango", riesgo_quiebre: "con quiebre próximo", sobrestock: "en sobrestock", capital_frenado: "en inmovilizado crítico" };
   const lectura = `De tus ${_money(D.total)} en inventario: ${tramos.map((t) => `${t.usdFmt} ${_frase[t.key]}`).join(" · ")}.`;
-  const mapa = { totalUsd: D.total, totalFmt: _money(D.total), lectura, tramos };
+  // decisión del owner §7.3·32b («ningún veredicto esconde de dónde viene su criterio»): la MISMA procedencia que
+  // usan los tramos y la pestaña, UNA vez, para el movimiento 01 completo (antes vivía hardcodeada en
+  // SentrixPanel.jsx contra `POLICY.rotacionMin`/`dohMax` directo — cero cálculo en React, la frase se arma acá).
+  const defMovimiento01 = `El mapa del capital: cuánto trabaja en rango, cuánto está por cortarse (quiebre próximo), cuánto sobra (sobrestock) y cuánto está inmovilizado — los estados del motor contra el criterio de inventario (${_procedenciaCriterio(J.umbrales)}: rotación ${J.umbrales.rotacionMin.valor}x · ${J.umbrales.dohMax.valor} días de inventario). Los tramos suman exacto tu capital total. Toca un tramo, la leyenda o un KPI y ADI abre esa historia al lado.`;
+  const mapa = { totalUsd: D.total, totalFmt: _money(D.total), lectura, tramos, defMovimiento01 };
 
   // ── KPIs DE LA CARA · semáforo del dato (los estados del motor — cero umbral nuevo) + su pregunta ──
   const kpis = [
     { key: "capital", label: "Capital total", value: _money(D.total),
-      estado: !frenado.usd ? "verde" : criticos ? "rojo" : "ambar",
+      estado: !J.inmovilizado.usd ? "verde" : J.critico.usd ? "rojo" : "ambar",
       linea: `${sano.pct}% en rango · ${inv.length} SKU en ${[...new Set(inv.map((r) => r.bodega))].length} bodegas`,
       ask: "Ver todo el inventario" },
-    // R5 (2026-08-31): «Capital frenado» — el value ES frenado.usd; la palabra sigue a la cifra (doctrina del owner)
-    { key: "detenido", label: "Capital frenado", value: _money(frenado.usd),
-      estado: !frenado.usd ? "verde" : criticos ? "rojo" : "ambar",
-      linea: frenado.usd ? `${frenado.count} SKU sin rotación${criticos ? ` · ${criticos} crítico${criticos > 1 ? "s" : ""}` : ""}` : "sin capital frenado material",
-      ask: frenado.usd ? "¿Dónde está frenado mi capital?" : "Ver todo el inventario" },
+    /* decisión del owner 2026-09-28, §7.3·31/34a: la card pasa de «Capital frenado» (solo el tramo crítico) a
+     * «Capital inmovilizado» (el UNIVERSO completo, crítico ∪ sobrestock — J.inmovilizado). Antes: value =
+     * frenado.usd (el crítico solo) · linea "{n} SKU sin rotación · {n} crítico(s)" · ask "¿Dónde está frenado mi
+     * capital?". Ahora: value = J.inmovilizado.usd (el universo) · linea distingue el subconjunto crítico dentro
+     * del universo (diseño §4.1, Card 2) · ask apunta al universo. La clave interna `detenido` NO cambia. */
+    { key: "detenido", label: "Capital inmovilizado", value: _money(J.inmovilizado.usd),
+      estado: !J.inmovilizado.usd ? "verde" : J.critico.usd ? "rojo" : "ambar",
+      linea: !J.inmovilizado.usd ? "sin capital inmovilizado material"
+        : J.critico.n ? `${J.inmovilizado.n} SKU · de ellos ${J.critico.n} en situación crítica (${_money(J.critico.usd)})`
+        : `${J.inmovilizado.n} SKU · ninguno en situación crítica`,
+      ask: J.inmovilizado.usd ? "¿Dónde está inmovilizado mi capital?" : "Ver todo el inventario" },
     // ⚠️ EN LA MISMA UNIDAD QUE SUS HERMANAS (owner 2026-08-09). Antes el titular era "3 SKU" mientras las otras
     // tres decían plata: cuatro cards que se leen juntas y no se podían comparar — y la cifra más grande de la
     // pantalla ($36K en riesgo, MÁS que los $33K detenidos) quedaba escondida detrás de un conteo.
@@ -132,13 +191,19 @@ export function buildMesaCapital(scenario) {
     // 2 SKU/$22K — mientras la línea habla del criterio de DETENCIÓN — 3 SKU/$33K: dos cifras para un click)
     { key: "rotacion", label: "Rotación media", value: `${rotMedia.toFixed(1)}x`,
       estado: rotMedia >= POLICY.rotacionMin ? "verde" : "rojo",
-      linea: `ponderada por capital · benchmark ${POLICY.rotacionMin}x — por debajo, el capital se considera frenado`,
-      ask: frenado.usd ? "¿Dónde está frenado mi capital?" : "Ver todo el inventario" },
+      // decisión ·34a: antes → "…por debajo, el capital se considera frenado" · ask "¿Dónde está frenado mi
+      // capital?". Ahora nombra "inmovilizado crítico" (el ask reusa la forma ya probada contra `coerceFloor`,
+      // ver `_mesa_capital_gate.mjs` EQUIVALENTES — no se inventa una frase nueva sin probar la entrada).
+      linea: `ponderada por capital · criterio de rotación ${POLICY.rotacionMin}x — por debajo, el capital pasa a inmovilizado crítico`,
+      ask: J.critico.usd ? "¿Dónde está inmovilizado mi capital?" : "Ver todo el inventario" },
   ];
 
   // ── 02 · POR QUÉ PASA · los focos de capital con su $ (la dist del motor · solo los materiales) ──
   const focos = [];
-  if (frenado.usd) focos.push({ key: "detenido", usdFmt: _money(frenado.usd), label: `frenado en ${frenado.count} SKU sin rotación`, ask: "Por qué el capital está frenado" });   // R5: la palabra sigue a la cifra
+  // decisión ·34a: antes → label "frenado en N SKU sin rotación" · ask "Por qué el capital está frenado". El ask
+  // reusa la forma ya probada («Por qué el capital está inmovilizado», EQUIVALENTES del gate); el label pasa a
+  // nombrar el tramo por lo que es: inmovilizado crítico.
+  if (frenado.usd) focos.push({ key: "detenido", usdFmt: _money(frenado.usd), label: `inmovilizado crítico en ${frenado.count} SKU sin rotación`, ask: "Por qué el capital está inmovilizado" });
   if (quiebre.usd) focos.push({ key: "quiebre", usdFmt: _money(quiebre.usd), label: `en ${quiebre.count} SKU con quiebre próximo`, ask: "¿Qué reponer por quiebre?" });
   if (sobre.usd) focos.push({ key: "sobrestock", usdFmt: _money(sobre.usd), label: `en sobrestock · demasiados días de inventario`, ask: "¿Dónde sobra inventario?" });
 
@@ -158,7 +223,13 @@ export function buildMesaCapital(scenario) {
     rotacion: _r1(s.rotacion), rotacionFmt: `${_r1(s.rotacion)}x`, doh: Math.round(s.doh), dohFmt: `${Math.round(s.doh)}d`,
     stockUnd: (bySku[s.sku] || {}).stockUnd ?? null,
     diasSinVenta: typeof s.diasSinVenta === "number" ? s.diasSinVenta : null,
-    critico: !!(bySku[s.sku] && bySku[s.sku].alerta === "crit") });
+    // decisión ·34a: en SUPERFICIE (mesaCapital.js/SentrixPanel.jsx) el rótulo pasa de "· crítico" a "· con
+    // alerta en el archivo" — «crítico» queda solo para inmovilizado crítico. `conAlertaArchivo` es el campo
+    // que esta cara usa para SU texto. `critico` se CONSERVA además, byte-idéntico, porque `lecturaDeCuadro.js`
+    // (fuera de esta etapa: es el puente genérico cuadro→agente, no la pantalla) lo lee por ese nombre para su
+    // propia señal narrativa — tocar ese archivo es etapa 4/5, no esta. Las dos claves valen lo mismo; ninguna
+    // se lee dos veces con dos verdades.
+    critico: conAlertaArchivo(s), conAlertaArchivo: conAlertaArchivo(s) });
   // QUIEBRE PRÓXIMO · ordenado por urgencia real: menos días de inventario primero. Es el que se queda sin stock
   // antes, y eso lo dice su propio dato — no la venta de otra tabla.
   const _quiebreFilas = D.perSku.filter((s) => s.estado === "riesgo_quiebre").map(_fila)
@@ -181,8 +252,10 @@ export function buildMesaCapital(scenario) {
     accion: "Evaluar salida comercial.",
     n: _frenadoFilas.length, tope: Math.min(TOPE, _frenadoFilas.length), resto: Math.max(0, _frenadoFilas.length - TOPE),
     usd: frenado.usd, usdFmt: _money(frenado.usd),
+    // decisión ·34a: antes → "{$} frenados · …{· crítico si alerta del archivo}"; ahora → "{$} en inmovilizado
+    // crítico · …{· con alerta en el archivo}" (la alerta del archivo ya no se llama «crítico»).
     filas: _frenadoFilas.map((f) => ({ ...f,
-      linea: `${f.capitalFmt} frenados · rota ${f.rotacionFmt}${f.diasSinVenta ? ` · sin venta hace ${f.diasSinVenta}d` : ""}${f.critico ? " · crítico" : ""}`,
+      linea: `${f.capitalFmt} en inmovilizado crítico · rota ${f.rotacionFmt}${f.diasSinVenta ? ` · sin venta hace ${f.diasSinVenta}d` : ""}${f.conAlertaArchivo ? " · con alerta en el archivo" : ""}`,
       ask: `¿Cómo libero el capital de ${f.sku}?` })),
     ask: "¿Qué SKU libero primero?",
   };
@@ -190,10 +263,12 @@ export function buildMesaCapital(scenario) {
   // ── ¿Y SI…? · supuestos accionables (liberar YA lo cuantifica el composer de simulate · reponer es honesto:
   // la reposición no se proyecta en este pase — la pregunta abre lo probado del motor) ──
   const simulaciones = [];
+  // decisión ·34a: antes → "Si liberas el capital frenado…" · ask "¿Qué pasa si libero el capital frenado?". El
+  // ask reusa la forma ya probada («…capital inmovilizado», EQUIVALENTES del gate).
   if (frenado.usd) simulaciones.push({
     key: "liberar", delta: _money(frenado.usd),
-    texto: `Si liberas el capital frenado, ${_money(frenado.usd)} de caja vuelven a trabajar.`,
-    ask: "¿Qué pasa si libero el capital frenado?",
+    texto: `Si liberas el capital en inmovilizado crítico, ${_money(frenado.usd)} de caja vuelven a trabajar.`,
+    ask: "¿Qué pasa si libero el capital inmovilizado?",
   });
   if (quiebre.count) simulaciones.push({
     key: "reponer", delta: _money(quiebre.usd),
@@ -209,12 +284,18 @@ export function buildMesaCapital(scenario) {
    * de qué estado habla—, pero acá es un AGREGADO sin identidad de fila: leído por su nombre, "usd" dice «capital»
    * y el número es el capital INMOVILIZADO, no el total. Un lector automático que contraste esta cifra contra el
    * capital del inventario compara $33K contra $135K y los dos son correctos: el que miente es el nombre. */
+  /* decisión del owner 2026-09-28, §7.3·34a: `n` antes contaba `capital_frenado ∧ alerta==='crit'` (mezclaba el
+   * detector con la alerta del archivo, aunque el manifiesto ya declaraba esta pata como "los SKU críticos DEL
+   * DETECTOR" — sin la alerta). Ahora `n`/`inmovilizado` son EXACTAMENTE `J.critico` (inmovilizado crítico), sin
+   * la alerta del archivo — la cifra numérica no cambia frente al detector (`J.critico.usd === frenado.usd`, la
+   * misma que ya autoriza `inventoryStatus{focus:'frenado'}`), así que la concordancia declarada en
+   * `viewManifest.js` sigue firme. */
   const alertas = {
-    n: criticos, inmovilizado: frenado.usd, inmovilizadoFmt: _money(frenado.usd),
-    linea: criticos
-      ? `${criticos} SKU crítico${criticos > 1 ? "s" : ""} · ${_money(frenado.usd)} de capital frenado`
-      : frenado.usd ? `${_money(frenado.usd)} de capital inmovilizado · sin SKU críticos` : "Capital rotando en rango — sin alertas de inventario.",
-    ask: frenado.usd ? "¿Dónde está inmovilizado mi capital?" : "Ver todo el inventario",
+    n: J.critico.n, inmovilizado: J.critico.usd, inmovilizadoFmt: _money(J.critico.usd),
+    linea: J.critico.n
+      ? `${J.critico.n} SKU crítico${J.critico.n > 1 ? "s" : ""} · ${_money(J.critico.usd)} de capital inmovilizado crítico`
+      : "Capital rotando en rango — sin alertas de inventario.",
+    ask: J.critico.usd ? "¿Dónde está inmovilizado mi capital?" : "Ver todo el inventario",
   };
 
   /* ── 01 · EL VEREDICTO · la historia SELLADA por el owner (2026-08-08, decisión 8) ──────────────────────────
@@ -283,44 +364,106 @@ export function buildMesaCapital(scenario) {
     };
     return { key, label, filas, n: filas.length, suma, sumaFmt: _money(suma), reconcilia: suma === D.total, pareto };
   };
-  /* ── EL EJE DE TIEMPO · el MISMO capital partido por "desde cuándo" (owner 2026-08-09) ──────────────────────
-   * Es la partición ORTOGONAL a la de estados: las dos cubren el 100% del capital y se cruzan sin solaparse. Y es
-   * lo que convierte "detenido" de una categoría en una URGENCIA — que algo lleve 90 días quieto no es lo mismo
-   * que lleve 20, aunque el estado sea idéntico.
-   *
-   * ⚠️ SE LLAMA POR SU NOMBRE: son DÍAS SIN VENTA, no antigüedad en bodega. No hay fecha de recepción en el dato,
-   * así que no se puede decir cuánto lleva el stock almacenado. Llamarlo "aging" sería la trampa de «cobertura».
-   * ⚠️ Y NO ES UNA CAUSA: dice desde cuándo, no por qué. El por qué —obsolescencia, sobrecompra, temporada— sigue
-   * declarado como lo que el dato no permite afirmar. */
-  const _TRAMOS_EDAD = [[0, 30, "0–30 días"], [31, 60, "31–60 días"], [61, 90, "61–90 días"], [91, Infinity, "Más de 90 días"]];
-  for (const s of D.perSku) {
-    const d = typeof s.diasSinVenta === "number" ? s.diasSinVenta : 0;
-    s._edad = (_TRAMOS_EDAD.find(([lo, hi]) => d >= lo && d <= hi) || _TRAMOS_EDAD[0])[2];
-  }
-  const _corteEdad = () => {
-    const v = _corte("edad", "Días sin venta", "_edad");
-    // el orden es CRONOLÓGICO, no por capital: el eje es el tiempo y leerlo desordenado no dice nada
-    const rank = Object.fromEntries(_TRAMOS_EDAD.map(([, , l], i) => [l, i]));
-    v.filas.sort((a, b) => rank[a.nombre] - rank[b.nombre]);
-    for (const f of v.filas) f.enGrupo = false;   // el 80/20 no aplica a un eje de tiempo
-    const viejo = v.filas.filter((f) => rank[f.nombre] >= 2).reduce((a, f) => a + f.usd, 0);
-    v.pareto = { ...v.pareto,
-      lectura: viejo
-        ? `${_money(viejo)} llevan más de 60 días sin venderse — ${Math.round((viejo / D.total) * 100)}% de tu capital. La antigüedad dice desde cuándo, no por qué.`
-        : `Ningún capital lleva más de 60 días sin venderse.` };
-    return v;
-  };
   const cortes = {
     porDefecto: "bodega",
-    vistas: [_corte("bodega", "Bodegas", "bodega"), _corte("familia", "Familias", "familia"), _corteEdad()],
+    // decisión del owner 2026-09-28, §7.3·34c: EL CORTE "EDAD" (tramos fijos 0-30/31-60/61-90/>90) SE RETIRA de
+    // acá — la experiencia aprobada para "Días sin venta" ya no es una partición en tramos, es un RANKING con
+    // capital acumulado (ver `_diasSinVentaVista()` más abajo, expuesto como `diasSinVenta` en el objeto que
+    // devuelve `buildMesaCapital`, NO como un corte más de esta lista). `cortes.vistas` pasa de 3 a 2.
+    vistas: [_corte("bodega", "Bodegas", "bodega"), _corte("familia", "Familias", "familia")],
     // el detalle accionable por SKU: el mismo capital, fila por fila, con su estado
     detalle: D.perSku.map((s) => ({ nombre: s.sku, bodega: s.bodega, familia: s.familia,
       usd: s.capital, usdFmt: _money(s.capital), rotacionFmt: `${_r1(s.rotacion)}x`, dohFmt: `${Math.round(s.doh)}d`,
       diasSinVenta: typeof s.diasSinVenta === "number" ? s.diasSinVenta : null,
       estado: s.estado, estadoLabel: CAPITAL_ESTADOS[s.estado].label, estadoColor: CAPITAL_ESTADOS[s.estado].color,
       ask: `Profundiza en ${s.sku}` })).sort((a, b) => b.usd - a.usd),
-    nota: "Los tres cortes reparten el mismo capital: cambia el eje, no el total. Ninguno explica la causa — la bodega dice dónde está y los días dicen desde cuándo no se mueve.",
+    nota: "Los dos cortes reparten el mismo capital: cambia el eje, no el total. Ninguno explica la causa — la bodega dice dónde está.",
   };
+
+  /* ── DÍAS SIN VENTA · el ranking con su capital acumulado (owner 2026-09-28, §7.3·34c, experiencia APROBADA) ──
+   * Reemplaza el corte por tramos fijos de arriba (R4 del diseño, `diseno_inventario/DISENO.md` — el "60 universal"
+   * que el owner rechazó, §7.3·32a). La forma nueva:
+   *   · RANKING por días sin venta, lo que lleva MÁS tiempo primero (nunca tramos).
+   *   · Por fila, los HECHOS del período, en pasado, sin promedio ni frecuencia: el total vendido en el período
+   *     (`vendidoMes`, unidades — la venta comercial en $ no se importa a este módulo, ver el comentario del
+   *     import arriba) y la fecha de la última venta — que este dato declara como DÍAS sin venta, no como
+   *     calendario: "hoy" / "hace Nd", nunca inventado. Si un SKU vendió en el período pero sus días sin venta no
+   *     son coherentes con eso (más días sin venta que el largo del período que `vendidoMes` cubre), el contraste
+   *     NO se muestra y se dice por qué — nunca se fuerzan dos hechos contradictorios en la misma frase.
+   *   · El capital ACUMULADO se recorre SIN CORTES: la suma de capital de todas las filas hasta esa, en el orden
+   *     del ranking (cierra exacto con `D.total` en la última fila — lo verifica el gate).
+   *   · El cruce con INMOVILIZADO/CRÍTICO por fila, con la procedencia de su criterio (una vez, a nivel de vista).
+   *   · FRENADO se cruza por fila (`J.porSku[i].frenado`); si no hay umbral declarado, ninguna fila se marca — la
+   *     nota y la pregunta a ADI reemplazan el veredicto que el dato no autoriza (§7.3·32a: "nunca 60 días como
+   *     verdad de ADI"). Con umbral, se agrega el total y su procedencia.
+   *   · La nota de NATURALEZA DEL DATO es fija y vive en el módulo (parte de la DEFINICIÓN del dato, no una
+   *     advertencia aparte): estas cifras son historia, no pronóstico. */
+  // asumido de `vendidoMes` (unidades, el único campo de venta que este módulo importa): el período que ese campo
+  // cubre es un mes — mismo criterio que `motorKpi.js` usa para la precisión de `diasSinVenta` (comentario §6.1
+  // del diseño: "los días vienen con precisión de mes"). Un SKU con ventas EN el período no puede, a la vez,
+  // llevar más días sin vender que el propio período: eso es la incoherencia que este límite detecta.
+  const _DIAS_PERIODO = 31;
+  const _hechoVenta = (s) => {
+    const vend = typeof s.vendidoMes === "number" ? s.vendidoMes : null;
+    const dias = typeof s.diasSinVenta === "number" ? s.diasSinVenta : null;
+    const ultimaVentaTexto = dias == null ? "sin dato" : dias === 0 ? "hoy" : `hace ${dias}d`;
+    if (vend === 0) return { vendidoMes: 0, ultimaVentaTexto, coherente: true, texto: "Sin ventas registradas en el período." };
+    if (vend == null) return { vendidoMes: null, ultimaVentaTexto, coherente: true,
+      texto: dias == null ? "Sin dato de venta en el período." : `Última venta ${ultimaVentaTexto}.` };
+    const coherente = dias == null || dias <= _DIAS_PERIODO;
+    if (!coherente) return { vendidoMes: vend, ultimaVentaTexto, coherente: false,
+      texto: `${vend} unidades vendidas en el período, pero el dato marca ${dias} días sin venta: no son coherentes entre sí, así que no se muestra el contraste.` };
+    return { vendidoMes: vend, ultimaVentaTexto, coherente: true, texto: `${vend} unidades vendidas en el período · última venta ${ultimaVentaTexto}.` };
+  };
+  const _diasSinVentaVista = () => {
+    const byJ = {}; for (const s of J.porSku) byJ[s.sku] = s;
+    // ranking: lo que lleva MÁS tiempo sin venderse primero; los SKU sin el hecho (diasSinVenta no numérico) van
+    // al final, declarados — nunca se excluyen en silencio (siguen sumando el acumulado).
+    const orden = D.perSku.slice().sort((a, b) => {
+      const da = typeof a.diasSinVenta === "number" ? a.diasSinVenta : -1;
+      const db = typeof b.diasSinVenta === "number" ? b.diasSinVenta : -1;
+      return db - da;
+    });
+    let acumulado = 0;
+    const filas = orden.map((s) => {
+      const r = bySku[s.sku] || {};
+      const js = byJ[s.sku] || {};
+      acumulado += s.capital;
+      const hv = _hechoVenta(r);
+      return {
+        sku: s.sku, bodega: s.bodega, capital: s.capital, capitalFmt: _money(s.capital),
+        diasSinVenta: typeof s.diasSinVenta === "number" ? s.diasSinVenta : null,
+        sinDato: typeof s.diasSinVenta !== "number",
+        ...hv,
+        inmovilizado: !!js.inmovilizado, critico: !!js.critico,
+        situacion: js.critico ? "Crítico" : js.estado === "sobrestock" ? "Sobrestock" : null,
+        frenado: js.frenado === true ? "Frenada" : js.frenado === false ? "Con venta" : "Sin evaluar",
+        frenadoEvaluado: js.frenado !== "sin_evaluar",
+        acumuladoUsd: acumulado, acumuladoFmt: _money(acumulado),
+        acumuladoPct: D.total ? Math.round((acumulado / D.total) * 100) : 0,
+        ask: `Profundiza en ${s.sku}`,
+      };
+    });
+    const F = J.frenado;
+    return {
+      filas, n: filas.length, totalUsd: D.total, totalFmt: _money(D.total),
+      procedenciaInmovilizado: _procedenciaCriterio(J.umbrales),
+      // decisión ·32a/34c: con umbral declarado, el total y su procedencia; sin umbral, la nota que abre la
+      // conversación con ADI — nunca un veredicto ("no hay frenados") que el dato no autoriza.
+      frenado: F.evaluado
+        ? { evaluado: true, n: F.n, usd: F.usd, usdFmt: _money(F.usd), umbral: F.umbral,
+            procedencia: ETIQUETA_ORIGEN[F.umbral.origen],
+            nota: `umbral ${ETIQUETA_ORIGEN[F.umbral.origen]}: ${F.umbral.valor} días` }
+        : { evaluado: false },
+      notaUmbral: F.evaluado ? null
+        : "La empresa no ha declarado desde cuántos días sin venta considera frenado un producto. Por eso aquí se muestran los días de cada uno, sin veredicto.",
+      askUmbral: F.evaluado ? null : "¿Desde cuántos días lo considera frenado?",
+      // nota fija · parte de la DEFINICIÓN del dato (decisión ·34d: estándar semántico, no una lista de palabras
+      // prohibidas) — viaja SIEMPRE, con o sin umbral declarado.
+      notaNaturaleza: "Estas cifras describen lo que pasó en el período; no son un pronóstico ni indican cuándo volverá a venderse.",
+    };
+  };
+  const diasSinVenta = _diasSinVentaVista();
 
   /* ── LO QUE ESTA CARA NO PUEDE AFIRMAR, dicho en la vista ────────────────────────────────────────────────────
    * Se declaran, no se disimulan. La de transferencias va PRIMERA porque es la que el usuario va a esperar. */
@@ -370,8 +513,10 @@ export function buildMesaCapital(scenario) {
       filas: filas.slice(0, 5).map((x) => ({ ...x, pctFmt: `${x.pct}%` })),
       resto: Math.max(0, filas.length - 5) };
   };
+  const _byJ = {}; for (const s of J.porSku) _byJ[s.sku] = s;
   const _filaDrill = (s) => {
     const r = bySku[s.sku] || {};
+    const js = _byJ[s.sku] || {};
     return { sku: s.sku, bodega: s.bodega, familia: s.familia,
       estado: s.estado, estadoLabel: CAPITAL_ESTADOS[s.estado].label, estadoColor: CAPITAL_ESTADOS[s.estado].color,
       usd: s.capital, usdFmt: _money(s.capital), pctInv: _pctInv(s.capital),
@@ -381,7 +526,14 @@ export function buildMesaCapital(scenario) {
       diasSinVenta: typeof s.diasSinVenta === "number" ? s.diasSinVenta : null,
       margenPct: typeof r.margenPct === "number" ? r.margenPct : null,
       margenFmt: typeof r.margenPct === "number" ? `${r.margenPct}%` : "—",
-      critico: r.alerta === "crit",
+      // decisión ·34a: antes `critico` (nombre en pantalla "· crítico"); ahora `conAlertaArchivo`, con su rótulo
+      // nuevo "· con alerta en el archivo". Y el CRUCE con la jerarquía única (diseño §4.1, la pestaña):
+      // `inmovilizado`/`situacion` (Crítico | Sobrestock) y `venta` (Frenada | Con venta | Sin evaluar).
+      conAlertaArchivo: r.alerta === "crit",
+      inmovilizado: !!js.inmovilizado,
+      situacion: js.critico ? "Crítico" : s.estado === "sobrestock" ? "Sobrestock" : null,
+      venta: js.frenado === true ? "Frenada" : js.frenado === false ? "Con venta" : "Sin evaluar",
+      ventaEvaluada: js.frenado !== "sin_evaluar",
       accion: ACCION_POR_ESTADO[s.estado],
       ask: `Profundiza en ${s.sku}`,
       // ALERTAS VISUALES (owner): el capital grande se destaca, y la urgencia real también
@@ -400,28 +552,43 @@ export function buildMesaCapital(scenario) {
       orden: "de mayor a menor capital: arriba están los SKU que concentran tu inventario.",
       totalFmt: _money(D.total), n: _todas.length, faltan: [],
     },
+    /* decisión del owner 2026-09-28, §7.3·31/34a/34c: la pestaña SIGUE llamándose «Capital inmovilizado» y sigue
+     * siendo el drill de la card "detenido" — pero antes mostraba SOLO el crítico (`estado === "capital_frenado"`,
+     * frenado.usd/frenado.count) y ahora muestra el UNIVERSO completo (crítico ∪ sobrestock, `J.inmovilizado`),
+     * con el crítico distinguido como subconjunto (columna «Situación») y la procedencia de su criterio. Orden:
+     * crítico primero, después por capital (antes: solo por días sin venta, que ahora vive en su propia vista). */
     detenido: {
-      key: "detenido", titulo: "Capital inmovilizado", objetivo: "Qué capital no está trabajando y desde cuándo.",
+      key: "detenido", titulo: "Capital inmovilizado",
+      objetivo: "Qué capital no está trabajando, cuál es crítico y desde cuándo no vende.",
       // «nunca en dinero», no «nunca en plata»: la palabra está vetada en superficie (CLAUDE.md §4) y esta nota se
       // pinta bajo la tabla de compradores de la cara Capital. El punto que hace la frase —que los dos universos no
       // comparten unidad y por eso solo se muestra participación— queda idéntico.
       compradoresNota: "Quién compra hoy ese producto, por su peso en la venta del SKU. Es una ESTIMACIÓN por afinidad de marca y familia —no una transacción observada— y por eso va en participación, nunca en dinero: la venta y el inventario no se miden en la misma unidad.",
-      columnas: [_COL("sku", "SKU", "left"), _COL("diasSinVenta", "Días sin venta"), _COL("usd", "Valor inmovilizado"),
+      // «Venta» (Frenada | Con venta) solo aparece si hay umbral declarado (diseño §4.1): sin umbral ninguna fila
+      // tiene con qué evaluarse, y una columna llena de "Sin evaluar" es peor que no tener la columna — la nota
+      // de umbral (abajo, en `faltan`) hace ese trabajo.
+      columnas: [_COL("sku", "SKU", "left"), _COL("situacion", "Situación", "left"),
+        _COL("diasSinVenta", "Días sin venta"), _COL("usd", "Valor inmovilizado"),
         // «Margen inv.» y no «Margen» (owner 2026-08-10): este campo es skuInventario.margenPct, del universo de la
         // foto de inventario, y NO es el margen comercial que ADI cita para el mismo SKU (skusMargen.margen).
         // Difieren en 9 de 13 SKU, hasta 6pp (LG-AIR9000: 22% acá, 28% en la boleta), y con esa brecha el veredicto
         // material/no material contra el benchmark se da vuelta. Los dos universos NO reconcilian y no se los hace
         // reconciliar: se los distingue por nombre. La nota «del inventario» ya estaba, pero iba de subtítulo.
         _COL("margenPct", "Margen inv.", "right", "del inventario"), _COL("rotacion", "Rotación", "right", "declarada"),
-        _COL("bodega", "Bodega", "left"), _COL("accion", "Acción", "left")],
-      filas: _todas.filter((f) => f.estado === "capital_frenado")
-        .sort((a, b) => (b.diasSinVenta || 0) - (a.diasSinVenta || 0))
+        _COL("bodega", "Bodega", "left"),
+        ...(J.frenado.evaluado ? [_COL("venta", "Venta", "left")] : []),
+        _COL("accion", "Acción", "left")],
+      filas: _todas.filter((f) => f.inmovilizado)
+        .sort((a, b) => (b.situacion === "Crítico" ? 1 : 0) - (a.situacion === "Crítico" ? 1 : 0) || b.usd - a.usd)
         .map((f) => ({ ...f, compradores: _compradoresDe(f.sku) })),
-      orden: "por días sin venta: primero lo que lleva más tiempo quieto.",
-      totalFmt: _money(frenado.usd), n: frenado.count,
+      orden: "crítico primero; dentro de cada grupo, de mayor a menor capital.",
+      totalFmt: _money(J.inmovilizado.usd), n: J.inmovilizado.n,
+      criticoTotalFmt: _money(J.critico.usd), criticoN: J.critico.n,
+      procedenciaCriterio: _procedenciaCriterio(J.umbrales),
       faltan: [
         "Por qué se detuvo —obsolescencia, sobrecompra, temporada— no está en el dato y no se puede inferir sin historial de stock.",
         "Quiénes lo compraban y dejaron de comprar tampoco: no existe historia por cliente y producto, solo el total de cada cliente. Se enciende con el ERP, que trae la transacción con fecha.",
+        ...(J.frenado.evaluado ? [] : [diasSinVenta.notaUmbral]),
       ],
     },
     quiebres: {
@@ -504,14 +671,18 @@ export function buildMesaCapital(scenario) {
     vistas: [
       _vistaBarras("general", "Inventario general", () => true,
         "La barra mide capital; el número dentro son las unidades."),
-      _vistaBarras("inmovilizado", "Inmovilizado", (s) => s.estado === "capital_frenado",
-        "Solo el capital que no rota según tu benchmark — el mismo criterio del KPI de capital inmovilizado."),
+      // decisión ·31/34a: antes filtraba solo `capital_frenado` (el crítico); ahora el UNIVERSO (crítico ∪
+      // sobrestock), el mismo que cuenta la card "Capital inmovilizado" — las dos cifras vuelven a concordar
+      // (antes el filtro de esta barra y el KPI de arriba medían cosas distintas con el mismo nombre).
+      _vistaBarras("inmovilizado", "Inmovilizado", (s) => s.estado === "capital_frenado" || s.estado === "sobrestock",
+        "El capital que no rota o le sobran días de inventario — el mismo universo del KPI de capital inmovilizado."),
     ],
   };
 
-  return { veredicto, kpis, mapa, cortes, focos, reponer, liquidar, simulaciones, alertas, limitaciones, drill, barras,
+  return { veredicto, kpis, mapa, cortes, diasSinVenta, focos, reponer, liquidar, simulaciones, alertas, limitaciones, drill, barras,
     total: D.total, totalFmt: _money(D.total), n: D.perSku.length,
-    nBodegas: [...new Set(D.perSku.map((s) => s.bodega))].length };
+    nBodegas: [...new Set(D.perSku.map((s) => s.bodega))].length,
+    jerarquia: { inmovilizado: J.inmovilizado, critico: J.critico, sobrestock: J.sobrestock, frenado: J.frenado, umbrales: J.umbrales } };
 }
 
 /* ── CUADRO DE CAPITAL · la tabla hermana (eje SKU/bodega · columnas clásicas legibles · el cuadro de ventas NO
@@ -537,7 +708,10 @@ const COLS_CAPITAL = {
     { key: "stock", label: "Disponible", fmt: "int", sort: "desc" },
     { key: "capital", label: "Valorizado", fmt: "moneyk", sort: "desc", defKey: "Capital" },
     { key: "rotacion", label: "Rotación", fmt: "x", sort: "desc", defKey: "Rotación" },
-    { key: "criticos", label: "SKU crít.", fmt: "int", sort: "asc" },
+    // decisión del owner 2026-09-28, §7.3·34a: antes "SKU crít." (nombraba la alerta del archivo «crítico»);
+    // ahora "Con alerta" — «crítico» queda solo para inmovilizado crítico (capital_frenado). La CLAVE `criticos`
+    // no cambia (nadie la lee en pantalla).
+    { key: "criticos", label: "Con alerta", fmt: "int", sort: "asc" },
     { key: "estado", label: "Estado", fmt: "estado" },
     { key: "enJuego", label: "En juego $", fmt: "usd", sort: "desc", adv: true },
     { key: "accion", label: "Acción", fmt: "accion" },
@@ -572,11 +746,12 @@ export function buildCuadroCapital(eje = "sku", scenario = ESCENARIO_INICIAL) {
         rotacion: _r1(_mean(rs, (r) => r.rotacion)), criticos: crit,
         estado: est, estadoRank: _RANK[est],
         // el conteo va en la etiqueta para que «el peor estado» no se lea como «toda la bodega está así». Los SKU
-        // críticos siguen teniendo su propia columna («SKU crít.»): son un atributo del dato, no un estado del motor.
+        // con alerta en el archivo siguen teniendo su propia columna («Con alerta»): son un atributo del DATO, no
+        // un estado del motor — y ya no se llaman «críticos» en superficie (decisión ·34a).
         estadoLabel: `${E.label} (${nEnEse} de ${rs.length} SKU)`,
         estadoColor: E.color,
         enJuego: detUsd || null, alert: crit > 0 || detUsd > 0,
-        lectura: detUsd ? `${_money(detUsd)} inmovilizados en ${det.length} SKU sin rotación${crit ? ` · ${crit} crítico${crit > 1 ? "s" : ""}` : ""}` : null,
+        lectura: detUsd ? `${_money(detUsd)} inmovilizados en ${det.length} SKU sin rotación${crit ? ` · ${crit} con alerta en el archivo` : ""}` : null,
         accion: detUsd ? "evaluar salida comercial" : "sostener",
         accionAsk: detUsd ? `¿Cómo libero el capital inmovilizado en ${b}?` : `¿Cuánto capital tengo en ${b}?`,
       };
@@ -593,7 +768,7 @@ export function buildCuadroCapital(eje = "sku", scenario = ESCENARIO_INICIAL) {
         estado: s.estado, estadoRank: _RANK[s.estado], estadoLabel: E.label, estadoColor: E.color,
         enJuego: detenido ? r.stockUSD : null, alert: detenido || quiebre,
         lectura: detenido
-          ? `${_money(r.stockUSD)} inmovilizados${r.bodega ? ` en ${r.bodega}` : ""} · rotación ${_r1(r.rotacion)}x · ${Math.round(r.doh)}d de inventario${typeof r.diasSinVenta === "number" && r.diasSinVenta > 0 ? ` · sin venta hace ${r.diasSinVenta}d` : ""}${r.alerta === "crit" ? " · crítico" : ""}`
+          ? `${_money(r.stockUSD)} inmovilizados${r.bodega ? ` en ${r.bodega}` : ""} · rotación ${_r1(r.rotacion)}x · ${Math.round(r.doh)}d de inventario${typeof r.diasSinVenta === "number" && r.diasSinVenta > 0 ? ` · sin venta hace ${r.diasSinVenta}d` : ""}${r.alerta === "crit" ? " · con alerta en el archivo" : ""}`
           : quiebre ? `Rota ${_r1(r.rotacion)}x y le quedan ${Math.round(r.doh)}d de inventario — reposición antes del corte` : null,
         accion: detenido ? "evaluar salida comercial" : quiebre ? "revisar reposición" : s.estado === "sobrestock" ? "frenar o ajustar reposición" : "sostener",
         accionAsk: detenido ? `¿Cómo libero el capital de ${r.sku}?`

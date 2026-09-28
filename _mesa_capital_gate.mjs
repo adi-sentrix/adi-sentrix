@@ -15,7 +15,9 @@ fs.writeFileSync(entry, [
   'export { initTenant } from "./src/data/tenantStore.js";',
   'export { TENANT_DEMO } from "./src/data/tenants/demo.js";',
   'export { buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS } from "./src/adi/sentrix/mesaCapital.js";',
-  'export { diagnoseInventario } from "./src/adi/diagnosis/economicDiagnosis.js";',
+  // `jerarquiaInventario` (etapas 1-2, decisión del owner §7.3·31/32) — el ORÁCULO de la nueva sección (18),
+  // "Días sin venta": el cruce con inmovilizado/crítico/frenado de la pestaña se verifica CONTRA la fuente única.
+  'export { diagnoseInventario, jerarquiaInventario } from "./src/adi/diagnosis/economicDiagnosis.js";',
   'export { applyScenarioToSkuInventario } from "./src/engine/scenarios.js";',
   'export { composeSpecDiagnose } from "./src/adi/specRetrieval.js";',
   // decisión 13 · las OTRAS dos superficies que recomiendan sobre este mismo inventario
@@ -31,7 +33,7 @@ const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 // que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
 M.initTenant(M.TENANT_DEMO);
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
-const { buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, diagnoseInventario, applyScenarioToSkuInventario, composeSpecDiagnose,
+const { buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, diagnoseInventario, jerarquiaInventario, applyScenarioToSkuInventario, composeSpecDiagnose,
         buildControlRing, caminoEstructural, buildCapitalSignals, buildReadingFromSignals, transferenciaCapability, coerceFloor } = M;
 
 let pass = 0, fail = 0; const rotos = [];
@@ -104,8 +106,14 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
     ok(!m, `registro@${sc}`, m ? `«${m[0]}» en «${String(t).slice(0, 70)}»` : "");
   }
 
-  // (7) la pata de inventario del "En alerta" cuenta los MISMOS críticos del dato (frenado + alerta crit)
-  const critOracle = D.perSku.filter((s) => s.estado === "capital_frenado").filter((s) => { const r = inv.find((x) => x.sku === s.sku); return r && r.alerta === "crit"; }).length;
+  /* (7) la pata de inventario del "En alerta" cuenta los MISMOS críticos del dato · decisión del owner
+   * 2026-09-28, §7.3·34a: la alerta del archivo (`alerta === "crit"`) deja de llamarse «crítico» en superficie —
+   * ANTES: `critOracle` intersectaba `capital_frenado ∧ alerta==='crit'` (2 SKU en el demo bonanza/tensión) — una
+   * mezcla que el propio manifiesto (`viewManifest.js`, "capital/01/alertas") ya contradecía, declarando esta
+   * pata como "los SKU críticos DEL DETECTOR" sin mencionar la alerta del archivo. AHORA: «crítico» tiene una
+   * sola definición (inmovilizado crítico = `capital_frenado`, sin la alerta), así que el oráculo es directo:
+   * todos los SKU en ese estado (3 en el demo bonanza/tensión). */
+  const critOracle = D.perSku.filter((s) => s.estado === "capital_frenado").length;
   ok(mc.alertas.n === critOracle, `alertas-criticos@${sc}`, `pata ${mc.alertas.n} vs dato ${critOracle}`);
   // el campo se llama `inmovilizado` desde 2026-08-09 (decisión 6): la assertion es la MISMA —este dinero es el
   // subtotal del detector, no el capital del inventario— y ese es justo el motivo del nombre nuevo. Se llamaba
@@ -273,7 +281,8 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   const enPlata = mc.kpis.filter((k) => /^\$/.test(String(k.value))).length;
   ok(enPlata === 3, `kpis-misma-unidad@${sc}`, `${enPlata} de 4 cards en plata — las tres de capital deben serlo`);
   // Y CADA CARD ABRE EXACTAMENTE SU UNIVERSO: la tabla no puede traer filas de otro estado
-  const porEstado = { detenido: "capital_frenado", quiebres: "riesgo_quiebre" };
+  // "quiebres" sigue siendo UN estado (riesgo_quiebre) — sin cambio.
+  const porEstado = { quiebres: "riesgo_quiebre" };
   for (const [k, estado] of Object.entries(porEstado)) {
     const filas = mc.drill[k].filas;
     ok(filas.every((f) => f.estado === estado), `drill-${k}-solo-su-universo@${sc}`, `alguna fila no es ${estado}`);
@@ -281,6 +290,30 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
       `${filas.length} filas vs ${(D.dist[estado] || {}).count} del motor`);
     const suma = filas.reduce((a, f) => a + f.usd, 0);
     ok(suma === (D.dist[estado] || { usd: 0 }).usd, `drill-${k}-suma@${sc}`, `${suma} vs ${(D.dist[estado] || {}).usd}`);
+  }
+  /* "detenido" (la pestaña "Capital inmovilizado") · decisión del owner 2026-09-28, §7.3·31/34a/34c: ANTES el
+   * universo era SOLO `capital_frenado` (`filas.every(f => f.estado === "capital_frenado")`, completo contra
+   * `D.dist.capital_frenado.count`, suma contra `D.dist.capital_frenado.usd`). AHORA es el UNIVERSO ∪ (crítico ∪
+   * sobrestock), con el crítico distinguido por su columna «Situación» — la pestaña sigue llamándose «Capital
+   * inmovilizado» y muestra lo que su nombre promete, no solo el crítico. */
+  {
+    const filas = mc.drill.detenido.filas;
+    const esperadoEstado = new Set(["capital_frenado", "sobrestock"]);
+    ok(filas.every((f) => esperadoEstado.has(f.estado)), `drill-detenido-solo-su-universo@${sc}`,
+      `alguna fila no es capital_frenado ni sobrestock`);
+    const nEsperado = (D.dist.capital_frenado || { count: 0 }).count + (D.dist.sobrestock || { count: 0 }).count;
+    ok(filas.length === nEsperado, `drill-detenido-completo@${sc}`, `${filas.length} filas vs ${nEsperado} del motor (crítico ∪ sobrestock)`);
+    const suma = filas.reduce((a, f) => a + f.usd, 0);
+    const usdEsperado = (D.dist.capital_frenado || { usd: 0 }).usd + (D.dist.sobrestock || { usd: 0 }).usd;
+    ok(suma === usdEsperado, `drill-detenido-suma@${sc}`, `${suma} vs ${usdEsperado}`);
+    // el crítico sigue siendo exactamente el subconjunto capital_frenado — la contención por construcción
+    const criticoEsperado = (D.dist.capital_frenado || { count: 0 }).count;
+    ok(filas.filter((f) => f.situacion === "Crítico").length === criticoEsperado, `drill-detenido-critico-subconjunto@${sc}`,
+      `${filas.filter((f) => f.situacion === "Crítico").length} vs ${criticoEsperado}`);
+    // orden: crítico primero, después por capital
+    const rank = (f) => (f.situacion === "Crítico" ? 0 : 1);
+    ok(filas.every((f, i) => i === 0 || rank(filas[i - 1]) <= rank(f) && (rank(filas[i - 1]) < rank(f) || filas[i - 1].usd >= f.usd)),
+      `drill-detenido-orden@${sc}`, "crítico primero; dentro de cada grupo, de mayor a menor capital");
   }
   ok(mc.drill.capital.filas.length === D.perSku.length, `drill-capital-completo@${sc}`);
   // EL 80/20 · cabeza + cola cierran con el total del corte, igual que en Comercial
@@ -293,35 +326,90 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   }
 }
 
-/* ── (18) EL EJE DE TIEMPO · una segunda partición del mismo capital (owner 2026-08-09) ───────────────────────
- * Se evaluaron siete visualizaciones de dashboard logístico y esta fue la única que el dato sostiene y que aporta:
- * el mismo total partido por "desde cuándo", ortogonal a la partición por estado. Lo que el gate cuida es lo que
- * la vuelve honesta: que cierre exacto como los otros cortes, que se llame DÍAS SIN VENTA —no "antigüedad en
- * bodega", que exigiría una fecha de recepción que no existe— y que NO se presente como una causa. */
+/* ── (18) DÍAS SIN VENTA · el ranking con capital acumulado, SIN CORTES (decisión del owner 2026-09-28, §7.3·34c,
+ * experiencia APROBADA — reemplaza el corte por tramos fijos 0-30/31-60/61-90/>90 que vivía en `cortes.vistas`).
+ * ANTES: `mc.cortes.vistas` tenía 3 vistas (bodega, familia, "edad" con tramos fijos); el bloque de abajo
+ * verificaba que "edad" existiera, cerrara con el total, fuera cronológico y no prometiera antigüedad de bodega.
+ * AHORA: `mc.cortes.vistas` tiene 2 (bodega, familia — sin cambio de comportamiento) y "Días sin venta" vive en
+ * `mc.diasSinVenta`, con otra forma: un RANKING (no tramos) con el capital ACUMULADO al recorrerlo. Lo que este
+ * bloque cuida:
+ *   · el ranking está ordenado por días sin venta, descendente (lo que lleva más tiempo primero);
+ *   · el acumulado crece SIN CORTES y la última fila cierra exacto con el total del inventario;
+ *   · el cruce con inmovilizado/crítico por fila concuerda con `jerarquiaInventario` sobre las MISMAS filas;
+ *   · sin umbral declarado, NINGUNA fila se marca «Frenada» (nunca 60/90 días como verdad de ADI) y la nota +
+ *     la pregunta a ADI están declaradas; con umbral, el total y su procedencia concuerdan con `J.frenado`;
+ *   · los hechos del período (`vendidoMes`, `diasSinVenta`) salen de CAMPOS DEL DATO, nunca de texto a mano: se
+ *     verifica releyendo el dato crudo fila por fila — y la incoherencia (venta en el período con más días sin
+ *     venta que el período) se declara, nunca se fuerza un contraste que el propio dato contradice. */
 for (const sc of ["bonanza", "tension", "crisis"]) {
   const mc = buildMesaCapital(sc);
   const D = diagnoseInventario(applyScenarioToSkuInventario(sc) || [], {});
-  const edad = mc.cortes.vistas.find((v) => v.key === "edad");
-  ok(!!edad, `corte-edad-existe@${sc}`);
-  if (edad) {
-    ok(edad.suma === D.total, `corte-edad-cierra@${sc}`, `${edad.suma} vs ${D.total}`);
-    // ORDEN CRONOLÓGICO: un eje de tiempo leído por capital no dice nada
-    const orden = ["0–30 días", "31–60 días", "61–90 días", "Más de 90 días"];
-    const pos = edad.filas.map((f) => orden.indexOf(f.nombre));
-    ok(pos.every((v, i) => v >= 0 && (i === 0 || pos[i - 1] < v)), `corte-edad-cronologico@${sc}`, pos.join(","));
-    // SE LLAMA POR SU NOMBRE · "antigüedad/almacenado/aging" prometería una fecha de recepción que no existe
-    const txt = `${edad.label} ${edad.pareto.lectura} ${edad.filas.map((f) => f.nombre).join(" ")}`;
-    ok(/d[íi]as sin venta/i.test(edad.label), `corte-edad-nombre@${sc}`, `se llama «${edad.label}»`);
-    ok(!/almacenad|en bodega hace|aging|antig[üu]edad en/i.test(txt), `corte-edad-no-promete-almacenaje@${sc}`,
-      "sin fecha de recepción no se puede hablar de tiempo almacenado");
-    // NO ES UNA CAUSA · el bloque enmarca, no explica
-    ok(!/porque|se debe a|la causa/i.test(txt), `corte-edad-no-atribuye@${sc}`, txt.slice(0, 90));
-    ok(/no por qu[ée]|dice desde cu[áa]ndo/i.test(edad.pareto.lectura) || !/m[áa]s de 60/i.test(edad.pareto.lectura),
-      `corte-edad-declara-limite@${sc}`, "cuando afirma antigüedad, aclara que no explica");
+  const J = jerarquiaInventario(applyScenarioToSkuInventario(sc) || []);
+  const inv = applyScenarioToSkuInventario(sc) || [];
+  const byInv = {}; for (const r of inv) byInv[r.sku] = r;
+  const dsv = mc.diasSinVenta;
+  ok(!!dsv, `dias-sin-venta-existe@${sc}`);
+  // los DOS cortes que quedan (bodega, familia) siguen cerrando exacto — "edad" ya no es uno de ellos
+  ok(mc.cortes.vistas.length === 2 && mc.cortes.vistas.every((v) => v.suma === D.total)
+    && mc.cortes.vistas.every((v) => v.key !== "edad"),
+    `dos-cortes-cierran@${sc}`, mc.cortes.vistas.map((v) => `${v.key}:${v.suma}`).join(" "));
+  if (dsv) {
+    ok(dsv.totalUsd === D.total, `dias-sin-venta-total@${sc}`, `${dsv.totalUsd} vs ${D.total}`);
+    ok(dsv.n === D.perSku.length, `dias-sin-venta-n@${sc}`, `${dsv.n} vs ${D.perSku.length}`);
+    // orden: lo que lleva MÁS tiempo sin venderse primero (nulos al final, declarados con `sinDato`)
+    const dias = dsv.filas.map((f) => (f.sinDato ? -1 : f.diasSinVenta));
+    ok(dias.every((v, i) => i === 0 || dias[i - 1] >= v), `dias-sin-venta-orden@${sc}`, dias.join(","));
+    // EL ACUMULADO CIERRA SIN CORTES: suma corrida de `capital`, byte-exacta, hasta el total en la última fila
+    let acc = 0; let ok_acc = true;
+    for (const f of dsv.filas) { acc += f.capital; if (f.acumuladoUsd !== acc) ok_acc = false; }
+    ok(ok_acc, `dias-sin-venta-acumulado-corre@${sc}`, "el acumulado debe crecer exactamente con el capital de cada fila, sin cortes");
+    ok(dsv.filas[dsv.filas.length - 1].acumuladoUsd === D.total, `dias-sin-venta-acumulado-cierra@${sc}`,
+      `${dsv.filas[dsv.filas.length - 1].acumuladoUsd} vs ${D.total}`);
+    // NUNCA TRAMOS FIJOS NI LA FRASE VIEJA: ni en las filas ni en las notas de la vista
+    const textoVista = JSON.stringify(dsv);
+    ok(!/0–30|31–60|61–90|[Mm]ás de 90 d[ií]as|llevan m[áa]s de 60 d[ií]as sin venderse/.test(textoVista),
+      `dias-sin-venta-sin-tramos-fijos@${sc}`, "los tramos fijos y la frase «$X llevan más de 60 días sin venderse» están retirados (§7.3·34c)");
+    // EL CRUCE CON LA JERARQUÍA ÚNICA: mismos SKU, mismo inmovilizado/crítico que `jerarquiaInventario`
+    const byJ = {}; for (const s of J.porSku) byJ[s.sku] = s;
+    ok(dsv.filas.every((f) => byJ[f.sku] && f.inmovilizado === byJ[f.sku].inmovilizado && f.critico === byJ[f.sku].critico),
+      `dias-sin-venta-cruce-jerarquia@${sc}`, "cada fila debe concordar con jerarquiaInventario para su SKU");
+    // SIN UMBRAL, NINGUNA FILA DICE «FRENADA» (nunca 60/90 como verdad de ADI) — y la nota + la pregunta están
+    ok(J.frenado.evaluado || dsv.filas.every((f) => f.frenado !== "Frenada"), `dias-sin-venta-sin-frenado-sin-umbral@${sc}`,
+      "sin umbral declarado, ninguna fila puede marcar venta frenada");
+    if (!J.frenado.evaluado) {
+      ok(dsv.frenado.evaluado === false && typeof dsv.notaUmbral === "string" && dsv.notaUmbral.length > 0 && typeof dsv.askUmbral === "string",
+        `dias-sin-venta-nota-umbral@${sc}`, "sin umbral: nota + pregunta a ADI declaradas, nunca un veredicto");
+      ok(!/no hay (SKU )?frenad/i.test(dsv.notaUmbral), `dias-sin-venta-nunca-no-hay-frenados@${sc}`,
+        "el límite se dice como límite, nunca como «no hay frenados» (§7.3·32a)");
+    } else {
+      // con umbral: el total de frenado concuerda con J.frenado (misma jerarquía, mismas filas)
+      ok(dsv.frenado.evaluado === true && dsv.frenado.usd === J.frenado.usd && dsv.frenado.n === J.frenado.n,
+        `dias-sin-venta-frenado-concuerda@${sc}`, `${dsv.frenado.usd}/${dsv.frenado.n} vs ${J.frenado.usd}/${J.frenado.n}`);
+      ok(dsv.notaUmbral === null && dsv.askUmbral === null, `dias-sin-venta-sin-nota-con-umbral@${sc}`,
+        "con umbral declarado no corresponde la nota de «sin declarar»");
+    }
+    // LA NOTA FIJA DE NATURALEZA DEL DATO viaja siempre, con o sin umbral (§7.3·34c/d)
+    ok(/no son un pron[oó]stico/i.test(dsv.notaNaturaleza || ""), `dias-sin-venta-nota-naturaleza@${sc}`,
+      "la nota de naturaleza del dato (histórico, no pronóstico) debe viajar siempre");
+    // LOS HECHOS SALEN DE CAMPOS DEL DATO, no de texto armado a mano: se releen crudos y se comparan
+    for (const f of dsv.filas) {
+      const r = byInv[f.sku] || {};
+      if (typeof r.vendidoMes === "number" && r.vendidoMes === 0) {
+        ok(f.texto === "Sin ventas registradas en el período.", `dias-sin-venta-hecho-sin-ventas-${f.sku}@${sc}`, f.texto);
+      } else if (typeof r.vendidoMes === "number" && r.vendidoMes > 0 && typeof r.diasSinVenta === "number") {
+        const coherente = r.diasSinVenta <= 31;
+        ok(f.coherente === coherente, `dias-sin-venta-coherencia-${f.sku}@${sc}`,
+          `vendidoMes=${r.vendidoMes} diasSinVenta=${r.diasSinVenta} → coherente esperado ${coherente}, fila dice ${f.coherente}`);
+        if (!coherente) {
+          ok(!/unidades vendidas en el per[ií]odo · [uú]ltima venta/.test(f.texto) && /no se muestra el contraste/.test(f.texto),
+            `dias-sin-venta-incoherente-no-contraste-${f.sku}@${sc}`, f.texto);
+        } else {
+          ok(f.texto.includes(String(r.vendidoMes)) && /unidades vendidas en el per[ií]odo/.test(f.texto),
+            `dias-sin-venta-coherente-muestra-contraste-${f.sku}@${sc}`, f.texto);
+        }
+      }
+    }
   }
-  // los TRES cortes siguen cerrando: agregar un eje no puede romper la reconciliación de los otros
-  ok(mc.cortes.vistas.length === 3 && mc.cortes.vistas.every((v) => v.suma === D.total),
-    `tres-cortes-cierran@${sc}`, mc.cortes.vistas.map((v) => `${v.key}:${v.suma}`).join(" "));
 }
 
 /* ── (19) LAS BARRAS · el reparto por SKU, sin corte silencioso (owner 2026-08-09, tras el dashboard Power BI) ──
@@ -346,10 +434,14 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
     ok(suma === v.total, `barras-cierran-${v.key}@${sc}`, `${suma} vs ${v.total}`);
     const sumaUnd = v.barras.reduce((a, b) => a + (b.und || 0), 0);
     ok(sumaUnd === v.und, `barras-unidades-cierran-${v.key}@${sc}`, `${sumaUnd} vs ${v.und}`);
-    // (b) EL TOTAL ES EL DEL MOTOR · no una suma paralela que empiece a derivar
-    const esperado = v.key === "general" ? D.total : D.perSku.filter((s) => s.estado === "capital_frenado").reduce((a, s) => a + s.capital, 0);
+    /* (b) EL TOTAL ES EL DEL MOTOR · no una suma paralela que empiece a derivar. Decisión del owner 2026-09-28,
+     * §7.3·31/34a: ANTES la vista "inmovilizado" filtraba solo `capital_frenado` (el crítico); AHORA filtra el
+     * UNIVERSO (crítico ∪ sobrestock) — el mismo que cuenta la card "Capital inmovilizado" (antes: $33.200/3 SKU
+     * en el demo; ahora: $43.000/4 SKU, con PHI-IRON-PRO en sobrestock sumándose). */
+    const esInmov = (s) => s.estado === "capital_frenado" || s.estado === "sobrestock";
+    const esperado = v.key === "general" ? D.total : D.perSku.filter(esInmov).reduce((a, s) => a + s.capital, 0);
     ok(v.total === esperado, `barras-total-vs-motor-${v.key}@${sc}`, `${v.total} vs ${esperado}`);
-    ok(v.n === (v.key === "general" ? D.perSku.length : D.perSku.filter((s) => s.estado === "capital_frenado").length),
+    ok(v.n === (v.key === "general" ? D.perSku.length : D.perSku.filter(esInmov).length),
       `barras-n-vs-motor-${v.key}@${sc}`, `${v.n}`);
     // (c) LA COLA SE DECLARA · si hay agrupados, la lectura dice cuántos; si no hay, no promete un corte que no hubo
     const agrup = v.barras.filter((b) => b.agrupado);
@@ -386,10 +478,11 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
     // (g) EL SELLO DE LOS DOS UNIVERSOS · acá no entra ni una cifra del universo comercial
     ok(!/\$[\d.,]+\s*M\b/.test(txt) && !/vend[eió]|factur/i.test(txt), `barras-un-solo-universo-${v.key}@${sc}`, txt.slice(0, 100));
   }
-  // (h) EL FILTRO INMOVILIZADO ES EL MISMO UNIVERSO DEL KPI · si se separan, la cara dice dos verdades
+  // (h) EL FILTRO INMOVILIZADO ES EL MISMO UNIVERSO DEL KPI · si se separan, la cara dice dos verdades. Decisión
+  // ·31/34a: antes el universo esperado era solo `capital_frenado`; ahora es crítico ∪ sobrestock.
   const inm = B && B.vistas.find((v) => v.key === "inmovilizado");
-  const frenados = new Set(D.perSku.filter((s) => s.estado === "capital_frenado").map((s) => s.sku));
-  ok(!!inm && inm.barras.filter((b) => !b.agrupado).every((b) => frenados.has(b.sku)),
+  const inmovilizados = new Set(D.perSku.filter((s) => s.estado === "capital_frenado" || s.estado === "sobrestock").map((s) => s.sku));
+  ok(!!inm && inm.barras.filter((b) => !b.agrupado).every((b) => inmovilizados.has(b.sku)),
     `barras-inmovilizado-mismo-universo@${sc}`);
   const kpiDet = mc.kpis.find((k) => k.key === "detenido");
   ok(!!inm && !!kpiDet && inm.totalFmt === kpiDet.value, `barras-inmovilizado-vs-kpi@${sc}`,
@@ -479,14 +572,23 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   ok(bloque.length > 0 && !/detenid/i.test(bloque), "candado-inmovilizado-cara",
     (bloque.match(/[^.]*detenid[^.]*/i) || [""])[0].slice(0, 140));
   // el rótulo del estado y el KPI son LA misma palabra (si se separan, la card y la leyenda dejan de coincidir)
-  /* R5 DEL EXAMEN 1 DEL AGENTE (2026-08-31): el canon pasó a «frenado» — el dinero de la card ES el subconjunto
+  /* R5 DEL EXAMEN 1 DEL AGENTE (2026-08-31): el canon pasó a «frenado» — el dinero de la card ERA el subconjunto
    * frenado (rotación bajo piso / DOH sobre techo), no el inmovilizado AMPLIO (estado ≠ Activo, $56K vs $33K en
    * el demo). Doctrina textual del owner (Examen 2): «usá la palabra que corresponde a la cifra que estés
-   * citando». La INTENCIÓN de estos candados no cambia: jamás «detenido», y card+leyenda con LA misma palabra. */
-  ok(CAPITAL_ESTADOS.capital_frenado.label === "frenado", "candado-inmovilizado-estado", CAPITAL_ESTADOS.capital_frenado.label);
+   * citando». La INTENCIÓN de estos candados no cambia: jamás «detenido», y card+leyenda con LA misma palabra.
+   *
+   * DECISIÓN DEL OWNER 2026-09-28, §7.3·31/34a — «Apruebo completamente la separación entre inmovilizado,
+   * inmovilizado crítico y frenado» — MIGRA el canon otra vez, la tercera migración del mismo rótulo (detenido →
+   * inmovilizado → frenado → inmovilizado crítico). ANTES: `CAPITAL_ESTADOS.capital_frenado.label === "frenado"`
+   * y el KPI de la card decía «Capital frenado» (con el valor del crítico solo). AHORA: «frenado» deja de nombrar
+   * la regla de ROTACIÓN en superficie — esa regla es «inmovilizado crítico» — y la card pasa a «Capital
+   * inmovilizado» con el valor del UNIVERSO (crítico ∪ sobrestock, `jerarquiaInventario().inmovilizado`). La
+   * clave interna `capital_frenado`/`detenido` NO cambia (decisión ·31, campo de API) — jamás «detenido» en
+   * superficie sigue vigente, y ahora tampoco «frenado» nombrando esta regla. */
+  ok(CAPITAL_ESTADOS.capital_frenado.label === "inmovilizado crítico", "candado-inmovilizado-estado", CAPITAL_ESTADOS.capital_frenado.label);
   for (const sc of ["bonanza", "tension", "crisis"]) {
     const k = buildMesaCapital(sc).kpis.find((x) => x.key === "detenido");
-    ok(k.label === "Capital frenado", `candado-inmovilizado-kpi@${sc}`, k.label);
+    ok(k.label === "Capital inmovilizado", `candado-inmovilizado-kpi@${sc}`, k.label);
   }
 }
 

@@ -40,21 +40,29 @@ export const METRIC_DEFS = {
   // es que compartan la palabra.
   // «clasifica como inmovilizada», no «detenida» (La Poda F2): esta definición se imprime verbatim y era la propia
   // entrada de «Inmovilizado» la que usaba la palabra que CLAUDE.md §4 reemplaza. La regla descrita no cambia.
-  "Inmovilizado": "La parte del capital que el detector clasifica como inmovilizada: rotación bajo tu piso o días de inventario sobre tu techo. No es el stock en alerta, que es otra regla y otra cifra.",
-  "Stock en alerta": "El capital en SKU con alerta operativa (crítico o de cuidado) o con rotación bajo 2. Es una señal de operación, más amplia que el capital inmovilizado del detector: un SKU puede estar en alerta y aun así rotar sobre tu piso y estar bajo tu techo de días.",
-  "% en alerta": "Qué parte del capital de esta bodega está en SKU con alerta operativa o rotación bajo 2.",
+  /* decisión del owner 2026-09-28, §7.3·31/34a: INMOVILIZADO pasa a ser el UNIVERSO (crítico ∪ sobrestock), no
+   * solo el tramo crítico. Antes: "La parte del capital que el detector clasifica como inmovilizada: rotación
+   * bajo tu piso o días de inventario sobre tu techo." — esa era la definición del CRÍTICO, no la del universo. */
+  "Inmovilizado": "El capital de los SKU cuya rotación no alcanza el criterio de inventario (inmovilizado crítico) o que tienen más días de inventario de los que su venta justifica (sobrestock). El criterio puede ser el declarado por la empresa o el general de ADI; la pantalla dice cuál. No es el stock en alerta, que es otra regla y otra cifra.",
+  // decisión ·34a: la alerta del archivo (`alerta==='crit'/'warn'`) deja de llamarse «crítico» en superficie —
+  // antes decía "SKU con alerta operativa (crítico o de cuidado)"; «crítico» queda solo para inmovilizado crítico.
+  "Stock en alerta": "El capital en SKU con alerta en el archivo de origen (la más alta o la intermedia) o con rotación bajo 2. Es una señal de operación, más amplia que el capital inmovilizado del detector: un SKU puede estar en alerta y aun así rotar sobre el criterio de inventario.",
+  "% en alerta": "Qué parte del capital de esta bodega está en SKU con alerta en el archivo o rotación bajo 2.",
   "% del stock en alerta": "Qué parte del stock en alerta de todo el negocio concentra esta bodega.",
   "vs promedio en alerta": _DEF_VS_PROMEDIO_ALERTA, "vs prom en alerta": _DEF_VS_PROMEDIO_ALERTA,
   "Rotación": "Cuántas veces el stock se vende y se repone en el período. Más alta = mejor. En las filas Total se publica ponderada por capital, que es la única rotación media del producto.",
   "DOH": "Días de inventario: cuántos días dura el stock al ritmo de venta actual. Más alto = más lento.",
-  "SKUs en alerta": "Cantidad de SKUs marcados crítico o de cuidado (lento o sin venta).",
+  "SKUs en alerta": "Cantidad de SKUs marcados con alerta alta o intermedia en el archivo de origen.",
   "Peor sin venta": "El SKU que más días lleva sin registrar una venta.",
   // columnas del cuadro de capital que hasta ahora no tenían entrada: la etiqueta se ve en pantalla y el glosario
   // declinaba (owner 2026-08-09, decisión 10). No cambian la vista: COLS_CAPITAL no declara `defKey` para ellas.
   "Disponible": "Las unidades en stock hoy, sin valorizar.",
   "Participación": "Qué parte del total de la vista explica esta fila.",
   "Última venta": "Hace cuánto se registró la última venta de este SKU.",
-  "SKU crít.": "Cuántos SKU de esta bodega están inmovilizados y además marcados como críticos.",
+  // decisión ·34a: antes "SKU crít." (nombraba la alerta del archivo «crítico»); ahora "Con alerta" — «crítico»
+  // queda solo para inmovilizado crítico (capital_frenado). La columna sigue siendo un atributo del DATO, no un
+  // estado del motor.
+  "Con alerta": "Cuántos SKU de esta bodega vienen marcados con alerta en el archivo de origen.",
   // la columna del asesor en el Cuadro · una etiqueta por universo (antes las dos decían «En juego $»: $5.0M de
   // contribución del año en la pestaña Clientes contra $33K de capital de hoy en Marcas/SKU/Bodegas, 151x)
   "Contribución en juego": "La contribución que el detector afirma que esta cuenta no está capturando: margen bajo tu benchmark o carga comercial sobre tu objetivo, valorizado sobre su venta anual. Es dinero del resultado, no capital en stock.",
@@ -217,11 +225,24 @@ export const CONCEPT_DEFS = {
     def: "Son las unidades físicas que hay hoy en inventario, por SKU y por bodega, tal como las informa el archivo. Es una foto del momento; el capital en inventario es esa misma foto valorizada al costo.",
     distingue: "No son las **unidades vendidas**, que son un flujo del período. Y no son el **capital**: el capital es el valor en dinero de estas unidades.",
   },
+  /* decisión del owner 2026-09-28, §7.3·31/34a — «Apruebo completamente la separación entre inmovilizado,
+   * inmovilizado crítico y frenado»: INMOVILIZADO pasa a ser el UNIVERSO (capital atrapado por permanencia o
+   * rotación insuficiente = capital_frenado ∪ sobrestock), no solo el tramo que no rota. Antes: "Es la parte del
+   * capital en inventario que el detector clasifica como inmovilizada: SKU sin rotación o con días de inventario
+   * muy por encima del rango" — esa frase describía SOLO el crítico (hoy `inmovilizado_critico`, abajo). */
   capital_inmovilizado: {
     aka: "capital inmovilizado",
     etiquetas: ["inmovilizado", "capital inmovilizado", "capital detenido", "capital frenado", "% del inmov. total"],
-    def: "Es la parte del capital en inventario que el detector clasifica como inmovilizada: SKU sin rotación o con días de inventario muy por encima del rango. Es dinero ya invertido que hoy no se está convirtiendo en venta.",
-    distingue: "No es el **capital en inventario** completo: es el subconjunto inmovilizado. Y no es una pérdida contable — el valor sigue en el stock; lo que está frenado es su conversión en caja.",
+    def: "Es el capital de los SKU cuya rotación no alcanza el criterio de inventario (inmovilizado crítico) o que tienen más días de inventario de los que su venta justifica (sobrestock). El criterio puede ser el declarado por la empresa o el general de ADI. Es dinero ya invertido que hoy no está trabajando en la misma medida.",
+    distingue: "No es el **capital en inventario** completo: es el subconjunto inmovilizado. Tiene dos partes: el **inmovilizado crítico** (no rota) y el **sobrestock** (rota, pero lento). Y no es una pérdida contable — el valor sigue en el stock.",
+  },
+  // NUEVO (decisión ·31/34a): el tramo CRÍTICO dentro de inmovilizado — antes esta definición vivía bajo
+  // `capital_inmovilizado`, que ahora nombra el universo. La clave interna sigue siendo `capital_frenado`.
+  inmovilizado_critico: {
+    aka: "inmovilizado crítico",
+    etiquetas: ["inmovilizado crítico", "crítico", "capital crítico"],
+    def: "Es el SKU inmovilizado que no rota: rotación bajo el piso de rotación o días de inventario sobre el techo del criterio de inventario. Es el subconjunto crítico del capital inmovilizado.",
+    distingue: "No es lo mismo que el **capital inmovilizado** completo: el inmovilizado es el universo (crítico ∪ sobrestock); el crítico es el tramo que no rota en absoluto — el otro subconjunto, el **sobrestock**, sí rota. Y no es la alerta del archivo de origen (otra señal, del dato, que se llama «con alerta en el archivo»).",
   },
   riesgo_quiebre: {
     aka: "riesgo de quiebre",
@@ -233,12 +254,16 @@ export const CONCEPT_DEFS = {
     aka: "sobrestock",
     etiquetas: ["sobrestock", "sobre stock", "exceso de stock"],
     def: "Es el estado de los SKU con muchos más días de inventario de los que su ritmo de venta justifica: hay stock de sobra para la demanda observada.",
-    distingue: "No es lo mismo que el **capital inmovilizado**: el sobrestock sí rota, sólo que demasiado lento para el volumen que tiene; el inmovilizado directamente no rota.",
+    // decisión ·31/34a: antes → "el sobrestock sí rota... el inmovilizado directamente no rota" (falso desde que
+    // el sobrestock ES parte del inmovilizado, decisión ·31). Ahora distingue del CRÍTICO, no del universo.
+    distingue: "Es uno de los dos subconjuntos del **capital inmovilizado** (junto con el **inmovilizado crítico**): el sobrestock sí rota, sólo que le sobran días de inventario; el inmovilizado crítico directamente no rota.",
   },
   estado: {
     aka: "estado del inventario",
     etiquetas: ["estado", "estados del capital", "en rango"],
-    def: "Es la clasificación que el detector de inventario le pone a cada SKU según su rotación y sus días de inventario: en rango, riesgo de quiebre, sobrestock o inmovilizado. Cada SKU cae en uno solo, y los cuatro estados suman el capital total.",
+    // decisión ·31/34a: el cuarto estado del detector se llama, en superficie, «inmovilizado crítico» (el tramo)
+    // — «inmovilizado» a secas es el universo (este tramo ∪ sobrestock), no un estado del detector.
+    def: "Es la clasificación que el detector de inventario le pone a cada SKU según su rotación y sus días de inventario: en rango, riesgo de quiebre, sobrestock o inmovilizado crítico. Cada SKU cae en uno solo, y los cuatro estados suman el capital total.",
     distingue: "El estado es una clasificación, no una cifra: el monto de cada estado lo pone el **capital en inventario** que cae en él.",
   },
   // ── cobranza (RC-E, diagnóstico v2, supervisor 2026-09-26 — decisión ya cerrada §7.1: «definición de recuperado
@@ -586,6 +611,9 @@ export const CONCEPT_MATCHERS = [
   [/\bcontribuci[oó]n(?:es)?\b/i, "contribucion"],
   [/\brotaci[oó]n\b/i, "rotacion"],
   [/\bd[ií]as\s+(?:de\s+)?inventario\b|\bd[ií]as\s+inv\b|\bdoh\b|d[ií]as\s+de\s+cobertura|\bcobertura\b/i, "doh"],
+  // decisión ·31/34a: «inmovilizado crítico» resuelve al TRAMO (más específico), ANTES del genérico
+  // "inmovilizado" (que resuelve al universo) — el orden importa: `matchConcept` toma el primer match.
+  [/\binmovilizad\w*\s+cr[ií]tico\w*/i, "inmovilizado_critico"],
   [/\bcapital\s+(?:inmovilizad|detenid|frenad)\w*|\binmovilizad\w*\b/i, "capital_inmovilizado"],
   [/\briesgo\s+de\s+quiebre|\bquiebres?\b/i, "riesgo_quiebre"],
   [/\bsobre\s?stock\b/i, "sobrestock"],
