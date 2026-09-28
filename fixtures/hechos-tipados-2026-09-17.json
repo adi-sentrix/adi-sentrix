@@ -1,5 +1,6 @@
 {
   "nota": "Verdad finita (E1): hechos IDENTIFICADOS (sin prosa) contra la boleta real del demo. `esperado` por id: verdadera · falsa · no-verificable · sellada · no-verdadera (falsa o no-verificable: la puerta cierra). Las raíces 2 (umbrales en palabras), 3 (álgebra de universos) y 4 (posición/forma de la base) de la ronda 4 y los falsos positivos c/d/f/g, re-expresados como hechos tipados.",
+  "nota_2026-09-27": "Decisión 23 (§7.3, supervisor, diagnóstico v9 · W28): `n4` pasó de `n:2` a `n:3` — estaba calibrado contra el texto REDONDEADO del saldo pendiente («$1.0M»); la cuenta real es 3, porque Ripley debe $1.048.700 (> $1.000.000 exacto). El fix vive en `oracle/datoProyectado.js` (el ranking de cobranza publica su crudo exacto, `raw`, con el mismo factor `fx` de la tool `cobranza()`) y `notario/verificar.js:_filasTipadas` (prefiere ese crudo antes de reparsear el texto). `esperado.n4` sigue en «verdadera» — solo cambió la cuenta correcta, no el veredicto.",
   "casos": [
     { "id": "cob-1", "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
       "hechos": [
@@ -19,7 +20,7 @@
         { "id": "n1", "tipo": "conteo", "n": 3, "de": { "eje": "cliente", "filtros": [{ "metrica": "dias_vencido", "op": ">", "valor": 3, "unidad": "meses" }] } },
         { "id": "n2", "tipo": "conteo", "n": 6, "de": { "eje": "cliente", "filtros": [{ "metrica": "dias_vencido", "op": ">", "valor": 1, "unidad": "trimestre" }] } },
         { "id": "n3", "tipo": "conteo", "n": 3, "de": { "eje": "cliente", "filtros": [{ "metrica": "dias_vencido", "op": "entre", "valor": [200, 300], "unidad": "days" }] } },
-        { "id": "n4", "tipo": "conteo", "n": 2, "de": { "eje": "cliente", "no_estados": ["en_mora"], "filtros": [{ "metrica": "saldo_pendiente", "op": ">", "valor": 1000000, "unidad": "money" }] } },
+        { "id": "n4", "tipo": "conteo", "n": 3, "de": { "eje": "cliente", "no_estados": ["en_mora"], "filtros": [{ "metrica": "saldo_pendiente", "op": ">", "valor": 1000000, "unidad": "money" }] } },
         { "id": "n5", "tipo": "conteo", "n": 0, "de": { "eje": "cliente", "excluir": { "top": { "metrica": "dias_vencido", "k": 3 } }, "filtros": [{ "metrica": "dias_vencido", "op": ">", "valor": 90, "unidad": "days" }] } },
         { "id": "n6", "tipo": "conteo", "n": 6, "de": { "eje": "cliente", "estados": ["en_mora"] } },
         { "id": "n7", "tipo": "conteo", "n": 7, "de": { "eje": "cliente", "estados": ["al_dia"] } },

@@ -492,7 +492,15 @@ function _filasTipadas(clave, I, eje) {
       // se quiere resolver el redondeo de W28/Ripley con más precisión, el camino correcto es que el RANKING
       // declare su propio crudo sin escalar (p. ej. `CRUDO_MONEY`) o su escala explícita — nunca una lista blanca
       // adivinada acá.
-      if (texto) { const p = parseFigures(menosAscii(texto))[0]; if (p && Number.isFinite(p.raw)) { raw = p.raw; unidad = p.unit; } }
+      // CRUDO_MONEY (supervisor 2026-09-27, diagnóstico v9 · W28 · §7.3·23) — el camino de arriba QUEDÓ HECHO: el
+      // ranking de cobranza (`datoProyectado.js`) ahora publica su propio `x.raw`, el crudo EXACTO ya escalado con
+      // el mismo `fx` de `cobranza()` (nunca una escala deducida acá). Se prefiere ANTES de reparsear `texto`
+      // porque «$1.0M» reparseado vuelve a ser 1.000.000 (el redondeo de PANTALLA), mientras que Ripley son
+      // $1.048.700 reales — la diferencia exacta que decide un umbral de negocio (Ripley > $1M). Cuando `x.raw` no
+      // existe (cualquier ranking que no sea de cobranza, o una fila vieja sin el campo) el camino de siempre
+      // sigue igual, byte a byte.
+      if (Number.isFinite(x.raw)) { raw = x.raw; unidad = unidadEsperada || "money"; }
+      else if (texto) { const p = parseFigures(menosAscii(texto))[0]; if (p && Number.isFinite(p.raw)) { raw = p.raw; unidad = p.unit; } }
       if (raw == null && Number.isFinite(+x.valor)) { const u = _UNIDAD_DE_RANKING[rkClave] || unidadEsperada; if (u && u !== "money") { raw = +x.valor; unidad = u; } }
       if (raw != null) out.push({ entidad: normalizar(x.entidad), nombre: x.entidad, raw, unidad, texto });
     }

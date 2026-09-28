@@ -187,13 +187,17 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
   // por CONTENIDO (el texto nombra «brecha»/«benchmark»), no por la forma de la Entrega.
   // CORTE 3b (owner 2026-09-25) — CORREGIDO por el supervisor: el escaneo sigue siendo el TEXTO COMPLETO («Para
   // su juicio» y «Referencia del oficio» SÍ pueden afirmar una brecha sin su referencia — hay que seguir
-  // vigilándolos). Solo se descuentan DOS cosas, por MARCA estructural, nunca por texto adivinado:
+  // vigilándolos). Solo se descuentan TRES cosas, por MARCA estructural, nunca por texto adivinado:
   //  · los límites de AUSENCIA (`lim._ausencia`, `_limiteDeAusencia` en componer.js): la frase fija «el Business
   //    Knowledge (benchmarks del sector) todavía no está construido: esta Entrega compara solo contra el
   //    benchmark que usted declaró» nombra «benchmark» para decir que NO hay uno del sector, no para afirmar una
   //    brecha propia — no es el caso que esta regla vigila.
   //  · las oraciones `_definicion` (defineConcept: EXPLICAN qué es «benchmark»/«brecha», contrato §1.1 — no
   //    afirman una, y `definicion` prohíbe cifras y marco).
+  //  · los límites de UNIVERSO INVÁLIDO (`lim._universoInvalido`, supervisor 2026-09-27, diagnóstico v9 · raíz
+  //    A11 — W39): `motivo:"universo_invalido"` (validar.js) solo repite entre comillas el nombre que el
+  //    usuario/LLM escribió («SKU bajo el benchmark» es un conjunto de sku, no de cliente) para explicar por qué
+  //    se declina — un eco del pedido, nunca una brecha o un benchmark que ADI esté afirmando.
   // NO hay una tercera excepción para las oraciones `_premisa` (revertido, supervisor 2026-09-26, segunda vuelta:
   // «afloja la ley “las comparables viajan juntas”»). El veredicto de una premisa que cita una referencia
   // (benchmark, nivel de carga, techo) tiene que imprimir el VALOR de esa referencia en la MISMA oración —
@@ -204,7 +208,11 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
   // tienen respuesta `_definicion`: el cambio no las afecta — `_entrega_gate` sigue en 363/363.
   const _SIN_EXCLUSIONES = (() => {
     let t = String(texto || "");
-    for (const lim of entrega.limites || []) { if (lim && lim._ausencia) t = t.split(`- **${lim.titulo}.** ${lim.motivo}`).join(""); }
+    // `_universoInvalido` (supervisor 2026-09-27, diagnóstico v9 · raíz A11 — W39): el mismo criterio que
+    // `_ausencia` — un límite «universo_invalido» solo repite el nombre que el usuario/LLM escribió («SKU bajo
+    // el benchmark»), nunca una brecha propia de ADI; se descuenta por la MISMA marca estructural, nunca por
+    // texto adivinado (componer.js:_limitesDeclarados).
+    for (const lim of entrega.limites || []) { if (lim && (lim._ausencia || lim._universoInvalido)) t = t.split(`- **${lim.titulo}.** ${lim.motivo}`).join(""); }
     for (const r of entrega.respuesta || []) { if (r && r._definicion) t = t.split(`▸ ${r.texto}`).join(""); }
     return t;
   })();

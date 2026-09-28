@@ -536,6 +536,14 @@ venta a crédito, ley del owner).
     universo, aunque el encargo tenga varias partes así, sean del mismo dominio o de dominios distintos. La prioridad
     cruzada entre dominios (multitema) se AGREGA encima, calculada sobre la unión de esos universos, y nunca reemplaza
     el contenido de cada parte.
+23. [2026-09-27, diagnóstico v9 · W28] Un umbral de dinero («saldo pendiente > $1.000.000») se juzga con la cifra
+    EXACTA, nunca con su redondeo impreso: Ripley, con $1.048.700, está sobre $1M aunque se imprima «$1.0M». La cifra
+    exacta la DECLARA el Core. La proyección publica el crudo de cada fila de dinero de cobranza con el MISMO factor de
+    escala que ya usa la tool `cobranza()` (`fx`, la escala declarada del dataset), y el verificador nunca deduce la
+    escala por el nombre de la clave. Por eso se corrige la etiqueta `n4` del fixture `hechos-tipados-2026-09-17` (fue
+    calibrada contra el texto redondeado): la cuenta verdadera es 3, no 2 (decisión del supervisor, con esta evidencia).
+    Por el mismo hecho y con la misma evidencia se corrigen también `u18-m-de-la-cadena.h2` y
+    `t02-control-cobranza-2.h4` de `fixtures/ronda5-2026-09-17/hechos.json` (n 2 → 3).
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

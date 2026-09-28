@@ -892,7 +892,8 @@
     {
       "id": "u18-m-de-la-cadena",
       "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
-      "nota": "FALSO POSITIVO probable: «3 de los 6 en mora superan 90 días» y «2 de los 7 sin mora deben más de $1M» son verdaderos con m = tamaño del paso previo; el libro solo acepta m = 13",
+      "nota": "FALSO POSITIVO probable: «3 de los 6 en mora superan 90 días» y «3 de los 7 sin mora deben más de $1M» son verdaderos con m = tamaño del paso previo; el libro solo acepta m = 13",
+      "nota_2026-09-27": "Decisión 23 (§7.3, supervisor, diagnóstico v9 · W28): `h2` pasó de `n:2` a `n:3` — misma cuenta de `hechos-tipados-2026-09-17.json:n4` (sin mora + saldo pendiente > $1.000.000), calibrada contra el texto REDONDEADO; la cuenta real es 3 (Jumbo, Mercado Libre, Ripley — Ripley debe $1.048.700 exactos). `m:7` no cambia (universo «sin mora», intacto). `esperado.h2` sigue en «verdadera».",
       "hechos": [
         {
           "id": "h1",
@@ -917,7 +918,7 @@
         {
           "id": "h2",
           "tipo": "conteo",
-          "n": 2,
+          "n": 3,
           "m": 7,
           "de": {
             "eje": "cliente",
@@ -2864,7 +2865,8 @@
     {
       "id": "t02-control-cobranza-2",
       "pregunta": "¿Cómo vienen mis clientes en venta y en cobranza?",
-      "nota": "CONTROL · «Su vencido casi duplica el de Falabella; entre los dos suman $7,1M. Jumbo y Mercado Libre están al día y son los únicos sin mora con más de $1M pendientes»",
+      "nota": "CONTROL · «Su vencido casi duplica el de Falabella; entre los dos suman $7,1M. Jumbo, Mercado Libre y Ripley están sin mora y son los que tienen más de $1M pendientes»",
+      "nota_2026-09-27": "Decisión 23 (§7.3, supervisor, diagnóstico v9 · W28): `h4` pasó de `n:2` a `n:3` — misma cuenta de `hechos-tipados-2026-09-17.json:n4` y de `u18-m-de-la-cadena.h2` (sin mora + saldo pendiente > $1.000.000), calibrada contra el texto REDONDEADO; la cuenta real es 3 (Jumbo, Mercado Libre, Ripley — Ripley debe $1.048.700 exactos). `esperado.h4` sigue en «verdadera».",
       "hechos": [
         {
           "id": "h1",
@@ -2903,7 +2905,7 @@
         {
           "id": "h4",
           "tipo": "conteo",
-          "n": 2,
+          "n": 3,
           "de": {
             "eje": "cliente",
             "no_estados": [

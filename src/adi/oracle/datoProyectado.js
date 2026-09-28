@@ -541,13 +541,24 @@ function _construir(scenario) {
     /* lo que debe y AÚN NO VENCE: el saldo menos lo vencido, calculado por la mesa (`porVencerK`, la misma cuenta que su estado «por_vencer»).
      * «$9,8M sin vencer / vigentes / por vencer» era una cifra sin métrica en la casa y se asistía como el pendiente (ronda adversarial 3). */
     rankings.cliente.saldo_por_vencer = _RC(null, "mesaFlujo.filas.porVencerK", ["saldo\\s+por\\s+vencer", "por\\s+vencer", "sin\\s+vencer", "vigentes?", "no\\s+vencid[oa]s?", "dentro\\s+de(?:l)?\\s+plazo"]);
-    /* cada fila lleva además su cifra FORMATEADA por la mesa (`texto`): una sola verdad, cero recálculo de escala en quien la verifica */
+    /* cada fila lleva además su cifra FORMATEADA por la mesa (`texto`): una sola verdad, cero recálculo de escala en quien la verifica.
+     * CRUDO_MONEY (supervisor 2026-09-27, diagnóstico v9 · W28 · §7.3·23) — Ripley con $1.048.700 de saldo pendiente
+     * imprime «$1.0M» (redondeado) y un umbral («> $1.000.000») juzgado sobre ese TEXTO reparseado lo dejaba afuera:
+     * un redondeo de PANTALLA no puede decidir un umbral de NEGOCIO. `raw` es el crudo EXACTO, con el MISMO factor
+     * de escala que ya usa la tool `cobranza()` (`fx = factorComercialDe(d)`, herramientasAgente.js) — acá es
+     * `_fxK` (misma fuente, ya calculado arriba en esta función, sin duplicar la constante). `notario/verificar.js:
+     * _filasTipadas` lo prefiere ANTES de reparsear `texto` — nunca deduce la escala por el nombre de la clave (eso
+     * es justo lo que la ley del owner prohíbe: «el símbolo declarado sí; la escala, JAMÁS se inventa»). Se agrega
+     * SOLO junto a `texto` (misma condición que ya decide si la fila entra): ninguna fila nueva se cuela, ninguna
+     * cobertura cambia — el único cambio es la PRECISIÓN del crudo de las que ya se publicaban. `buildMesaFlujo` y
+     * la pantalla no cambian ni un byte: `fc.saldoK`/`fc.vencidoK`/`fc.porVencerK` son los mismos crudos en K que
+     * la mesa ya calculaba, solo escalados acá para el verificador. */
     for (const fc of _mesaCobro.filas) {
-      if (Number.isFinite(fc.vencidoK)) rankings.cliente.saldo_vencido.filas.push({ entidad: fc.nombre, valor: fc.vencidoK, ...(fc.vencidoFmt ? { texto: fc.vencidoFmt } : {}) });
+      if (Number.isFinite(fc.vencidoK)) rankings.cliente.saldo_vencido.filas.push({ entidad: fc.nombre, valor: fc.vencidoK, ...(fc.vencidoFmt ? { texto: fc.vencidoFmt, raw: fc.vencidoK * _fxK } : {}) });
       if (Number.isFinite(fc.recuperadoPct)) rankings.cliente.recuperado.filas.push({ entidad: fc.nombre, valor: fc.recuperadoPct, ...(fc.recuperadoFmt ? { texto: fc.recuperadoFmt } : {}) });
       if (Number.isFinite(fc.diasVencido)) rankings.cliente.dias_vencido.filas.push({ entidad: fc.nombre, valor: fc.diasVencido, ...(fc.diasVencidoFmt && fc.diasVencidoFmt !== "—" ? { texto: fc.diasVencidoFmt } : {}) });
-      if (Number.isFinite(fc.saldoK)) rankings.cliente.saldo_pendiente.filas.push({ entidad: fc.nombre, valor: fc.saldoK, ...(fc.saldoFmt ? { texto: fc.saldoFmt } : {}) });
-      if (Number.isFinite(fc.porVencerK)) rankings.cliente.saldo_por_vencer.filas.push({ entidad: fc.nombre, valor: fc.porVencerK, ...(fc.porVencerFmt ? { texto: fc.porVencerFmt } : {}) });
+      if (Number.isFinite(fc.saldoK)) rankings.cliente.saldo_pendiente.filas.push({ entidad: fc.nombre, valor: fc.saldoK, ...(fc.saldoFmt ? { texto: fc.saldoFmt, raw: fc.saldoK * _fxK } : {}) });
+      if (Number.isFinite(fc.porVencerK)) rankings.cliente.saldo_por_vencer.filas.push({ entidad: fc.nombre, valor: fc.porVencerK, ...(fc.porVencerFmt ? { texto: fc.porVencerFmt, raw: fc.porVencerK * _fxK } : {}) });
       /* ── Y CADA CIFRA DE COBRANZA CON SU DUEÑO (owner 2026-09-14, atribución y significado) ──────────────────────────────
        * La herramienta `cobranza` recorta 8 filas; la mesa tiene 13. «Falabella, Tottus y Paris tienen 8 días de atraso» es
        * verdad y el muro no podía saberlo: solo Falabella viajaba con sus días. Se registran las cifras YA FORMATEADAS por la

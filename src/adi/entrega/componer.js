@@ -1308,7 +1308,13 @@ function _limitesDeclarados(resolucion, temasCubiertos) {
     if (!vistos.has(clave)) {
       vistos.add(clave);
       const sujeto = nr.parte ? `la parte ${nr.parte}` : "el encargo";
-      limites.push({ titulo: `Sobre ${sujeto}, un ${nr.campo} pedido quedó sin resolver (${nr.motivo.replace(/_/g, " ")})`, motivo: nr.detalle || `Motivo cerrado del contrato: ${nr.motivo}.` });
+      // MARCA ESTRUCTURAL (supervisor 2026-09-27, diagnóstico v9 · raíz A11 — W39) — `motivo:"universo_invalido"`
+      // (validar.js) es SIEMPRE un ECO del nombre que el usuario/LLM escribió («SKU bajo el benchmark», «carga
+      // comercial alta»), nunca una afirmación de ADI sobre una brecha o un benchmark propios — declina el
+      // universo pedido, no compara nada. `entrega/verificar.js` (regla 4, comparables-juntas) lo excluye de su
+      // escaneo por esta marca, nunca por texto adivinado (mismo criterio que ya usa con `lim._ausencia`).
+      const _esUniversoInvalido = nr.motivo === "universo_invalido";
+      limites.push({ titulo: `Sobre ${sujeto}, un ${nr.campo} pedido quedó sin resolver (${nr.motivo.replace(/_/g, " ")})`, motivo: nr.detalle || `Motivo cerrado del contrato: ${nr.motivo}.`, ...(_esUniversoInvalido ? { _universoInvalido: true } : {}) });
     }
     const altAusencia = (nr.alternativas || []).find((a) => a.tipo === "ausencia");
     if (altAusencia) agregarAusencia(altAusencia.id);
@@ -2845,6 +2851,42 @@ export function componerEntrega(resolucion) {
   // CORTE 3c · pieza 1 — un `grupoUniverso` comercial puede nombrar «benchmark»/«nivel de carga» en el texto de su
   // universo (`nombrarUniverso`, vía `_fmtUmbral`): declararlo acá, ANTES de imprimir, es el mismo patrón que la
   // línea de arriba — un `ref()` de un hecho que el texto termina no usando no rompe nada.
+
+  // TENTACIÓN PRECALCULADA CRUZADA (supervisor 2026-09-27, diagnóstico v9 · raíces A10/A11 — W22/W30/W51) — el
+  // mecanismo 6 ya declara la derivada/razón DENTRO de un plan cuando esa parte trae ≥2 entidades explícitas o un
+  // universo con ≥2 miembros que comparten `claveOrden` (`_planCifraEntidad`, `_planCifraGrupo`,
+  // `_cerrarGrupoUniverso`, arriba). Pero un GRUPO de varias partes de UNA sola entidad cada una (W30: p1 → La
+  // Polar top k:1, p2 → Easy top k:1 — cada plan por separado nunca ve a las dos entidades juntas) o un universo
+  // cuyos dos miembros solo comparten un concepto DISTINTO del que ordena el top (W51: p1 trae SAM-TV55/
+  // LG-AIR9000 pero solo "capital" tiene fig para las dos — "dias_sin_venta", el `claveOrden`, ausente por
+  // "ausente vale cero" — así que el mecanismo interno, que solo mira `claveOrden`, no encuentra par) puede
+  // terminar con ≥2 DUEÑOS DISTINTOS en la Entrega sin que NINGÚN plan, por sí solo, haya visto a los dos juntos
+  // con una clave en común. `verificarEntrega` («tentacion-no-precalculada») cuenta los dueños de la TABLA FINAL,
+  // no por parte — así que acá, ANTES de verificar el libro (`libroDeHechos`, la línea de abajo: un hecho
+  // agregado DESPUÉS de esa llamada nunca entra al libro devuelto), se repite el MISMO mecanismo sobre TODOS los
+  // planes ya construidos: se listan sus tríos (dueño, clave, id — los mismos ids que cada plan YA declaró con
+  // `ref()`) y se busca la clave común entre las DOS PRIMERAS filas de dueños distintos, en el orden en que los
+  // planes se construyeron. `declararDerivada` (la única función que ya decide pp/diferencia por unidad, nunca
+  // una segunda) solo necesita la UNIDAD de esa clave (`unidadDeClave`, la misma tabla de `lexico.js` que ya usa
+  // todo este archivo) — nunca la fig cruda, que a esta altura ya está convertida a id dentro de cada plan.
+  const _triplesDePlan = (plan) => {
+    const out = [];
+    if (plan.kind === "entidad") { for (const e of plan.filasPorEntidad || []) for (const f of e.filas || []) if (f.id != null && f.clave) out.push({ dueno: e.entidad, clave: f.clave, id: f.id }); }
+    else if (plan.kind === "grupo" || plan.kind === "grupoUniverso") {
+      const nombres = plan.kind === "grupoUniverso" ? (plan.miembros || []) : (plan.orden || []);
+      for (const nombre of nombres) for (const [clave, id] of _mapaDe(plan.porEntidad, nombre)) if (id != null && clave) out.push({ dueno: nombre, clave, id });
+    }
+    return out;
+  };
+  if (!hechos.some((h) => h.tipo === "razon" || h.tipo === "derivada")) {
+    const _todosTriples = planes.flatMap(_triplesDePlan);
+    if (new Set(_todosTriples.map((t) => t.dueno)).size > 1) {
+      const primera = _todosTriples[0];
+      const segunda = primera ? _todosTriples.find((t) => t.dueno !== primera.dueno && t.clave === primera.clave) : null;
+      const unidad = primera ? unidadDeClave(primera.clave) : null;
+      if (segunda && unidad) declararDerivada({ unit: unidad }, primera.id, { unit: unidad }, segunda.id);
+    }
+  }
 
   const libro = libroDeHechos(hechos, { indice: I });
   const rotos = libro.hechos.filter((h) => !h.ok);
