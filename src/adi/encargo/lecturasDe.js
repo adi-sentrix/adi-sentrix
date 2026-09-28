@@ -362,7 +362,19 @@ function _pasosLecturaDecision(partes) {
   // `top`; se pasa el universo COMPLETO de la parte (`herramientasAgente.js:cobranza` ya sabe ensanchar a la mesa
   // completa cuando el universo no trae `top`, tarea gemela de esta misma raíz).
   if (dominios.includes("cobranza")) {
-    const parteConTop = partes.find((p) => _tieneUniversoPropio(p.universo));
+    // CORREGIDO (supervisor 2026-09-28, diagnóstico v11, Y04/Y20) — «la PRIMERA parte con universo propio, sea
+    // cual sea su tema» tomaba una parte COMERCIAL (p1, primera en el array) cuando el MISMO grupo también traía
+    // una parte de COBRANZA con su propio universo (p2: `estados:["al dia"]` + `excluir.top` de «abonado»):
+    // `universoRequerido` terminaba resolviendo el `top`/`excluir` de OTRO dominio (ventas/contribución) en vez
+    // del universo que la parte de cobranza en verdad necesita, así que `cobranza()` ensanchaba la mesa con el
+    // criterio equivocado y las cuentas que la parte de cobranza pedía (Ripley, La Polar, Hites, ABC, Unimarc en
+    // Y20; el «al día» completo de Y04.p3) se quedaban sin fig — ni en Cifras ni en Detalle, un recorte SIN
+    // declarar. Se prefiere la PRIMERA parte de COBRANZA con universo propio (la que de verdad necesita la mesa
+    // completa); solo si NINGUNA parte de cobranza declara universo propio se conserva el comportamiento de
+    // siempre (tomar prestado el de otro dominio del mismo grupo, V81 — `_necesitaMesaCompleta`, en
+    // `herramientasAgente.js:cobranza`, sigue siendo la guarda que evita fabricar una señal de severidad falsa).
+    const parteConTop = partes.find((p) => p.tema === "cobranza" && _tieneUniversoPropio(p.universo))
+      || partes.find((p) => _tieneUniversoPropio(p.universo));
     if (parteConTop) out = out.map((c) => (c.tool === "cobranza" ? { ...c, args: { ...c.args, universoRequerido: parteConTop.universo } } : c));
   }
   // §7.3·17 (supervisor 2026-09-27, diagnóstico v8, tarea 2 del cierre — HUECO DE LECTURA, raíz de Z25/Z64) — una

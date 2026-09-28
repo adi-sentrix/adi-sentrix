@@ -498,7 +498,13 @@ function _construir(scenario) {
     // adivina un crudo desde `valor` para una unidad "money") y cae al fallback de figs de la boleta, LIMITADO a
     // lo que el turno haya pedido — nunca al eje completo que el Core sí tiene. Con `texto`, el ranking
     // proyectado (SIEMPRE completo, el eje entero) queda disponible tal cual es: una cita, no una cuenta nueva.
-    if (Number.isFinite(c.actual)) rankings.cliente.ventas.filas.push({ entidad: c.nombre, valor: c.actual, texto: _moneyK(c.actual) });
+    // CRUDO_MONEY comercial (supervisor 2026-09-28, diagnóstico v11 · RAÍZ A1 · §7.3·23, alcance precisado): el
+    // umbral exacto también rige en comercial, no solo en cobranza — Jumbo con $17.306.000 quedaba fuera de un
+    // filtro «> $17.300.000» porque `_filasTipadas` reparseaba el TEXTO redondeado («$17.3M») a falta de `raw`.
+    // `raw` es el mismo crudo EXACTO, con el MISMO factor de escala que ya declara la fuente (`_fxK =
+    // factorComercialDe(...)`, calculado arriba en esta función — la misma constante que ya usan los rankings de
+    // cobranza, sin duplicarla ni inventar una escala nueva).
+    if (Number.isFinite(c.actual)) rankings.cliente.ventas.filas.push({ entidad: c.nombre, valor: c.actual, texto: _moneyK(c.actual), raw: c.actual * _fxK });
     if (Number.isFinite(+c.unidades)) rankings.cliente.unidades.filas.push({ entidad: c.nombre, valor: +c.unidades });
     if (m) {
       if (Number.isFinite(m.margen)) rankings.cliente.margen.filas.push({ entidad: c.nombre, valor: m.margen });
@@ -508,7 +514,8 @@ function _construir(scenario) {
       // `diagnose()` trajo por materialidad, no al eje completo) — un `top` por «contribución» terminaba
       // declinando por «ranking-parcial» aunque la proyección SÍ tiene los 13 clientes. Mismo patrón que ya usa
       // «ventas»: `texto` con el MISMO formateador de la prosa (`_moneyK`), nunca una escala nueva.
-      if (Number.isFinite(m.contribucion)) rankings.cliente.contribucion.filas.push({ entidad: c.nombre, valor: m.contribucion, texto: _moneyK(m.contribucion) });
+      // CRUDO_MONEY comercial (supervisor 2026-09-28, diagnóstico v11 · RAÍZ A1) — mismo patrón que «ventas» arriba.
+      if (Number.isFinite(m.contribucion)) rankings.cliente.contribucion.filas.push({ entidad: c.nombre, valor: m.contribucion, texto: _moneyK(m.contribucion), raw: m.contribucion * _fxK });
       if (Number.isFinite(m.pctRebate)) rankings.cliente.carga.filas.push({ entidad: c.nombre, valor: m.pctRebate });
       if (Number.isFinite(m.margen)) {
         const _vara = benchmarkOf(m);
@@ -516,7 +523,8 @@ function _construir(scenario) {
           const _brecha = Math.round((_vara - m.margen) * 10) / 10;
           rankings.cliente.brecha.filas.push({ entidad: c.nombre, valor: _brecha });
           // RAÍZ A4 gemela — mismo patrón: «no_capturada» también es dinero.
-          if (_brecha > 0 && Number.isFinite(c.actual)) { const _noCap = Math.round(c.actual * _brecha / 100); rankings.cliente.no_capturada.filas.push({ entidad: c.nombre, valor: _noCap, texto: _moneyK(_noCap) }); }
+          // CRUDO_MONEY comercial (supervisor 2026-09-28, diagnóstico v11 · RAÍZ A1) — mismo patrón que «ventas» arriba.
+          if (_brecha > 0 && Number.isFinite(c.actual)) { const _noCap = Math.round(c.actual * _brecha / 100); rankings.cliente.no_capturada.filas.push({ entidad: c.nombre, valor: _noCap, texto: _moneyK(_noCap), raw: _noCap * _fxK }); }
         }
       }
     }
@@ -548,6 +556,19 @@ function _construir(scenario) {
     /* lo que debe y AÚN NO VENCE: el saldo menos lo vencido, calculado por la mesa (`porVencerK`, la misma cuenta que su estado «por_vencer»).
      * «$9,8M sin vencer / vigentes / por vencer» era una cifra sin métrica en la casa y se asistía como el pendiente (ronda adversarial 3). */
     rankings.cliente.saldo_por_vencer = _RC(null, "mesaFlujo.filas.porVencerK", ["saldo\\s+por\\s+vencer", "por\\s+vencer", "sin\\s+vencer", "vigentes?", "no\\s+vencid[oa]s?", "dentro\\s+de(?:l)?\\s+plazo"]);
+    /* RAÍZ A2 (supervisor 2026-09-28, diagnóstico v11, Y20) — «abonado» tiene ranking propio, con el MISMO
+     * mecanismo (`_RC`) que sus hermanos de cobranza arriba, sobre TODAS las filas de `_mesaCobro` (los 13
+     * clientes, no un recorte del turno). Antes «abonado» no tenía `rankings.cliente.abonado`, así que
+     * `notario/verificar.js:_filasTipadas` caía a su SEGUNDO camino (`I.figsDeMetrica`), que solo ve las figs
+     * de LA BOLETA DE ESTE TURNO — limitada al top-8 que trae la herramienta `cobranza()` (`herramientasAgente.
+     * js`). Un `top`/`excluir.top` sobre «abonado» declinaba la parte entera con «ranking-parcial» (8 de 13)
+     * aunque la proyección SÍ conoce el abonado de los 13. La corrección NO es meter «abonado» en
+     * `AUSENTE_VALE_CERO` (`notario/lexico.js`, RAÍZ A8 del diagnóstico v8: «ausente» en abonado significa «no
+     * consultado», nunca cero — todo cliente abona algo o nada, pero el dato SIEMPRE existe) — es de LECTURA:
+     * publicar el ranking completo, igual que ya hacen `saldo_vencido`/`saldo_pendiente`/etc. Sin lado malo
+     * propio en la CIFRA de golpe (peorEs "menor": abonar menos es la que preocupa, mismo criterio que
+     * «recuperado» arriba). */
+    rankings.cliente.abonado = _RC("menor", "mesaFlujo.filas.abonadoK", ["abonad[oa]s?", "abonos?"]);
     /* cada fila lleva además su cifra FORMATEADA por la mesa (`texto`): una sola verdad, cero recálculo de escala en quien la verifica.
      * CRUDO_MONEY (supervisor 2026-09-27, diagnóstico v9 · W28 · §7.3·23) — Ripley con $1.048.700 de saldo pendiente
      * imprime «$1.0M» (redondeado) y un umbral («> $1.000.000») juzgado sobre ese TEXTO reparseado lo dejaba afuera:
@@ -562,6 +583,8 @@ function _construir(scenario) {
      * la mesa ya calculaba, solo escalados acá para el verificador. */
     for (const fc of _mesaCobro.filas) {
       if (Number.isFinite(fc.vencidoK)) rankings.cliente.saldo_vencido.filas.push({ entidad: fc.nombre, valor: fc.vencidoK, ...(fc.vencidoFmt ? { texto: fc.vencidoFmt, raw: fc.vencidoK * _fxK } : {}) });
+      // RAÍZ A2 (supervisor 2026-09-28, diagnóstico v11, Y20) — «abonado» completo, misma condición que sus hermanos.
+      if (Number.isFinite(fc.abonadoK)) rankings.cliente.abonado.filas.push({ entidad: fc.nombre, valor: fc.abonadoK, ...(fc.abonadoFmt ? { texto: fc.abonadoFmt, raw: fc.abonadoK * _fxK } : {}) });
       if (Number.isFinite(fc.recuperadoPct)) rankings.cliente.recuperado.filas.push({ entidad: fc.nombre, valor: fc.recuperadoPct, ...(fc.recuperadoFmt ? { texto: fc.recuperadoFmt } : {}) });
       if (Number.isFinite(fc.diasVencido)) rankings.cliente.dias_vencido.filas.push({ entidad: fc.nombre, valor: fc.diasVencido, ...(fc.diasVencidoFmt && fc.diasVencidoFmt !== "—" ? { texto: fc.diasVencidoFmt } : {}) });
       if (Number.isFinite(fc.saldoK)) rankings.cliente.saldo_pendiente.filas.push({ entidad: fc.nombre, valor: fc.saldoK, ...(fc.saldoFmt ? { texto: fc.saldoFmt, raw: fc.saldoK * _fxK } : {}) });
@@ -585,10 +608,12 @@ function _construir(scenario) {
     const D = [m.nombre];
     U(m.unidades, D, "unidades", "unidades_vendidas");
     // CRUDO_MONEY (supervisor 2026-09-27, diagnóstico v7) — mismo criterio que `rankings.cliente.ventas` arriba.
-    if (Number.isFinite(m.venta)) rankings.marca.ventas.filas.push({ entidad: m.nombre, valor: m.venta, texto: _moneyK(m.venta) });
+    // `raw` (supervisor 2026-09-28, diagnóstico v11 · RAÍZ A1 · §7.3·23) — mismo `_fxK`, sin escala nueva.
+    if (Number.isFinite(m.venta)) rankings.marca.ventas.filas.push({ entidad: m.nombre, valor: m.venta, texto: _moneyK(m.venta), raw: m.venta * _fxK });
     if (Number.isFinite(m.margen)) rankings.marca.margen.filas.push({ entidad: m.nombre, valor: m.margen });
     // RAÍZ A4 gemela (SUPERVISOR, diagnóstico v10) — mismo criterio que `rankings.cliente.contribucion` arriba.
-    if (Number.isFinite(m.contribucion)) rankings.marca.contribucion.filas.push({ entidad: m.nombre, valor: m.contribucion, texto: _moneyK(m.contribucion) });
+    // `raw` (supervisor 2026-09-28, diagnóstico v11 · RAÍZ A1 · §7.3·23) — mismo `_fxK`, sin escala nueva.
+    if (Number.isFinite(m.contribucion)) rankings.marca.contribucion.filas.push({ entidad: m.nombre, valor: m.contribucion, texto: _moneyK(m.contribucion), raw: m.contribucion * _fxK });
     if (Number.isFinite(m.pctRebate)) rankings.marca.carga.filas.push({ entidad: m.nombre, valor: m.pctRebate });
     if (Number.isFinite(m.margen)) { const _vara = benchmarkOf(m); if (Number.isFinite(_vara)) rankings.marca.brecha.filas.push({ entidad: m.nombre, valor: Math.round((_vara - m.margen) * 10) / 10 }); }
     L.push(`- ${m.nombre} — ${_L.ventas} ${F(_moneyK(m.venta), D, undefined, "ventas")} · ${_L.margen} ${F(_pct1(m.margen), D, undefined, "margen")} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D, undefined, "contribucion")} · ${_L.costo} ${F(_moneyK(m.costo), D, undefined, "costo")} · ${_L.carga} ${F(_pct1(m.pctRebate), D, undefined, "carga")} · ${m.unidades} unidades · familia ${m.sfamilia}.`);
@@ -606,9 +631,13 @@ function _construir(scenario) {
     const D = [s.nombre];
     U(s.unidades, D, "unidades", "unidades_vendidas");
     // CRUDO_MONEY (supervisor 2026-09-27, diagnóstico v7) — mismo criterio que `rankings.cliente.ventas` arriba.
-    if (Number.isFinite(s.venta)) rankings.sku.ventas.filas.push({ entidad: s.nombre, valor: s.venta, texto: _moneyK(s.venta) });
+    // `raw` (supervisor 2026-09-28, diagnóstico v11 · RAÍZ A1 · §7.3·23) — mismo `_fxK`, sin escala nueva. Es el
+    // SKU comercial (venta del año cerrado, `skusMargen`), nunca el universo de inventario (`skuInventario`,
+    // fuera de esta tanda — rediseño de inventario aparte).
+    if (Number.isFinite(s.venta)) rankings.sku.ventas.filas.push({ entidad: s.nombre, valor: s.venta, texto: _moneyK(s.venta), raw: s.venta * _fxK });
     // RAÍZ A4 gemela (SUPERVISOR, diagnóstico v10) — mismo criterio que `rankings.cliente.contribucion` arriba.
-    if (Number.isFinite(s.contribucion)) rankings.sku.contribucion.filas.push({ entidad: s.nombre, valor: s.contribucion, texto: _moneyK(s.contribucion) });
+    // `raw` (supervisor 2026-09-28, diagnóstico v11 · RAÍZ A1 · §7.3·23) — mismo `_fxK`, sin escala nueva.
+    if (Number.isFinite(s.contribucion)) rankings.sku.contribucion.filas.push({ entidad: s.nombre, valor: s.contribucion, texto: _moneyK(s.contribucion), raw: s.contribucion * _fxK });
     // §7.3·13 (raíz A3): el margen de venta del SKU, ranking estático — ver la nota de la declaración arriba.
     if (Number.isFinite(s.margen)) rankings.sku.margen_venta.filas.push({ entidad: s.nombre, valor: s.margen });
     L.push(`- ${s.nombre} — ${_L.ventas} ${F(_moneyK(s.venta), D, undefined, "ventas")} · ${_L.margen} ${F(_pct1(s.margen), D, undefined, "margen")} · ${_L.contribucion} ${F(_moneyK(s.contribucion), D, undefined, "contribucion")} · ${_L.costo} ${F(_moneyK(s.costo), D, undefined, "costo")} · ${_L.carga} ${F(_pct1(s.pctRebate), D, undefined, "carga")} · ${s.unidades} unidades · costo medio ${F(_money(s.costoMedio), D)} por unidad · precio de lista ${F(_money(s.precioLista), D)} por unidad · marca ${s.marca} · familia ${s.sfamilia}.`);

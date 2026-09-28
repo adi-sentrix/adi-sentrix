@@ -154,6 +154,18 @@ export function figsEnAlcance(figs, alcance, { ejesDelTenant = {}, entidadDeLabe
   if (alcance && alcance.filtros) camposDeclarados.filtros = alcance.filtros;
   if (alcance && alcance.union && alcance.union.length) camposDeclarados.union = alcance.union;
   if (alcance && alcance.top) camposDeclarados.top = alcance.top;
+  // CORREGIDO (supervisor 2026-09-28, diagnóstico v11, Y20) — `excluirCompleto` (arriba, RAÍZ A7 del diagnóstico
+  // v9) viaja desde `alcanceDeParte` con el objeto ENTERO de `universo.excluir` (top/conjuntos/estados/bodega,
+  // no solo nombres), pero esta función nunca lo agregaba a `camposDeclarados` — así que `conjuntoDeUniverso`
+  // (abajo) resolvía `dentroDelUniverso` SIN la exclusión por `top`/conjunto/estado/bodega: una entidad excluida
+  // por `excluir.top` (p. ej. Jumbo, el top-1 abonador que Y20.p2 excluye) seguía figurando en `figsEnAlcance` —
+  // solo `excluidas` (arriba, la lista PLANA de `excluir.entidades`) la filtraba, y ninguna parte de Y20 excluye
+  // por nombre. La cruzada de prioridad entre dominios (`entrega/componer.js:figsDelGrupoCruce`, §7.3·22) arma su
+  // pool de figs con ESTA función — Jumbo, excluido por las DOS partes (p1: top-2 contribución; p2: top-1
+  // abonado), seguía entrando a `prioridadIntegrada` y ganaba la lectura global, aunque ninguna parte lo hubiera
+  // servido. `_camposDeUniverso` (componer.js:1972) ya hace exactamente esto para `_planCifraGrupo`; acá faltaba
+  // la misma línea — no es una segunda regla, es la MISMA regla aplicada al quinto sitio que arma el alcance.
+  if (alcance && alcance.excluirCompleto) camposDeclarados.excluir = alcance.excluirCompleto;
   // RAÍZ A9 (supervisor 2026-09-27, diagnóstico v9) — `bodega` NUNCA viajaba en `camposDeclarados`: se creía
   // cubierta aparte por `fueraDeBodega` (arriba), pero ESE mecanismo solo filtra las figs por bodega — nunca
   // entra a la llamada de `conjuntoDeUniverso` que resuelve `dentroDelUniverso`. Con `bodega` + `top` juntos (sin

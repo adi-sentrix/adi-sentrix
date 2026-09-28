@@ -544,6 +544,9 @@ venta a crédito, ley del owner).
     calibrada contra el texto redondeado): la cuenta verdadera es 3, no 2 (decisión del supervisor, con esta evidencia).
     Por el mismo hecho y con la misma evidencia se corrigen también `u18-m-de-la-cadena.h2` y
     `t02-control-cobranza-2.h4` de `fixtures/ronda5-2026-09-17/hechos.json` (n 2 → 3).
+    **Alcance (precisado el 2026-09-28, diagnóstico v11):** el principio vale para TODO umbral de dinero, en cobranza, en
+    comercial (ventas, contribución…) y en inventario (capital…). Cada ranking de dinero de la proyección publica su
+    crudo con la escala declarada de su fuente.
 24. [2026-09-27, diagnóstico v10; precisa la 22] En la prioridad cruzada participan las partes `decision` con universo
     propio (también un universo solo de estados); las `lectura` y las `cifra` no participan. Se cruza en la CLAVE REAL
     compartida (ley de la prioridad integrada: señal por señal en el cliente; los SKU van aparte). Si las decisiones
@@ -577,6 +580,32 @@ venta a crédito, ley del owner).
     MISMA fuente del Core que la pantalla usa para ese SKU. Si el Core no define esa cifra para un miembro, la Entrega lo
     DECLARA como límite (miembro sin esa cifra); nunca lo omite en silencio ni inventa la cifra. Antes de cambiar una
     definición de estado, se reporta al supervisor.
+31. [2026-09-28 · DECISIÓN DEL OWNER: «Apruebo inmovilizado = frenado + sobrestock con los umbrales de la empresa»]
+    Capital INMOVILIZADO = los SKU en estado frenado o sobrestock según `diagnoseInventarioSku`, con los umbrales de la
+    empresa (POLICY: rotación mínima, días máximos, sobrestock desde N días). FRENADO = el subconjunto crítico dentro de
+    él. Se retiran la regla por el texto crudo del dato (`estado ≠ Activo`) y el indicador escrito a mano. La pestaña
+    sigue llamándose «Capital inmovilizado», muestra el universo completo y distingue lo frenado como subconjunto
+    crítico (UX del owner). El indicador, la pantalla y la Entrega leen UNA sola función de jerarquía.
+    **Precisada por el owner el mismo día («Apruebo completamente la separación entre inmovilizado, inmovilizado
+    crítico y frenado»):** INMOVILIZADO = capital atrapado por permanencia o rotación insuficiente (capital_frenado ∪
+    sobrestock) · INMOVILIZADO CRÍTICO = el tramo capital_frenado (la palabra «frenado» deja de nombrar esta regla en
+    superficie; la clave interna no cambia) · FRENADO = venta interrumpida, medida por los días sin venta. La relación
+    entre frenado e inmovilizado se MIDE (intersección); nunca se asume que uno contiene al otro.
+32. [2026-09-28 · DECISIÓN DEL OWNER: «ningún veredicto debe esconder de dónde proviene su criterio»; alcance:
+    procedencia y transparencia, sin reabrir la lógica de inmovilizado salvo una contradicción material]
+    (a) FRENADO: los días sin venta son un HECHO y se usan siempre (ranking, contraste con el ritmo propio del SKU, el
+    estado «sin venta»). El VEREDICTO «frenado» exige un umbral declarado, por la empresa (en su perfil) o planteado en
+    la consulta (vale para esa pregunta y se atribuye a quien consulta). Sin umbral, queda «sin evaluar», con el
+    ofrecimiento de fijarlo; nunca «no hay frenados», nunca tramos inventados y nunca 60 días como verdad de ADI.
+    (b) Todo veredicto que depende de un umbral (inmovilizado, crítico, sobrestock, frenado, y el piso de materialidad
+    por coherencia) declara el ORIGEN de su criterio: «declarado por la empresa», «criterio general de ADI, ajustable
+    por la empresa» o «planteado en la consulta». La misma procedencia llega al indicador, a la pantalla y a la Entrega.
+33. [2026-09-28, supervisor; diagnóstico v11] Tamaño con contenido obligatorio: si en «breve» el contenido que no se
+    recorta (premisas, conclusiones) supera el tope porque hay una prioridad cruzada ENCIMA de las prioridades por
+    parte, las oraciones de prioridad DENTRO de cada universo pasan a `entrega.detalle.oraciones` con los mismos ids
+    (siguen servidas; «Ver el detalle» las declara) y la respuesta conserva las premisas y la prioridad cruzada. Si
+    aun así no cabe, la Entrega se sirve igual, sin cortar nada obligatorio, y lo declara en `meta`
+    (`excedeTope: true`). El tope nunca se cumple borrando una conclusión ni una premisa.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

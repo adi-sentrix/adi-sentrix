@@ -985,7 +985,16 @@ export function libroDeHechos(hechos, ctx = {}) {
         H.render.universo = H.universo.texto;
         // el mismo umbral formateado que su gemelo de `_conteoTipado` (arriba, ~línea 724, X34) — un filtro sobre
         // un `orden`/`grupo` tipado imprime igual, nunca crudo.
-        if (_es(u)) { for (const f of Array.isArray(u.filtros) ? u.filtros : []) { _addClave(H, f.metrica); if (f.valor != null && !Array.isArray(f.valor)) { const enDias = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)); H.numeros.push({ raw: +f.valor, unidad: enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count"), texto: formatoDeLaCasa(+f.valor, enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count")) || String(f.valor) }); if (enDias) { const d = diasDe(f.valor, f.unidad); if (d != null) H.numeros.push({ raw: d, unidad: "days", texto: `${d} días` }); } H.render.umbral = _fmtUmbral(f).replace(/^.*?(?:superior a|de al menos|inferior a|de hasta|igual a|entre)\s+/, ""); } } if (u.top) { _addClave(H, u.top.metrica); H.numeros.push({ raw: +u.top.k, unidad: "count", texto: String(u.top.k) }); } for (const e of [..._lista(u.estados), ..._lista(u.no_estados), ..._lista(u.excluir && u.excluir.estados)]) { H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(_canonDe(e)); }
+        // CORREGIDO (supervisor 2026-09-28, diagnóstico v11, Y10/Y17) — `u.top.k` (el tamaño del universo, p. ej.
+        // «el de más contribución SOBRE EL BENCHMARK» con `top:{k:1}`) se empujaba a `H.numeros` para CUALQUIER
+        // tipo con `_es(u)`, incluido `orden`: para un `orden` de UN sujeto (q2/q3), `a2.orden.k` (línea ~962) no
+        // existe (`forma:"max"` no declara `k`), así que este push quedaba como `H.numeros[0]` — el rescate
+        // genérico (línea ~1096, «EL DUEÑO DE UNA CIFRA») que busca la cifra PROPIA del sujeto (su contribución,
+        // su margen) solo corre `si !H.numeros.length`, y con el `k` del universo ya adentro, nunca se ejecutaba:
+        // `_rotuloDeLaCasaDeH` (componer.js) imprimía «Easy: contribución 1» (el `k`=1 del top, no los $ de Easy).
+        // Para `grupo`/`conteo` este número SÍ hace falta (su gemelo de `_conteoTipado`, citado arriba, lo declara
+        // igual) — se acota el chequeo a excluir SOLO `orden`, sin tocar los otros dos tipos ni ninguna otra rama.
+        if (_es(u)) { for (const f of Array.isArray(u.filtros) ? u.filtros : []) { _addClave(H, f.metrica); if (f.valor != null && !Array.isArray(f.valor)) { const enDias = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)); H.numeros.push({ raw: +f.valor, unidad: enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count"), texto: formatoDeLaCasa(+f.valor, enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count")) || String(f.valor) }); if (enDias) { const d = diasDe(f.valor, f.unidad); if (d != null) H.numeros.push({ raw: d, unidad: "days", texto: `${d} días` }); } H.render.umbral = _fmtUmbral(f).replace(/^.*?(?:superior a|de al menos|inferior a|de hasta|igual a|entre)\s+/, ""); } } if (u.top) { _addClave(H, u.top.metrica); if (tipo !== "orden") H.numeros.push({ raw: +u.top.k, unidad: "count", texto: String(u.top.k) }); } for (const e of [..._lista(u.estados), ..._lista(u.no_estados), ..._lista(u.excluir && u.excluir.estados)]) { H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(_canonDe(e)); }
           // §7.3, tarea 4 (segunda tanda): un `union` trae sus propios filtros DENTRO de cada miembro — declaran
           // su clave acá, con el MISMO `_addClave` de arriba, para que el rescate de la referencia (más abajo, el
           // bloque «GENERALIZACIÓN A filtros[].ref») sepa qué métrica reporta la entidad también en este caso.
@@ -1029,6 +1038,28 @@ export function libroDeHechos(hechos, ctx = {}) {
               const _fProp = _figDe(I, H.roles.sujetos[0], fam.metrica);
               if (_fProp) { H.numeros.unshift({ raw: _fProp.raw, unidad: _fProp.unidad, texto: _fProp.texto || "" }); H.claves.add(fam.metrica); }
             }
+          }
+        }
+      }
+      // CORREGIDO (supervisor 2026-09-28, diagnóstico v11, Y10/Y17) — la ley §7.3·12/·19 («toda referencia
+      // declarada imprime su valor en la MISMA oración… vale también para el universo de una PREMISA») cerraba
+      // el hueco de `base` solo para `grupo` (bloque de arriba); un `orden` de un sujeto («Easy tiene la mayor
+      // contribución ENTRE LOS QUE ESTÁN SOBRE EL BENCHMARK») con el MISMO universo (`base:"sobre el
+      // benchmark"`) nunca declaraba `H.render.referencia`, así que la premisa quedaba verdadera pero sin el
+      // 30.1% del benchmark en el texto. Se declara SOLO `H.render.referencia` — nunca se toca `H.verdad` ni
+      // `H.numeros` (ese `push`/`unshift` es del camino de `grupo`, donde el rescate genérico de abajo, línea
+      // ~964, no corre para el mismo tipo; para `orden` SÍ corre, y es la fuente correcta del valor PROPIO del
+      // sujeto en `H.numeros[0]` — anteponer acá la referencia lo desplazaría, la RAÍZ exacta del defecto
+      // gemelo que ya cerró la nota de arriba, «línea ~1096, DELIBERADAMENTE DESPUÉS»). Misma tabla
+      // `referenciaDeBase`, misma función `valorDeReferencia`/`formatoDeLaCasa` — nunca una segunda cifra.
+      if (tipo === "orden" && _es(h.universo) && typeof h.universo.base === "string" && !H.render.referencia) {
+        const famO = referenciaDeBase(h.universo.base.trim());
+        if (famO) {
+          const rRefO = valorDeReferencia(famO.concepto, I);
+          if (rRefO && Number.isFinite(rRefO.raw)) {
+            const mRefO = metricaPorClave(famO.concepto);
+            const valTxtO = formatoDeLaCasa(rRefO.raw, rRefO.unidad || "pct");
+            H.render.referencia = `${mRefO ? mRefO.nombre.toLowerCase() : famO.concepto} ${valTxtO}`;
           }
         }
       }
