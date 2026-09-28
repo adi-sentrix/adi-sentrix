@@ -2949,10 +2949,15 @@ export function componerEntrega(resolucion) {
       else if (plan) planes.push(plan);
     }
   }
-  if (!planes.length) {
-    if (limitesGap.length) return _vacia(`ninguna parte se pudo componer: ${limitesGap.map((l) => l.titulo).join(" · ")}`);
-    return _vacia("ninguna parte del encargo produjo evidencia suficiente para componer la Entrega");
-  }
+  // §7.3·29 (SUPERVISOR, 2026-09-28 — ley «declinar honestamente cuenta como éxito», X75) — si TODAS las partes
+  // resueltas se declinaron AL COMPONER (ranking incompleto, universo que no coincide…), `limitesGap` ya trae un
+  // límite por parte, en lenguaje de negocio, con su motivo. La Entrega YA NO sale vacía por eso: se deja que el
+  // resto de esta función siga con `planes:[]` — el marco se arma igual (línea ~3571), las premisas se verifican
+  // igual (línea ~3121) y `limitesGap` se vuelca a `entrega.limites` más abajo (línea ~3720) — así que el
+  // resultado final es `ok:true`, sin ganador servido y con el límite de cada parte declarado. `ok:false` queda
+  // reservado para una raíz inválida o un error interno: SOLO cuando ninguna parte dejó ni un plan NI un límite
+  // (`limitesGap` también vacío) no hay ninguna razón de negocio que declarar — ahí sí es un vacío genuino.
+  if (!planes.length && !limitesGap.length) return _vacia("ninguna parte del encargo produjo evidencia suficiente para componer la Entrega");
 
   // «comparables viajan juntas» (mecanismo 3 del plan): cualquier plan comercial puede citar «brecha»/«benchmark»
   // en su prosa (carga alta, brecha al benchmark, contribución no capturada…) — el Marco declara la referencia
@@ -3108,6 +3113,14 @@ export function componerEntrega(resolucion) {
     ? ["Entidad", "Simulación", "Supuesto", "Métrica", "Valor", "Tipo"]
     : ["Entidad / grupo", "Tema", "Métrica", "Valor", "Tipo"];
   const temasCubiertos = new Set();
+  // §7.3·29 (SUPERVISOR, 2026-09-28) — con `planes:[]` (TODAS las partes resueltas se declinaron al componer,
+  // el camino que abrió la decisión 29), el loop de abajo («for (const plan of planes)») nunca corre, así que
+  // `temasCubiertos` quedaría vacío aunque el encargo SÍ pedía esos temas — la Entrega compone `ok:true` con un
+  // límite por parte, pero el Marco/`entrega.temasCubiertos` tienen que seguir declarando QUÉ se intentó
+  // responder (X75 lo mide: `temasCubiertos: ["comercial"]` aunque las dos partes se hayan declinado). Se
+  // declaran los temas de las partes ÚTILES (resuelta/parcial) directamente — nunca inventa un tema que el
+  // encargo no pidió, y no cambia nada cuando SÍ hay planes (ese caso ya declara su tema en el loop de abajo).
+  if (!planes.length) for (const p of partesUtiles) if (p.tema) temasCubiertos.add(p.tema);
   const _fila = (entidad, tema, etiqueta, id) => { const procedencia = _procedenciaDeFila(libro, [id]); return { valores: { "Entidad / grupo": entidad, "Tema": _DOM_NOMBRE[tema] || tema, "Métrica": etiqueta, "Valor": R(id), "Tipo": _textoDeTipo(procedencia) }, hechos: [id], procedencia }; };
 
   // ═══ CORTE 3c · PIEZA 3 (owner 2026-09-25) — VEREDICTO DE PREMISAS ═══════════════════════════════════════════

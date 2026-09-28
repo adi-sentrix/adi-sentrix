@@ -737,20 +737,40 @@ H("22 · CARNADA · el límite «sin señal de riesgo» es de negocio (sin nombr
   }
 }
 
-H("24 · CARNADA · RAÍZ A6 (SUPERVISOR, diagnóstico v10) — un top «mayor» sobre un ranking parcial DECLINA igual que «menor/peor/mejor»");
+H("24 · CARNADA · §7.3·29 (SUPERVISOR, «declinar honestamente cuenta como éxito», X75) — un top «mayor» sobre un ranking parcial DECLINA la parte, pero la Entrega compone igual, con el límite declarado");
 {
   // comercial por marca, top variación (default «mayor»): el dato solo trae variación de 4 de 5 marcas (Makita
-  // sin año anterior) — antes, «mayor» quedaba EXENTO de la guardia de ranking-parcial (`notario/verificar.js:
-  // _topTipado`) y servía un top-1 «mayor» (LG) en el MISMO turno donde la premisa ya declaraba «el orden sobre
-  // el eje entero no se puede verificar» — contradicción textual en la propia Entrega.
+  // sin año anterior) — «mayor» declina igual que «menor/peor/mejor» (RAÍZ A6, diagnóstico v10): nunca se sirve
+  // un ganador no verificable. Hasta acá, sin cambios. Lo que SÍ cambió (decisión 29, supervisor 2026-09-28,
+  // sobre esta misma aserción — la escribió un agente ANTES de la decisión, describía el comportamiento viejo):
+  // con la ÚNICA parte del encargo declinada al componer, la Entrega ya no sale vacía (`ok:false`) — sale con
+  // `ok:true`, el límite de esa parte en `entrega.limites` (ya no en `motivo`, que ahora solo existe si la
+  // Entrega de verdad falla), el marco y las premisas verificadas. `ok:false` queda solo para una raíz inválida
+  // o un error interno — nunca para esto.
+  // Con premisas (mismo patrón que X75, catálogo v10): sin ellas, la parte declinada deja `entrega.respuesta`
+  // vacía y cae en el OTRO `_vacia` de componer.js (línea ~3543, «ninguna parte produjo una oración con
+  // evidencia» — un caso DISTINTO, fuera del alcance de la decisión 29, que sigue en `ok:false`: ver el reporte
+  // al supervisor). Con las premisas, su veredicto («no verificable», el mismo ranking incompleto) SÍ entra a
+  // `entrega.respuesta` — el camino real de X75.
   const encA6 = { version: "encargo/v1", partes: [
     { id: "p1", tema: "comercial", cierre: "decision", conceptos: ["variacion"], eje: "marca", universo: { eje: "marca", top: { metrica: "variacion", k: 1 } } },
+  ], premisas: [
+    { id: "q1", tipo: "orden", sujeto: "Bosch", metrica: "variacion", orden: { forma: "min" }, universo: { eje: "marca" } },
+    { id: "q2", tipo: "orden", sujeto: "LG", metrica: "variacion", orden: { forma: "max" }, universo: { eje: "marca" } },
   ] };
   const RA6 = validarEncargo(encA6, {});
   ok(RA6.partes[0].estado === "resuelta", "la parte valida (el hueco es de DATO, no de forma)", JSON.stringify(RA6.partes[0]));
   const EA6 = componerEntrega(RA6);
-  ok(EA6.ok === false, "★ CARNADA · un top «mayor» sobre un ranking incompleto DECLINA — nunca sirve un ganador no verificable", EA6.ok ? EA6.texto.slice(0, 200) : EA6.motivo);
-  ok(!EA6.ok && /ranking parcial|no encontró evidencia/i.test(EA6.motivo || ""), "★ el motivo declarado nombra el límite (nunca un silencio)", EA6.motivo);
+  ok(EA6.ok === true, "★ §7.3·29 · la Entrega compone ok:true aunque su única parte se decline al armar (declinar honestamente cuenta como éxito, nunca una Entrega vacía)", EA6.ok ? "" : EA6.motivo);
+  if (EA6.ok) {
+    const limRanking = (EA6.entrega.limites || []).find((l) => /ranking parcial|no encontró evidencia/i.test(`${l.titulo} ${l.motivo}`));
+    ok(!!limRanking, "★ el límite nombra el ranking incompleto, declarado en entrega.limites (ya no en motivo — no hay Entrega vacía que lo esconda)", JSON.stringify(EA6.entrega.limites));
+    // (a) NUNCA se sirve un ganador no verificable: ninguna marca recibe cifra propia como sujeto de esta parte
+    // (la tabla de Cifras queda vacía — la parte se declinó, no se sirvió con otro alcance) y ninguna oración de
+    // prioridad («quien más pesa»/«prioridad del procedimiento», el patrón que arma un ganador) nombra una marca.
+    ok(!(EA6.entrega.cifras.filas || []).length, "★ CARNADA · ninguna marca recibe cifra propia como sujeto de la parte declinada", JSON.stringify(EA6.entrega.cifras.filas));
+    ok(!/quien m[aá]s pesa|prioridad del procedimiento/i.test(EA6.texto), "★ CARNADA · ninguna oración de prioridad nombra una marca como ganador", EA6.texto);
+  }
 }
 
 H("25a · CARNADA · §7.3·26(a) forma MIXTA — el eje compartido cruza (2 comercial + 1 cobranza, cliente); inventario (sku) queda declarado FUERA");

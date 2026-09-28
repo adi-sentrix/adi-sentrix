@@ -571,10 +571,12 @@ venta a crédito, ley del owner).
     al componer (ranking incompleto, universo que no coincide…), la Entrega sale igual (`ok:true`), con un límite por
     parte en lenguaje de negocio, el marco y las premisas verificadas. Nunca una Entrega vacía: quien consulta tiene
     que saber qué no se pudo responder y por qué. `ok:false` queda solo para una raíz inválida o un error interno.
-30. [2026-09-28, supervisor; ley «una definición por estado»] La pertenencia de un SKU a un estado de inventario
-    («inmovilizado», «frenado»…) y las cifras que se sirven de ese SKU salen de la MISMA definición: la de la Mesa
-    Capital (la función que pinta la pantalla), publicada por la proyección. Dos taxonomías para el mismo estado (el
-    campo crudo `estado` por un lado y la política DOH/rotación por otro) son dos verdades, y eso es un defecto.
+30. [2026-09-28, supervisor; ley «una definición por estado»] Cada estado de inventario tiene UNA definición
+    (`notario/estados.js`, la misma que la Mesa Capital), y «inmovilizado» y «frenado» son estados DISTINTOS que pueden
+    convivir con «capital sano» (Notario v3.1). Todo miembro de un universo por estado recibe la cifra pedida de la
+    MISMA fuente del Core que la pantalla usa para ese SKU. Si el Core no define esa cifra para un miembro, la Entrega lo
+    DECLARA como límite (miembro sin esa cifra); nunca lo omite en silencio ni inventa la cifra. Antes de cambiar una
+    definición de estado, se reporta al supervisor.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
