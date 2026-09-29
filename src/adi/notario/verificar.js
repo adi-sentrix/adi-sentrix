@@ -614,7 +614,9 @@ function _topTipado(t, I, eje, dentro) {
   const ordenadas = F.filas.filter((x) => !dentro || dentro.has(x.entidad)).sort((x, y) => (dir === "mayor" ? y.raw - x.raw : x.raw - y.raw));
   if (ordenadas.length > k && ordenadas[k - 1].raw === ordenadas[k].raw) return { error: `top-empatado: el corte de los ${k} de ${dir} ${clave} parte un empate (${ordenadas[k - 1].nombre} y ${ordenadas[k].nombre} valen lo mismo)` };
   const filas = ordenadas.slice(0, k);
-  return { set: new Set(filas.map((x) => x.entidad)), fuente: `los ${k} de ${dir} ${clave}` };
+  /* `orden`/`filasOrden`/`dir` (supervisor 2026-09-29, diagnóstico v13, decisión 37a): el ranking COMPLETO que el top ordena, en SU dirección, para que el libro
+   * pueda decir el PUESTO real de una entidad con la misma cuenta que eligió al conjunto (nunca una segunda ordenación). Aditivo: quien solo lee `set` no cambia. */
+  return { set: new Set(filas.map((x) => x.entidad)), fuente: `los ${k} de ${dir} ${clave}`, orden: ordenadas.map((x) => x.entidad), filasOrden: ordenadas, dir };
 }
 const _listaOUno = (x) => (Array.isArray(x) ? x : x == null || x === "" ? [] : [x]);
 function _conjuntoTipado(u, I, eje0, metrica = "") {
@@ -714,6 +716,26 @@ function _conjuntoTipado(u, I, eje0, metrica = "") {
     set = acc; fuentes.push(fuentesUnion.length ? fuentesUnion.join(" o ") : "unión");
   }
   return { set, fuente: fuentes.length ? fuentes.join(" · ") : "el eje entero", tipado: true };
+}
+/** rankingDeTop(u, I, eje) → { orden:[entidad normalizada…], dir, clave, k, de:'top'|'excluir' } | null · el ranking COMPLETO que el `top` de un universo tipado
+ *  ordena (decisión 37a, diagnóstico v13): el conjunto previo al top —la base, los estados, los filtros— o el eje entero con `top.sobre:"eje"`, ordenado en la
+ *  dirección del top por `_topTipado` (la MISMA cuenta que eligió a los k). Sin `top`, el primer `excluir.top`, sobre el eje entero (la misma base que le da
+ *  `_conjuntoTipado`). Nunca inventa: un top sin cifras o empatado en el corte devuelve null y quien pregunta no dice puesto. */
+export function rankingDeTop(u, I, eje0 = null) {
+  if (!u || typeof u !== "object" || Array.isArray(u)) return null;
+  const eje = normalizar(u.eje || eje0 || "cliente");
+  const todos = _todosDelEje(I, eje);
+  let pre = null;
+  const sinTop = { eje };
+  for (const c of ["base", "estados", "no_estados", "bodega", "filtros"]) if (u[c] != null) sinTop[c] = u[c];
+  if (Object.keys(sinTop).length > 1) { const S = _conjuntoTipado(sinTop, I, eje, ""); if (!S || S.error) return null; pre = S.set || null; }
+  const exTop = u.excluir && typeof u.excluir === "object" ? _listaOUno(u.excluir.top).find((t) => t && typeof t === "object") : null;
+  const t = u.top || exTop;
+  if (!t) return null;
+  const dentro = u.top ? (normalizar(u.top.sobre) === "eje" ? todos : (pre || todos)) : todos;
+  const S = _topTipado(t, I, eje, dentro);
+  if (!S || S.error || !Array.isArray(S.orden)) return null;
+  return { orden: S.orden, dir: S.dir, clave: _claveDe(t.metrica), k: Number.isFinite(+t.k) ? +t.k : null, de: u.top ? "top" : "excluir" };
 }
 /* _conjuntoDeUniverso(u, I, eje, metrica) → { set|null (entero), fuente } o { error } */
 function _conjuntoDeUniverso(u, I, eje, metrica = "") {
@@ -829,6 +851,19 @@ function _delRanking(a, I) {
 }
 /** valorDeRanking(a, I) → { raw, unidad, label, texto } | null · la cifra de una entidad en el ranking de la proyección (para el libro de hechos) */
 export function valorDeRanking(a, I) { return _delRanking(a, I); }
+/* una entidad válida del eje que NO está en el ranking publicado de una métrica de `AUSENTE_VALE_CERO` vale 0 (`ausente: true`); null si la métrica no lo permite, la entidad no
+ * es del eje del ranking o el ranking no existe (nunca inventa un cero sobre lo que la proyección no publica). */
+function _ceroPorAusencia(a, I, unidad = null) {
+  const ent = typeof a.sujeto === "string" && a.sujeto !== "negocio" ? I.resolverEntidad(a.sujeto) : null;
+  if (!ent) return null;
+  const rk = I.rankingDe(ent.eje, a.metrica);
+  if (!rk || !AUSENTE_VALE_CERO.includes(rk.clave) || !Array.isArray(rk.r.filas) || !rk.r.filas.length) return null;
+  if (rk.r.filas.some((x) => normalizar(x.entidad) === normalizar(ent.nombre))) return null;   // está publicada: su valor no es una ausencia
+  const u = _UNIDAD_DE_RANKING[rk.clave] || "money";
+  if (unidad && _u(u) !== _u(unidad)) return null;
+  const texto = u === "money" ? "$0" : u === "days" ? "0d" : "0";
+  return { label: `ranking ${ent.eje} · ${rk.clave} · ${ent.nombre} (ausente = 0)`, texto, raw: 0, unidad: u, entidad: a.sujeto, concepto: a.metrica, conceptoNorm: normalizar(a.metrica), agregado: false, deRanking: true, ausente: true, fig: { id: null, value: texto } };
+}
 const _DICE_BAJA = /\b(?:ca[ií]da|baja|bajan|bajaron|baj[oó]\b|cae|caen|cay[oó]\b|cayeron|reducci[oó]n|retroce|pierde|pierden|perdi[oó]\b|perdieron|disminu|descend|se\s+contra[ej]|menos|negativ|recorte)/i;
 /* el juicio de la base de una tasa, traducido a veredicto (null cuando la base no aplica o coincide) */
 function _juicioDeBase(a, fig, I) {
@@ -1262,6 +1297,10 @@ function _valorDe(sujeto, metrica, I, universo = "", unidad = null) {
   if (!c.length) {
     const rk = _delRanking({ sujeto, metrica }, I);
     if (rk && (!unidad || _u(rk.unidad) === _u(unidad))) return { label: rk.label, texto: rk.texto, raw: rk.raw, unidad: rk.unidad, entidad: sujeto, concepto: metrica, conceptoNorm: normalizar(metrica), agregado: false, deRanking: true, fig: { id: null, value: rk.texto } };
+    /* RAÍZ A6 (supervisor 2026-09-29, diagnóstico v13, Z23): en una métrica de `AUSENTE_VALE_CERO` («capital inmovilizado», «saldo vencido»…) el ranking publica a
+     * TODOS los miembros del conjunto que la define (los inmovilizados, los que deben) y lo que no está NO es un hueco: es cero — la MISMA regla que ya aplican `_filasTipadas`
+     * y el orden (líneas de arriba). Una relación («BOS-SANDER tiene más capital inmovilizado que SAM-TV55») declinaba «sin evidencia» por el lado que vale 0. */
+    if (!rk) { const cero = _ceroPorAusencia({ sujeto, metrica }, I, unidad); if (cero) return cero; }
     return null;
   }
   /* la métrica sin «año anterior» es la del período: la base del año anterior no la representa (venta vs presupuesto comparaba $92.9M) */

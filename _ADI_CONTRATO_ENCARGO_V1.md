@@ -641,6 +641,17 @@ venta a crédito, ley del owner).
     umbral en la Entrega (en `marco.definiciones`, una cláusula por umbral).
     (c) El techo de cobertura (días de inventario máximo) es una referencia que define un conjunto de la casa: cae en la
     decisión 19 (la referencia del usuario se declara al lado, con su cifra y sus nombres).
+37. [2026-09-29, supervisor; diagnóstico v13, precisa decisiones ya aprobadas por el owner]
+    (a) El veredicto de una premisa FALSA dice la verdad del procedimiento con su dueño: la entidad, su cifra propia (de la
+    métrica pedida, nunca de otra) y, si la premisa era sobre un top o un orden, su PUESTO real. Nunca claves internas
+    (`capital_frenado`, «los 1 de mayor»), y nunca el k del top como cifra.
+    (b) El veredicto de una premisa sobre un estado que depende de un umbral (rota lento, riesgo de quiebre, inmovilizado,
+    sobrestock, frenado, capital sano) imprime el VALOR del umbral con que se juzgó, igual que la regla de las referencias;
+    el ORIGEN va en `marco.definiciones`, con su valor (la 36b).
+    (c) «capital sano» entra en la 36(b): depende de los mismos umbrales que los demás estados.
+    (d) Los estados de la Mesa Capital (inmovilizado crítico, sobrestock, rota lento…) son conjuntos que define una
+    referencia (piso de rotación, techo de días), así que la referencia del usuario sobre ellos se declara al lado (la 19 y
+    la 36c).
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

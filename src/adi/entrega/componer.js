@@ -18,7 +18,8 @@
  * dados. Sin red, sin estado global nuevo. Detrás de la bandera `ADI_ENTREGA` (APAGADA en todos los perfiles):
  * este módulo no se importa desde ningún camino de producción todavía — lo ejercita solo el gate. */
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
-import { benchmarkOf, ETIQUETA_ORIGEN, umbral, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio } from "../../config/businessPolicy.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
+import { benchmarkOf, ETIQUETA_ORIGEN, umbral, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, NOMBRE_DE_UMBRAL, UNIDAD_DE_UMBRAL, procedenciaDeMaterialidad } from "../../config/businessPolicy.js";
+import { umbralesDeBases } from "../notario/conjuntosDeLaCasa.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
 import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "../agente/herramientasAgente.js";
@@ -42,7 +43,7 @@ import { periodoDeFiguras, reconcilian, UNIVERSOS, PERIODO_TXT, historiaDeFigura
 // (supervisor 2026-09-26, segunda vuelta) resuelve la cifra de una referencia (benchmark, nivel de carga, techo)
 // citada por una premisa, para declararla en el Marco sin excepción al guardrail «comparables juntas».
 import { conjuntoDeUniverso, valorDeReferencia } from "../notario/verificar.js";
-import { estadoCanon, estadoDeclarado, formaDeEstado, estadoDeLaPremisa, umbralesDeEstados, ESTADO_DE_CONCEPTO } from "../notario/estados.js";
+import { estadoCanon, estadoDeclarado, formaDeEstado, estadoDeLaPremisa, umbralesDeEstados, ESTADO_DE_CONCEPTO, UMBRALES_DE_ESTADO } from "../notario/estados.js";
 // R-SORT-DIRECCION-IGNORADA, defensa en profundidad (supervisor 2026-09-26) — la MISMA normalización de nombres
 // que ya usa el Notario, para comparar el conjunto que `conjuntoDeUniverso` resuelve contra lo que una tool sirvió.
 import { normalizar } from "../notario/afirmacion.js";
@@ -1489,7 +1490,7 @@ const _sinSufijoDolar = (etiqueta) => String(etiqueta || "").replace(/\s+en\s*\$
  *       Las figs que la conclusión necesita SIEMPRE quedan también en `filas` (Cifras) — nunca un id que solo
  *       vive en la Respuesta (regla 3 de verificar.js, doble colocación). `cifra` (no lectura/decision) sigue
  *       con el listado — es lo que ese cierre pide por contrato (§1.1: una cifra puntual). */
-function _planCifraEntidad(parte, figs, ref, I, declararDerivada = null) {
+function _planCifraEntidad(parte, figs, ref, I, declararDerivada = null, sinCifraOut = null) {
   const filasPorEntidad = [];
   const esLecturaODecision = parte.cierre === "lectura" || parte.cierre === "decision";
   for (const e of parte.entidades) {
@@ -1524,7 +1525,9 @@ function _planCifraEntidad(parte, figs, ref, I, declararDerivada = null) {
     // recortar "en $" las volvería INDISTINGUIBLES en la tabla ("un rótulo no puede nombrar dos campos",
     // CLAUDE.md §4). El recorte de "en $" es SOLO para la ORACIÓN (ver el volcado en la fase 2, más abajo).
     const filas = candidatas.map((c) => ({ clave: c.clave, etiqueta: c.etiqueta || _labelDeClave(c.clave) || c.clave, id: ref(c.fig) })).filter((f) => f.id);
-    if (!filas.length) continue;
+    // RAÍZ A1 (supervisor 2026-09-29, diagnóstico v13, Z78) — una entidad nombrada que quedó SIN ninguna cifra ya no se
+    // descarta en silencio: el llamador la declara como límite («nunca omite en silencio», §7.3·29-30).
+    if (!filas.length) { if (Array.isArray(sinCifraOut)) sinCifraOut.push(e.nombre); continue; }
     const entry = { entidad: e.nombre, eje: e.eje, filas };
     if (esLecturaODecision) entry.conclusion = _construirConclusionEntidad(parte.tema, e.nombre, figs, filas, ref, I, parte.conceptos);
     filasPorEntidad.push(entry);
@@ -2014,6 +2017,22 @@ function _rotuloDeLaCasaDeH(H) {
   // universo tipado de la casa) — así que un `conteo` siempre cae a `H.verdad`/`H.motivo` (el fallback que esta
   // función ya usaba para «sin evidencia suficiente»), nunca a un rótulo genérico armado para `orden`/`variacion`.
   if (H.tipo === "conteo") return null;
+  // DECISIÓN 37a (supervisor 2026-09-29, diagnóstico v13 — A2 + A3): la premisa de GRUPO falsa sobre una entidad dice su verdad con dueño —la entidad, su cifra de LA
+  // MÉTRICA que define el universo (nunca la de otra), su puesto real si el universo es un top y, si la excluye un estado, el estado en que SÍ está—, armada por el libro
+  // (`notario/hechos.js:_verdadPropiaDeGrupo`); acá solo se escribe. Sin claves internas ni el `k` del top.
+  const vp = H.render && H.render.verdadPropia;
+  if (vp && vp.entidad) {
+    const nombreM = vp.metrica ? vp.metrica.nombre : null;
+    const partes = [];
+    if (vp.estado) partes.push(`está ${vp.estado.texto}`);
+    if (vp.metrica) partes.push(`${nombreM} ${vp.metrica.texto}`);
+    if (vp.puesto) partes.push(`puesto ${vp.puesto.n} de ${vp.puesto.de} al ordenar de ${vp.puesto.dir === "menor" ? "menor a mayor" : "mayor a menor"} por ${nombreM}`);
+    const refP = H.render.referencia && !partes.some((x) => x.includes(H.render.referencia)) ? `, ${H.render.referencia}` : "";
+    return `${vp.entidad}: ${partes.join(", ")}${refP}`;
+  }
+  // los estados de la Mesa Capital de la entidad de una premisa de ESTADO, con su nombre y con las palabras de la casa («con alerta en el archivo», nunca «crítico» a secas; decisión 34a)
+  const ep = H.render && H.render.estadosPropios;
+  if (ep && ep.entidad && Array.isArray(ep.estados) && ep.estados.length) return `${ep.entidad}: está ${ep.estados.map((x) => `${x.texto}${x.bodega ? ` (${x.bodega})` : ""}`).join(" · ")}`;
   // CORREGIDO (2026-09-26, medido con D29 al correr `_entrega_neutral_gate`) — cuando el hecho no vino de una
   // fig de la boleta sino de `I.rankings` (notario/verificar.js, «cae al ranking cuando la boleta no trae la
   // fig», ver la nota de `_dominioDePremisa`), `H.evidencia[0]` NO es un label "Entidad · Concepto": es el MISMO
@@ -2023,7 +2042,10 @@ function _rotuloDeLaCasaDeH(H) {
   const figCruda = (H.evidencia && H.evidencia[0]) || null;
   const fig = figCruda && !/^ranking\s/i.test(figCruda) ? figCruda : null;
   const entidad = fig ? _entidadDe(fig) : (H.roles.sujetos[0] && H.roles.sujetos[0] !== "negocio" ? H.roles.sujetos[0] : null);
-  const clave = fig ? _claveDeFig({ label: fig }) : ([...H.claves].find((c) => c !== "variacion" && c !== "vs_presupuesto") || null);
+  // RAÍZ A3 (supervisor 2026-09-29, diagnóstico v13): «ninguna cifra impresa con un rótulo distinto de su clave» — el número propio lleva su clave (`H.numeros[i].clave`, la que
+  // el libro usó para leerlo) y el rótulo sale de ELLA, nunca de la primera clave del conjunto (`capital 12 días`: el 12 era de `dias_sin_venta`, no de `capital`).
+  const _numeroPropio = (H.numeros || []).find(esCifraPropia);
+  const clave = (_numeroPropio && _numeroPropio.clave && H.tipo !== "variacion" ? _numeroPropio.clave : null) || (fig ? _claveDeFig({ label: fig }) : ([...H.claves].find((c) => c !== "variacion" && c !== "vs_presupuesto") || null));
   const conceptoTxt = clave ? _labelDeClave(clave).toLowerCase() : null;
   // EL DUEÑO DE UNA CIFRA (owner 2026-09-26, diagnóstico v4 §5, MATERIAL) — el valor SOLO sale de `H.numeros`
   // (la estructura del hecho: `notario/hechos.js` ya resuelve, para el sujeto único de un `orden` sin fig propia,
@@ -2057,9 +2079,42 @@ function _rotuloDeLaCasaDeH(H) {
 function _textoVerdadDerivada(H, libroPremisas) {
   return (H.derivados || []).map((d) => { const D = libroPremisas.porId.get(d); return D ? (D.verdad || D.motivo) : null; }).filter(Boolean).join(" · ");
 }
-function _textoDePremisa(H, libroPremisas) {
+/* los `base` (nombres de conjuntos de la casa) que un universo tipado nombra, también en las ramas de una unión — campo tipado, nunca prosa */
+function _basesDeUniverso(u, acc = new Set()) {
+  if (!u || typeof u !== "object") return acc;
+  if (typeof u.base === "string" && u.base.trim()) acc.add(u.base.trim());
+  for (const v of Array.isArray(u.union) ? u.union : []) _basesDeUniverso(v, acc);
+  return acc;
+}
+/* DECISIÓN 37b (supervisor 2026-09-29, diagnóstico v13): el veredicto de una premisa sobre un estado que DEPENDE de un umbral (rota lento, riesgo de quiebre, inmovilizado,
+ * sobrestock, frenado, capital sano) imprime el VALOR del umbral con que se juzgó, en la misma oración —igual que la regla de las referencias (§7.3·12/·19)—. Los estados en
+ * juego salen de los campos TIPADOS de la premisa (su universo y su `estado`), los umbrales de la tabla de datos `UMBRALES_DE_ESTADO` y el valor de `umbral(key).valor`, el
+ * MISMO helper que da el origen en `marco.definiciones`. El umbral cuyo valor la oración ya dice (la referencia que el libro imprime) no se repite. Sin valor declarado
+ * (p. ej. «frenado» sin umbral), no hay nada que imprimir. El ORIGEN no va acá —la oración es de la consulta—: va en el Marco. */
+function _umbralesDeLaPremisa(H, consulta = null, textoYaDicho = "") {
+  if (!H || H.veredicto === "no-verificable") return null;
+  const estados = new Set();
+  _estadosDeUniverso(H.universoTipado, estados);
+  const e = H.estado ? estadoDeLaPremisa(H.estado) : null;
+  if (e) estados.add(e);
+  const claves = umbralesDeEstados([...estados]);
+  const yaDicho = [textoYaDicho, H.verdad, H.render && H.render.referencia].filter(Boolean).join(" ");
+  const pares = [];
+  for (const k of Object.keys(NOMBRE_DE_UMBRAL)) {
+    if (!claves.includes(k) || !UNIDAD_DE_UMBRAL[k]) continue;
+    const v = umbral(k, consulta);
+    if (v.valor == null) continue;
+    const txt = formatoDeLaCasa(v.valor, UNIDAD_DE_UMBRAL[k]);
+    const numero = (txt.match(/\d+(?:[.,]\d+)?/) || [])[0];
+    if (numero && (yaDicho.match(/\d+(?:[.,]\d+)?/g) || []).includes(numero)) continue;
+    pares.push(`${NOMBRE_DE_UMBRAL[k]} ${txt}`);
+  }
+  return pares.length ? `criterio aplicado: ${pares.join("; ")}` : null;
+}
+function _textoDePremisa(H, libroPremisas, consulta = null) {
   const _esFactualDeLaCasa = H.tipo === "ref" || H.tipo === "razon" || H.tipo === "derivada";
-  const verdadCasa = _esFactualDeLaCasa ? (H.verdad || H.motivo) : (_rotuloDeLaCasaDeH(H) || H.verdad || H.motivo);
+  let verdadCasa = _esFactualDeLaCasa ? (H.verdad || H.motivo) : (_rotuloDeLaCasaDeH(H) || H.verdad || H.motivo);
+  if (!_esFactualDeLaCasa && (H.veredicto === "verdadera" || H.veredicto === "falsa")) { const um = _umbralesDeLaPremisa(H, consulta, verdadCasa); if (um) verdadCasa = `${verdadCasa}; ${um}`; }
   // CORTE 3e (owner 2026-09-26) — «Sobre lo que usted da por hecho» → «Sobre la premisa declarada por la
   // empresa» (tercera persona, ley «LA ENTREGA NO LE HABLA A NADIE»).
   // §7.3·15 (supervisor 2026-09-27) — CORREGIDO: el corte 3e cambió la persona gramatical (segunda a tercera) pero de
@@ -3114,7 +3169,12 @@ export function componerEntrega(resolucion) {
     if (partesYaAgrupadas.has(p.id)) continue;
     const figsDeP = _figsDeParte(p.id);
     if (p.cierre === "cifra" || ((p.cierre === "lectura" || p.cierre === "decision") && p.entidades && p.entidades.length)) {
-      if (p.entidades && p.entidades.length) { const plan = _planCifraEntidad(p, figsDeP, ref, I, declararDerivadaOpcional); if (plan) planes.push(plan); }
+      if (p.entidades && p.entidades.length) {
+        const sinCifra = [];
+        const plan = _planCifraEntidad(p, figsDeP, ref, I, declararDerivadaOpcional, sinCifra);
+        if (plan) planes.push(plan);
+        for (const nombre of sinCifra) limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), no se pudo servir la cifra de ${nombre}`, motivo: `La lectura de este turno no trajo ninguna cifra de ${nombre} para lo pedido: se declara en vez de omitirla. No se sustituye por otra cuenta.` });
+      }
       else if (p.cierre === "cifra") {
         // CORTE 3c · pieza 1 (D07): universo por estado/filtro SIN `top` — el mismo camino que arriba, para el
         // cierre `cifra`.
@@ -3385,14 +3445,14 @@ export function componerEntrega(resolucion) {
       // registrar ESE rótulo, `verificarEntrega` lo veía como una cifra desnuda (regla 1) y tumbaba una Entrega
       // por lo demás bien compuesta. Se agrega el mismo rótulo que `_textoDePremisa` realmente usa (null cuando
       // no aplica — hechos ref/razon/derivada ya quedan cubiertos por H.verdad arriba).
-      for (const s of [H.verdad, H.motivo, _rotuloDeLaCasaDeH(H), ...(H.derivados || []).map((d) => { const D = libroPremisas.porId.get(d); return D && (D.verdad || D.motivo); })]) if (s) cifrasImpresas.push(s);
+      for (const s of [H.verdad, H.motivo, _rotuloDeLaCasaDeH(H), _umbralesDeLaPremisa(H, consultaDeFrenado), ...(H.derivados || []).map((d) => { const D = libroPremisas.porId.get(d); return D && (D.verdad || D.motivo); })]) if (s) cifrasImpresas.push(s);
     }
     // se abre por el orden de las PARTES del encargo (determinístico, nunca el orden en que el usuario escribió
     // las premisas): «la Entrega abre la parte correspondiente» — una premisa, una vez, en la parte que le toca.
     for (const p of partesUtiles) {
       const items = premisasPorParte.get(p.id);
       if (!items || !items.length) continue;
-      for (const H of items) entrega.respuesta.push({ texto: _textoDePremisa(H, libroPremisas), hechos: [H.id], _premisa: true });
+      for (const H of items) entrega.respuesta.push({ texto: _textoDePremisa(H, libroPremisas, consultaDeFrenado), hechos: [H.id], _premisa: true });
     }
   }
 
@@ -3864,6 +3924,14 @@ export function componerEntrega(resolucion) {
     }
     const procedencia = procedenciaDeUmbrales(umbralesDeEstados([...estadosEnJuego]), consultaDeFrenado);
     if (procedencia.length) entrega.marco.definiciones = [...entrega.marco.definiciones, ...procedencia];
+    // RAÍZ A5 (supervisor 2026-09-29, diagnóstico v13; §7.3·36b «el piso de materialidad»): un conjunto de la casa que DEPENDE de un umbral (`UMBRALES_DE_BASE`: «carga comercial alta» lo
+    // decide el piso de materialidad) declara su origen igual que un estado de inventario — mismo helper (`umbral().origen`), en su propia oración. Los conjuntos en juego salen del
+    // campo tipado `base` de cada universo (partes y premisas, también en las ramas de una unión), nunca de una frase.
+    const basesEnJuegoDeLaCasa = new Set();
+    for (const p of partesUtiles) _basesDeUniverso(p.universo, basesEnJuegoDeLaCasa);
+    for (const pr of resolucion.premisas || []) _basesDeUniverso(pr.universo != null ? pr.universo : pr.de, basesEnJuegoDeLaCasa);
+    const procedenciaDeBase = procedenciaDeMaterialidad(umbralesDeBases([...basesEnJuegoDeLaCasa]), consultaDeFrenado);
+    if (procedenciaDeBase.length) entrega.marco.definiciones = [...entrega.marco.definiciones, ...procedenciaDeBase];
   }
   // ETAPA 6 (§7.3·35) — lo histórico que esta Entrega sirve viaja TIPADO en el Marco: naturaleza, ventana (el período o
   // los días hasta la fecha de corte) y el límite «describe lo que pasó; no es un pronóstico», del `tipo` de las figs
@@ -3959,7 +4027,7 @@ export function componerEntrega(resolucion) {
     // sin disparar nada»). Sus conjuntos se nombran por ESTADO («rota bien»/«rota lento», notario/estados.js), no
     // por `base` (un conjunto de `conjuntosDeLaCasa.js`): `estado` en vez de `base` en cada dirección se lee más
     // abajo con el MISMO valor (ambos son solo la clave que `basesEnJuego` tiene que contener).
-    piso_rotacion: { eje: "sku", metrica: "rotacion", nombreDeLaEmpresa: { articulo: "el", nucleo: "piso de rotación declarado" }, direcciones: { bajo: { estado: "rota lento", op: "<" }, sobre: { estado: "rota bien", op: ">=" } } },
+    piso_rotacion: { eje: "sku", metrica: "rotacion", umbral: "rotacionMin", nombreDeLaEmpresa: { articulo: "el", nucleo: "piso de rotación declarado" }, direcciones: { bajo: { estado: "rota lento", op: "<" }, sobre: { estado: "rota bien", op: ">=" } } },
     // ETAPA 6 (owner 2026-09-29, §7.3·35) — el umbral de venta frenada (días sin venta) planteado en la consulta: la CUARTA
     // referencia que define un conjunto de la casa («frenado», notario/estados.js). Mismo patrón de §7.3·12/·19: si la
     // EMPRESA declaró su umbral, el veredicto oficial es el suyo y aquí se declara AL LADO cuántos SKU serían con el de la
@@ -3971,7 +4039,7 @@ export function componerEntrega(resolucion) {
     // cobertura (días de inventario máximo, `REFERENCIAS_DE_LA_CASA`). Sin esta entrada el validador aceptaba `criterio.referencia{techo_cobertura}`
     // y la Entrega la ignoraba en silencio (la cara opuesta de «nunca reemplaza a la oficial en silencio»). Su conjunto no se nombra
     // por `base` ni por estado sino por el FILTRO que cita la referencia (`filtros[].ref`): la dirección se dispara por `ref`.
-    techo_cobertura: { eje: "sku", metrica: "dias_inventario", nombreDeLaEmpresa: { articulo: "el", nucleo: "techo de cobertura de la empresa" }, direcciones: { sobre: { ref: "techo_cobertura", op: ">" } } },
+    techo_cobertura: { eje: "sku", metrica: "dias_inventario", umbral: "dohMax", nombreDeLaEmpresa: { articulo: "el", nucleo: "techo de cobertura de la empresa" }, direcciones: { sobre: { ref: "techo_cobertura", op: ">" } } },
   };
   {
     const refUsuario = resolucion.criterio && resolucion.criterio.referencia;
@@ -3989,7 +4057,7 @@ export function componerEntrega(resolucion) {
       for (const pr of resolucion.premisas || []) { const uu = pr.universo != null ? pr.universo : pr.de; const b = _baseCasa(uu); if (b) basesEnJuego.add(normalizar(b)); for (const e of _estadosCasa(uu)) basesEnJuego.add(normalizar(e)); for (const r of _refsCasa(uu)) basesEnJuego.add(normalizar(r)); }
       // una PREMISA de estado («¿LG está frenado?») también pone en juego el estado de la familia con `operativaSinOficial`:
       // sin esto, el umbral que planteó quien consulta se ignoraría en silencio cuando solo aparece en una premisa.
-      if (familiaRef.operativaSinOficial) for (const pr of resolucion.premisas || []) { const e = typeof pr.estado === "string" ? estadoDeclarado(pr.estado) : null; if (e) basesEnJuego.add(normalizar(e)); }
+      if (familiaRef.operativaSinOficial || familiaRef.umbral) for (const pr of resolucion.premisas || []) { const e = typeof pr.estado === "string" ? estadoDeclarado(pr.estado) : null; if (e) basesEnJuego.add(normalizar(e)); }
       const valFmt = formatoDeLaCasa(refUsuario.valor, refUsuario.unidad || "pct");
       const _nombreDeLasEntidades = (set) => [...set].map((k) => (I.entidades && I.entidades.get ? (I.entidades.get(k) || { nombre: k }).nombre : k));
       // ETAPA 6 (§7.3·35) — la referencia de la consulta es la OPERATIVA (la empresa no declaró la suya): no hay oficial
@@ -4025,6 +4093,30 @@ export function componerEntrega(resolucion) {
             });
           }
         } catch { /* la referencia del usuario no se pudo evaluar contra el dato: no se declara nada a medias */ }
+      }
+      // DECISIÓN 37d (supervisor 2026-09-29, diagnóstico v13 A4; la 19 y la 36c): los estados de la Mesa Capital (inmovilizado crítico, inmovilizado, sobrestock, capital sano…) son
+      // conjuntos que define UNA referencia —el piso de rotación o el techo de cobertura—: la de quien consulta se declara AL LADO, con su cifra y sus nombres, igual que la de un
+      // conjunto por `base`/filtro. Los estados que dependen del umbral salen de la tabla de datos `UMBRALES_DE_ESTADO` (nunca una lista aparte), y el conjunto alternativo lo calcula
+      // la MISMA función de la casa (`jerarquiaInventario` bajo ese umbral, vía la proyección con el umbral planteado) — nunca una cuenta a mano.
+      if (familiaRef.umbral && !operativaDeLaConsulta) {
+        const yaPorDireccion = new Set(Object.values(familiaRef.direcciones).map((d) => d.estado).filter(Boolean));
+        for (const [canonEstado, llaves] of Object.entries(UMBRALES_DE_ESTADO)) {
+          if (!llaves.includes(familiaRef.umbral) || yaPorDireccion.has(canonEstado) || !basesEnJuego.has(normalizar(canonEstado))) continue;
+          try {
+            const Ialt = _indiceDelTenant([], scenario, { ...(consultaDeFrenado || {}), [familiaRef.umbral]: refUsuario.valor }).I;
+            const oficial = conjuntoDeUniverso({ eje: familiaRef.eje, estados: [canonEstado] }, I, familiaRef.eje, "");
+            const conReferencia = conjuntoDeUniverso({ eje: familiaRef.eje, estados: [canonEstado] }, Ialt, familiaRef.eje, "");
+            if (oficial && oficial.set && conReferencia && conReferencia.set) {
+              const nombresAlt = _nombreDeLasEntidades(conReferencia.set);
+              const cnt = conteoDeEje(familiaRef.eje, conReferencia.set.size);
+              cifrasImpresas.push(valFmt, String(conReferencia.set.size), String(oficial.set.size));
+              entrega.limites.push({
+                titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez ${conPreposicion("de", familiaRef.nombreDeLaEmpresa)}`,
+                motivo: `${cnt.condicional} ${cnt.texto} ${formaDeEstado(canonEstado).plural} con esa referencia (contra ${oficial.set.size} con ${sintagmaDe(familiaRef.nombreDeLaEmpresa)}): ${nombresAlt.length ? nombresAlt.join(", ") : "ninguno"} — calculado con la misma cuenta; no reemplaza la referencia oficial ni es un objetivo de la empresa.`,
+              });
+            }
+          } catch { /* la referencia del usuario no se pudo evaluar contra el dato: no se declara nada a medias */ }
+        }
       }
       // «carga comercial alta»: solo el conteo OFICIAL del detector — nunca una alternativa con una fórmula que no es la suya.
       for (const baseDetector of familiaRef.sinAlternativa || []) {

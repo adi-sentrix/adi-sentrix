@@ -304,6 +304,14 @@ export function cobranza(_args = {}, ctx = {}) {
   if (!M || !Array.isArray(M.filas) || !M.filas.length) {
     return sinSoporte("este dato no trae el flujo comercial: sin la hoja Abonos no hay cobro que leer");
   }
+  // RAÍZ A1 (supervisor 2026-09-29, diagnóstico v13, Z78) — la cuenta que la PARTE del Encargo nombra (su `entidades`
+  // tipada, `lecturasDe.js:_pasosCifra`) es una necesidad genuina de cobranza aunque quede fuera del top 8 fijo: entra
+  // con su cifra —y con «Saldo vencido: $0» cuando está al día, un hecho por `AUSENTE_VALE_CERO`—. MISMO opt-in del Encargo
+  // que `universoRequerido` (`cajaDelAgente` nunca lo pasa: la boleta del agente vivo queda byte-idéntica), y solo los
+  // nombres que la mesa conoce (una cuenta inexistente no fabrica nada).
+  const _entidadesDeLaParte = Array.isArray(_args && _args.entidadesRequeridas)
+    ? _args.entidadesRequeridas.filter((n) => typeof n === "string" && M.filas.some((f) => f.nombre === n))
+    : [];
   const d = getTenantData() || {};
   const fx = factorComercialDe(d);
   const boleta = [];
@@ -357,7 +365,7 @@ export function cobranza(_args = {}, ctx = {}) {
     // `union`/`estados`/`filtros` (W43: un `union` de dos bases, sin `top`) SÍ hace falta la mesa completa — «saldo
     // vencido» está en `AUSENTE_VALE_CERO» (notario/lexico.js): ausente ES cero, un hecho real.
     if (f.vencidoFmt != null) _fig(`${f.nombre} · Saldo vencido`, f.vencidoFmt, f.vencidoK);
-    else if (_necesitaMesaCompleta) _fig(`${f.nombre} · Saldo vencido`, _mKDeLaMesa(0), 0);
+    else if (_necesitaMesaCompleta || _entidadesDeLaParte.includes(f.nombre)) _fig(`${f.nombre} · Saldo vencido`, _mKDeLaMesa(0), 0);
   }
   /* «· Recuperado» Y «· Dias Vencido» POR CLIENTE, CON CRUDO REAL (owner 2026-09-23 — arreglo del verificador).
    * `mesaFlujo.js` YA calcula `recuperadoPct`/`diasVencido` por fila (los usa para `recuperadoFmt`/
@@ -449,7 +457,7 @@ export function cobranza(_args = {}, ctx = {}) {
   // solo lo pasa `lecturasDe.js` del Encargo — la boleta del agente vivo no cambia, `cajaDelAgente` nunca lo pasa).
   // (`_CAMPOS_UNIVERSO_SIN_TOP`/`_necesitaMesaCompleta` ya se calcularon al inicio de la función.)
   const _entidadesParaUniversoSinTop = _necesitaMesaCompleta ? M.filas.map((f) => f.nombre) : [];
-  const _entidadesRequeridas = [...new Set([..._entidadesNombradas, ..._entidadesDelTopRequerido, ..._entidadesParaTopSobreEje, ..._entidadesParaUniversoSinTop])];
+  const _entidadesRequeridas = [...new Set([..._entidadesNombradas, ..._entidadesDelTopRequerido, ..._entidadesParaTopSobreEje, ..._entidadesParaUniversoSinTop, ..._entidadesDeLaParte])];
   // RAÍZ A6 (supervisor 2026-09-27, diagnóstico v9, precisa la nota de abajo — CARNADA `_agente_playbooks_gate`)
   // — `_entidadesNombradas` es un mecanismo PREEXISTENTE, sin opt-in (`_preguntaUsuario`, el turno LIBRE del
   // agente: «el cobro de Unimarc» la trae aunque esté fuera del top-8). El backfill de «Saldo vencido: $0» solo
@@ -467,7 +475,7 @@ export function cobranza(_args = {}, ctx = {}) {
   // cobranza que la boleta real no tiene — exactamente la CARNADA que el comentario de arriba advertía. Se limita
   // el backfill de este segundo sitio al MISMO criterio inequívoco que el primero: solo `_entidadesParaUniversoSinTop`
   // (el universo trae `base`/`bodega`/`union`/`estados`/`no_estados`/`filtros`, nunca solo un `top` prestado).
-  const _entidadesDelUniversoTipado = new Set(_necesitaMesaCompleta ? [..._entidadesDelTopRequerido, ..._entidadesParaTopSobreEje, ..._entidadesParaUniversoSinTop] : []);
+  const _entidadesDelUniversoTipado = new Set([...(_necesitaMesaCompleta ? [..._entidadesDelTopRequerido, ..._entidadesParaTopSobreEje, ..._entidadesParaUniversoSinTop] : []), ..._entidadesDeLaParte]);
   if (_entidadesRequeridas.length) {
     const _yaEnTop8 = new Set(filas.map((f) => f.nombre));
     const _extra = _entidadesRequeridas.map((n) => M.filas.find((f) => f.nombre === n)).filter((f) => f && !_yaEnTop8.has(f.nombre));

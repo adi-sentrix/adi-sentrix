@@ -14,12 +14,12 @@
  * Puro: sin I/O, sin red. */
 import { parseFigures } from "../boleta.js";
 import { tolCalculo } from "../oracle/calculoCatalogo.js";
-import { verificarAfirmaciones, conjuntoDeUniverso, valorDeRanking, valorDeReferencia } from "./verificar.js";
+import { verificarAfirmaciones, conjuntoDeUniverso, valorDeRanking, valorDeReferencia, rankingDeTop } from "./verificar.js";
 import { indiceDeEvidencia, mismoValor, unidadCompatible } from "./evidencia.js";
 import { normalizar, menosAscii, leerValor, direccionPorDefecto } from "./afirmacion.js";
 import { parsearLineasDeBloque, MARCA_FIN } from "./declaracion.js";
-import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO, opDe, esReferencia } from "./lexico.js";
-import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn, estadoDeclarado, ejeCompatible, COMPLEMENTO_V3, estadosValidosPara, formaDeEstado } from "./estados.js";
+import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO, opDe, esReferencia, AUSENTE_VALE_CERO } from "./lexico.js";
+import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn, estadoDeclarado, ejeCompatible, COMPLEMENTO_V3, estadosValidosPara, formaDeEstado, verificarEstadoDeLaCasa, ESTADOS_PROPIOS, METRICA_DE_ESTADO } from "./estados.js";
 import { referenciaDeBase, referenciaDeEstado, conjuntoConocido } from "./conjuntosDeLaCasa.js";   // §7.3, tarea 4 (supervisor 2026-09-27, diagnóstico v8/v9): la tabla base→referencia y estado→referencia viven en UN registro, compartida con notario/verificar.js — nunca dos tablas que puedan divergir
 import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // §7.3·28 (SUPERVISOR, ley de registro del owner): ÚNICA fuente de "qué palabra está vetada del registro" — la misma que usa `_registro_gate`/`entrega/verificar.js` (regla `registro-informal`)
 
@@ -493,7 +493,7 @@ function _deFig(H, I, f, sujeto = null) {
   const c = claveDeMetrica(f.concepto);
   if (c) H.claves.add(c); else H.claves.add(normalizar(f.concepto).replace(/\s+/g, "_"));
   H.dominio = _dominioDeFig(f); H.polaridad = c ? polaridadDeClave(c) : null;
-  H.numeros.push({ raw: f.raw, unidad: f.unidad, texto: f.texto || (f.fig && f.fig.value) || "" });
+  H.numeros.push({ raw: f.raw, unidad: f.unidad, texto: f.texto || (f.fig && f.fig.value) || "", clave: c || normalizar(f.concepto).replace(/\s+/g, "_") });
   H.render.valor = f.texto || (f.fig && String(f.fig.value)) || formatoDeLaCasa(f.raw, f.unidad);
   { const declarado = _origenDeclaradoDeFig(f); _aplicarComposicion(H, [{ origen: _origenDeFigStruct(f), naturaleza: _naturalezaDeFig(f), id: _idDeOperando(f), rol: "valor", crudo: f.crudo !== false, verificado: declarado && declarado.verificado === true }]); const conf = f.confirmacion || (f.fig && f.fig.confirmacion); if (conf && typeof conf === "object") H.confirmacion = conf; }
   if (f.agregado) { H.universo = { set: null, fuente: f.universoTexto || f.calificador || "", texto: f.universoTexto || "" }; H.render.universo = f.universoTexto || ""; }
@@ -881,6 +881,95 @@ export function validarHecho(h, I) {
   return null;
 }
 
+/* ═══ LA VERDAD PROPIA DE UNA ENTIDAD (decisión 37a, supervisor 2026-09-29, diagnóstico v13 — A2 + A3) ═══════════════════════════════════════════════
+ * Cuando una premisa de GRUPO sobre UNA entidad sale falsa, la oración que la Entrega imprime tiene que decir la verdad con su DUEÑO: quién es la entidad, su cifra PROPIA de
+ * la métrica que define el universo (nunca la de otra métrica: «capital 12 días» era el 12 de sus días sin venta), su PUESTO real cuando el universo es un top (o una exclusión por
+ * top), y —si el universo la excluye por un estado de la Mesa Capital o de cobranza— el estado en que SÍ está. Antes, sin cifra en la boleta, esa oración caía a la traza de
+ * depuración del Notario («estados «capital sano»», «capital_frenado > $0 (2)», «los 1 de mayor»): sin dueño, con claves internas y con el `k` del top.
+ * Se arma UNA vez, acá, desde la ESTRUCTURA del universo tipado y las mismas primitivas del Notario (`conjuntoDeUniverso` para los estados, `rankingDeTop` para el puesto,
+ * `_figDe`/`valorDeRanking` para la cifra): `H.render.verdadPropia`; `entrega/componer.js:_rotuloDeLaCasaDeH` solo la escribe. Sin nada que decir con certeza, devuelve null y
+ * quien pregunta cae al texto de siempre — nunca inventa. */
+function _clausulasDeEstado(u, acc = []) {
+  if (!_es(u)) return acc;
+  for (const e of _lista(u.estados)) { const c = estadoDeclarado(String(e).replace(/_/g, " ")) || _canonDe(e); if (ESTADOS_CANON.has(c)) acc.push({ canon: c, modo: "en" }); }
+  if (typeof u.base === "string") { const c = estadoDeclarado(u.base); if (c) acc.push({ canon: c, modo: "en" }); }
+  for (const e of _lista(u.no_estados)) { const c = estadoDeclarado(String(e).replace(/_/g, " ")) || _canonDe(e); if (ESTADOS_CANON.has(c)) acc.push({ canon: c, modo: "no" }); }
+  if (_es(u.excluir)) for (const e of _lista(u.excluir.estados)) { const c = estadoDeclarado(String(e).replace(/_/g, " ")) || _canonDe(e); if (ESTADOS_CANON.has(c)) acc.push({ canon: c, modo: "excluir" }); }
+  for (const v of _lista(u.union)) _clausulasDeEstado(v, acc);
+  return acc;
+}
+function _primerFiltroDe(u) {
+  if (!_es(u)) return null;
+  const f = (Array.isArray(u.filtros) ? u.filtros : []).find((x) => _es(x) && x.metrica);
+  if (f) return f;
+  for (const v of _lista(u.union)) { const g = _primerFiltroDe(v); if (g) return g; }
+  return null;
+}
+const _claveDeMetricaDeUniverso = (m) => claveDeMetrica(m) || normalizar(String(m || "")).replace(/\s+/g, "_");
+/* la cifra propia de la entidad en una métrica: su fig de la boleta (impresa como la boleta la trae) o, sin ella, la del ranking de la proyección con el formato de la casa;
+ * en una métrica de `AUSENTE_VALE_CERO` que la proyección no publica para ella, cero (un hecho, no un hueco) */
+function _cifraPropia(I, nombre, clave) {
+  const f = _figDe(I, nombre, clave);
+  /* el dinero se dice con el formato de la casa (`$13K`), no como lo escribió el emisor de la boleta (`$12800`): una sola redacción para la misma cifra (colateral del diagnóstico v13) */
+  if (f && Number.isFinite(f.raw)) return { raw: f.raw, unidad: f.unidad, texto: f.unidad === "money" ? formatoDeLaCasa(f.raw, "money") : (f.texto || (f.fig && String(f.fig.value)) || formatoDeLaCasa(f.raw, f.unidad)) };
+  const rk = valorDeRanking({ sujeto: nombre, metrica: clave }, I);
+  if (rk && Number.isFinite(rk.raw)) return { raw: rk.raw, unidad: rk.unidad, texto: formatoDeLaCasa(rk.raw, rk.unidad) };
+  if (AUSENTE_VALE_CERO.includes(clave)) { const un = unidadDeClave(clave) || "money"; return { raw: 0, unidad: un, texto: formatoDeLaCasa(0, un) }; }
+  return null;
+}
+function _verdadPropiaDeGrupo(h, H, I) {
+  const u = h.universo;
+  if (!_es(u) || H.roles.sujetos.length !== 1 || H.roles.sujetos[0] === "negocio") return null;
+  const ent = I.resolverEntidad(H.roles.sujetos[0]);
+  if (!ent) return null;
+  const eje = normalizar(ent.eje || u.eje || "");
+  const key = normalizar(ent.nombre);
+  // (1) los estados del universo que la entidad NO cumple (fuera de un «en», dentro de un «no» o de una exclusión)
+  const falla = [];
+  const clausulas = _clausulasDeEstado(u);
+  for (const c of clausulas) {
+    let S = null; try { S = conjuntoDeUniverso({ eje, estados: [c.canon] }, I, eje, ""); } catch { S = null; }
+    if (!S || S.error || !S.set) continue;
+    if (c.modo === "en" ? !S.set.has(key) : S.set.has(key)) falla.push(c);
+  }
+  // (2) su estado PROPIO, cuando el estado que falló es de los que se explican diciendo en cuál SÍ está (Mesa Capital · cobranza)
+  const fam = ESTADOS_PROPIOS[eje];
+  let estado = null;
+  if (fam && falla.some((c) => fam.familia.includes(c.canon))) {
+    if (eje === "sku") { const propios = I.estadosDe(ent.nombre).map((x) => estadoCanon(x.estado)); const c = fam.orden.find((x) => propios.includes(x)); if (c) estado = { canon: c, texto: formaDeEstado(c).singular }; }
+    else for (const c of fam.orden) { let r = null; try { r = verificarEstadoDeLaCasa(c, I, ent.nombre); } catch { r = null; } if (r && typeof r === "object" && r.ok) { estado = { canon: c, texto: formaDeEstado(c).singular }; break; } }
+  }
+  // (3) la métrica que define el universo: la del top (o de la exclusión por top), la del filtro, la de la base con referencia o la del estado que falló
+  const exTop = _es(u.excluir) ? _lista(u.excluir.top).find((t) => _es(t) && t.metrica) : null;
+  const fF = _primerFiltroDe(u);
+  const fBase = typeof u.base === "string" ? referenciaDeBase(u.base) : null;
+  let clave = null;
+  if (u.top && u.top.metrica) clave = _claveDeMetricaDeUniverso(u.top.metrica);
+  else if (exTop) clave = _claveDeMetricaDeUniverso(exTop.metrica);
+  else if (fF) clave = _claveDeMetricaDeUniverso(fF.metrica);
+  else if (fBase) clave = fBase.metrica;
+  else { const c = (falla.length ? falla : clausulas).find((x) => METRICA_DE_ESTADO[x.canon]); if (c) clave = METRICA_DE_ESTADO[c.canon]; }
+  const cifra = clave ? _cifraPropia(I, ent.nombre, clave) : null;
+  const m = clave ? metricaPorClave(clave) : null;
+  const metrica = cifra ? { clave, nombre: (m ? m.nombre : metricaDeClave(clave)).toLowerCase(), raw: cifra.raw, unidad: cifra.unidad, texto: cifra.texto } : null;
+  // (4) su PUESTO en el ranking que el top ordena, en la dirección del top (solo si es miembro de ese ranking; nunca el `k`)
+  let puesto = null;
+  if (metrica && (u.top || exTop)) { const rk = rankingDeTop(u, I, eje); if (rk && rk.clave === clave) { const i = rk.orden.indexOf(key); if (i >= 0) puesto = { n: i + 1, de: rk.orden.length, dir: rk.dir }; } }
+  if (!metrica && !estado) return null;
+  return { entidad: ent.nombre, eje, estado, metrica, puesto };
+}
+/* los estados propios de una entidad SKU (con su bodega) cuando la premisa es de ESTADO de la Mesa Capital: el veredicto los dice con el nombre de la entidad (diagnóstico v13, colateral 1) */
+function _estadosPropiosDePremisa(H, I) {
+  if (H.tipo !== "estado" || H.roles.sujetos.length !== 1 || H.roles.sujetos[0] === "negocio" || !H.estado) return null;
+  const ent = I.resolverEntidad(H.roles.sujetos[0]);
+  if (!ent || ent.eje !== "sku") return null;
+  const def = estadoDeLaCasa(H.estado);
+  if (!def || typeof def.verificar === "function") return null;   // los estados con definición propia traen su cifra y su dueño en `H.verdad`
+  const propios = I.estadosDe(ent.nombre).filter((x) => ESTADOS_PROPIOS.sku.familia.includes(estadoCanon(x.estado)));
+  if (!propios.length) return null;
+  return { entidad: ent.nombre, estados: propios.map((x) => { const c = estadoCanon(x.estado); return { canon: c, texto: ESTADOS_PROPIOS.sku.etiquetas[c] || formaDeEstado(c).singular, bodega: x.bodega || null }; }) };
+}
+
 /** libroDeHechos(hechos, ctx) → { hechos: [H], porId: Map, errores, resumen, texto } · ctx = { indice } | { figs, datoProyectado, ejesDelTenant } */
 export function libroDeHechos(hechos, ctx = {}) {
   const I = ctx.indice || indiceDeEvidencia({ figs: ctx.figs || [], datoProyectado: ctx.datoProyectado || null, ejesDelTenant: ctx.ejesDelTenant || null });
@@ -1040,7 +1129,7 @@ export function libroDeHechos(hechos, ctx = {}) {
             H.render.referencia = refTxt;
             if (!H.ok && H.roles.sujetos.length === 1 && H.roles.sujetos[0] !== "negocio" && ![...H.claves].some((c) => c === fam.metrica)) {
               const _fProp = _figDe(I, H.roles.sujetos[0], fam.metrica);
-              if (_fProp) { H.numeros.unshift({ raw: _fProp.raw, unidad: _fProp.unidad, texto: _fProp.texto || "" }); H.claves.add(fam.metrica); }
+              if (_fProp) { H.numeros.unshift({ raw: _fProp.raw, unidad: _fProp.unidad, texto: _fProp.texto || "", clave: fam.metrica }); H.claves.add(fam.metrica); }
             }
           }
         }
@@ -1098,7 +1187,7 @@ export function libroDeHechos(hechos, ctx = {}) {
         H.render.referencia = H.render.referencia ? `${H.render.referencia}, ${refTxtE}` : refTxtE;
         if (!H.ok && H.roles.sujetos.length === 1 && H.roles.sujetos[0] !== "negocio" && ![...H.claves].some((c) => c === famE.metrica)) {
           const _fPropE = _figDe(I, H.roles.sujetos[0], famE.metrica);
-          if (_fPropE) { H.numeros.unshift({ raw: _fPropE.raw, unidad: _fPropE.unidad, texto: _fPropE.texto || "" }); H.claves.add(famE.metrica); }
+          if (_fPropE) { H.numeros.unshift({ raw: _fPropE.raw, unidad: _fPropE.unidad, texto: _fPropE.texto || "", clave: famE.metrica }); H.claves.add(famE.metrica); }
         }
       }
       /* un grupo con universo tipado: cada miembro pertenece al universo, o el grupo es falso */
@@ -1130,23 +1219,25 @@ export function libroDeHechos(hechos, ctx = {}) {
       // la cifra de cada uno la arma su propio camino, no este rescate genérico).
       if ((!H.numeros.length || ((tipo === "grupo" || tipo === "orden") && !H.numeros.some(esCifraPropia))) && H.roles.sujetos.length === 1 && H.roles.sujetos[0] !== "negocio") {
         const _sujetoRescate = H.roles.sujetos[0];
-        let _fSujeto = null;
+        let _fSujeto = null, _claveRescate = null;
         if (tipo === "variacion") {
           // la VARIACIÓN es su propia métrica (lexico.js: clave «variacion», «Variación vs año anterior») — NUNCA
           // el metric BASE del hecho (`h.metrica`, ej. «ventas»): ese declara contra qué concepto varió (sirve
           // para el «en venta» del rótulo, en `componer.js`), pero el NÚMERO que hay que imprimir es el de la
           // variación, no el total de ventas — mismo camino que `verificar.js:_variacion` ya usa para este mismo
           // cierre de brecha (`_delRanking({ metrica: "variacion" })`, exportado como `valorDeRanking`).
+          _claveRescate = "variacion";
           _fSujeto = _figDe(I, _sujetoRescate, "variacion");
           if (!_fSujeto) { const _rk = valorDeRanking({ sujeto: _sujetoRescate, metrica: "variacion" }, I); if (_rk) _fSujeto = { raw: _rk.raw, unidad: _rk.unidad, texto: _rk.texto, fig: { value: _rk.texto } }; }
         } else {
           const _claveSujeto = [...H.claves].find((c) => c !== "variacion" && c !== "vs_presupuesto") || null;
+          _claveRescate = _claveSujeto;
           _fSujeto = _claveSujeto ? _figDe(I, _sujetoRescate, _claveSujeto) : null;
           // un `grupo`/`orden` cuya métrica no se publica como fig por entidad (p. ej. `capital_inmovilizado`, solo ranking) trae la cifra PROPIA del
           // mismo ranking que ya verificó `verificar.js` (`valorDeRanking`), como la variación arriba — nunca el `k` de su top (A7).
           if (!_fSujeto && _claveSujeto && (tipo === "grupo" || tipo === "orden")) { const _rk = valorDeRanking({ sujeto: _sujetoRescate, metrica: _claveSujeto }, I); if (_rk && Number.isFinite(_rk.raw)) _fSujeto = { raw: _rk.raw, unidad: _rk.unidad, texto: _rk.texto, fig: { value: _rk.texto } }; }
         }
-        if (_fSujeto) H.numeros.push({ raw: _fSujeto.raw, unidad: _fSujeto.unidad, texto: _fSujeto.texto || (_fSujeto.fig && String(_fSujeto.fig.value)) || "" });
+        if (_fSujeto) H.numeros.push({ raw: _fSujeto.raw, unidad: _fSujeto.unidad, texto: _fSujeto.texto || (_fSujeto.fig && String(_fSujeto.fig.value)) || "", ...(_claveRescate ? { clave: _claveRescate } : {}) });
       }
       // §7.3, tarea 4 del cierre (supervisor 2026-09-27, diagnóstico v8, raíz A4, segunda tanda) —
       // GENERALIZACIÓN A `filtros[].ref`: el mismo hueco que ya cerró el bloque de `base` (arriba, «A4») también
@@ -1185,6 +1276,11 @@ export function libroDeHechos(hechos, ctx = {}) {
   cola.sort((a, b) => (normalizar(a.tipo) === "lectura" ? 1 : 0) - (normalizar(b.tipo) === "lectura" ? 1 : 0));
   for (const h of cola) {
     const H = evaluar(h);
+    /* decisión 37a (diagnóstico v13): la verdad PROPIA de la entidad de una premisa de grupo falsa, y los estados propios de una premisa de estado de la Mesa Capital */
+    try {
+      if (H.tipo === "grupo" && H.veredicto === "falsa") { const vp = _verdadPropiaDeGrupo(h, H, I); if (vp) H.render.verdadPropia = vp; }
+      if (H.tipo === "estado" && (H.veredicto === "verdadera" || H.veredicto === "falsa")) { const ep = _estadosPropiosDePremisa(H, I); if (ep) H.render.estadosPropios = ep; }
+    } catch { /* sin verdad propia el veredicto cae al texto de siempre */ }
     libro.hechos.push(H); libro.porId.set(H.id, H);
     if (!H.ok && _FACTUALES.has(H.tipo) && H.veredicto === "falsa") {
       for (const d of _verdadDeLoFalso(H, h, I, libro)) { const D = evaluar(d); if (D.ok) { D.derivadoDe = H.id; libro.hechos.push(D); libro.porId.set(D.id, D); H.derivados.push(D.id); } }

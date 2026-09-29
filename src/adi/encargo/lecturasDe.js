@@ -147,6 +147,11 @@ function _tieneUniversoPropio(u) {
     || (Array.isArray(u.filtros) && u.filtros.length)));
 }
 
+/** los nombres (resueltos, únicos, en orden) de las entidades tipadas de una parte. */
+function _nombresDeEntidades(entidades) {
+  return [...new Set((Array.isArray(entidades) ? entidades : []).map((e) => e && e.nombre).filter((n) => typeof n === "string" && n))];
+}
+
 /** la llamada (o llamadas) que sirve UN concepto por UN eje, group-by, sin entidad puntual (contrato §3.3). */
 function _callsDeConceptoEje(tema, concepto, eje) {
   if (tema === "cobranza" || _FAM_COBRANZA.has(concepto)) {
@@ -214,7 +219,14 @@ function _pasosCifra(p) {
     // universo YA RESUELTO de la parte (nunca `preguntaOriginal`) para que la tool complete la cola desde la
     // MISMA mesa completa que ya usa — ver `herramientasAgente.js:cobranza`.
     const universoRequerido = p.universo && typeof p.universo === "object" && !Array.isArray(p.universo) ? p.universo : null;
-    const out = [{ tool: "cobranza", args: universoRequerido ? { universoRequerido, figsPorVencer: true } : { figsPorVencer: true }, para: `cobranza de ${quien} (mesaFlujo)` }];
+    // RAÍZ A1 (supervisor 2026-09-29, diagnóstico v13, Z78) — la cuenta que la parte NOMBRA (su `entidades`, tipada) tiene
+    // que traerse aunque quede fuera del top 8 fijo de `cobranza()` (una cuenta al día y chica —Hites, Jumbo, Ripley— nunca
+    // entra ahí): sin su fig, `entrega/componer.js:_planCifraEntidad` no tenía qué servir y la parte se perdía. Se pasa
+    // por el mismo opt-in del Encargo que `universoRequerido` (el turno libre del agente nunca lo manda: su boleta no cambia).
+    const entidadesRequeridas = _nombresDeEntidades(p.entidades);
+    const argsCobranza = universoRequerido ? { universoRequerido, figsPorVencer: true } : { figsPorVencer: true };
+    if (entidadesRequeridas.length) argsCobranza.entidadesRequeridas = entidadesRequeridas;
+    const out = [{ tool: "cobranza", args: argsCobranza, para: `cobranza de ${quien} (mesaFlujo)` }];
     // §7.3·13 (diagnóstico v7) — `universo.top` puede ordenar por una métrica AJENA a cobranza («ventas», para
     // «los clientes de menor venta que están en mora»): `mesaFlujo` solo publica `venta_credito` («Venta
     // (flujo)», la venta A CRÉDITO — `adi-caja-no-es-cobranza` — nunca la venta total), así que no basta con
@@ -437,6 +449,10 @@ function _pasosLecturaDecision(partes) {
     const parteConTop = partes.find((p) => p.tema === "cobranza" && _tieneUniversoPropio(p.universo))
       || partes.find((p) => _tieneUniversoPropio(p.universo));
     if (parteConTop) out = out.map((c) => (c.tool === "cobranza" ? { ...c, args: { ...c.args, universoRequerido: parteConTop.universo } } : c));
+    // RAÍZ A1 (diagnóstico v13) — la misma regla que `_pasosCifra`: la cuenta que una parte de COBRANZA nombra se trae aunque
+    // quede fuera del top 8 (nunca las entidades de otro dominio: cada parte pide solo las de su propio tema).
+    const nombradas = _nombresDeEntidades(partes.filter((p) => p.tema === "cobranza").flatMap((p) => p.entidades || []));
+    if (nombradas.length) out = out.map((c) => (c.tool === "cobranza" ? { ...c, args: { ...c.args, entidadesRequeridas: nombradas } } : c));
   }
   // §7.3·17 (supervisor 2026-09-27, diagnóstico v8, tarea 2 del cierre — HUECO DE LECTURA, raíz de Z25/Z64) — una
   // parte con universo PROPIO (`top`/`base`/`estados`/`no_estados`/`filtros`/`bodega`/`union`) necesita las

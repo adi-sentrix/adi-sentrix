@@ -198,6 +198,27 @@ export const UMBRALES_DE_ESTADO = {
   "rota bien": ["rotacionMin"],
   "rota lento": ["rotacionMin"],
 };
+/* «capital sano» (decisión 37c, diagnóstico v13) = «sin alerta» de la Mesa Capital: depende de TODOS los umbrales de los estados de alerta (no estar inmovilizado crítico,
+ * ni en sobrestock, ni en riesgo de quiebre). Se DERIVA de la misma tabla —una sola verdad— y no se escribe aparte. */
+UMBRALES_DE_ESTADO["capital sano"] = [...new Set(["inmovilizado critico", "sobrestock", "riesgo de quiebre"].flatMap((e) => UMBRALES_DE_ESTADO[e]))];
+/* LA MÉTRICA CON QUE SE JUZGA CADA ESTADO (decisión 37a, diagnóstico v13): la clave del léxico de la cifra propia de una entidad que explica por qué está o no está en
+ * ese estado. Datos de la casa, junto a `UMBRALES_DE_ESTADO`: los estados de la Mesa Capital sin una única cifra (inmovilizado, inmovilizado crítico, capital sano, crítico)
+ * no figuran —de esos se dice el ESTADO propio, no un número—. */
+export const METRICA_DE_ESTADO = {
+  "rota bien": "rotacion", "rota lento": "rotacion",
+  sobrestock: "dias_inventario", "riesgo de quiebre": "dias_inventario",
+  frenado: "dias_sin_venta", "sin venta": "dias_sin_venta",
+  "al dia": "saldo_vencido", "en mora": "saldo_vencido",
+};
+/* LOS ESTADOS PROPIOS: cuando una entidad queda fuera de un universo por estado, la Entrega dice en qué estado SÍ está —por eje—. Para SKU, los de la Mesa Capital, de mayor
+ * a menor gravedad (el primero que la proyección le declara es su estado propio); para cliente, su estado de cobranza. `familia` = los estados que, al fallar, piden
+ * decir el estado propio (los demás —rota lento, frenado, sin venta— se explican con su cifra). */
+export const ESTADOS_PROPIOS = {
+  /* `etiquetas`: cómo se DICE en la oración del estado propio lo que no es un estado de la Mesa Capital (decisión 34a: la alerta del archivo NO es «crítico» en superficie —esa palabra es del
+   * tramo «inmovilizado crítico»—; «una palabra, un significado»). Datos de la casa; `FORMA_DE_ESTADO` (las palabras de un GRUPO) no cambia. */
+  sku: { orden: ["inmovilizado critico", "sobrestock", "riesgo de quiebre", "capital sano"], familia: ["inmovilizado critico", "inmovilizado", "sobrestock", "riesgo de quiebre", "capital sano", "critico"], etiquetas: { critico: "con alerta en el archivo" } },
+  cliente: { orden: ["en mora", "al dia"], familia: ["en mora", "al dia"] },
+};
 /* Los conceptos del encargo que sirven el CAPITAL de un estado de inventario (los productores de `lecturasDe.js`:
  * `capital_inmovilizado` lee el foco `inmovilizado`; `capital_frenado` y `margen_inventario`, el tramo crítico): pedirlos pone
  * en juego el mismo estado, y con él sus umbrales. */

@@ -326,6 +326,14 @@ export const NOMBRE_DE_UMBRAL = Object.freeze({
   materialidadFocoPctVenta: "umbral de materialidad",
 });
 
+/** La UNIDAD con que se dice el VALOR de cada umbral (los mismos nombres de unidad de `formatoDeLaCasa`, notario/hechos.js: «2.0x», «120 días»). Datos, junto a `NOMBRE_DE_UMBRAL`
+ *  (decisión 37b, diagnóstico v13: el veredicto de una premisa sobre un estado que depende de un umbral imprime el VALOR con que se juzgó — el de `umbral(key).valor`, el mismo
+ *  helper de procedencia). Sin unidad declarada, el umbral no se imprime con valor: nunca se adivina. */
+export const UNIDAD_DE_UMBRAL = Object.freeze({
+  rotacionMin: "ratio", quiebreRotMin: "ratio",
+  dohMax: "days", sobrestockDohMin: "days", quiebreDohMax: "days", frenadoDiasSinVenta: "days",
+});
+
 /** Las DOS familias de umbral que la Entrega declara, cada una con su propia oración (una cláusula por umbral dentro de ella) y su
  *  prefijo. «Venta frenada» va aparte de los criterios de inventario: es otra magnitud (días sin venta, no rotación ni cobertura) y su
  *  origen puede ser distinto —incluso «planteado en la consulta»— sin mezclarse con el de los demás. La Entrega reconoce estas oraciones
@@ -335,8 +343,12 @@ export const FAMILIAS_DE_PROCEDENCIA = Object.freeze([
   { id: "inventario", prefijo: "Criterio de inventario — ", umbrales: ["rotacionMin", "dohMax", "sobrestockDohMin", "quiebreRotMin", "quiebreDohMax"] },
   { id: "venta_frenada", prefijo: "Criterio de venta frenada — ", umbrales: ["frenadoDiasSinVenta"] },
 ]);
-/** esProcedenciaDeCriterio(texto) → ¿es una de las oraciones de procedencia de `procedenciaDeUmbrales`? (por su prefijo constante) */
-export const esProcedenciaDeCriterio = (texto) => FAMILIAS_DE_PROCEDENCIA.some((f) => String(texto || "").startsWith(f.prefijo));
+/** El piso de MATERIALIDAD (decisión 36b, «el piso de materialidad por coherencia»; diagnóstico v13 A5): el umbral que decide «carga comercial alta» declara su origen igual que los
+ *  de inventario, en su PROPIA oración (no es un criterio de inventario ni de venta frenada): se pide desde los conjuntos de la casa que dependen de él
+ *  (`notario/conjuntosDeLaCasa.js:UMBRALES_DE_BASE`), nunca por una tabla escrita en el composer. */
+export const FAMILIA_DE_MATERIALIDAD = Object.freeze({ id: "materialidad", prefijo: "Criterio de materialidad — ", umbrales: ["materialidadFocoPctVenta"] });
+/** esProcedenciaDeCriterio(texto) → ¿es una de las oraciones de procedencia de `procedenciaDeUmbrales` o de `procedenciaDeMaterialidad`? (por su prefijo constante) */
+export const esProcedenciaDeCriterio = (texto) => [...FAMILIAS_DE_PROCEDENCIA, FAMILIA_DE_MATERIALIDAD].some((f) => String(texto || "").startsWith(f.prefijo));
 
 /** procedenciaDeUmbral(key, consulta?) → la etiqueta de origen de UN umbral («declarado por la empresa» · «criterio general
  *  de ADI, ajustable por la empresa» · «planteado en la consulta» · «sin umbral declarado»), la misma que ya usan la
@@ -351,6 +363,12 @@ export function procedenciaDeUmbral(key, consulta = null) {
 export function clausulasDeProcedencia(claves, consulta = null) {
   const pedidas = new Set(claves || []);
   return Object.keys(NOMBRE_DE_UMBRAL).filter((k) => pedidas.has(k)).map((k) => `${NOMBRE_DE_UMBRAL[k]}: ${procedenciaDeUmbral(k, consulta)}`);
+}
+
+/** procedenciaDeMaterialidad(claves, consulta?) → [«Criterio de materialidad — umbral de materialidad: <origen>.»] si alguna clave es el piso de materialidad; [] si no. */
+export function procedenciaDeMaterialidad(claves, consulta = null) {
+  const cl = clausulasDeProcedencia((claves || []).filter((k) => FAMILIA_DE_MATERIALIDAD.umbrales.includes(k)), consulta);
+  return cl.length ? [`${FAMILIA_DE_MATERIALIDAD.prefijo}${cl.join("; ")}.`] : [];
 }
 
 /** procedenciaDeUmbrales(claves, consulta?) → las oraciones del Marco, una por familia con algún umbral pedido («Criterio de inventario — a: x;

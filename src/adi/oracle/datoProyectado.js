@@ -833,8 +833,13 @@ function _construir(scenario, consulta = null) {
 function _cacheado(scenario, consulta = null) {
   /* el umbral planteado en la consulta también es parte de la clave (etapa 6): la carpeta de una consulta con «90 días»
    * no puede servirse a la siguiente, que no lo planteó. */
-  const kc = consulta && typeof consulta.frenadoDiasSinVenta === "number" && isFinite(consulta.frenadoDiasSinVenta) ? `::c${consulta.frenadoDiasSinVenta}` : "";
-  const key = `${getTenantId()}::${scenario}::b${getBenchmarkOverride() != null ? getBenchmarkOverride() : POLICY.benchmark}${kc}`;
+  /* v13 (decisión 37d): la consulta puede plantear CUALQUIER umbral de inventario (el techo de cobertura, el piso de rotación… además del de frenado) y `umbral(key, consulta)` ya los
+   * resuelve todos — la clave del memo incluye cada umbral numérico planteado, no solo el de frenado, para que la carpeta de «con el techo de 94 días» no se sirva a otra consulta. */
+  const kc = consulta && typeof consulta === "object"
+    ? Object.entries(consulta).filter(([, v]) => typeof v === "number" && isFinite(v)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => `${k}=${v}`).join(",")
+    : "";
+  const kcKey = kc ? `::c${kc}` : "";
+  const key = `${getTenantId()}::${scenario}::b${getBenchmarkOverride() != null ? getBenchmarkOverride() : POLICY.benchmark}${kcKey}`;
   if (!_memo.has(key)) _memo.set(key, _construir(scenario, kc ? consulta : null));
   return _memo.get(key);
 }

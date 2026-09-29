@@ -140,3 +140,17 @@ export function referenciaDeEstado(canon) {
   if (!c) return null;
   return _REFERENCIA_DE_ESTADO.find((f) => f.canon === c) || null;
 }
+
+/* LOS UMBRALES QUE SOSTIENEN CADA CONJUNTO DE LA CASA (supervisor 2026-09-29, §7.3·36b, diagnóstico v13 A5 — «el piso de materialidad por coherencia»): una tabla de DATOS,
+ * junto al registro de conjuntos y a `UMBRALES_DE_ESTADO` (`notario/estados.js`, la de los estados). «Carga comercial alta» es el DETECTOR de brecha comercial y lo decide el piso de
+ * materialidad (`materialidadFocoPctVenta`, el mismo que `specRetrieval.js:pisoFocosUSD`): su veredicto declara el ORIGEN de ese piso igual que el de un estado de inventario. Un
+ * conjunto que no aparece acá no depende de un umbral de POLICY (los de benchmark y nivel de carga son referencias que ya imprimen su valor). */
+export const UMBRALES_DE_BASE = Object.freeze({
+  [NOMBRE_CARGA_ALTA]: ["materialidadFocoPctVenta"],
+});
+/** umbralesDeBases(bases) → las llaves de POLICY (sin repetir) de los umbrales que sostienen esos conjuntos de la casa (por su nombre, sin tildes ni mayúsculas) */
+export function umbralesDeBases(bases) {
+  const out = new Set();
+  for (const b of bases || []) for (const k of UMBRALES_DE_BASE[_norm(b)] || []) out.add(k);
+  return [...out];
+}
