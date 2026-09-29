@@ -153,6 +153,40 @@ export function estadoDeclarado(s) {
 export const ESTADOS_CANON = new Set(ESTADOS_DE_LA_CASA.map((e) => e.canon));
 const _porCanon = new Map(ESTADOS_DE_LA_CASA.map((e) => [e.canon, e]));
 export const estadoDeLaCasa = (canon) => _porCanon.get(canon) || null;
+/* LA FORMA CON QUE CADA ESTADO SE DICE (owner 2026-09-29, tarea 3 del cierre de inventario) — «los SKU frenados», «los SKU
+ * inmovilizados críticos», «los clientes buenos pagadores»: el canon es un identificador (sin tildes, en singular) y NO es una
+ * palabra para imprimir. Las formas son DATOS de la casa, una por canon —nunca una regla de género/número ni un regex de
+ * frases—: `singular` (con tildes) califica a UNA entidad; `plural` califica a un grupo («los SKU …»); `negado` es su
+ * contrario cuando la lengua no lo arma con un simple «no» + plural; `grupo` es el sustantivo de los que lo cumplen («los
+ * frenados», «los que están en mora»), para «fuera de …». Lo que no se declara se deriva del `plural`: `negado` = «no » +
+ * plural, `grupo` = «los » + plural. Un estado sin forma cae a su canon, sin inventar nada (`_inventario_canon_gate` exige
+ * que TODO canon de la casa tenga su forma). */
+export const FORMA_DE_ESTADO = {
+  "inmovilizado critico": { singular: "inmovilizado crítico", plural: "inmovilizados críticos" },
+  inmovilizado: { singular: "inmovilizado", plural: "inmovilizados" },
+  frenado: { singular: "frenado", plural: "frenados" },
+  sobrestock: { singular: "en sobrestock", plural: "en sobrestock", negado: "que no están en sobrestock", grupo: "los que están en sobrestock" },
+  "riesgo de quiebre": { singular: "en riesgo de quiebre", plural: "en riesgo de quiebre", negado: "que no están en riesgo de quiebre", grupo: "los que están en riesgo de quiebre" },
+  "en quiebre": { singular: "en quiebre", plural: "en quiebre", negado: "que no están en quiebre", grupo: "los que están en quiebre" },
+  "capital sano": { singular: "con capital sano", plural: "con capital sano", negado: "que no tienen capital sano", grupo: "los que tienen capital sano" },
+  critico: { singular: "crítico", plural: "críticos" },
+  "sin venta": { singular: "sin venta", plural: "sin venta", negado: "con venta", grupo: "los que no tienen venta" },
+  "rota bien": { singular: "que rota bien", plural: "que rotan bien", negado: "que no rotan bien", grupo: "los que rotan bien" },
+  "rota lento": { singular: "que rota lento", plural: "que rotan lento", negado: "que no rotan lento", grupo: "los que rotan lento" },
+  "al dia": { singular: "al día", plural: "al día", negado: "que no están al día", grupo: "los que están al día" },
+  "en mora": { singular: "en mora", plural: "en mora", negado: "sin mora", grupo: "los que están en mora" },
+  "sin deuda": { singular: "sin deuda", plural: "sin deuda", negado: "con deuda", grupo: "los que no tienen deuda" },
+  "buen pagador": { singular: "buen pagador", plural: "buenos pagadores" },
+  "mal pagador": { singular: "mal pagador", plural: "malos pagadores" },
+  "sin contribucion": { singular: "sin contribución", plural: "sin contribución", negado: "con contribución", grupo: "los que no dejan contribución" },
+  "sin margen": { singular: "sin margen", plural: "sin margen", negado: "con margen", grupo: "los que no tienen margen" },
+  "sin pagos": { singular: "sin pagos", plural: "sin pagos", negado: "con pagos", grupo: "los que no tienen pagos" },
+};
+/** formaDeEstado(canon) → { singular, plural, negado, grupo } — las palabras de la casa para ese estado (su canon si no tiene forma) */
+export const formaDeEstado = (canon) => {
+  const f = FORMA_DE_ESTADO[canon] || { singular: canon, plural: canon };
+  return { singular: f.singular, plural: f.plural, negado: f.negado || `no ${f.plural}`, grupo: f.grupo || `los ${f.plural}` };
+};
 /* §7.3·28 (SUPERVISOR, ley de registro del owner) — cuando un estado no se reconoce, la declinación ofrece
  * alternativas EN VEZ de citar la palabra que lo disparó (si esa palabra está vetada del registro, ver
  * hechos.js). `estadosValidosPara(eje)` es la ÚNICA fuente de "qué estados existen para este eje" — la misma

@@ -177,10 +177,10 @@ export const TOOL_CONTRACTS = {
     entityScopeNativo: true, escribeEntityList: true,
     /* los focos, nombrados con lo que responden (owner 2026-09-14): «top_sellers» existía desde 2026-07-09 y ningún
      * catálogo lo decía — el cruce venta × stock por SKU era invisible para el cerebro. */
-    notas: "la foto del inventario a hoy, por foco: el estado completo, el capital frenado, el riesgo de quiebre, el sobrestock, los SKU sin venta, o el CRUCE con la venta por SKU.",
+    notas: "la foto del inventario a hoy, por foco: el estado completo, el capital inmovilizado crítico, el riesgo de quiebre, el sobrestock, los SKU sin venta, o el CRUCE con la venta por SKU.",
     lecturasSoportadas: [
       { clave: "estado", que: "la foto completa: capital total y cómo se reparte en rotando en rango · riesgo de quiebre · sobrestock · inmovilizado" },
-      { clave: "frenado", que: "el capital inmovilizado: qué SKU, cuánto, con sus días y rotación, por bodega y familia (la lectura por defecto)" },
+      { clave: "frenado", que: "el capital inmovilizado crítico: qué SKU, cuánto, con sus días y rotación, por bodega y familia (la lectura por defecto)" },
       { clave: "quiebre", que: "qué SKU están en riesgo de quiebre (rotan rápido y la cobertura no alcanza) — qué reponer" },
       { clave: "sobrestock", que: "dónde sobra inventario: SKU con más cobertura de la necesaria" },
       { clave: "stale", que: "SKU sin una sola venta en más de N días (staleDays)" },

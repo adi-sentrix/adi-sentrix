@@ -71,7 +71,9 @@ export const NOMBRE_CON_CAPITAL_INMOVILIZADO_CRITICO = "con capital inmovilizado
 export const NOMBRE_CON_CAPITAL_FRENADO = NOMBRE_CON_CAPITAL_INMOVILIZADO_CRITICO;
 const _ESTADO_DEPENDIENTE_DE_EJE_FIJO = [
   { nombre: NOMBRE_CON_SALDO_VENCIDO, eje: "cliente", familia: "estado" },
-  { nombre: NOMBRE_CON_CAPITAL_INMOVILIZADO_CRITICO, eje: "sku", familia: "estado" },
+  /* `visible` (owner 2026-09-29): cómo se IMPRIME el nombre cuando califica a un grupo («los SKU con capital inmovilizado
+   * crítico»); `nombre` es el identificador sin tilde y no se imprime. Solo lo llevan los que difieren. */
+  { nombre: NOMBRE_CON_CAPITAL_INMOVILIZADO_CRITICO, eje: "sku", familia: "estado", visible: "con capital inmovilizado crítico" },
 ];
 
 /** CONJUNTOS_DE_LA_CASA → [{nombre, eje, familia}] · el catálogo ESTÁTICO completo (nombre + eje), sin membresía. */

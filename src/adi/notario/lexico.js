@@ -180,6 +180,21 @@ export const periodoDe = (p) => {
 export const EJES = ["cliente", "sku", "marca", "familia", "bodega", "canal", "mes"];
 export const PLURAL_DE_EJE = { cliente: "clientes", sku: "SKU", marca: "marcas", familia: "familias", bodega: "bodegas", canal: "canales", mes: "meses" };
 export const ARTICULO_DE_EJE = { cliente: "los", sku: "los", marca: "las", familia: "las", bodega: "las", canal: "los", mes: "los" };
+/* cómo se CUENTA lo que hay en cada eje dentro de una frase («serían 4 cuentas», «son 6 SKU», «sería 1 marca») — DATOS de la casa
+ * (owner 2026-09-29): el eje cliente se cuenta en «cuentas» (la palabra de la casa), el resto con su nombre; un eje sin fila se
+ * cuenta con su nombre en plural. `uno`/`varios` son el sustantivo con 1 y con otra cantidad; la concordancia del verbo va en
+ * `CONCORDANCIA_DE_CONTEO`. */
+export const CUENTA_DE_EJE = {
+  cliente: { uno: "cuenta", varios: "cuentas" }, sku: { uno: "SKU", varios: "SKU" }, marca: { uno: "marca", varios: "marcas" },
+  familia: { uno: "familia", varios: "familias" }, bodega: { uno: "bodega", varios: "bodegas" }, canal: { uno: "canal", varios: "canales" }, mes: { uno: "mes", varios: "meses" },
+};
+export const CONCORDANCIA_DE_CONTEO = { uno: { condicional: "Sería", presente: "es" }, varios: { condicional: "Serían", presente: "son" } };
+/** conteoDeEje(eje, n) → { texto: «4 SKU» · «1 cuenta», condicional: «Serían»/«Sería», presente: «son»/«es» } */
+export function conteoDeEje(eje, n) {
+  const c = CUENTA_DE_EJE[eje] || { uno: eje, varios: PLURAL_DE_EJE[eje] || `${eje}s` };
+  const k = n === 1 ? "uno" : "varios";
+  return { texto: `${n} ${c[k]}`, ...CONCORDANCIA_DE_CONTEO[k] };
+}
 
 /* ── operadores de comparación de un filtro tipado ── */
 export const OPS = [">", ">=", "<", "<=", "==", "entre"];

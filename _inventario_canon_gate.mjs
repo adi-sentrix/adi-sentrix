@@ -68,7 +68,10 @@ import { conjuntoDeUniverso } from "./src/adi/notario/verificar.js";
 import { validarEncargo } from "./src/adi/encargo/validar.js";
 import { componerEntrega } from "./src/adi/entrega/componer.js";
 import { ETIQUETA_ORIGEN } from "./src/config/businessPolicy.js";
-import { formatoDeLaCasa } from "./src/adi/notario/hechos.js";
+import { formatoDeLaCasa, nombrarUniverso } from "./src/adi/notario/hechos.js";
+import { ESTADOS_DE_LA_CASA, FORMA_DE_ESTADO, formaDeEstado } from "./src/adi/notario/estados.js";
+import { conteoDeEje } from "./src/adi/notario/lexico.js";
+import { CONJUNTOS_DE_LA_CASA } from "./src/adi/notario/conjuntosDeLaCasa.js";
 import { HECHOS_HISTORICOS, LIMITE_HISTORICO, historicoDe, historiaDeFiguras } from "./src/config/contract/figureType.js";
 import { fig as figDeBoleta } from "./src/adi/boleta.js";
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
@@ -280,6 +283,107 @@ H("(a2) · el umbral de la CONSULTA no reemplaza al de la EMPRESA (§7.3·12/·1
   volverAlDemo();
 }
 
+/* ══ BLOQUE (a3) · «frenado» SIN NINGÚN UMBRAL → una Entrega ok:true que DECLINA con un límite de negocio (§7.3·29 y ·32a,
+ * 2026-09-29) ═════════════════════════════════════════════════════════════════════════════════════════════════════════
+ * Antes: un encargo con `universo.estados:["frenado"]` y sin umbral (ni de la empresa ni de la consulta) devolvía
+ * `ok:false` («ninguna parte produjo una oración con evidencia»). Ahora: `ok:true`, sin ninguna oración ni fila que
+ * afirme quiénes están frenados —nunca «no hay frenados», nunca tramos inventados—, y UN límite de negocio que dice que la
+ * empresa no declaró desde cuántos días sin venta considera frenado un producto, con el ofrecimiento de declararlo (sin
+ * proponer un número). El predicado se mide sobre la ESTRUCTURA de la Entrega (límites, universos, respuesta, filas), no
+ * sobre palabras prohibidas. */
+const LIMITE_FRENADO_SIN_UMBRAL = "La empresa no ha declarado desde cuántos días sin venta considera frenado un producto";
+const declinaFrenadoSinUmbral = (E) => E && E.ok === true
+  && (E.entrega.limites || []).filter((l) => String(l.motivo).includes(LIMITE_FRENADO_SIN_UMBRAL) && /\bindica\b|\bdeclar/i.test(String(l.motivo)) && !/\d/.test(String(l.motivo))).length === 1   // el límite, con su ofrecimiento y SIN un número propuesto
+  && (E.entrega.respuesta || []).length === 0 && (E.entrega.cifras.filas || []).length === 0                                      // ninguna oración ni fila sobre quiénes están frenados
+  && (E.entrega.universos || []).every((u) => !(u.estados || []).some((e) => /frenad/i.test(String(e))) || (u.entidades || []).length === 0);   // ni un universo «frenado» con miembros inventados
+H("(a3) · frenado SIN umbral: la Entrega SALE (ok:true) y declina con el límite de negocio, con cada cierre de la parte");
+{
+  for (const cierre of ["decision", "lectura", "cifra"]) {
+    const enc = { version: "encargo/v1", partes: [{ id: "p1", tema: "inventario", cierre, conceptos: ["capital"], universo: { eje: "sku", estados: ["frenado"] } }] };
+    const E = entregaDe(enc);
+    ok(E.ok === true, `[${cierre}] la Entrega SALE (antes: ok:false)`, E.motivo);
+    ok(declinaFrenadoSinUmbral(E), `[${cierre}] declina con el límite de negocio y el ofrecimiento, sin servir ninguna lista de frenados ni un número propuesto`, E.ok ? JSON.stringify(E.entrega.limites.map((l) => l.titulo)) : E.motivo);
+    ok(E.ok && E.texto.includes(LIMITE_FRENADO_SIN_UMBRAL), `[${cierre}] …y el límite sale en el texto que ADI entrega`);
+  }
+  const uUnion = { eje: "sku", estados: ["inmovilizado critico"], union: [{ eje: "sku", estados: ["frenado"] }] };
+  const Eu = entregaDe({ version: "encargo/v1", partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital"], universo: uUnion }] });
+  ok(Eu.ok === true && (Eu.entrega.limites || []).some((l) => String(l.motivo).includes(LIMITE_FRENADO_SIN_UMBRAL)), "una rama «frenado» dentro de una unión también declina por el umbral (y no sirve solo la otra rama en silencio)", Eu.ok ? JSON.stringify(Eu.entrega.limites.map((l) => l.titulo)) : Eu.motivo);
+  const Enot = entregaDe({ version: "encargo/v1", partes: [{ id: "p1", tema: "inventario", cierre: "lectura", conceptos: ["capital"], universo: { eje: "sku", no_estados: ["frenado"] } }] });
+  ok(Enot.ok === true && (Enot.entrega.limites || []).some((l) => String(l.motivo).includes(LIMITE_FRENADO_SIN_UMBRAL)), "«los que NO están frenados» sin umbral también declina (lo contrario de un estado sin definir no se adivina)");
+  // controles: con umbral (de la consulta o de la empresa) NO hay límite de «sin umbral» y sí un universo con miembros
+  const Ec = entregaDe(encUniverso(refConsulta(90)));
+  ok(Ec.ok === true && !(Ec.entrega.limites || []).some((l) => String(l.motivo).includes(LIMITE_FRENADO_SIN_UMBRAL)) && entidadesDelUniverso(Ec).length >= 1, "CONTROL · con el umbral de la CONSULTA no hay límite de «sin umbral» y el universo tiene miembros");
+  initTenant(TENANT_DEMO_FRENADO_60);
+  const Ee = entregaDe(encUniverso(null));
+  ok(Ee.ok === true && !(Ee.entrega.limites || []).some((l) => String(l.motivo).includes(LIMITE_FRENADO_SIN_UMBRAL)) && entidadesDelUniverso(Ee).length >= 1, "CONTROL · con el umbral de la EMPRESA tampoco");
+  volverAlDemo();
+}
+H("(a3) · CARNADAS — el predicado rechaza una Entrega que esconde la falta de umbral");
+{
+  const sana = entregaDe(encUniverso(null));
+  ok(declinaFrenadoSinUmbral(sana), "la Entrega sana pasa el predicado");
+  ok(!declinaFrenadoSinUmbral({ ok: false, motivo: "ninguna parte produjo una oración con evidencia" }), "CARNADA · ok:false (el estado de antes) → lo rechaza");
+  ok(!declinaFrenadoSinUmbral({ ...sana, entrega: { ...sana.entrega, limites: [] } }), "CARNADA · sin el límite de negocio → lo rechaza");
+  ok(!declinaFrenadoSinUmbral({ ...sana, entrega: { ...sana.entrega, respuesta: [{ texto: "No hay SKU frenados.", hechos: ["e1"] }] } }), "CARNADA · con una oración que afirma quiénes están frenados (o que no hay) → lo rechaza");
+  ok(!declinaFrenadoSinUmbral({ ...sana, entrega: { ...sana.entrega, cifras: { ...sana.entrega.cifras, filas: [{ valores: {} }] } } }), "CARNADA · con filas de SKU frenados servidas → lo rechaza");
+  ok(!declinaFrenadoSinUmbral({ ...sana, entrega: { ...sana.entrega, limites: sana.entrega.limites.map((l) => (String(l.motivo).includes(LIMITE_FRENADO_SIN_UMBRAL) ? { ...l, motivo: l.motivo + " Con 60 días serían 3." } : l)) } }), "CARNADA · con un umbral propuesto por ADI («con 60 días…») → lo rechaza");
+}
+
+/* ══ BLOQUE (a4) · LA GRAMÁTICA DE LO QUE ADI IMPRIME SOBRE UN UNIVERSO (owner 2026-09-29, tarea 3) ═══════════════════════
+ * «los SKU frenado», «inmovilizado critico» (sin tilde, en singular) y «Serían 4 cuentas» cuando el eje es SKU eran texto de
+ * la casa mal escrito. Las formas (singular · plural · contrario · sustantivo del grupo) son DATOS (`estados.js:FORMA_DE_ESTADO`,
+ * `conjuntosDeLaCasa.js:visible`, `lexico.js:CUENTA_DE_EJE`), sin regex de frases: el gate verifica los datos y lo que se imprime. */
+H("(a4) · cada estado de la casa tiene su forma (datos), con tildes, y el canon nunca se imprime");
+{
+  const sinForma = ESTADOS_DE_LA_CASA.filter((e) => !FORMA_DE_ESTADO[e.canon]).map((e) => e.canon);
+  ok(sinForma.length === 0, "TODO canon de ESTADOS_DE_LA_CASA tiene su forma en FORMA_DE_ESTADO", sinForma.join(", "));
+  const sobran = Object.keys(FORMA_DE_ESTADO).filter((c) => !ESTADOS_DE_LA_CASA.some((e) => e.canon === c));
+  ok(sobran.length === 0, "…y ninguna forma sobra (no hay formas de estados que la casa no define)", sobran.join(", "));
+  const completas = Object.entries(FORMA_DE_ESTADO).every(([, v]) => typeof v.singular === "string" && v.singular && typeof v.plural === "string" && v.plural);
+  ok(completas, "cada forma trae su singular y su plural");
+}
+H("(a4) · nombrarUniverso: el estado concuerda con el grupo — «los SKU frenados», «los SKU inmovilizados críticos»");
+{
+  const n = (u) => nombrarUniverso(u, null);
+  ok(n({ eje: "sku", estados: ["frenado"] }) === "los SKU frenados", "los SKU frenados (antes: «los SKU frenado»)", n({ eje: "sku", estados: ["frenado"] }));
+  ok(n({ eje: "sku", estados: ["inmovilizado critico"] }) === "los SKU inmovilizados críticos", "los SKU inmovilizados críticos (antes: «los SKU inmovilizado critico»)", n({ eje: "sku", estados: ["inmovilizado critico"] }));
+  ok(n({ eje: "sku", estados: ["inmovilizado"] }) === "los SKU inmovilizados", "los SKU inmovilizados");
+  ok(n({ eje: "sku", estados: ["critico"] }) === "los SKU críticos", "los SKU críticos (la alerta del archivo, con tilde)");
+  ok(n({ eje: "sku", no_estados: ["frenado"] }) === "los SKU no frenados", "el contrario: los SKU no frenados");
+  ok(n({ eje: "sku", no_estados: ["sobrestock"] }) === "los SKU que no están en sobrestock", "el contrario de una forma con preposición no se arma con un «no» pegado");
+  ok(n({ eje: "sku", base: "con capital inmovilizado critico" }) === "los SKU con capital inmovilizado crítico", "un conjunto de la casa con nombre visible propio se imprime con su tilde");
+  ok(n({ eje: "sku", base: "frenado" }) === "los SKU frenados", "un estado citado como base se imprime con su forma de grupo");
+  ok(n({ eje: "sku", excluir: { estados: ["frenado"] } }) === "los SKU fuera de los frenados", "«fuera de» lleva el sustantivo del grupo: los frenados");
+  ok(n({ eje: "sku", excluir: { estados: ["sobrestock"] } }) === "los SKU fuera de los que están en sobrestock", "…y el de una forma con preposición: los que están en sobrestock");
+  // el canon de cada estado, dicho como estado de un grupo, no se filtra al texto con el formato de identificador
+  const filtraciones = ESTADOS_DE_LA_CASA.filter((e) => /^(?:inmovilizado critico|critico)$/.test(e.canon) && n({ eje: e.eje, estados: [e.canon] }).includes(e.canon));
+  ok(filtraciones.length === 0, "el identificador sin tilde no se imprime nunca", filtraciones.map((e) => e.canon).join(", "));
+  // los que ya estaban bien no cambian
+  ok(n({ eje: "cliente", estados: ["en mora"] }) === "los clientes en mora" && n({ eje: "cliente", no_estados: ["en mora"] }) === "los clientes sin mora" && n({ eje: "cliente", estados: ["al dia"] }) === "los clientes al día", "los estados de cobranza que ya se decían bien siguen igual");
+  const visibles = CONJUNTOS_DE_LA_CASA.filter((c) => c.visible);
+  ok(visibles.length >= 1 && visibles.every((c) => c.visible.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase() === c.nombre), "cada nombre visible de un conjunto es el mismo nombre con su ortografía (solo cambian las tildes)", visibles.map((c) => c.nombre).join(", "));
+}
+H("(a4) · «Serían N …»: el sustantivo es el del eje (SKU, no «cuentas») y concuerda con la cantidad");
+{
+  ok(conteoDeEje("sku", 4).texto === "4 SKU" && conteoDeEje("sku", 4).condicional === "Serían", "eje sku: «Serían 4 SKU»");
+  ok(conteoDeEje("cliente", 4).texto === "4 cuentas", "eje cliente: «4 cuentas» (la palabra de la casa, sin cambio)");
+  ok(conteoDeEje("cliente", 1).texto === "1 cuenta" && conteoDeEje("cliente", 1).condicional === "Sería" && conteoDeEje("cliente", 1).presente === "es", "con uno: «Sería 1 cuenta» / «es 1 cuenta»");
+  ok(conteoDeEje("marca", 2).texto === "2 marcas" && conteoDeEje("bodega", 3).texto === "3 bodegas", "los demás ejes se cuentan con su nombre");
+  // en la Entrega: la alternativa con la referencia de la consulta sobre un eje SKU
+  const encSku = { version: "encargo/v1", criterio: { referencia: { concepto: "piso_rotacion", valor: 2.5, unidad: "ratio" } }, partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital"], universo: { eje: "sku", estados: ["rota lento"] } }] };
+  const Es = entregaDe(encSku);
+  const alt = Es.ok ? (Es.entrega.limites || []).filter((l) => String(l.titulo).startsWith("Con la referencia planteada en la consulta")) : [];
+  ok(alt.length === 1, "la Entrega declara la alternativa con la referencia de la consulta (piso de rotación) sobre el eje SKU", Es.ok ? "" : Es.motivo);
+  if (alt.length === 1) {
+    const m = alt[0].motivo;
+    ok(/^Serían \d+ SKU /.test(m) && !/cuentas/.test(m), "…y dice «Serían N SKU», no «N cuentas»", m.slice(0, 90));
+  }
+  const encCli = { version: "encargo/v1", criterio: { referencia: { concepto: "benchmark", valor: 25, unidad: "pct" } }, partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["ventas"], universo: { eje: "cliente", base: "bajo el benchmark" } }] };
+  const Ec = entregaDe(encCli);
+  const altC = Ec.ok ? (Ec.entrega.limites || []).filter((l) => String(l.titulo).startsWith("Con la referencia planteada en la consulta")) : [];
+  ok(altC.length === 1 && /^Serían \d+ cuentas /.test(altC[0].motivo), "CONTROL · sobre clientes sigue diciendo «Serían N cuentas»", altC.length ? altC[0].motivo.slice(0, 60) : Ec.motivo);
+}
+
 /* ══ BLOQUE (b) · LO HISTÓRICO VIAJA TIPADO (etapa 6, §7.3·35, decisión del owner: opción A) ════════════════════════ */
 const esHistoricoTipado = (f) => { const h = historicoDe(f.label, f.unit); const t = f.tipo || {}; return !!h && t.naturaleza === "historico" && t.ventana === h.ventana && t.limite === LIMITE_HISTORICO && f.source === "actual" && (t.escenario == null); };
 
@@ -366,6 +470,20 @@ H("(c) · barrido: ninguna superficie migrada llama «frenado» a la regla de ro
     ["./src/adi/entrega/componer.js", "\"Capital frenado por bodega\"", "la oferta «Qué más puedo calcular» de la Entrega"],
     ["./src/adi/entrega/iniciativa.js", "del capital frenado total", "la oración de participación de la iniciativa"],
     ["./src/adi/agente/playbooks/contradiccionDeMetricas.js", "En dinero el capital frenado pesa", "la oración de contradicción de métricas"],
+    // decisión del owner 2026-09-29, §7.3·31/34: los textos internos que ve el LLM dejan de explicar «frenado» con la regla de rotación (antes → después en cada archivo)
+    ["./src/adi/agente/doctrinaAgente.js", "«frenado» el subconjunto crítico", "la doctrina de inventario que ve el agente"],
+    ["./src/adi/notario/carta.js", "capital_frenado: \"Capital frenado\"", "el nombre del ranking en la carta de hechos"],
+    ["./src/adi/notario/declaracion.js", "\\\"Capital frenado\\\"", "el ejemplo de métrica en la instrucción de declaración"],
+    ["./src/adi/notario/declaracion.js", "\\\"del capital frenado\\\"", "el ejemplo de base en la instrucción de declaración"],
+    ["./src/adi/oracle/narrationContract.js", "liberar el capital inmovilizado en inventario", "la acción permitida del capital detenido"],
+    ["./src/adi/oracle/toolContracts.js", "el estado completo, el capital frenado", "las notas de inventoryStatus"],
+    ["./src/adi/oracle/toolContracts.js", "que: \"el capital inmovilizado: qué SKU", "la lectura «frenado» de inventoryStatus"],
+    ["./src/adi/agente/partesDelEncargo.js", "dónde hay capital frenado", "la parte «inventario» del encargo"],
+    ["./src/adi/agente/partesDelEncargo.js", "Dónde tengo capital frenado", "la pregunta de la parte «inventario»"],
+    ["./src/adi/agente/partesDelEncargo.js", "tienen capital frenado?", "la pregunta de la parte «cruce por SKU»"],
+    ["./src/adi/agente/playbooks/crucePorSku.js", "tienen capital frenado", "los ejemplos y el entregable del playbook cruce-por-sku"],
+    ["./src/adi/sentrix/viewManifest.js", "el dinero de la tira es el capital FRENADO", "la razón de concordancia de la tira «En alerta»"],
+    ["./src/adi/sentrix/viewManifest.js", "el capital inmovilizado de la bodega es el mismo subconjunto", "la razón de concordancia del recibo de bodega"],
   ];
   for (const [ruta, frase, donde] of LEGADO) ok(!leer(ruta).includes(frase), `${donde}: ya no dice «${frase}»`);
 }

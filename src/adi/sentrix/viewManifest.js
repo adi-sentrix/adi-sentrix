@@ -686,7 +686,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "inventoryStatus", args: {}, focus: "frenado" }],
     sinTool: null,
     concordancia: { estado: "reconciled",
-      razon: "el dinero de la tira es el capital FRENADO de los SKU críticos y `inventoryStatus{focus:'frenado'}` autoriza esa misma cifra: concuerdan exacto en el cruce del gate de concordancia. Con el focus implícito la tira quedaba respaldada por el capital del inventario entero, que es otra cifra correcta del mismo nombre" },
+      razon: "el dinero de la tira es el capital inmovilizado crítico (el tramo por la regla de rotación) y `inventoryStatus{focus:'frenado'}` autoriza esa misma cifra: concuerdan exacto en el cruce del gate de concordancia. Con el focus implícito la tira quedaba respaldada por el capital del inventario entero, que es otra cifra correcta del mismo nombre" },
     _provisional: true,
   },
 
@@ -914,7 +914,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "inventoryStatus", args: {}, focus: "frenado" }],
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["lines[label='Capital sin alerta']", "comparison", "limites"],
-      razon: "el capital inmovilizado de la bodega es el mismo subconjunto que autoriza `inventoryStatus{focus:'frenado'}` y usa la misma definición canónica (en alerta o rotación < 2). Lo que la tool no emite es el COMPLEMENTO —el capital que sí rota, que esta pieza obtiene por resta—, ni la comparación contra el promedio de bodegas, ni los límites: no hay serie mensual de stock, así que la evolución del capital de una bodega no existe en el dato y la fecha de venta de cada SKU tampoco" },
+      razon: "el capital inmovilizado crítico de la bodega es el mismo subconjunto que autoriza `inventoryStatus{focus:'frenado'}` y usa la misma definición canónica (en alerta o rotación < 2). Lo que la tool no emite es el COMPLEMENTO —el capital que sí rota, que esta pieza obtiene por resta—, ni la comparación contra el promedio de bodegas, ni los límites: no hay serie mensual de stock, así que la evolución del capital de una bodega no existe en el dato y la fecha de venta de cada SKU tampoco" },
   },
 
   // ── LA DECISIÓN PRIORIZADA · el foco de mayor $ en juego del turno ──────────────────────────────────────────

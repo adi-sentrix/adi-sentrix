@@ -404,7 +404,7 @@ const _PALANCAS = [
   // RENOMBRE (owner 2026-09-28, §7.3·30-32, decisión 0.1): el canónico pasa a «capital inmovilizado crítico»
   // (specRetrieval `_ESTADO_LABEL.capital_frenado`) — el regex ya matchea por SUBSTRING «capital inmovilizado»,
   // así que sigue reconociendo el rótulo nuevo sin tocarse; se documenta acá para que no se lea como huérfano.
-  { re: /capital (?:detenido|inmovilizado|frenado)/i, clase: "capital_detenido",  accion: "liberar el capital inmovilizado en inventario",           esParte: true },
+  { re: /capital (?:detenido|inmovilizado|frenado)/i, clase: "capital_detenido",  accion: "liberar el capital inmovilizado crítico en inventario",   esParte: true },
   { re: /\bbrecha\b/i,                     clase: "brecha_margen",        accion: "cerrar la brecha de margen contra el benchmark",          esParte: false },
 ];
 export function buildAllowedActions(claims) {

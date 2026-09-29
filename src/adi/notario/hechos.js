@@ -19,8 +19,8 @@ import { indiceDeEvidencia, mismoValor, unidadCompatible } from "./evidencia.js"
 import { normalizar, menosAscii, leerValor, direccionPorDefecto } from "./afirmacion.js";
 import { parsearLineasDeBloque, MARCA_FIN } from "./declaracion.js";
 import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO, opDe, esReferencia } from "./lexico.js";
-import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn, estadoDeclarado, ejeCompatible, COMPLEMENTO_V3, estadosValidosPara } from "./estados.js";
-import { referenciaDeBase, referenciaDeEstado } from "./conjuntosDeLaCasa.js";   // §7.3, tarea 4 (supervisor 2026-09-27, diagnóstico v8/v9): la tabla base→referencia y estado→referencia viven en UN registro, compartida con notario/verificar.js — nunca dos tablas que puedan divergir
+import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn, estadoDeclarado, ejeCompatible, COMPLEMENTO_V3, estadosValidosPara, formaDeEstado } from "./estados.js";
+import { referenciaDeBase, referenciaDeEstado, conjuntoConocido } from "./conjuntosDeLaCasa.js";   // §7.3, tarea 4 (supervisor 2026-09-27, diagnóstico v8/v9): la tabla base→referencia y estado→referencia viven en UN registro, compartida con notario/verificar.js — nunca dos tablas que puedan divergir
 import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // §7.3·28 (SUPERVISOR, ley de registro del owner): ÚNICA fuente de "qué palabra está vetada del registro" — la misma que usa `_registro_gate`/`entrega/verificar.js` (regla `registro-informal`)
 
 export const MARCA_HECHOS = "<<HECHOS>>";
@@ -316,8 +316,10 @@ export function formatoDeLaCasa(raw, unidad) {
     default: return String(Math.round(raw * 100) / 100);
   }
 }
-const _NOMBRE_DE_ESTADO = { "al dia": "al día", critico: "crítico", "sin contribucion": "sin contribución", "riesgo de quiebre": "en riesgo de quiebre", "capital sano": "con capital sano" };
-export const nombreDeEstado = (canon) => _NOMBRE_DE_ESTADO[canon] || canon;
+/* las palabras de cada estado (singular con tildes · plural · contrario) son DATOS de la casa: `estados.js:FORMA_DE_ESTADO` */
+export const nombreDeEstado = (canon) => formaDeEstado(canon).singular;   // el estado dicho de UNA entidad (o tras «fuera de»); el que califica a un grupo es `formaDeEstado(canon).plural`
+/* un `universo.base` que es un estado de la casa o un conjunto con nombre visible propio se imprime con SU forma, no con el identificador sin tilde */
+const _nombreDeBase = (b) => { const c = conjuntoConocido(b); if (c && c.visible) return c.visible; const e = estadoDeclarado(b); return e ? formaDeEstado(e).plural : String(b); };
 const _canonDe = (e) => estadoCanon(String(e || "").replace(/_/g, " "));
 const _ESTADOS_COBRANZA = new Set(["al dia", "en mora", "sin deuda", "sin pagos", "buen pagador", "mal pagador"]);
 const _ESTADOS_COMERCIAL = new Set(["sin contribucion", "sin margen"]);
@@ -374,10 +376,10 @@ export function nombrarUniverso(u, I = null) {
     if (rRef && Number.isFinite(rRef.raw)) {
       const mRef = metricaPorClave(fam.concepto);
       partes.push(`${_baseStr}, ${mRef ? mRef.nombre.toLowerCase() : fam.concepto} ${formatoDeLaCasa(rRef.raw, rRef.unidad || "pct")}`);
-    } else partes.push(_baseStr);
+    } else partes.push(_nombreDeBase(_baseStr));
   }
-  for (const e of _lista(u.estados)) partes.push(nombreDeEstado(_canonDe(e)));
-  for (const e of _lista(u.no_estados)) { const c = _canonDe(e); partes.push(c === "en mora" ? "sin mora" : c === "sin deuda" ? "con deuda" : c === "al dia" ? "que no están al día" : `no ${nombreDeEstado(c)}`); }
+  for (const e of _lista(u.estados)) partes.push(formaDeEstado(_canonDe(e)).plural);
+  for (const e of _lista(u.no_estados)) partes.push(formaDeEstado(_canonDe(e)).negado);
   if (u.bodega) partes.push(`de ${u.bodega}`);
   for (const f of Array.isArray(u.filtros) ? u.filtros : []) partes.push(`con ${_fmtUmbral(f, I)}`);
   if (u.top) { const dir = normalizar(u.top.direccion || "mayor"); partes.push(`${u.top.k} de ${dir === "menor" ? "menor" : dir === "peor" ? "peor" : dir === "mejor" ? "mejor" : "mayor"} ${metricaDeClave(u.top.metrica).toLowerCase()}`); }
@@ -388,7 +390,7 @@ export function nombrarUniverso(u, I = null) {
     const ex = u.excluir; const fuera = [];
     for (const e of _lista(ex.entidades)) fuera.push(e);
     for (const n of _lista(ex.conjuntos)) fuera.push(n);
-    for (const e of _lista(ex.estados)) fuera.push(nombreDeEstado(_canonDe(e)));
+    for (const e of _lista(ex.estados)) fuera.push(formaDeEstado(_canonDe(e)).grupo);
     if (ex.bodega) fuera.push(ex.bodega);
     for (const t of _lista(ex.top)) if (_es(t)) fuera.push(`${art} ${t.k} de ${normalizar(t.direccion || "mayor") === "menor" ? "menor" : "mayor"} ${metricaDeClave(t.metrica).toLowerCase()}`);
     texto += ` fuera de ${fuera.join(" y ")}`;

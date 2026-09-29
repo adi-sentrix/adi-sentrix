@@ -11,7 +11,7 @@ import { conjuntosConocidos } from "./verificar.js";
 const _NOMBRE_DE_RANKING = {
   ventas: "Ventas", margen: "Margen", contribucion: "Contribución", carga: "Carga comercial", brecha: "Brecha al benchmark", unidades: "Unidades vendidas",
   no_capturada: "Contribución no capturada", saldo_vencido: "Saldo vencido", saldo_pendiente: "Saldo pendiente", recuperado: "Recuperado", dias_vencido: "Días vencido",
-  capital: "Capital", capital_frenado: "Capital frenado", capital_inmovilizado: "Capital inmovilizado", rotacion: "Rotación", dias_inventario: "Días de inventario",
+  capital: "Capital", capital_frenado: "Capital inmovilizado crítico", capital_inmovilizado: "Capital inmovilizado", rotacion: "Rotación", dias_inventario: "Días de inventario",
   dias_sin_venta: "Días sin venta", margen_inventario: "Margen de inventario", stock: "Unidades en stock",
 };
 const _PLURAL = { cliente: "clientes", sku: "SKU", marca: "marcas", familia: "familias", bodega: "bodegas", canal: "canales", mes: "meses" };

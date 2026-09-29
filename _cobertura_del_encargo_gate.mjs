@@ -182,7 +182,8 @@ H("3 · la ley «parte-del-encargo-omitida» cobra la misma lista al cerebro y a
   const v = vetosDeRegistro(FX.respuesta_observada.texto, { pregunta: q, figs: [], sitio: "cierre" });
   const om = v.find((x) => x.regla === "parte-del-encargo-omitida");
   ok(!!om, "★ la respuesta observada en producción arde por «parte-del-encargo-omitida»", v.map((x) => x.regla).join(","));
-  ok(om && /«el inventario: dónde hay capital frenado»/.test(om.multa) && /«la cobranza: quién debe y qué está vencido»/.test(om.multa) && /«los SKU: venta y contribución frente a su inventario»/.test(om.multa) && /«las unidades vendidas»/.test(om.multa), "…y la multa nombra lo que faltó: inventario, cobranza, los SKU y las unidades", om && om.multa.slice(0, 300));
+  // decisión del owner 2026-09-29, §7.3·31/34: antes → «el inventario: dónde hay capital frenado» · después → «el inventario: dónde hay capital inmovilizado crítico» (partesDelEncargo.js:188, texto que ve el LLM)
+  ok(om && /«el inventario: dónde hay capital inmovilizado crítico»/.test(om.multa) && /«la cobranza: quién debe y qué está vencido»/.test(om.multa) && /«los SKU: venta y contribución frente a su inventario»/.test(om.multa) && /«las unidades vendidas»/.test(om.multa), "…y la multa nombra lo que faltó: inventario, cobranza, los SKU y las unidades", om && om.multa.slice(0, 300));
   ok(om && /el foco ordena y jerarquiza, no elimina/.test(om.multa), "…con la ley del owner en la multa");
   ok(!vetosDeRegistro(SALIDAS["producción (3 dominios)"].t, { pregunta: q, figs: [], sitio: "encargo-compuesto" }).some((x) => x.regla === "parte-del-encargo-omitida"), "★ el texto del ensamblador pasa la misma ley (modelo y fallback, la misma cobertura)");
   /* un borrador del modelo que cubre todo, dicho a su manera, pasa */
@@ -204,7 +205,8 @@ H("4 · el cerebro recibe la lista completa de lo pedido y la ley del foco; el c
   const de = contenidos.find((c) => c.startsWith("[ENCARGO COMPUESTO"));
   ok(!!de, "viaja la doctrina del encargo");
   ok(de && /pidió 9 cosas en 3 dominios \(comercial \+ inventario \+ cobranza\)/.test(de) && /LA RESPUESTA LAS CUBRE TODAS/.test(de) && /el foco ordena y jerarquiza, no elimina/.test(de), "…con las 9 cosas, los 3 dominios y la ley del foco", de && de.slice(0, 200));
-  ok(de && /- la cobranza: quién debe y qué está vencido/.test(de) && /- el inventario: dónde hay capital frenado/.test(de) && /- las unidades vendidas/.test(de), "…y cada parte nombrada, inventario y cobranza incluidas");
+  // decisión del owner 2026-09-29, §7.3·31/34: antes → «- el inventario: dónde hay capital frenado» · después → «- el inventario: dónde hay capital inmovilizado crítico»
+  ok(de && /- la cobranza: quién debe y qué está vencido/.test(de) && /- el inventario: dónde hay capital inmovilizado crítico/.test(de) && /- las unidades vendidas/.test(de), "…y cada parte nombrada, inventario y cobranza incluidas");
   ok(de && /por SKU/.test(de) && /por cliente/.test(de) && /Cliente ↔ inventario y bodega ↔ venta no existen/.test(de) && /la de cada dominio y la integrada del negocio/.test(de), "…con las claves válidas, las que no existen y el cierre: la prioridad de cada dominio y la integrada");
   ok(de && /El entregable del procedimiento activo es UNA de las partes; el entregable del turno es el encargo completo/.test(de), "…y el entregable del procedimiento (la ficha del cruce) queda como UNA parte, no como el turno");
   const cruce = contenidos.find((c) => c.startsWith("[CRUCE DE DOMINIOS"));

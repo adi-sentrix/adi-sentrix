@@ -58,7 +58,7 @@ import { crearEntrega } from "./esquema.js";
 // sentido: clave → `nombre` (el rótulo humano, "Venta"/"Margen"/…) que las figs YA traen ("Entidad · Venta"), la
 // MISMA convención que las 4 rutas fijas ya explotan a mano (`figVenta`, `figMargen`, …) — nunca una segunda tabla.
 import { lecturasDe, REGISTRO_LECTURAS } from "../encargo/lecturasDe.js";
-import { metricaPorClave, claveDeMetrica, dominioDeClave, unidadDeClave } from "../notario/lexico.js";
+import { metricaPorClave, claveDeMetrica, dominioDeClave, unidadDeClave, conteoDeEje } from "../notario/lexico.js";
 import { ausenciaPorId } from "../../config/contract/ausencias.js";   // Etapa 2 §2 (owner 2026-09-23): las ausencias del dato, declaradas UNA vez
 // Etapa 2 §4 (owner 2026-09-23, plan §3 «cómo se pega al cliente») — EL PERFIL DEL CLIENTE viaja en el Marco,
 // como los demás hechos: `getTenantData()` es el MISMO acceso que ya usa todo `oracle/` (datoProyectado.js,
@@ -344,6 +344,26 @@ function _consultaDeFrenado(resolucion) {
   if (r.unidad !== unidadDeClave("umbral_frenado")) return null;   // días, no otra magnitud: la unidad la fija el léxico
   if (umbral("frenadoDiasSinVenta").valor != null) return null;    // la empresa ya lo declaró: manda la oficial
   return { frenadoDiasSinVenta: r.valor };
+}
+/* EL UNIVERSO «FRENADO» SIN UMBRAL (owner 2026-09-29, §7.3·29 y ·32a): un universo que nombra el estado «frenado» (en
+ * `estados`, `no_estados`, `base`, una rama de `union` o `excluir.estados`) no se puede resolver mientras no haya umbral
+ * — ni el que declaró la empresa ni el que planteó la consulta (`criterio.referencia{umbral_frenado}`, `_consultaDeFrenado`).
+ * No es un error técnico ni «no hay frenados»: es un límite de negocio. Los estados se leen por su CANON
+ * (`estadoDeclarado`, notario/estados.js), nunca por el texto del motivo del error. */
+function _estadosDeUniverso(u, acc = new Set()) {
+  if (!u || typeof u !== "object") return acc;
+  const lista = (x) => (Array.isArray(x) ? x : x != null ? [x] : []);
+  for (const e of [...lista(u.estados), ...lista(u.no_estados), ...(u.base != null ? [u.base] : []), ...(u.excluir && typeof u.excluir === "object" ? lista(u.excluir.estados) : [])]) { const c = estadoDeclarado(e); if (c) acc.add(c); }
+  for (const v of lista(u.union)) _estadosDeUniverso(v, acc);
+  return acc;
+}
+const _frenadoSinUmbral = (u, resolucion) => _estadosDeUniverso(u).has("frenado") && umbral("frenadoDiasSinVenta").valor == null && !_consultaDeFrenado(resolucion);
+/* el límite de una parte cuyo universo no se pudo evaluar: el de negocio si falta el umbral de «frenado» (con el
+ * ofrecimiento de fijarlo, sin proponer un número); el de siempre, con su motivo, en los demás casos. */
+function _limiteDeUniverso(p, motivo, resolucion) {
+  const dom = _DOM_NOMBRE[p.tema] || p.tema;
+  if (_frenadoSinUmbral(p.universo, resolucion)) return { titulo: `Sobre la parte ${p.id} (${dom}), la venta frenada queda sin evaluar`, motivo: "La empresa no ha declarado desde cuántos días sin venta considera frenado un producto, y la consulta tampoco lo plantea. Los días sin venta de cada SKU, un hecho histórico, están en la pestaña de inventario; si se indica un umbral en días, se puede evaluar cuáles lo superan y cuánto capital reúnen." };
+  return { titulo: `Sobre la parte ${p.id} (${dom}), el universo declarado no se pudo evaluar`, motivo };
 }
 /* la frase del Marco para lo histórico (etapa 6, §7.3·35), armada SOLO de los campos tipados de `marco.historicos`
  * (etiqueta · ventana · límite): «Días sin venta: días transcurridos entre la última venta y la fecha de corte del
@@ -2857,7 +2877,7 @@ export function componerEntrega(resolucion) {
   const partesUniversoPorEstado = partesLecturaDecisionSinEntidad.filter((p) => _universoPorEstadoSinTop(p.universo));
   for (const p of partesUniversoPorEstado) {
     const r = _cerrarGrupoUniverso(p, _figsDeParte(p.id), I, hechos, contador, ref, declararRazon, declararDerivadaOpcional);
-    if (r.error) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no se pudo evaluar`, motivo: r.error }); continue; }
+    if (r.error) { limitesGap.push(_limiteDeUniverso(p, r.error, resolucion)); continue; }
     planes.push(r);
     tamanoUniversoPorParte.set(p.id, (r.miembros || []).length);   // §7.3·27
   }
@@ -2901,7 +2921,7 @@ export function componerEntrega(resolucion) {
       // declara ESE motivo, el mismo criterio y el mismo título que ya usa el camino hermano de `_cerrarGrupoUniverso`
       // para el mismo tipo de falla (universo por estado SIN `top`, más arriba en este archivo).
       if (plan && plan.error) {
-        limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no se pudo evaluar`, motivo: plan.error });
+        limitesGap.push(_limiteDeUniverso(p, plan.error, resolucion));
       } else {
         limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no encontró evidencia en la boleta`, motivo: "El conjunto se resolvió, pero ninguna fig de este turno trae las cifras pedidas para esas entidades — se declina en vez de servir con otro alcance." });
       }
@@ -3083,7 +3103,7 @@ export function componerEntrega(resolucion) {
         // cierre `cifra`.
         if (_universoPorEstadoSinTop(p.universo)) {
           const r = _cerrarGrupoUniverso(p, figsDeP, I, hechos, contador, ref, declararRazon, declararDerivadaOpcional);
-          if (r.error) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no se pudo evaluar`, motivo: r.error }); continue; }
+          if (r.error) { limitesGap.push(_limiteDeUniverso(p, r.error, resolucion)); continue; }
           planes.push(r);
           continue;
         }
@@ -3098,7 +3118,7 @@ export function componerEntrega(resolucion) {
         // RAÍZ A (supervisor 2026-09-29) — `plan.error` (universo declarado no-resoluble, p. ej. un `union` con
         // «frenado» sin umbral) se declara con SU motivo real, no el genérico de «sin evidencia» — mismo criterio
         // que el sitio hermano de `lectura`/`decision`, arriba.
-        if (plan && plan.error) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no se pudo evaluar`, motivo: plan.error }); }
+        if (plan && plan.error) { limitesGap.push(_limiteDeUniverso(p, plan.error, resolucion)); }
         else if (!plan) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no encontró evidencia en la boleta`, motivo: "El conjunto se resolvió parcialmente o no se pudo verificar contra la evidencia de este turno — se declina en vez de servir con otro alcance o sobre un ranking incompleto." }); }
         else {
           // tentación precalculada (mecanismo 6): la diferencia entre el primero y el segundo del listado, en la
@@ -3762,7 +3782,8 @@ export function componerEntrega(resolucion) {
     }
   }
   entrega.respuesta = entrega.respuesta.filter((r) => r.hechos.length || r._definicion);
-  if (!entrega.respuesta.length) return _vacia("ninguna parte produjo una oración con evidencia — nada que servir");
+  // §7.3·29 (2026-09-29): sin oración pero con límites por parte (todas declinadas al componer), la Entrega sale igual.
+  if (!entrega.respuesta.length && !limitesGap.length) return _vacia("ninguna parte produjo una oración con evidencia — nada que servir");
 
   // ═══ CORTE 3d.1 — RENDER de la iniciativa (candado i: se anexa DESPUÉS de todo lo pedido, nunca insertada en
   // medio — lo pedido queda byte-idéntico esté la iniciativa encendida o no). `Riniciativa` renderiza contra
@@ -3952,7 +3973,7 @@ export function componerEntrega(resolucion) {
             cifrasImpresas.push(valFmt, String(conReferencia.set.size), String(oficial.set.size));
             entrega.limites.push({
               titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez de ${familiaRef.nombreDeLaEmpresa}`,
-              motivo: `Serían ${conReferencia.set.size} cuentas ${dir} esa referencia (contra ${oficial.set.size} con ${familiaRef.nombreDeLaEmpresa}): ${nombresAlt.join(", ")} — calculado con la misma cuenta; no reemplaza la referencia oficial ni es un objetivo de la empresa.`,
+              motivo: `${conteoDeEje(familiaRef.eje, conReferencia.set.size).condicional} ${conteoDeEje(familiaRef.eje, conReferencia.set.size).texto} ${dir} esa referencia (contra ${oficial.set.size} con ${familiaRef.nombreDeLaEmpresa}): ${nombresAlt.join(", ")} — calculado con la misma cuenta; no reemplaza la referencia oficial ni es un objetivo de la empresa.`,
             });
           }
         } catch { /* la referencia del usuario no se pudo evaluar contra el dato: no se declara nada a medias */ }
@@ -3966,7 +3987,7 @@ export function componerEntrega(resolucion) {
             cifrasImpresas.push(valFmt, String(oficial.set.size));
             entrega.limites.push({
               titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez de ${familiaRef.nombreDeLaEmpresa}`,
-              motivo: `«${baseDetector}» son ${oficial.set.size} cuentas con la referencia de la empresa; el detector no se recalcula con una referencia distinta — no reemplaza la oficial ni es un objetivo de la empresa.`,
+              motivo: `«${baseDetector}» ${conteoDeEje(familiaRef.eje, oficial.set.size).presente} ${conteoDeEje(familiaRef.eje, oficial.set.size).texto} con la referencia de la empresa; el detector no se recalcula con una referencia distinta — no reemplaza la oficial ni es un objetivo de la empresa.`,
             });
           }
         } catch { /* la referencia del usuario no se pudo evaluar contra el dato: no se declara nada a medias */ }
@@ -4134,6 +4155,11 @@ function _textoDeLaEntrega(entrega, titulo = "¿Dónde la empresa deja de ganar?
   // PARTES no vacías, nunca por concatenación de plantilla con huecos.
   L.push(`**Marco.** ${[_cabezaConPunto, defTxt, m.referenciaDeclarada ? m.referenciaDeclarada.texto : "", _textoDeHistoricos(m.historicos)].filter(Boolean).join(" ")}`.trim());
   L.push("");
+  // §7.3·29 (2026-09-29): una Entrega cuyas partes se declinaron TODAS no trae oraciones ni filas — no se imprimen las
+  // secciones «Respuesta» y «Cifras» vacías (un encabezado sin contenido); lo que no se pudo responder va en «Lo que no se
+  // puede concluir».
+  const _soloLimites = !entrega.respuesta.length && !entrega.cifras.filas.length;
+  if (!_soloLimites) {
   L.push("**Respuesta.**");
   // CORTE 3d.1 (owner 2026-09-25) — la iniciativa de CFO se distingue de lo pedido en TRES capas (§A.5): la
   // marca de texto de la casa (`MARCA_INICIATIVA`, una constante — el owner la cambia sin tocar código), el
@@ -4150,6 +4176,7 @@ function _textoDeLaEntrega(entrega, titulo = "¿Dónde la empresa deja de ganar?
   L.push(`|${entrega.cifras.columnas.map(() => "---").join("|")}|`);
   for (const f of entrega.cifras.filas) L.push(`| ${entrega.cifras.columnas.map((c) => { const v = f.valores[c] || ""; return _breve && _ROTULO_CORTO_COLUMNA[c] ? _ROTULO_CORTO_COLUMNA[c](v) : v; }).join(" | ")} |`);
   L.push("");
+  }
   L.push("**Lo que no se puede concluir con estos datos.**");
   // BREVE (owner 2026-09-26, ronda final del corte) — el límite sale con su TÍTULO (la negativa misma: sigue
   // siendo el hallazgo completo, nunca una prohibición recortada) y el MOTIVO queda en `entrega.limites` —

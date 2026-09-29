@@ -112,7 +112,7 @@ const _ABRE_NO = /^\s*(?:no(?![\p{L}\p{N}])|al contrario(?![\p{L}\p{N}])|no del 
 export const crucePorSku = {
   nombre: "cruce-por-sku",
   multidominio: true,
-  ejemplos: ["¿Los SKU que más vendo son los que tienen más capital en inventario?", "¿Cuánto inventario tengo de los 5 SKU que más venden?", "¿Qué SKU dejan contribución pero tienen capital frenado?"],
+  ejemplos: ["¿Los SKU que más vendo son los que tienen más capital en inventario?", "¿Cuánto inventario tengo de los 5 SKU que más venden?", "¿Qué SKU dejan contribución pero tienen capital inmovilizado crítico?"],
 
   cuandoAplica(pregunta) { return _caso(pregunta) !== null; },
 
@@ -126,7 +126,7 @@ export const crucePorSku = {
   },
   obligatorias(pregunta) { return _caso(pregunta) ? [/· Venta$/i, /· Stock$/i] : []; },
 
-  entregable: "la lectura del cruce por SKU en forma de ficha: los SKU que más venden con su stock y sus días de inventario (cada cifra con su marco: venta del período · stock de la foto), quiénes de ellos tienen capital frenado, y quiénes dejan contribución sin capital grande detrás (o al revés). Sin sumar venta con stock ni derivar cobertura: los días se citan del dato.",
+  entregable: "la lectura del cruce por SKU en forma de ficha: los SKU que más venden con su stock y sus días de inventario (cada cifra con su marco: venta del período · stock de la foto), quiénes de ellos tienen capital inmovilizado crítico, y quiénes dejan contribución sin capital grande detrás (o al revés). Sin sumar venta con stock ni derivar cobertura: los días se citan del dato.",
 
   componer({ figs, pregunta, declarar } = {}) {
     if (!_caso(pregunta)) return null;
