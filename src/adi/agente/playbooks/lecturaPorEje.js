@@ -60,7 +60,7 @@ const EJES = [
    * cuando la pregunta no nombró el estado. `d[ií]as de inventario` queda FUERA: quien pregunta por días
    * pregunta por otra cifra, y darle capital sería contestarle otra cosa. */
   { eje: "sku_frenado", re: new RegExp(`\\bfrenad|\\binmoviliz|\\bsin rotaci[oó]n|\\bno rot(?:a|an)${_FIN}|\\bstock (?:lento|muerto|parado)${_FIN}|(?<!d[ií]as de )\\binventario${_FIN}|\\bstock${_FIN}`, "i"),
-    pasos: [{ tool: "inventoryStatus", args: { focus: "frenado" }, para: "qué SKU tienen el capital frenado, con su monto, sus días de inventario y su rotación" }],
+    pasos: [{ tool: "inventoryStatus", args: { focus: "frenado" }, para: "qué SKU tienen capital inmovilizado crítico, con su monto, sus días de inventario y su rotación" }],
     /* RENOMBRE (owner 2026-09-28, §7.3·30-32, revisado en etapa 5 §7.3·30-34): «Capital frenado» → «Capital
      * inmovilizado crítico» en el rótulo. `unidad` viaja DIRECTO a la prosa («Así viene tu ${unidad} por
      * SKU…», línea ~230) — con «capital frenado» ahí, el binding semántico (R5) no encontraba ninguna fig

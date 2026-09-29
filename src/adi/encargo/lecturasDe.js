@@ -58,8 +58,10 @@ import { cajaDelAgente } from "../agente/herramientasAgente.js";
 import { pasosDeDominios } from "../agente/contratoDeDominios.js";
 import { sujetoDeTema, metricaCoreDe, productorDe } from "./esquema.js";
 import { dominioPorId } from "../../config/contract/dominios.js";
-import { dominioDeClave, polaridadDeClave } from "../notario/lexico.js";
+import { dominioDeClave, polaridadDeClave, unidadDeClave } from "../notario/lexico.js";
 import { resolveEntityRef } from "../oracle/entityIndex.js";
+import { umbral } from "../../config/businessPolicy.js";
+import { estadoDeclarado } from "../notario/estados.js";
 
 /* LA CAJA EXTENDIDA (owner 2026-08-30, F2 · ADI Agente): `cobranza` y `rolesCartera` —las dos que
  * `pasosDelContratoComercial`/`pasosDeDominios` ya citan por nombre— viven en `cajaDelAgente`, no en `TOOLS` del
@@ -68,11 +70,46 @@ import { resolveEntityRef } from "../oracle/entityIndex.js";
  * pero incompleto. */
 export const REGISTRO_LECTURAS = cajaDelAgente(TOOLS);
 
+/* ── «FRENADO» SIN UMBRAL: la misma prueba para la LECTURA (que pide los días sin venta) y la ENTREGA (que declara el límite) ── */
+/* EL UMBRAL DE VENTA FRENADA PLANTEADO EN LA CONSULTA (owner 2026-09-29, etapa 6, §7.3·35): `criterio.referencia` con
+ * `concepto:"umbral_frenado"` (días) lo trae el encargo TIPADO — nunca un regex sobre la pregunta. Devuelve los umbrales
+ * de la consulta en la forma que `umbral()` entiende (`{ frenadoDiasSinVenta }`) o null. Mismo patrón de §7.3·12/·19:
+ * la referencia de la EMPRESA manda — si la empresa ya declaró su umbral, el de la consulta NO reemplaza el veredicto
+ * oficial (queda declarado aparte por `_REFERENCIA_FAMILIAS`); solo cuando la empresa no lo declaró, el de la consulta
+ * es el que sostiene el veredicto «frenado» de ESTA respuesta, con origen «planteado en la consulta». */
+export function consultaDeFrenado(resolucion) {
+  const r = resolucion && resolucion.criterio && resolucion.criterio.referencia;
+  if (!r || r.concepto !== "umbral_frenado" || !Number.isFinite(r.valor) || r.valor < 0) return null;
+  if (r.unidad !== unidadDeClave("umbral_frenado")) return null;   // días, no otra magnitud: la unidad la fija el léxico
+  if (umbral("frenadoDiasSinVenta").valor != null) return null;    // la empresa ya lo declaró: manda la oficial
+  return { frenadoDiasSinVenta: r.valor };
+}
+/* EL UNIVERSO «FRENADO» SIN UMBRAL (owner 2026-09-29, §7.3·29 y ·32a): un universo que nombra el estado «frenado» (en
+ * `estados`, `no_estados`, `base`, una rama de `union` o `excluir.estados`) no se puede resolver mientras no haya umbral
+ * — ni el que declaró la empresa ni el que planteó la consulta (`criterio.referencia{umbral_frenado}`, `_consultaDeFrenado`).
+ * No es un error técnico ni «no hay frenados»: es un límite de negocio. Los estados se leen por su CANON
+ * (`estadoDeclarado`, notario/estados.js), nunca por el texto del motivo del error. */
+export function estadosDeUniverso(u, acc = new Set()) {
+  if (!u || typeof u !== "object") return acc;
+  const lista = (x) => (Array.isArray(x) ? x : x != null ? [x] : []);
+  for (const e of [...lista(u.estados), ...lista(u.no_estados), ...(u.base != null ? [u.base] : []), ...(u.excluir && typeof u.excluir === "object" ? lista(u.excluir.estados) : [])]) { const c = estadoDeclarado(e); if (c) acc.add(c); }
+  for (const v of lista(u.union)) estadosDeUniverso(v, acc);
+  return acc;
+}
+export const frenadoSinUmbral = (u, resolucion) => estadosDeUniverso(u).has("frenado") && umbral("frenadoDiasSinVenta").valor == null && !consultaDeFrenado(resolucion);
+
 /* ── conceptos SIN fuente declarativa en `metricRegistry.js` (contrato §3.3, la tabla residual de `esquema.js`):
  * cada familia tiene UN productor fijo, sea cual sea el eje que le llegue (el eje lo filtra `validar.js` — acá ya
  * llegó validado). El orden de estas listas es el de la tabla del contrato, no arbitrario. ─────────────────────── */
 const _FAM_DIAGNOSE = new Set(["no_capturada", "carga_alta", "brecha", "brecha_precio_costo"]);
-const _FAM_CAPITAL_FRENADO = new Set(["capital_frenado", "dias_sin_venta", "margen_inventario"]);
+const _FAM_CAPITAL_FRENADO = new Set(["capital_frenado", "margen_inventario"]);
+/* `dias_sin_venta` (owner 2026-09-29, cierre del inventario): antes vivía en `_FAM_CAPITAL_FRENADO` y leía el foco `frenado`
+ * — SOLO los SKU del tramo crítico (3 de 13): «los 5 con más días sin venta» servía 3 filas y el «menor» no tenía ni
+ * productor. Familia propia: el foco `dias_sin_venta` (specRetrieval.js) trae TODOS los SKU con sus días, desde la MISMA
+ * fuente que la vista «Días sin venta» de la cara Capital (`jerarquiaInventario().porSku`), tipados como hecho histórico.
+ * Lo pide SOLO esta lectura del encargo: el foco no está en el catálogo del agente, su boleta queda byte-idéntica. */
+const _FAM_DIAS_SIN_VENTA = new Set(["dias_sin_venta"]);
+const _CALL_DIAS_SIN_VENTA = (para) => ({ tool: "inventoryStatus", args: { focus: "dias_sin_venta" }, para });
 /* `capital_inmovilizado` (owner 2026-09-28, §7.3·30-34, etapa 5): antes vivía en `_FAM_CAPITAL_FRENADO` y leía
  * `inventoryStatus({focus:"frenado"})` — el foco CRÍTICO (capital_frenado, ⊆ inmovilizado), nunca el universo ∪
  * que el concepto nombra. Familia propia: lee el foco `inmovilizado` (etapa 4, specRetrieval.js:1174) — todos los
@@ -120,6 +157,9 @@ function _callsDeConceptoEje(tema, concepto, eje) {
   }
   if (_FAM_CAPITAL_INMOVILIZADO.has(concepto)) {
     return [{ tool: "inventoryStatus", args: { focus: "inmovilizado" }, para: `${concepto} — capital inmovilizado (crítico ⊎ sobrestock), todos los SKU con su cifra (mesaCapital)` }];
+  }
+  if (_FAM_DIAS_SIN_VENTA.has(concepto)) {
+    return [_CALL_DIAS_SIN_VENTA(`${concepto} — los días sin venta de TODOS los SKU, un hecho histórico (mesaCapital, la vista «Días sin venta»)`)];
   }
   if (_FAM_CAPITAL_FRENADO.has(concepto)) {
     return [{ tool: "inventoryStatus", args: { focus: "frenado" }, para: `${concepto} — capital inmovilizado crítico por ${eje} (mesaCapital)` }];
@@ -256,6 +296,8 @@ function _pasosCifra(p) {
     if (!necesitaEjeCompleto) argsQueryMetric.limit = k;
     const out = _FAM_VS_ANTERIOR.has(metrica)
       ? [{ tool: "salesRead", args: { focus: "vs_anterior", dimension: ejeUniverso, figsPct: true }, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top, salesRead vs_anterior)` }]
+      : _FAM_DIAS_SIN_VENTA.has(metrica)
+      ? [_CALL_DIAS_SIN_VENTA(`el top ${k} de ${ejeUniverso} por ${metrica} (universo.top): el ranking COMPLETO de días sin venta, el orden lo aplica la Entrega`)]
       : [{ tool: "queryMetric", args: argsQueryMetric, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top${necesitaEjeCompleto ? ", eje completo — universo combinado" : ""})` }];
     // los OTROS conceptos de la parte, por el mismo eje SIN recorte: la Entrega selecciona de ahí las filas del
     // top ya fijado arriba — dos rankings por separado, nunca una segunda decisión de universo.
@@ -310,7 +352,7 @@ function _callDeSupuesto(s) {
     return { tool: "simulateCarga", args: { entityScope, delta_pp: s.valor }, para: `simulación de carga (${s.valor}pp) sobre ${nombre || "la cartera"} (simulateCarga)` };
   }
   if (s.productor === "simulateCapital") {
-    return { tool: "simulateCapital", args: { entityScope }, para: `liberar el capital frenado de ${nombre || "el SKU"} (simulateCapital)` };
+    return { tool: "simulateCapital", args: { entityScope }, para: `liberar el capital inmovilizado crítico de ${nombre || "el SKU"} (simulateCapital)` };
   }
   if (s.productor === "simulateCosto") {
     // scope:"all" — el supuesto apunta a UNA entidad puntual (entityScope); el filtro "bajo_benchmark" de
@@ -404,6 +446,9 @@ function _pasosLecturaDecision(partes) {
     const ejeP = (p.universo && p.universo.eje) || p.eje || sujetoDeTema(p.tema);
     for (const c of (p.conceptos || [])) out.push(..._callsDeConceptoEje(p.tema, c, ejeP));
   }
+  // «DÍAS SIN VENTA» COMO CONCEPTO DE LA PARTE (owner 2026-09-29, cierre del inventario): el paquete fijo del dominio trae el tramo crítico,
+  // no los días de TODOS los SKU — una parte que los declara los pide con su productor (el mismo foco, aditivo, deduplicado abajo).
+  for (const p of partes) if ((p.conceptos || []).some((c) => _FAM_DIAS_SIN_VENTA.has(c))) out.push(_CALL_DIAS_SIN_VENTA("dias_sin_venta — declarado por la parte: los días sin venta de TODOS los SKU, un hecho histórico (mesaCapital)"));
   // LA GRIETA DE UN SOLO TEMA CON EJE EXPLÍCITO (documentada, corte 3a): `pasosDeDominios` solo agrega la lectura
   // comercial POR EJE (`_COM_POR_EJE`) cuando participan DOS o más dominios (`multi`); con un único tema comercial
   // y un eje explícito (p. ej. "el margen por marca", sin que inventario/cobranza participen) devuelve `[]` para
@@ -576,7 +621,21 @@ export function lecturasDe(resolucion) {
   }
 
   const lecturaCalls = _pasosLecturaDecision(partesLecturaDecision);
-  for (const p of partesLecturaDecision) porParte[p.id] = lecturaCalls.filter((c) => _temaDeCall(c) === p.tema);
+  /* «FRENADO» SIN UMBRAL (owner 2026-09-29, cierre del inventario): la parte pide un estado que ADI no puede juzgar sin un
+   * umbral declarado (empresa o consulta) — el veredicto queda «sin evaluar», pero el HECHO se entrega: los días sin venta
+   * de TODOS los SKU, ordenados. Se pide aquí (por FORMA del universo tipado, `frenadoSinUmbral`, la misma prueba que usa la
+   * Entrega para declarar el límite); jamás leyendo la pregunta. */
+  const _diasParaFrenado = (p) => (frenadoSinUmbral(p.universo, resolucion) ? [_CALL_DIAS_SIN_VENTA("los días sin venta de TODOS los SKU, ordenados — el hecho que se entrega cuando «frenado» no tiene umbral declarado (mesaCapital)")] : []);
+  for (const p of partesLecturaDecision) {
+    const dd = _diasParaFrenado(p);
+    if (dd.length) lecturaCalls.push(...dd);
+    porParte[p.id] = lecturaCalls.filter((c) => _temaDeCall(c) === p.tema);
+  }
+  for (const p of resolucion.partes) {
+    if (!p || p.estado === "no_resuelta" || p.cierre === "lectura" || p.cierre === "decision") continue;
+    const dd = _diasParaFrenado(p);
+    if (dd.length) { porParte[p.id] = [...(porParte[p.id] || []), ...dd]; sueltas.push(...dd); }
+  }
 
   // R-EVIDENCIA-PREMISA: se agregan DESPUÉS de fijar `porParte` (arriba) — nunca entran a esa traza, así que
   // ninguna parte las hereda como "lo servido" (ver la nota de `_callsDePremisas`).

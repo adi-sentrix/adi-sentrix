@@ -42,7 +42,7 @@ import { periodoDeFiguras, reconcilian, UNIVERSOS, PERIODO_TXT, historiaDeFigura
 // (supervisor 2026-09-26, segunda vuelta) resuelve la cifra de una referencia (benchmark, nivel de carga, techo)
 // citada por una premisa, para declararla en el Marco sin excepción al guardrail «comparables juntas».
 import { conjuntoDeUniverso, valorDeReferencia } from "../notario/verificar.js";
-import { estadoCanon, estadoDeclarado } from "../notario/estados.js";
+import { estadoCanon, estadoDeclarado, formaDeEstado } from "../notario/estados.js";
 // R-SORT-DIRECCION-IGNORADA, defensa en profundidad (supervisor 2026-09-26) — la MISMA normalización de nombres
 // que ya usa el Notario, para comparar el conjunto que `conjuntoDeUniverso` resuelve contra lo que una tool sirvió.
 import { normalizar } from "../notario/afirmacion.js";
@@ -57,8 +57,8 @@ import { crearEntrega } from "./esquema.js";
 // `metricaPorClave` es la MISMA fuente que ya usa `validar.js` para juzgar conceptos — acá se usa para el otro
 // sentido: clave → `nombre` (el rótulo humano, "Venta"/"Margen"/…) que las figs YA traen ("Entidad · Venta"), la
 // MISMA convención que las 4 rutas fijas ya explotan a mano (`figVenta`, `figMargen`, …) — nunca una segunda tabla.
-import { lecturasDe, REGISTRO_LECTURAS } from "../encargo/lecturasDe.js";
-import { metricaPorClave, claveDeMetrica, dominioDeClave, unidadDeClave, conteoDeEje } from "../notario/lexico.js";
+import { lecturasDe, REGISTRO_LECTURAS, consultaDeFrenado as _consultaDeFrenado, estadosDeUniverso as _estadosDeUniverso, frenadoSinUmbral as _frenadoSinUmbral } from "../encargo/lecturasDe.js";
+import { metricaPorClave, claveDeMetrica, dominioDeClave, unidadDeClave, conteoDeEje, conPreposicion, sintagmaDe } from "../notario/lexico.js";
 import { ausenciaPorId } from "../../config/contract/ausencias.js";   // Etapa 2 §2 (owner 2026-09-23): las ausencias del dato, declaradas UNA vez
 // Etapa 2 §4 (owner 2026-09-23, plan §3 «cómo se pega al cliente») — EL PERFIL DEL CLIENTE viaja en el Marco,
 // como los demás hechos: `getTenantData()` es el MISMO acceso que ya usa todo `oracle/` (datoProyectado.js,
@@ -332,37 +332,14 @@ function _correrPlaybook(playbook, { scenario, pregunta }) {
   );
   return { pasos, rp, figs: asignarIds((rp.ledger && rp.ledger.figs) || []) };
 }
-/* EL UMBRAL DE VENTA FRENADA PLANTEADO EN LA CONSULTA (owner 2026-09-29, etapa 6, §7.3·35): `criterio.referencia` con
- * `concepto:"umbral_frenado"` (días) lo trae el encargo TIPADO — nunca un regex sobre la pregunta. Devuelve los umbrales
- * de la consulta en la forma que `umbral()` entiende (`{ frenadoDiasSinVenta }`) o null. Mismo patrón de §7.3·12/·19:
- * la referencia de la EMPRESA manda — si la empresa ya declaró su umbral, el de la consulta NO reemplaza el veredicto
- * oficial (queda declarado aparte por `_REFERENCIA_FAMILIAS`); solo cuando la empresa no lo declaró, el de la consulta
- * es el que sostiene el veredicto «frenado» de ESTA respuesta, con origen «planteado en la consulta». */
-function _consultaDeFrenado(resolucion) {
-  const r = resolucion && resolucion.criterio && resolucion.criterio.referencia;
-  if (!r || r.concepto !== "umbral_frenado" || !Number.isFinite(r.valor) || r.valor < 0) return null;
-  if (r.unidad !== unidadDeClave("umbral_frenado")) return null;   // días, no otra magnitud: la unidad la fija el léxico
-  if (umbral("frenadoDiasSinVenta").valor != null) return null;    // la empresa ya lo declaró: manda la oficial
-  return { frenadoDiasSinVenta: r.valor };
-}
-/* EL UNIVERSO «FRENADO» SIN UMBRAL (owner 2026-09-29, §7.3·29 y ·32a): un universo que nombra el estado «frenado» (en
- * `estados`, `no_estados`, `base`, una rama de `union` o `excluir.estados`) no se puede resolver mientras no haya umbral
- * — ni el que declaró la empresa ni el que planteó la consulta (`criterio.referencia{umbral_frenado}`, `_consultaDeFrenado`).
- * No es un error técnico ni «no hay frenados»: es un límite de negocio. Los estados se leen por su CANON
- * (`estadoDeclarado`, notario/estados.js), nunca por el texto del motivo del error. */
-function _estadosDeUniverso(u, acc = new Set()) {
-  if (!u || typeof u !== "object") return acc;
-  const lista = (x) => (Array.isArray(x) ? x : x != null ? [x] : []);
-  for (const e of [...lista(u.estados), ...lista(u.no_estados), ...(u.base != null ? [u.base] : []), ...(u.excluir && typeof u.excluir === "object" ? lista(u.excluir.estados) : [])]) { const c = estadoDeclarado(e); if (c) acc.add(c); }
-  for (const v of lista(u.union)) _estadosDeUniverso(v, acc);
-  return acc;
-}
-const _frenadoSinUmbral = (u, resolucion) => _estadosDeUniverso(u).has("frenado") && umbral("frenadoDiasSinVenta").valor == null && !_consultaDeFrenado(resolucion);
+/* (owner 2026-09-29, cierre del inventario) `consultaDeFrenado` / `estadosDeUniverso` / `frenadoSinUmbral` viven en `encargo/lecturasDe.js`: la LECTURA que pide los días sin venta y la ENTREGA que declara el límite juzgan «frenado sin umbral» con la MISMA función. */
 /* el límite de una parte cuyo universo no se pudo evaluar: el de negocio si falta el umbral de «frenado» (con el
  * ofrecimiento de fijarlo, sin proponer un número); el de siempre, con su motivo, en los demás casos. */
-function _limiteDeUniverso(p, motivo, resolucion) {
+function _limiteDeUniverso(p, motivo, resolucion, conRanking = false) {
   const dom = _DOM_NOMBRE[p.tema] || p.tema;
-  if (_frenadoSinUmbral(p.universo, resolucion)) return { titulo: `Sobre la parte ${p.id} (${dom}), la venta frenada queda sin evaluar`, motivo: "La empresa no ha declarado desde cuántos días sin venta considera frenado un producto, y la consulta tampoco lo plantea. Los días sin venta de cada SKU, un hecho histórico, están en la pestaña de inventario; si se indica un umbral en días, se puede evaluar cuáles lo superan y cuánto capital reúnen." };
+  /* con `conRanking` (cierre del inventario, owner 2026-09-29) la Entrega YA trae los días sin venta de cada SKU, ordenados: el
+   * límite lo dice en vez de mandar a otra pestaña; sin ranking (la lectura no trajo las cifras) queda el texto de siempre. */
+  if (_frenadoSinUmbral(p.universo, resolucion)) return { titulo: `Sobre la parte ${p.id} (${dom}), la venta frenada queda sin evaluar`, motivo: `La empresa no ha declarado desde cuántos días sin venta considera frenado un producto, y la consulta tampoco lo plantea. ${conRanking ? "Los días sin venta de cada SKU, un hecho histórico, van ordenados en esta Entrega, sin veredicto" : "Los días sin venta de cada SKU, un hecho histórico, están en la pestaña de inventario"}; si se indica un umbral en días, se puede evaluar cuáles lo superan y cuánto capital reúnen.` };
   return { titulo: `Sobre la parte ${p.id} (${dom}), el universo declarado no se pudo evaluar`, motivo };
 }
 /* la frase del Marco para lo histórico (etapa 6, §7.3·35), armada SOLO de los campos tipados de `marco.historicos`
@@ -1664,7 +1641,12 @@ function _construirConclusionEntidad(tema, entidad, figs, filas, ref, I, concept
       const idx = filasFrenado.findIndex((f) => _entidadDe(_lab(f)) === entidad);
       if (idx >= 0) { posicion = idx + 1; total = filasFrenado.length; universoEntidades = filasFrenado.map((f) => _entidadDe(_lab(f))).filter(Boolean); }
     }
-    return { tipo: "inventario", entidad, idFrenado, idDias, posicion, total, universoEntidades, universoEje: "sku", universoCriterio: claveInv === "capital_inmovilizado" ? "SKU inmovilizados" : "SKU con capital frenado", universoTexto: claveInv === "capital_inmovilizado" ? "SKU inmovilizados" : "SKU con capital frenado" };
+    /* CANON (owner 2026-09-29, §7.3·31/34): la categoría se dice con la FORMA de la casa de su estado (`FORMA_DE_ESTADO`) —
+     * «SKU inmovilizados críticos» (= capital_frenado, la regla de rotación) o «SKU inmovilizados» (crítico ∪ sobrestock)—;
+     * «frenado» es venta interrumpida y no nombra esta regla. */
+    const estadoInv = claveInv === "capital_inmovilizado" ? "inmovilizado" : "inmovilizado critico";
+    const universoInv = `SKU ${formaDeEstado(estadoInv).plural}`;
+    return { tipo: "inventario", entidad, idFrenado, idDias, posicion, total, universoEntidades, universoEje: "sku", universoCriterio: universoInv, universoTexto: universoInv, capitalInv: formaDeEstado(estadoInv).singular };
   }
   return null;
 }
@@ -1694,7 +1676,7 @@ function _renderConclusionEntidad(c, R, cifrasImpresas) {
   }
   if (c.tipo === "inventario") {
     const posTxt = c.posicion != null ? _pos(`, ${c.posicion}° de ${c.total} ${c.universoTexto}`) : "";
-    const partes = [`${R(c.idFrenado)} frenados`];
+    const partes = [`${R(c.idFrenado)} de capital ${c.capitalInv || formaDeEstado("inmovilizado critico").singular}`];   // CANON (owner 2026-09-29, §7.3·31/34): antes «${R} frenados» — «frenado» ya no nombra esta regla
     if (c.idDias != null) partes.push(`${R(c.idDias)} de inventario`);
     return `${c.entidad}${posTxt}: ${partes.join(", ")}.`;
   }
@@ -2184,7 +2166,7 @@ function _entidadesDelTopVerificado(entidadesDeLaToolCruda, figsAcotadas, top, e
   }
   return { entidades: nombres, figsExtra, resuelto: true };
 }
-function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}) {
+function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direccionSinTop = null } = {}) {
   if (_universoNoSoportado(parte.universo)) return null;
   const alcance = alcanceDeParte(parte);
   // BODEGA (diagnóstico v4 §3, MATERIAL) — `indice` es el mismo índice de `notario/evidencia.js` que ya arma
@@ -2356,6 +2338,8 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
     dirMenor = peorEs ? (_dirTopTxt === "peor" ? peorEs === "menor" : peorEs === "mayor") : false;
   } else if (top) {
     dirMenor = _dirTopTxt === "menor";
+  } else if (direccionSinTop) {
+    dirMenor = direccionSinTop === "menor";   // el llamador fija el sentido (el ranking de días sin venta: de MÁS a MENOS, como la vista «Días sin venta» de la cara Capital)
   } else {
     dirMenor = (metricaPorClave(claveOrden) || {}).polaridad === "menor";
   }
@@ -2864,6 +2848,28 @@ export function componerEntrega(resolucion) {
   // ── FASE 1 · declarar (por parte, según cierre) — nunca leer `preguntaOriginal` ──
   const planes = [];
   const limitesGap = [];
+  /* «FRENADO» SIN UMBRAL (owner 2026-09-29, cierre del inventario: «sin umbral de frenado, ADI entrega los días sin venta de cada
+   * SKU, ordenados, y declara que falta el criterio»): el universo «frenado» no se puede juzgar —el VEREDICTO queda «sin
+   * evaluar»—, pero el HECHO sí se entrega: los días sin venta de TODOS los SKU (la lectura `inventoryStatus{focus:
+   * "dias_sin_venta"}`, la MISMA fuente que la vista «Días sin venta» de la cara Capital), de más a menos, tipados como hecho
+   * histórico. Se compone con el MISMO mecanismo de un listado por eje (`_planCifraGrupo`, sin `top`, sin estados): nunca una
+   * lista de «frenados», nunca «no hay frenados». Su universo se declara con id PROPIO (no es el universo «frenado» de la
+   * parte, que no se resuelve) para que la regla 18 de `verificarEntrega` no lo confunda con él. Sin cifras que servir,
+   * queda solo el límite. */
+  const _planDiasSinVentaDeFrenado = (p) => {
+    if (!_frenadoSinUmbral(p.universo, resolucion)) return null;
+    const pDias = { ...p, cierre: "lectura", eje: "sku", conceptos: ["dias_sin_venta"], entidades: [], universo: { eje: "sku" } };
+    const plan = _planCifraGrupo(pDias, _figsDeParte(p.id), { ejesDelTenant, indice: I, direccionSinTop: "mayor" });
+    if (!plan || plan.error || !plan.orden.length) return null;
+    for (const e of plan.orden) for (const [clave, fig] of _mapaDe(plan.porEntidad, e)) _mapaDe(plan.porEntidad, e).set(clave, ref(fig));
+    plan.idUniverso = `${p.id}_dias_sin_venta`;
+    return plan;
+  };
+  const _declinarUniverso = (p, motivo) => {
+    const plan = _planDiasSinVentaDeFrenado(p);
+    limitesGap.push(_limiteDeUniverso(p, motivo, resolucion, !!plan));
+    if (plan) planes.push(plan);
+  };
   const _limiteUniversoNoSoportado = (p) => ({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el filtro del universo no se aplica todavía en este corte`, motivo: "Filtrar por estado o por un umbral numérico exige evaluar cada entidad contra el dato real; ese motor no está construido en este corte (queda señalado para el corte 3c). Se declina esta parte en vez de servir un listado sin filtrar o adivinar el criterio." });
   // §7.3·27 (SUPERVISOR, corrige la 26b según la ley del owner de la prioridad integrada — X28) — «si en el mismo
   // eje uno de los dominios resuelve vacío, no hay nada que cruzar»: el tamaño YA VERIFICADO del universo de cada
@@ -2877,7 +2883,7 @@ export function componerEntrega(resolucion) {
   const partesUniversoPorEstado = partesLecturaDecisionSinEntidad.filter((p) => _universoPorEstadoSinTop(p.universo));
   for (const p of partesUniversoPorEstado) {
     const r = _cerrarGrupoUniverso(p, _figsDeParte(p.id), I, hechos, contador, ref, declararRazon, declararDerivadaOpcional);
-    if (r.error) { limitesGap.push(_limiteDeUniverso(p, r.error, resolucion)); continue; }
+    if (r.error) { _declinarUniverso(p, r.error); continue; }
     planes.push(r);
     tamanoUniversoPorParte.set(p.id, (r.miembros || []).length);   // §7.3·27
   }
@@ -2921,7 +2927,7 @@ export function componerEntrega(resolucion) {
       // declara ESE motivo, el mismo criterio y el mismo título que ya usa el camino hermano de `_cerrarGrupoUniverso`
       // para el mismo tipo de falla (universo por estado SIN `top`, más arriba en este archivo).
       if (plan && plan.error) {
-        limitesGap.push(_limiteDeUniverso(p, plan.error, resolucion));
+        _declinarUniverso(p, plan.error);
       } else {
         limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no encontró evidencia en la boleta`, motivo: "El conjunto se resolvió, pero ninguna fig de este turno trae las cifras pedidas para esas entidades — se declina en vez de servir con otro alcance." });
       }
@@ -3103,7 +3109,7 @@ export function componerEntrega(resolucion) {
         // cierre `cifra`.
         if (_universoPorEstadoSinTop(p.universo)) {
           const r = _cerrarGrupoUniverso(p, figsDeP, I, hechos, contador, ref, declararRazon, declararDerivadaOpcional);
-          if (r.error) { limitesGap.push(_limiteDeUniverso(p, r.error, resolucion)); continue; }
+          if (r.error) { _declinarUniverso(p, r.error); continue; }
           planes.push(r);
           continue;
         }
@@ -3118,7 +3124,7 @@ export function componerEntrega(resolucion) {
         // RAÍZ A (supervisor 2026-09-29) — `plan.error` (universo declarado no-resoluble, p. ej. un `union` con
         // «frenado» sin umbral) se declara con SU motivo real, no el genérico de «sin evidencia» — mismo criterio
         // que el sitio hermano de `lectura`/`decision`, arriba.
-        if (plan && plan.error) { limitesGap.push(_limiteDeUniverso(p, plan.error, resolucion)); }
+        if (plan && plan.error) { _declinarUniverso(p, plan.error); }
         else if (!plan) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no encontró evidencia en la boleta`, motivo: "El conjunto se resolvió parcialmente o no se pudo verificar contra la evidencia de este turno — se declina en vez de servir con otro alcance o sobre un ranking incompleto." }); }
         else {
           // tentación precalculada (mecanismo 6): la diferencia entre el primero y el segundo del listado, en la
@@ -3480,7 +3486,7 @@ export function componerEntrega(resolucion) {
         // oración «El top K de M» de arriba) esa regla nunca los mira como si fueran de esta entidad.
         else if (lenteTxt && idsCabeza.length) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${prefijo.charAt(0).toLowerCase()}${prefijo.slice(1)}, ordenado por ${(_labelDeClave(plan.claveOrden) || plan.claveOrden || lenteTxt).toLowerCase()}, lo encabeza ${plan.orden[0]}.`, hechos: idsCabeza });
       }
-      _declararUniverso(entrega, I, { id: plan.parteId, eje: plan.eje, top: plan.universoDecl.top, base: plan.universoDecl.base, estados: plan.universoDecl.estados, no_estados: plan.universoDecl.no_estados, filtros: plan.universoDecl.filtros, excluir: plan.universoDecl.excluir, entidades: plan.orden });
+      _declararUniverso(entrega, I, { id: plan.idUniverso || plan.parteId, eje: plan.eje, top: plan.universoDecl.top, base: plan.universoDecl.base, estados: plan.universoDecl.estados, no_estados: plan.universoDecl.no_estados, filtros: plan.universoDecl.filtros, excluir: plan.universoDecl.excluir, entidades: plan.orden });
     } else if (plan.kind === "comparacion") {
       temasCubiertos.add(plan.tema);
       for (const p of plan.pares) {
@@ -3911,8 +3917,8 @@ export function componerEntrega(resolucion) {
   // «carga»): declara solo el conteo oficial, nunca una alternativa recalculada con una fórmula que no es la
   // suya (`sinAlternativa` en la tabla).
   const _REFERENCIA_FAMILIAS = {
-    benchmark: { eje: "cliente", metrica: "margen", nombreDeLaEmpresa: "el benchmark de la empresa", direcciones: { bajo: { base: "bajo el benchmark", op: "<" }, sobre: { base: "sobre el benchmark", op: ">=" } } },
-    nivel_carga: { eje: "cliente", metrica: "carga", nombreDeLaEmpresa: "el nivel declarado de carga", direcciones: { sobre: { base: "sobre el nivel declarado de carga", op: ">" } }, sinAlternativa: ["carga comercial alta"] },
+    benchmark: { eje: "cliente", metrica: "margen", nombreDeLaEmpresa: { articulo: "el", nucleo: "benchmark de la empresa" }, direcciones: { bajo: { base: "bajo el benchmark", op: "<" }, sobre: { base: "sobre el benchmark", op: ">=" } } },
+    nivel_carga: { eje: "cliente", metrica: "carga", nombreDeLaEmpresa: { articulo: "el", nucleo: "nivel declarado de carga" }, direcciones: { sobre: { base: "sobre el nivel declarado de carga", op: ">" } }, sinAlternativa: ["carga comercial alta"] },
     // §7.3·19 (SUPERVISOR, residual del diagnóstico v10 — X78/X79) — la TERCERA referencia que la propia decisión
     // ya nombra («benchmark, nivel declarado de carga, piso de rotación»): sin esta entrada, una referencia de
     // rotación declarada por el usuario (`criterio.referencia.concepto:"piso_rotacion"`) nunca disparaba nada —
@@ -3920,14 +3926,14 @@ export function componerEntrega(resolucion) {
     // sin disparar nada»). Sus conjuntos se nombran por ESTADO («rota bien»/«rota lento», notario/estados.js), no
     // por `base` (un conjunto de `conjuntosDeLaCasa.js`): `estado` en vez de `base` en cada dirección se lee más
     // abajo con el MISMO valor (ambos son solo la clave que `basesEnJuego` tiene que contener).
-    piso_rotacion: { eje: "sku", metrica: "rotacion", nombreDeLaEmpresa: "el piso de rotación declarado", direcciones: { bajo: { estado: "rota lento", op: "<" }, sobre: { estado: "rota bien", op: ">=" } } },
+    piso_rotacion: { eje: "sku", metrica: "rotacion", nombreDeLaEmpresa: { articulo: "el", nucleo: "piso de rotación declarado" }, direcciones: { bajo: { estado: "rota lento", op: "<" }, sobre: { estado: "rota bien", op: ">=" } } },
     // ETAPA 6 (owner 2026-09-29, §7.3·35) — el umbral de venta frenada (días sin venta) planteado en la consulta: la CUARTA
     // referencia que define un conjunto de la casa («frenado», notario/estados.js). Mismo patrón de §7.3·12/·19: si la
     // EMPRESA declaró su umbral, el veredicto oficial es el suyo y aquí se declara AL LADO cuántos SKU serían con el de la
     // consulta (`op:">"`, el mismo «sobre el umbral» de `jerarquiaInventario`). Si la empresa NO lo declaró
     // (`operativaSinOficial`), no hay oficial que contrastar: el de la consulta sostiene el veredicto de ESTA respuesta —
     // `componerEntrega` lo pasó al índice (`_consultaDeFrenado`) — y se declara en el Marco como criterio de quien consulta.
-    umbral_frenado: { eje: "sku", metrica: "dias_sin_venta", nombreDeLaEmpresa: "el umbral de venta frenada declarado", direcciones: { sobre: { estado: "frenado", op: ">" } }, operativaSinOficial: true },
+    umbral_frenado: { eje: "sku", metrica: "dias_sin_venta", nombreDeLaEmpresa: { articulo: "el", nucleo: "umbral de venta frenada declarado" }, direcciones: { sobre: { estado: "frenado", op: ">" } }, operativaSinOficial: true },
   };
   {
     const refUsuario = resolucion.criterio && resolucion.criterio.referencia;
@@ -3972,8 +3978,8 @@ export function componerEntrega(resolucion) {
             const nombresAlt = _nombreDeLasEntidades(conReferencia.set);
             cifrasImpresas.push(valFmt, String(conReferencia.set.size), String(oficial.set.size));
             entrega.limites.push({
-              titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez de ${familiaRef.nombreDeLaEmpresa}`,
-              motivo: `${conteoDeEje(familiaRef.eje, conReferencia.set.size).condicional} ${conteoDeEje(familiaRef.eje, conReferencia.set.size).texto} ${dir} esa referencia (contra ${oficial.set.size} con ${familiaRef.nombreDeLaEmpresa}): ${nombresAlt.join(", ")} — calculado con la misma cuenta; no reemplaza la referencia oficial ni es un objetivo de la empresa.`,
+              titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez ${conPreposicion("de", familiaRef.nombreDeLaEmpresa)}`,
+              motivo: `${conteoDeEje(familiaRef.eje, conReferencia.set.size).condicional} ${conteoDeEje(familiaRef.eje, conReferencia.set.size).texto} ${dir} esa referencia (contra ${oficial.set.size} con ${sintagmaDe(familiaRef.nombreDeLaEmpresa)}): ${nombresAlt.join(", ")} — calculado con la misma cuenta; no reemplaza la referencia oficial ni es un objetivo de la empresa.`,
             });
           }
         } catch { /* la referencia del usuario no se pudo evaluar contra el dato: no se declara nada a medias */ }
@@ -3986,7 +3992,7 @@ export function componerEntrega(resolucion) {
           if (oficial && oficial.set) {
             cifrasImpresas.push(valFmt, String(oficial.set.size));
             entrega.limites.push({
-              titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez de ${familiaRef.nombreDeLaEmpresa}`,
+              titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez ${conPreposicion("de", familiaRef.nombreDeLaEmpresa)}`,
               motivo: `«${baseDetector}» ${conteoDeEje(familiaRef.eje, oficial.set.size).presente} ${conteoDeEje(familiaRef.eje, oficial.set.size).texto} con la referencia de la empresa; el detector no se recalcula con una referencia distinta — no reemplaza la oficial ni es un objetivo de la empresa.`,
             });
           }
@@ -4083,7 +4089,11 @@ export function componerEntrega(resolucion) {
   if (temasCubiertos.has("inventario")) {
     const entidadInv = _entidadRepresentativaDeTema("inventario", planes);
     // CORTE 3e (owner 2026-09-26) — antes: `Solo usted puede responder: ¿qué pasó con …?` (segunda persona).
-    { const pa = _preguntaAbiertaInventario(entidadInv, perfil); if (pa) entrega.paraSuJuicio.push(pa); }
+    /* La pregunta afirma «esté inmovilizado»: solo se hace sobre un SKU que LO ESTÁ (el conjunto de la casa, la MISMA primitiva
+     * del Notario). Con el ranking de días sin venta de TODOS los SKU (cierre del inventario, owner 2026-09-29) la cabeza de la
+     * lista puede ser un SKU que vendió hoy y no está inmovilizado: preguntar por qué lo está sería afirmar algo falso. */
+    const _esInmovilizado = (sku) => { try { const Rz = conjuntoDeUniverso({ eje: "sku", estados: ["inmovilizado"] }, I, "sku", ""); return !!(Rz && Rz.set && Rz.set.has(normalizar(sku))); } catch { return false; } };
+    { const pa = entidadInv && _esInmovilizado(entidadInv) ? _preguntaAbiertaInventario(entidadInv, perfil) : null; if (pa) entrega.paraSuJuicio.push(pa); }
   }
   if (temasCubiertos.has("cobranza")) {
     const entidadCob = _entidadRepresentativaDeTema("cobranza", planes);

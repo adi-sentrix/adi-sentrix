@@ -70,11 +70,15 @@ import { componerEntrega } from "./src/adi/entrega/componer.js";
 import { ETIQUETA_ORIGEN } from "./src/config/businessPolicy.js";
 import { formatoDeLaCasa, nombrarUniverso } from "./src/adi/notario/hechos.js";
 import { ESTADOS_DE_LA_CASA, FORMA_DE_ESTADO, formaDeEstado } from "./src/adi/notario/estados.js";
-import { conteoDeEje } from "./src/adi/notario/lexico.js";
+import { conteoDeEje, conPreposicion } from "./src/adi/notario/lexico.js";
 import { CONJUNTOS_DE_LA_CASA } from "./src/adi/notario/conjuntosDeLaCasa.js";
 import { HECHOS_HISTORICOS, LIMITE_HISTORICO, historicoDe, historiaDeFiguras } from "./src/config/contract/figureType.js";
 import { fig as figDeBoleta } from "./src/adi/boleta.js";
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
+import { buildMesaCapital } from "./src/adi/sentrix/mesaCapital.js";
+import { instruccionDeDeclaracion } from "./src/adi/notario/declaracion.js";
+import { lecturasDe } from "./src/adi/encargo/lecturasDe.js";
+import { getToolContract } from "./src/adi/oracle/toolContracts.js";
 import fs from "node:fs";
 
 let pass = 0, fail = 0;
@@ -290,11 +294,20 @@ H("(a2) · el umbral de la CONSULTA no reemplaza al de la EMPRESA (§7.3·12/·1
  * afirme quiénes están frenados —nunca «no hay frenados», nunca tramos inventados—, y UN límite de negocio que dice que la
  * empresa no declaró desde cuántos días sin venta considera frenado un producto, con el ofrecimiento de declararlo (sin
  * proponer un número). El predicado se mide sobre la ESTRUCTURA de la Entrega (límites, universos, respuesta, filas), no
- * sobre palabras prohibidas. */
+ * sobre palabras prohibidas.
+ * ACTUALIZADO por la decisión del owner 2026-09-29, §7.3·31/34 (cierre del inventario, B2): antes «ninguna oración ni fila»; ahora la Entrega
+ * SÍ trae los días sin venta de cada SKU, ordenados, como HECHO histórico (bloque (a5) abajo) — lo que sigue prohibido es una oración o una
+ * fila que afirme quiénes están frenados, o «no hay frenados». */
 const LIMITE_FRENADO_SIN_UMBRAL = "La empresa no ha declarado desde cuántos días sin venta considera frenado un producto";
+const esDiasSinVenta = (rotulo) => { const h = historicoDe(String(rotulo || ""), "days"); return !!h && h.clave === "dias_sin_venta"; };   // la clase la fija el registro de hechos históricos (figureType.js), no una palabra
 const declinaFrenadoSinUmbral = (E) => E && E.ok === true
   && (E.entrega.limites || []).filter((l) => String(l.motivo).includes(LIMITE_FRENADO_SIN_UMBRAL) && /\bindica\b|\bdeclar/i.test(String(l.motivo)) && !/\d/.test(String(l.motivo))).length === 1   // el límite, con su ofrecimiento y SIN un número propuesto
-  && (E.entrega.respuesta || []).length === 0 && (E.entrega.cifras.filas || []).length === 0                                      // ninguna oración ni fila sobre quiénes están frenados
+  /* decisión del owner 2026-09-29, §7.3·31/34 (B2, «sin umbral de frenado, ADI entrega los días sin venta de cada SKU, ordenados, y declara
+   * que falta el criterio»). ANTES: `(respuesta.length === 0 && filas.length === 0)` — ninguna oración ni fila. DESPUÉS: lo que se sirve es SOLO el
+   * HECHO histórico de los días (cada fila tipada «historico» y de la clase «días sin venta»; cada oración cita únicamente cifras de esa clase) —
+   * nunca una oración ni una fila que afirme quiénes están frenados, nunca «no hay frenados». Medido sobre la ESTRUCTURA, no sobre palabras. */
+  && (E.entrega.cifras.filas || []).every((f) => f.naturaleza === "historico" && esDiasSinVenta((f.valores || {})["Métrica"]))
+  && (E.entrega.respuesta || []).every((r) => (r.hechos || []).length > 0 && r.hechos.every((id) => { const h = (((E.entrega.procedencia || {}).libro || {}).hechos || []).find((x) => x.id === id); return !!h && h.tipo === "ref" && (h.evidencia || []).length > 0 && h.evidencia.every(esDiasSinVenta); }))
   && (E.entrega.universos || []).every((u) => !(u.estados || []).some((e) => /frenad/i.test(String(e))) || (u.entidades || []).length === 0);   // ni un universo «frenado» con miembros inventados
 H("(a3) · frenado SIN umbral: la Entrega SALE (ok:true) y declina con el límite de negocio, con cada cierre de la parte");
 {
@@ -324,7 +337,9 @@ H("(a3) · CARNADAS — el predicado rechaza una Entrega que esconde la falta de
   ok(declinaFrenadoSinUmbral(sana), "la Entrega sana pasa el predicado");
   ok(!declinaFrenadoSinUmbral({ ok: false, motivo: "ninguna parte produjo una oración con evidencia" }), "CARNADA · ok:false (el estado de antes) → lo rechaza");
   ok(!declinaFrenadoSinUmbral({ ...sana, entrega: { ...sana.entrega, limites: [] } }), "CARNADA · sin el límite de negocio → lo rechaza");
-  ok(!declinaFrenadoSinUmbral({ ...sana, entrega: { ...sana.entrega, respuesta: [{ texto: "No hay SKU frenados.", hechos: ["e1"] }] } }), "CARNADA · con una oración que afirma quiénes están frenados (o que no hay) → lo rechaza");
+  // decisión del owner 2026-09-29, §7.3·31/34: antes la oración carnada citaba «e1» (hoy un hecho de días, legítimo); ahora cita un hecho que NO es un día sin venta
+  ok(!declinaFrenadoSinUmbral({ ...sana, entrega: { ...sana.entrega, respuesta: [{ texto: "No hay SKU frenados.", hechos: ["e999"] }] } }), "CARNADA · con una oración que afirma quiénes están frenados (o que no hay), sin un hecho de días que la respalde → lo rechaza");
+  ok(!declinaFrenadoSinUmbral({ ...sana, entrega: { ...sana.entrega, respuesta: [{ texto: "No hay SKU frenados." }] } }), "CARNADA · con una oración sin ningún hecho citado → lo rechaza");
   ok(!declinaFrenadoSinUmbral({ ...sana, entrega: { ...sana.entrega, cifras: { ...sana.entrega.cifras, filas: [{ valores: {} }] } } }), "CARNADA · con filas de SKU frenados servidas → lo rechaza");
   ok(!declinaFrenadoSinUmbral({ ...sana, entrega: { ...sana.entrega, limites: sana.entrega.limites.map((l) => (String(l.motivo).includes(LIMITE_FRENADO_SIN_UMBRAL) ? { ...l, motivo: l.motivo + " Con 60 días serían 3." } : l)) } }), "CARNADA · con un umbral propuesto por ADI («con 60 días…») → lo rechaza");
 }
@@ -459,6 +474,132 @@ H("(b) · la ENTREGA de componer.js: los días sin venta salen como hecho histó
   ok(Ec.ok === true && !Ec.entrega.marco.historicos && !Ec.entrega.cifras.filas.some((f) => f.naturaleza), "una Entrega SIN hechos históricos (solo capital) no trae `historicos` ni filas marcadas: nada de ruido", Ec.motivo);
 }
 
+
+/* ══ BLOQUE (a5) · EL RANKING DE DÍAS SIN VENTA, COMO HECHO (cierre del inventario, owner 2026-09-29, §7.3·31/34) ═══════════
+ * Decisión del owner: sin un umbral de frenado, ADI entrega los días sin venta de CADA SKU, ordenados, y declara que falta el criterio.
+ * El productor es `inventoryStatus{focus:"dias_sin_venta"}` (specRetrieval.js), desde la MISMA fuente que la vista «Días sin venta» de
+ * la cara Capital (`jerarquiaInventario().porSku`, vía `buildMesaCapital().diasSinVenta`); lo pide SOLO `encargo/lecturasDe.js`. Los oráculos
+ * son INDEPENDIENTES del motor: salen del archivo del tenant (`skuInventario.diasSinVenta`) y de la vista de la pantalla. */
+const ORACULO_DIAS = SKUS.filter((x) => typeof x.diasSinVenta === "number").map((x) => [x.sku, x.diasSinVenta]).sort((a, b) => b[1] - a[1]);
+const filasDeDias = (E) => (E.entrega.cifras.filas || []).filter((f) => esDiasSinVenta((f.valores || {})["Métrica"])).map((f) => [f.valores["Entidad / grupo"], Number(String(f.valores["Valor"]).replace(/[^\d.-]/g, ""))]);
+const mismaSecuenciaDeDias = (filas, oraculo) => filas.length === oraculo.length && filas.every((x, i) => x[1] === oraculo[i][1]) && JSON.stringify(filas.map((x) => x[0]).sort()) === JSON.stringify(oraculo.map((x) => x[0]).sort());
+H("(a5) · el PRODUCTOR: los días sin venta de TODOS los SKU, de la misma fuente que la vista de la cara Capital, tipados como hecho histórico");
+{
+  const r = TOOLS.inventoryStatus({ focus: "dias_sin_venta", scenario: ESCENARIO_INICIAL });
+  const figsD = (r.boleta || []).filter((x) => esDiasSinVenta(x.label));
+  ok(figsD.length === ORACULO_DIAS.length && ORACULO_DIAS.length === 13, `la lectura trae ${figsD.length} cifras: TODOS los SKU con días declarados (13), no solo los del tramo crítico (3)`);
+  ok(figsD.every((x) => x.raw === (ORACULO_DIAS.find((o) => x.label.startsWith(o[0] + " ")) || [])[1]), "cada cifra es EXACTAMENTE la del archivo del tenant (oráculo independiente)");
+  ok(figsD.every(esHistoricoTipado), "TODAS salen tipadas como hecho histórico (naturaleza, ventana, límite, sin escenario)");
+  const vista = buildMesaCapital(ESCENARIO_INICIAL).diasSinVenta.filas.map((x) => [x.sku, x.diasSinVenta]);
+  ok(JSON.stringify(figsD.map((x) => [x.label.split(" · ")[0], x.raw])) === JSON.stringify(vista), "el orden y las cifras son los de la vista «Días sin venta» de la cara Capital (una sola verdad entre las dos superficies)");
+  ok(!!(r.facts && r.facts.historia) && r.facts.historia.hechos.length === 1 && r.facts.historia.hechos[0].clave === "dias_sin_venta" && r.facts.historia.hechos[0].proyeccion === false, "facts.historia declara SOLO la clase «días sin venta», sin proyección");
+  ok(!(r.facts && r.facts.umbral_no_aplicado), "no declara un «umbral no aplicado»: los días son el hecho mismo");
+  // el AGENTE vivo no ve este foco: no está en su catálogo de lecturas y ningún paso de dominios lo pide
+  ok(!((getToolContract("inventoryStatus") || {}).lecturasSoportadas || []).some((l) => l.clave === "dias_sin_venta"), "el foco NO está en el catálogo de lecturas que ve el agente (toolContracts.js): su boleta queda idéntica");
+  const pasosAgente = [...pasosDeDominios({ dominios: ["inventario"], eje: null }), ...pasosDeDominios({ dominios: ["comercial", "inventario", "cobranza"], eje: null })];
+  ok(pasosAgente.length > 0 && !pasosAgente.some((p) => p.args && p.args.focus === "dias_sin_venta"), "ningún paso de los dominios del agente pide el foco", String(pasosAgente.length));
+}
+H("(a5) · «frenado» SIN umbral: la Entrega trae los 13 SKU ordenados con sus días y declara que falta el criterio");
+{
+  for (const cierre of ["decision", "lectura", "cifra"]) {
+    const E = entregaDe({ version: "encargo/v1", partes: [{ id: "p1", tema: "inventario", cierre, conceptos: ["capital"], universo: { eje: "sku", estados: ["frenado"] } }] });
+    ok(E.ok === true && declinaFrenadoSinUmbral(E), `[${cierre}] sale, con el límite del criterio y solo el HECHO de los días`, E.ok ? "" : E.motivo);
+    if (!E.ok) continue;
+    const filas = filasDeDias(E);
+    ok(filas.length === 13 && mismaSecuenciaDeDias(filas, ORACULO_DIAS), `[${cierre}] las 13 filas, de MÁS a MENOS días, con los días del archivo (oráculo independiente)`, JSON.stringify(filas));
+    ok(E.entrega.marco.historicos && E.entrega.marco.historicos.limite === LIMITE_HISTORICO && E.texto.includes(LIMITE_HISTORICO), `[${cierre}] el Marco declara que es histórico: «${LIMITE_HISTORICO}»`);
+    const u = (E.entrega.universos || []).find((x) => x.id === "p1_dias_sin_venta");
+    ok(!!u && u.entidades.length === 13 && !u.estados, `[${cierre}] el ranking declara SU universo (13 SKU, sin estado «frenado»), con id propio`);
+    const lim = (E.entrega.limites || []).filter((l) => String(l.motivo).includes(LIMITE_FRENADO_SIN_UMBRAL));
+    ok(lim.length === 1 && /van ordenados en esta Entrega/.test(lim[0].motivo), `[${cierre}] el límite dice que los días van en esta Entrega (no manda a otra pestaña)`);
+  }
+  // CONTROLES · con umbral (empresa o consulta) NO hay ranking sintético: el universo «frenado» se resuelve con su umbral
+  const Ec = entregaDe(encUniverso(refConsulta(90)));
+  ok(Ec.ok === true && !(Ec.entrega.universos || []).some((x) => /_dias_sin_venta$/.test(String(x.id))), "CONTROL · con el umbral de la CONSULTA no se agrega el ranking sintético (el universo «frenado» se resuelve)");
+  initTenant(TENANT_DEMO_FRENADO_60);
+  const Ee = entregaDe(encUniverso(null));
+  ok(Ee.ok === true && !(Ee.entrega.universos || []).some((x) => /_dias_sin_venta$/.test(String(x.id))), "CONTROL · con el umbral de la EMPRESA tampoco");
+  volverAlDemo();
+  // el plan (la LECTURA) pide los días para «frenado» sin umbral, y solo entonces
+  const resSin = validarEncargo(encUniverso(null), {});
+  const pide = (R) => lecturasDe(R).plan.calls.some((c) => c.tool === "inventoryStatus" && c.args && c.args.focus === "dias_sin_venta");
+  ok(pide(resSin), "lecturasDe: con «frenado» SIN umbral, pide el foco de los días sin venta");
+  ok(!pide(validarEncargo(encUniverso(refConsulta(90)), {})), "lecturasDe CONTROL: con el umbral de la consulta no lo pide");
+  const encCon = (cierre, extra) => validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "inventario", cierre, conceptos: ["dias_sin_venta"], eje: "sku", ...extra }] }, {});
+  ok(["cifra", "lectura", "decision"].every((c) => pide(encCon(c, {}))), "lecturasDe: el CONCEPTO «días sin venta» por SKU (cifra, lectura y decisión) lo pide");
+  ok(pide(encCon("lectura", { universo: { eje: "sku", top: { metrica: "dias_sin_venta", k: 5, direccion: "mayor" } } })) && !lecturasDe(encCon("lectura", { universo: { eje: "sku", top: { metrica: "dias_sin_venta", k: 5, direccion: "mayor" } } })).plan.calls.some((c) => c.tool === "queryMetric" && c.args && c.args.metric === "dias_sin_venta"), "lecturasDe: un top por días sin venta usa ese productor, no un queryMetric que no tiene la métrica");
+  ok(!pide(validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "inventario", cierre: "lectura", conceptos: ["capital"], eje: "sku" }] }, {})), "lecturasDe CONTROL: una parte que no habla de días ni de «frenado» no lo pide");
+}
+H("(a5) · un top / orden por días sin venta: el top correcto sobre TODOS los SKU (antes: 3 filas, y el «menor» sin productor)");
+{
+  const encTop = (k, direccion, cierre = "lectura") => ({ version: "encargo/v1", partes: [{ id: "p1", tema: "inventario", cierre, conceptos: ["dias_sin_venta"], universo: { eje: "sku", top: { metrica: "dias_sin_venta", k, direccion } } }] });
+  const E5 = entregaDe(encTop(5, "mayor"));
+  const f5 = E5.ok ? filasDeDias(E5) : [];
+  ok(E5.ok === true && f5.length === 5 && mismaSecuenciaDeDias(f5, ORACULO_DIAS.slice(0, 5)), "top 5 de MÁS días: los 5 SKU y sus días del archivo (antes servía 3 filas bajo el título «top 5»)", E5.ok ? JSON.stringify(f5) : E5.motivo);
+  const cero = ORACULO_DIAS.filter((x) => x[1] === 0);
+  const E5m = entregaDe(encTop(5, "menor", "cifra"));
+  const f5m = E5m.ok ? filasDeDias(E5m) : [];
+  ok(cero.length === 5 && E5m.ok === true && f5m.length === 5 && f5m.every((x) => x[1] === 0) && JSON.stringify(f5m.map((x) => x[0]).sort()) === JSON.stringify(cero.map((x) => x[0]).sort()), "top 5 de MENOS días: exactamente los 5 SKU que vendieron a la fecha de corte (antes: sin productor, la Entrega no salía)", E5m.ok ? JSON.stringify(f5m) : E5m.motivo);
+  ok(E5m.ok === true && !JSON.stringify(E5m.entrega.paraSuJuicio || []).includes("esté inmovilizado"), "la cabeza del ranking (SAM-REF500L, con 0 días, no inmovilizado) NO dispara la pregunta «por qué está inmovilizado»: no afirma algo falso");
+  // el top 3 «menor» parte un EMPATE (5 SKU con 0 días): se declina con su motivo, no se sirven 3 al azar
+  const E3m = entregaDe(encTop(3, "menor"));
+  ok(E3m.ok === true && filasDeDias(E3m).length === 0 && (E3m.entrega.limites || []).some((l) => /empat/i.test(String(l.motivo))), "top 3 de MENOS días: el corte parte un empate → se declina honestamente, sin elegir 3 de 5 iguales");
+  const Ecs = entregaDe({ version: "encargo/v1", partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["dias_sin_venta"], eje: "sku" }] });
+  const fcs = Ecs.ok ? filasDeDias(Ecs) : [];
+  ok(Ecs.ok === true && fcs.length === 13 && JSON.stringify(fcs.map((x) => x[0]).sort()) === JSON.stringify(ORACULO_DIAS.map((x) => x[0]).sort()) && fcs.every((x) => ORACULO_DIAS.find((o) => o[0] === x[0])[1] === x[1]), "el CONCEPTO «días sin venta» por SKU: los 13, cada uno con su cifra del archivo");
+}
+H("(a5) · CARNADAS — el gate detecta un ranking incompleto, mal ordenado o con un día equivocado");
+{
+  const E = entregaDe(encUniverso(null));
+  const filas = filasDeDias(E);
+  ok(mismaSecuenciaDeDias(filas, ORACULO_DIAS), "el ranking sano pasa el verificador");
+  ok(!mismaSecuenciaDeDias(filas.slice(0, 3), ORACULO_DIAS), "CARNADA · solo el tramo crítico (3 filas, como antes) → lo rechaza");
+  ok(!mismaSecuenciaDeDias(filas.slice().reverse(), ORACULO_DIAS), "CARNADA · el orden invertido (de MENOS a MÁS) → lo rechaza");
+  ok(!mismaSecuenciaDeDias(filas.map((x, i) => (i === 0 ? [x[0], x[1] + 1] : x)), ORACULO_DIAS), "CARNADA · un día equivocado → lo rechaza");
+  ok(!mismaSecuenciaDeDias(filas.map((x, i) => (i === 0 ? ["SKU-INEXISTENTE", x[1]] : x)), ORACULO_DIAS), "CARNADA · un SKU que no es del inventario → lo rechaza");
+}
+
+/* ══ BLOQUE (a6) · LA ENTREGA IMPRIME EL CANON, NO «CAPITAL FRENADO» (cierre del inventario, owner 2026-09-29) ═══════════
+ * B1: la conclusión por SKU dice «SKU inmovilizados críticos» y «de capital inmovilizado crítico» (formas de la casa, `FORMA_DE_ESTADO`).
+ * B3: la gramática de los nombres de la casa sale de DATOS del léxico: «en vez del benchmark…» (`conPreposicion`) y «los clientes con carga
+ * comercial alta» (`precede` del conjunto), nunca una regla sobre frases. */
+H("(a6) · B1: la conclusión de un SKU dice el canon");
+{
+  const E = entregaDe({ version: "encargo/v1", partes: [{ id: "p1", tema: "inventario", cierre: "lectura", conceptos: ["capital_frenado"], entidades: [{ nombre: "LG-DRYER8KG" }] }] });
+  ok(E.ok === true, "la Entrega de la conclusión por SKU sale", E.motivo);
+  if (E.ok) {
+    const txt = E.entrega.respuesta.map((r) => r.texto).join(" ");
+    const forma = formaDeEstado("inmovilizado critico");
+    ok(txt.includes(`SKU ${forma.plural}`) && txt.includes(`de capital ${forma.singular}`), `dice «SKU ${forma.plural}» y «de capital ${forma.singular}» (las formas de la casa)`, txt);
+    const uni = (E.entrega.universos || []).find((x) => x.criterio);
+    ok(!!uni && uni.criterio === `SKU ${forma.plural}` && uni.texto === uni.criterio, "el universo del ranking se declara con el mismo nombre del canon", JSON.stringify(uni && [uni.criterio, uni.texto]));
+  }
+  const fuente = fs.readFileSync("./src/adi/entrega/componer.js", "utf8") + fs.readFileSync("./src/adi/oracle/datoProyectado.js", "utf8") + fs.readFileSync("./src/adi/entrega/iniciativa.js", "utf8");
+  ok(!/SKU con capital frenado|capital frenado SKU|capital frenado total|\$\{R\(c\.idFrenado\)\} frenados|los SKU frenados \(rotaci/.test(fuente), "ninguna de las cuatro cadenas viejas sigue en el código (componer.js, datoProyectado.js, iniciativa.js)");
+}
+H("(a6) · B3: la gramática sale de datos del léxico");
+{
+  ok(conPreposicion("de", { articulo: "el", nucleo: "benchmark de la empresa" }) === "del benchmark de la empresa", "de + el → «del» (tabla de contracciones del léxico)");
+  ok(conPreposicion("de", { articulo: "la", nucleo: "empresa" }) === "de la empresa" && conPreposicion("con", { articulo: "el", nucleo: "nivel" }) === "con el nivel", "con los otros artículos y preposiciones, no se contrae");
+  const familias = [
+    ["benchmark", { version: "encargo/v1", criterio: { referencia: { concepto: "benchmark", valor: 25, unidad: "pct" } }, partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["ventas"], universo: { eje: "cliente", base: "bajo el benchmark" } }] }],
+    ["nivel_carga", { version: "encargo/v1", criterio: { referencia: { concepto: "nivel_carga", valor: 2, unidad: "pct" } }, partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["ventas"], universo: { eje: "cliente", base: "carga comercial alta" } }] }],
+    ["piso_rotacion", { version: "encargo/v1", criterio: { referencia: { concepto: "piso_rotacion", valor: 2.5, unidad: "ratio" } }, partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital"], universo: { eje: "sku", estados: ["rota lento"] } }] }],
+  ];
+  for (const [concepto, enc] of familias) {
+    const E = entregaDe(enc);
+    const t = E.ok ? (E.entrega.limites || []).filter((l) => String(l.titulo).startsWith("Con la referencia planteada en la consulta")).map((l) => l.titulo).join(" | ") : "";
+    ok(E.ok === true && /, en vez del /.test(t) && !/en vez de el /.test(t), `[${concepto}] el título dice «en vez del …», no «en vez de el …»`, t || E.motivo);
+  }
+  const Ec = entregaDe(familias[1][1]);
+  const unis = Ec.ok ? (Ec.entrega.universos || []).map((u) => u.texto).join(" | ") : "";
+  ok(Ec.ok === true && /los clientes con carga comercial alta/.test(unis) && !/los clientes carga comercial alta/.test(unis), "«carga comercial alta» califica al grupo con su preposición: «los clientes con carga comercial alta»", unis || Ec.motivo);
+  ok(nombrarUniverso({ eje: "cliente", base: "carga comercial alta" }, null) === "los clientes con carga comercial alta", "también sin índice (sin el valor de la referencia)");
+  ok(nombrarUniverso({ eje: "cliente", base: "bajo el benchmark" }, null) === "los clientes bajo el benchmark" && nombrarUniverso({ eje: "cliente", base: "con saldo vencido" }, null) === "los clientes en mora", "CONTROL · los conjuntos que ya se decían bien no cambian");
+  const conPrecede = CONJUNTOS_DE_LA_CASA.filter((c) => c.precede);
+  ok(conPrecede.length >= 1 && conPrecede.every((c) => c.visible == null && !c.nombre.startsWith(c.precede + " ")), "la preposición es un dato del conjunto (`precede`), y solo lo llevan los que su nombre no la trae ya", conPrecede.map((c) => c.nombre).join(", "));
+}
+
 /* ══ BLOQUE (c) · VOCABULARIO VISIBLE — no vuelven las frases viejas (etapa 6, tarea 1) ══════════════════════════════ */
 H("(c) · barrido: ninguna superficie migrada llama «frenado» a la regla de rotación");
 {
@@ -484,8 +625,22 @@ H("(c) · barrido: ninguna superficie migrada llama «frenado» a la regla de ro
     ["./src/adi/agente/playbooks/crucePorSku.js", "tienen capital frenado", "los ejemplos y el entregable del playbook cruce-por-sku"],
     ["./src/adi/sentrix/viewManifest.js", "el dinero de la tira es el capital FRENADO", "la razón de concordancia de la tira «En alerta»"],
     ["./src/adi/sentrix/viewManifest.js", "el capital inmovilizado de la bodega es el mismo subconjunto", "la razón de concordancia del recibo de bodega"],
+    // decisión del owner 2026-09-29, §7.3·31/34 (cierre del inventario, A): los `para:` que ve el LLM y la lista de estados de la instrucción de declaración (antes → después en cada archivo)
+    ["./src/adi/agente/playbooks/contradiccionDeMetricas.js", "\"el capital frenado: el lado del monto", "el «para» de la lectura de inventario en la contradicción de métricas"],
+    ["./src/adi/agente/playbooks/sintesisEjecutiva.js", "y el capital frenado — los subtotales", "el «para» del diagnóstico en la síntesis ejecutiva"],
+    ["./src/adi/agente/playbooks/lecturaPorEje.js", "qué SKU tienen el capital frenado, con su monto", "el «para» de la lectura por eje de inventario"],
+    ["./src/adi/encargo/lecturasDe.js", "liberar el capital frenado de", "el «para» de la simulación de capital"],
+    ["./src/adi/notario/declaracion.js", "cada estado (frenado, inmovilizado, en riesgo de quiebre, crítico;", "la lista de estados de la instrucción de declaración"],
+    ["./src/adi/oracle/guardC.js", "{ clave: \"con capital frenado\"", "el nombre del conjunto en el conteo de bodegas del juez de conteos (lo lee el LLM en la multa)"],
   ];
   for (const [ruta, frase, donde] of LEGADO) ok(!leer(ruta).includes(frase), `${donde}: ya no dice «${frase}»`);
+}
+
+H("(c) · la instrucción de declaración lista los estados con el significado vigente");
+{
+  const txt = instruccionDeDeclaracion();
+  const lista = (txt.match(/cada estado \(([^)]*)\)/) || [])[1] || "";
+  ok(/inmovilizado cr[ií]tico/.test(lista) && /frenado —venta interrumpida—/.test(lista) && /(?:^|, )inmovilizado,/.test(lista) && !/frenado, inmovilizado/.test(lista), "la lista de estados: inmovilizado · inmovilizado crítico · frenado (venta interrumpida) — sin el «frenado» de la regla de rotación", lista);
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");

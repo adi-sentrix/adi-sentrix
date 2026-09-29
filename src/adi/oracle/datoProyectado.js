@@ -47,6 +47,7 @@ import { simboloMoneda, rotuloMoneda, etiquetaSinDeclarar } from "../../config/m
 import { factorComercialDe } from "../../config/contract/figureType.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del eje (C5): el default de conveniencia dejaba leer OTRA carpeta que la pantalla
 import { figsUmbralFocos, descomposicionDeBrecha, variacionVentasPorEje } from "../specRetrieval.js";   // `descomposicionDeBrecha`: la ÚNICA definición de «carga comercial alta» (el detector) — el Notario resuelve los conjuntos desde acá. `variacionVentasPorEje`: cierre D29 del corte 3c (owner 2026-09-25) — LA MISMA función que usa `salesRead` para «vs año anterior», publicada acá para que el Notario la verifique sin reimplementarla («una sola verdad por eje»).
+import { formaDeEstado } from "../notario/estados.js";   // CANON (owner 2026-09-29, §7.3·31/34): el universo del ranking capital_frenado se nombra con la FORMA de la casa de su estado, nunca «frenados»
 import { NOMBRE_CARGA_ALTA, NOMBRE_SOBRE_NIVEL_CARGA } from "../notario/conjuntosDeLaCasa.js";   // §7.3·11: el nombre de estos dos conjuntos vive en UN solo lugar — `notario/verificar.js` y `encargo/validar.js` leen la MISMA constante
 import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";   // los rankings de COBRANZA salen de la MISMA mesa que la herramienta `cobranza` y la pestaña Flujo (owner 2026-09-14)   // el umbral de materialidad, los MISMOS dos números que interpola `declaracionUmbralFocos` (2026-09-14)
 import { diagnoseInventarioSku, jerarquiaInventario } from "../diagnosis/economicDiagnosis.js";   // el estado de cada SKU: la MISMA función que la Mesa Capital y la boleta del inventario (Notario semántico, fase 4) · jerarquiaInventario: la fuente única de inmovilizado/crítico (owner 2026-09-28, §7.3·31-32)
@@ -305,7 +306,7 @@ function _construir(scenario, consulta = null) {
       // los reconocidos por este ranking SIN tocar su significado ni el canon del Notario (estados.js/verificar.js
       // no se tocan): sigue siendo la MISMA definición (`capital_frenado`, intacta), solo se amplía qué texto de
       // `a.metrica` la encuentra (`I.rankingDe`, notario/evidencia.js) — mismo mecanismo que ya usaba "detenido".
-      capital_frenado:      _R("los SKU frenados (rotación bajo el piso o días sobre el techo) · foto de hoy", "mayor", "mayor", "skuInventario.stockUSD (frenado por POLICY)", ["capital\\s+frenado", "capital\\s+detenido", "capital\\s+inmovilizado\\s+cr[ií]tico"]),
+      capital_frenado:      _R(`los SKU ${formaDeEstado("inmovilizado critico").plural} (rotación bajo el piso o días sobre el techo) · foto de hoy`, "mayor", "mayor", "skuInventario.stockUSD (inmovilizado crítico por POLICY)", ["capital\\s+frenado", "capital\\s+detenido", "capital\\s+inmovilizado\\s+cr[ií]tico"]),
       rotacion:         _R("los 13 SKU en inventario · foto de hoy", "mayor", "menor", "skuInventario.rotacion", ["rotaci[óo]n"], _LEX.rotacion),
       dias_inventario:  _R("los 13 SKU en inventario · foto de hoy", "mayor", "mayor", "skuInventario.doh", ["d[íi]as\\s+de\\s+inventario"], _LEX.dias_inventario),
       dias_sin_venta:   _R("los SKU con días sin venta registrados · foto de hoy", "mayor", "mayor", "skuInventario.diasSinVenta", ["d[íi]as\\s+sin\\s+venta"]),
@@ -318,7 +319,7 @@ function _construir(scenario, consulta = null) {
     bodega: {
       capital:          _R("las bodegas del inventario · foto de hoy", "mayor", null, "Σ skuInventario.stockUSD por bodega", ["capital(?!\\s+(?:frenado|inmovilizado|detenido))", "inventario", "stock"]),
       // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32, etapa 4): idem nota de arriba (ranking sku.capital_frenado).
-      capital_frenado:  _R("las bodegas del inventario · foto de hoy", "mayor", "mayor", "Σ skuInventario.stockUSD por bodega (frenados por POLICY)", ["capital\\s+frenado", "capital\\s+detenido", "frenado", "capital\\s+inmovilizado\\s+cr[ií]tico"]),
+      capital_frenado:  _R("las bodegas del inventario · foto de hoy", "mayor", "mayor", "Σ skuInventario.stockUSD por bodega (inmovilizado crítico por POLICY)", ["capital\\s+frenado", "capital\\s+detenido", "frenado", "capital\\s+inmovilizado\\s+cr[ií]tico"]),
       // retiro del texto crudo (owner 2026-09-28, §7.3·31-32, diseño §0.2/R2): Σ por bodega de J.inmovilizado, no de "estado ≠ Activo".
       capital_inmovilizado: _R("las bodegas del inventario · foto de hoy", "mayor", "mayor", "Σ skuInventario.stockUSD por bodega (J.inmovilizado)", ["capital\\s+inmovilizado", "inmovilizado"]),
     },
@@ -758,7 +759,8 @@ function _construir(scenario, consulta = null) {
     if (Number.isFinite(s.stockUSD) && jr && jr.inmovilizado) rankings.sku.capital_inmovilizado.filas.push({ entidad: s.sku, valor: s.stockUSD, raw: s.stockUSD });
     if (Number.isFinite(s.rotacion)) rankings.sku.rotacion.filas.push({ entidad: s.sku, valor: +(+s.rotacion).toFixed(1) });
     if (Number.isFinite(s.doh)) rankings.sku.dias_inventario.filas.push({ entidad: s.sku, valor: Math.round(s.doh) });
-    if (Number.isFinite(s.diasSinVenta) && s.diasSinVenta > 0) rankings.sku.dias_sin_venta.filas.push({ entidad: s.sku, valor: Math.round(s.diasSinVenta) });
+    /* TODOS los SKU con días sin venta declarados (cierre del inventario, owner 2026-09-29): un SKU con 0 días vendió en la fecha de corte y es un dato, no una ausencia — el ranking de días sin venta es el MISMO conjunto que la lectura `inventoryStatus{focus:"dias_sin_venta"}` y la vista «Días sin venta» de la cara Capital (`jerarquiaInventario().porSku`). Antes `> 0` dejaba fuera a los que vendieron hoy y el «menos días sin venta» se resolvía sobre un ranking incompleto. */
+    if (Number.isFinite(s.diasSinVenta)) rankings.sku.dias_sin_venta.filas.push({ entidad: s.sku, valor: Math.round(s.diasSinVenta) });
     if (Number.isFinite(s.margenPct)) rankings.sku.margen_inventario.filas.push({ entidad: s.sku, valor: +(+s.margenPct).toFixed(1) });
     dias[s.sku] = {
       inventario: typeof s.doh === "number" ? Math.round(s.doh) : null,

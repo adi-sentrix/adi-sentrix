@@ -189,6 +189,18 @@ export const CUENTA_DE_EJE = {
   familia: { uno: "familia", varios: "familias" }, bodega: { uno: "bodega", varios: "bodegas" }, canal: { uno: "canal", varios: "canales" }, mes: { uno: "mes", varios: "meses" },
 };
 export const CONCORDANCIA_DE_CONTEO = { uno: { condicional: "Sería", presente: "es" }, varios: { condicional: "Serían", presente: "son" } };
+/* PREPOSICIÓN + ARTÍCULO (owner 2026-09-29, gramática de lo que ADI imprime): la lengua contrae «de + el» → «del» y «a + el» → «al»; con
+ * los demás artículos la preposición va aparte. Es un DATO de la casa (una tabla cerrada del idioma), no una regla sobre frases: un
+ * nombre de la casa se declara como `{ articulo, nucleo }` (`{ articulo: "el", nucleo: "benchmark de la empresa" }`) y estas dos
+ * funciones lo dicen con o sin preposición. */
+export const CONTRACCION_CON_ARTICULO = { de: { el: "del" }, a: { el: "al" } };
+/** sintagmaDe({articulo, nucleo}) → «el benchmark de la empresa» */
+export const sintagmaDe = (n) => `${n.articulo} ${n.nucleo}`;
+/** conPreposicion(prep, {articulo, nucleo}) → «del benchmark de la empresa» · «de la venta» · «con el nivel» */
+export function conPreposicion(preposicion, n) {
+  const c = (CONTRACCION_CON_ARTICULO[preposicion] || {})[n.articulo];
+  return c ? `${c} ${n.nucleo}` : `${preposicion} ${sintagmaDe(n)}`;
+}
 /** conteoDeEje(eje, n) → { texto: «4 SKU» · «1 cuenta», condicional: «Serían»/«Sería», presente: «son»/«es» } */
 export function conteoDeEje(eje, n) {
   const c = CUENTA_DE_EJE[eje] || { uno: eje, varios: PLURAL_DE_EJE[eje] || `${eje}s` };

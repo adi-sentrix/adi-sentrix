@@ -94,7 +94,7 @@ const _TIPOS = {
   },
   inventario: {
     pasos: [
-      { tool: "inventoryStatus", args: {}, para: "el capital frenado: el lado del monto, en dinero" },
+      { tool: "inventoryStatus", args: {}, para: "el capital inmovilizado crítico: el lado del monto, en dinero" },
       { tool: "queryMetric", args: { metric: "doh", dimension: "sku" }, para: "los días de inventario por SKU: el lado del tiempo, que es el que el monto no muestra" },
     ],
     // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «Capital frenado» → «Capital inmovilizado crítico».

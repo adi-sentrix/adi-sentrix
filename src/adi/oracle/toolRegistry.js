@@ -706,7 +706,7 @@ function inventoryStatus({ filters = {}, scenario, focus = "frenado", staleDays 
    * El foco `stale` SÍ aplica el umbral (composeSpecInventory filtra por diasSinVenta) → ahí no hay nada que
    * declarar. La declaración cita el número SOLO cuando viene de la pregunta (eco autorizado por el muro); un
    * staleDays de arg sin rastro en la pregunta se declara sin el número — jamás una cifra que el eco no cubre. */
-  if (r.coverage && r.coverage.supported && focus !== "stale") {
+  if (r.coverage && r.coverage.supported && focus !== "stale" && focus !== "dias_sin_venta") {   // «dias_sin_venta» (lectura del encargo, cierre del inventario 2026-09-29) ES el hecho de los días: no hay nada que declarar «no aplicado»
     const diasPregunta = _umbralDiasPedido(_preguntaUsuario);
     const diasArg = typeof staleDays === "number" && staleDays > 0 ? staleDays : null;
     if (diasPregunta != null || diasArg != null) {

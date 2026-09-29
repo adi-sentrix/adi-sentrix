@@ -128,7 +128,7 @@ export const sintesisEjecutiva = {
   },
 
   pasos: [
-    { tool: "diagnose", args: {}, para: "dónde localiza el motor la contribución no capturada, la carga comercial alta y el capital frenado — los subtotales y quién encabeza cada uno" },
+    { tool: "diagnose", args: {}, para: "dónde localiza el motor la contribución no capturada, la carga comercial alta y el capital inmovilizado crítico — los subtotales y quién encabeza cada uno" },
     { tool: "executiveSummary", args: {}, para: "la foto ejecutiva del período: venta contra el año anterior, contribución, margen contra el piso" },
     { tool: "marginRead", args: { dimension: "cliente" }, para: "el margen por cliente contra el benchmark declarado, para que el cerebro tenga la cartera a mano" },
   ],

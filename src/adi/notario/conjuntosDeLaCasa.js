@@ -40,7 +40,8 @@ import { definicionesDeEstados } from "./estados.js";
 export const NOMBRE_CARGA_ALTA = "carga comercial alta";
 export const NOMBRE_SOBRE_NIVEL_CARGA = "sobre el nivel declarado de carga";
 const _CARGA = [
-  { nombre: NOMBRE_CARGA_ALTA, eje: "cliente", familia: "carga" },
+  /* `precede` (owner 2026-09-29): la preposición con que el nombre califica a un grupo — «los clientes CON carga comercial alta» (el nombre a secas es un sustantivo: «los clientes carga comercial alta» no se dice). Dato de la casa, como `visible`; el nombre no cambia. */
+  { nombre: NOMBRE_CARGA_ALTA, eje: "cliente", familia: "carga", precede: "con" },
   { nombre: NOMBRE_SOBRE_NIVEL_CARGA, eje: "cliente", familia: "carga" },
 ];
 

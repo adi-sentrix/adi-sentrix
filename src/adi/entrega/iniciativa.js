@@ -75,7 +75,7 @@ export const INICIATIVA = Object.freeze({
     { id: "antiguedad-vencido", activo: false, hecho: "AUSENCIA (CAU-03 marcador → límite, sin cifra)", de: "—", cuando: "decisión abierta del owner (§C, decisión 3) — no resuelta acá" },
   ],
   inventario: [
-    { id: "participacion-frenado", activo: true, hecho: "razon pct (capital frenado SKU ÷ capital frenado total)", de: "inventoryStatus frenado", cuando: "≥2 SKU frenados" },
+    { id: "participacion-frenado", activo: true, hecho: "razon pct (capital inmovilizado crítico SKU ÷ capital inmovilizado crítico total)", de: "inventoryStatus frenado", cuando: "≥2 SKU inmovilizados críticos" },
     { id: "frenado-y-vende", activo: false, hecho: "grupo/conteo (SKU en frenado ∩ top_sellers)", de: "_INV_CRUCE ➕", cuando: "NO IMPLEMENTADO (llamada ➕, tensionRead/top_sellers)" },
   ],
   cruce: [

@@ -1809,7 +1809,7 @@ const _PREDICADOS_DE_CONTEO = [
    * («Tres cuentas concentran el vencido» es un top-3 del vencido, no el conteo de las que tienen) */
   { clave: "con vencido", re: /(?<=^|[^\p{L}])(?:con\s+(?:saldo\s+|deuda\s+|monto\s+)?vencid[oa]s?|tienen?\s+(?:saldo\s+|deuda\s+|monto\s+)?vencid[oa]s?|(?:cuentas?|clientes?)\s+vencid[oa]s|est[aá]n?\s+vencid[oa]s|ya\s+vencid[oa]s|en mora|con mora|tienen? mora|con atraso|atrasad[oa]s|moros[oa]s|morosidad|deben(?!\s+(?:menos|mas|el|la|los|las))|con\s+saldo\s+vencido|(?:concentran?|acumulan?|explican?|reunen?|suman?)\s+todo\s+el\s+(?:saldo\s+)?vencido)(?=[^\p{L}]|$)/u, fuente: "vencido", pred: (v) => v > 0 },   // «concentran TODO el vencido» es exhaustivo: dice que nadie más tiene
   { clave: "sin vencido", re: /(?<=^|[^\p{L}])(?:al dia|sin vencido|sin mora|sin atraso|sin deuda vencida)(?=[^\p{L}]|$)/u, fuente: "vencido", pred: (v) => !(v > 0) },
-  { clave: "con capital frenado", re: /(?<=^|[^\p{L}])(?:frenad[oa]s?|capital frenado|bloquead[oa]s?|estancad[oa]s?)(?=[^\p{L}]|$)/u, fuente: "frenado", pred: (v) => v > 0 },
+  { clave: "con capital inmovilizado crítico", re: /(?<=^|[^\p{L}])(?:frenad[oa]s?|capital frenado|bloquead[oa]s?|estancad[oa]s?)(?=[^\p{L}]|$)/u, fuente: "frenado", pred: (v) => v > 0 },
   { clave: "materiales", re: /(?<=^|[^\p{L}])materiales?(?=[^\p{L}]|$)/u, fuente: "material", pred: (v) => v > 0 },
 ];
 /* los conjuntos derivables del turno por eje (cliente y bodega; el eje sku solo tiene su universo), cada uno con el universo que cubre */

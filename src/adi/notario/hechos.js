@@ -319,7 +319,7 @@ export function formatoDeLaCasa(raw, unidad) {
 /* las palabras de cada estado (singular con tildes · plural · contrario) son DATOS de la casa: `estados.js:FORMA_DE_ESTADO` */
 export const nombreDeEstado = (canon) => formaDeEstado(canon).singular;   // el estado dicho de UNA entidad (o tras «fuera de»); el que califica a un grupo es `formaDeEstado(canon).plural`
 /* un `universo.base` que es un estado de la casa o un conjunto con nombre visible propio se imprime con SU forma, no con el identificador sin tilde */
-const _nombreDeBase = (b) => { const c = conjuntoConocido(b); if (c && c.visible) return c.visible; const e = estadoDeclarado(b); return e ? formaDeEstado(e).plural : String(b); };
+const _nombreDeBase = (b) => { const c = conjuntoConocido(b); if (c && c.visible) return c.visible; if (c && c.precede) return `${c.precede} ${String(b)}`; const e = estadoDeclarado(b); return e ? formaDeEstado(e).plural : String(b); };
 const _canonDe = (e) => estadoCanon(String(e || "").replace(/_/g, " "));
 const _ESTADOS_COBRANZA = new Set(["al dia", "en mora", "sin deuda", "sin pagos", "buen pagador", "mal pagador"]);
 const _ESTADOS_COMERCIAL = new Set(["sin contribucion", "sin margen"]);
@@ -375,7 +375,7 @@ export function nombrarUniverso(u, I = null) {
     const rRef = fam ? valorDeReferencia(fam.concepto, I) : null;
     if (rRef && Number.isFinite(rRef.raw)) {
       const mRef = metricaPorClave(fam.concepto);
-      partes.push(`${_baseStr}, ${mRef ? mRef.nombre.toLowerCase() : fam.concepto} ${formatoDeLaCasa(rRef.raw, rRef.unidad || "pct")}`);
+      partes.push(`${_nombreDeBase(_baseStr)}, ${mRef ? mRef.nombre.toLowerCase() : fam.concepto} ${formatoDeLaCasa(rRef.raw, rRef.unidad || "pct")}`);   // el nombre VISIBLE del conjunto (owner 2026-09-29): «con carga comercial alta», no el identificador a secas
     } else partes.push(_nombreDeBase(_baseStr));
   }
   for (const e of _lista(u.estados)) partes.push(formaDeEstado(_canonDe(e)).plural);

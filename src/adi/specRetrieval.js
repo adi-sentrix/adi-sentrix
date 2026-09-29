@@ -1201,6 +1201,27 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
           totalInventario: J.total, jerarquia: _jerarquiaFacts(J) } },
     };
   }
+  /* ── FOCO DÍAS SIN VENTA · el ranking COMPLETO, como HECHO (owner 2026-09-29, cierre del inventario, §7.3·34c/35) ──
+   * TODOS los SKU con días sin venta declarados, de más a menos, cada uno con SU cifra (`<sku> · Días sin venta`) — la
+   * MISMA fuente que la vista «Días sin venta» de la cara Capital (`mesaCapital.js:_diasSinVentaVista` lee
+   * `jerarquiaInventario().porSku`). No juzga «frenado»: sin un umbral declarado el veredicto queda «sin evaluar» y lo
+   * que se entrega es el hecho (histórico, tipado por `fig()`: `figureType.HECHOS_HISTORICOS`). LO PIDE SOLO LA LECTURA
+   * DEL ENCARGO (`encargo/lecturasDe.js`): el foco no está en el catálogo de lecturas del agente (`toolContracts.js`), así
+   * que la boleta del AGENTE vivo queda byte-idéntica (mismo criterio que `inmovilizado`, `figsPct`, `figsPorVencer`). ── */
+  if (focus === "dias_sin_venta") {
+    const conDias = J.porSku.filter((s) => typeof s.diasSinVenta === "number").sort((a, b) => b.diasSinVenta - a.diasSinVenta);
+    if (!conDias.length) return null;
+    const bol = conDias.map((s) => fig(`${s.sku} · Días sin venta`, `${Math.round(s.diasSinVenta)}d`, { unit: "days", raw: s.diasSinVenta, mandatory: false, context: "días sin venta", gancho: true }));
+    return {
+      opener: `Los días sin venta de cada SKU, como HECHO histórico (de más a menos): ${conDias.map((s) => `${s.sku} (${Math.round(s.diasSinVenta)}d)`).join(" · ")}.${J.frenado.evaluado ? "" : " La venta frenada queda sin evaluar: la empresa no declaró desde cuántos días sin venta la considera frenada."}`,
+      suggestions: ["Ver todo el inventario", "Capital inmovilizado crítico en detalle"],
+      sentrixAction: null,
+      evidence: { lens: "inventory", metrica: "capital", dimension: "sku", boleta: bol,
+        inventory: { title: "Días sin venta", focus, focusColor: "amber", total: J.total,
+          bySku: conDias.map((s) => ({ sku: s.sku, usd: s.capital, doh: s.doh, rotacion: s.rotacion, bodega: s.bodega, diasSinVenta: s.diasSinVenta, critico: s.critico })),
+          totalInventario: J.total, jerarquia: _jerarquiaFacts(J) } },
+    };
+  }
   // ── despacho por FOCO → arma el bloque narrativo (lede + partes + contrapunta) ──
   let B;
   if (focus === "stale") {
