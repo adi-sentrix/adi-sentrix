@@ -8,6 +8,7 @@ import { detectInternalDriver, calculateRecoverable } from "../../engine/signals
 import { _deriveTierFromContribution } from "./clientDive.js";
 import { scanMechanisms } from "./thesis.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
+import { jerarquiaInventario } from "../diagnosis/economicDiagnosis.js";   // owner 2026-09-28 §7.3·30-32: candidato "plan de salida SKUs" lee J, no el predicado ad hoc
 
 // ── classifySkuOperationalProfile · perfil individual del SKU (L11476) · módulo-local verbatim ──
 function classifySkuOperationalProfile(sku) {
@@ -159,9 +160,11 @@ function _detectExecutiveActions(scenarioId, override) {
   // ── CANDIDATO 2 · plan de salida SKUs operacionales ──
   try {
     const inv = applyScenarioToSkuInventario(scenarioId, override);
-    // Top 4 capital atrapado (cualquier alerta) · filtrar a operational_inefficient
+    // Top 4 inmovilizados · filtrar a operational_inefficient. LEE `jerarquiaInventario` (owner 2026-09-28,
+    // §7.3·30-32): antes mezclaba la alerta del archivo (R9) con el texto crudo `estado !== "Activo"` (R2).
+    const _inmovSet = new Set(jerarquiaInventario(inv).inmovilizado.skus);
     const critical = inv
-      .filter(s => s.alerta === "crit" || s.alerta === "warn" || s.estado !== "Activo")
+      .filter(s => _inmovSet.has(s.sku))
       .sort((a, b) => (b.stockUSD || 0) - (a.stockUSD || 0))
       .slice(0, 4);
     const operational = critical

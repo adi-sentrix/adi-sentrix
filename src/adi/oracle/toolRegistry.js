@@ -661,7 +661,12 @@ function _umbralDiasPedido(texto) {
 }
 function inventoryStatus({ filters = {}, scenario, focus = "frenado", staleDays = null, entityScope = null, limit = null, _preguntaUsuario = null } = {}) {
   const x = _crossGuard(filters, _SCOPE_KEYS); if (x) return _crossFail(x);
-  const r = _pack(composeSpecInventory({ filters: _isObj(filters) ? filters : {}, scenario, focus, staleDays, entityScope, limit }),
+  /* EL UMBRAL DE LA CONSULTA (§7.3·32, diseño §3.4): con `focus:"stale"` el umbral vale PARA ESA PREGUNTA y lo trae
+   * el plan del LLM en `staleDays`. Si no lo trae, NO se deduce leyendo la pregunta con un reconocedor (entender el
+   * lenguaje le toca al LLM, ley del owner): queda «sin evaluar» y el hecho de los días sin venta se entrega igual
+   * (supervisor 2026-09-28). */
+  const _staleDaysEfectivo = staleDays;
+  const r = _pack(composeSpecInventory({ filters: _isObj(filters) ? filters : {}, scenario, focus, staleDays: _staleDaysEfectivo, entityScope, limit }),
     "no hay señal de inventario para estos filtros");
   // `contrapunta` es OTRO estado del inventario (ej. riesgo de quiebre), INDEPENDIENTE del capital detenido — la clave
   // no lo decía y el LLM la leía como la CAUSA del capital frenado (y mezclaba sus familias con las de los SKU detenidos).

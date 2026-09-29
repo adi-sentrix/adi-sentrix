@@ -11,7 +11,7 @@ import { MESES_IDX, margenKPI, ventasKPI, ventasMensuales } from "../data/baseKp
 import { clientesVentas } from "../data/demoData.js";
 import { applyScenarioToClientesVentas, applyScenarioToSkuInventario } from "./scenarios.js";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
-import { kpiInventario } from "../adi/diagnosis/economicDiagnosis.js";   // R7 (owner 2026-09-28): getInvKPI deja de leer el literal — misma fuente única que deriveKpis().inventario
+import { kpiInventario, jerarquiaInventario } from "../adi/diagnosis/economicDiagnosis.js";   // R7 (owner 2026-09-28): getInvKPI deja de leer el literal — misma fuente única que deriveKpis().inventario · jerarquiaInventario: _aggregateInventario (§7.3·30-32)
 
 export function getVentasKPI(filtro, filtros, scenario = ESCENARIO_INICIAL) {
   const mesIdx = filtro && filtro !== "Anual" ? MESES_IDX[filtro] : -1;
@@ -153,6 +153,10 @@ export function _aggregateMargenes(dataset) {
   };
 }
 
+/* LEE `jerarquiaInventario` (owner 2026-09-28, §7.3·30-32, diseño §2/R1-R2/R9): antes `criticos` mezclaba la
+ * alerta del archivo (R9, ningún pack real la trae) con el texto crudo `estado !== "Activo"` (R2 — marca el
+ * 100% del capital en una planilla real). Ahora `capitalAtrapado`/`skusCriticos` son `J.inmovilizado`
+ * (capital_frenado ⊎ sobrestock), la única definición aprobada — mismo contrato de llaves de salida. */
 export function _aggregateInventario(dataset) {
   if (!Array.isArray(dataset) || dataset.length === 0) {
     return {
@@ -161,9 +165,9 @@ export function _aggregateInventario(dataset) {
     };
   }
   const capitalTotal = dataset.reduce((s, k) => s + (k.stockUSD || 0), 0);
-  const criticos = dataset.filter(
-    k => k.alerta === "crit" || k.alerta === "warn" || k.estado !== "Activo"
-  );
+  const J = jerarquiaInventario(dataset);
+  const inmovSet = new Set(J.inmovilizado.skus);
+  const criticos = dataset.filter(k => inmovSet.has(k.sku));
   const capitalAtrapado = criticos.reduce((s, k) => s + (k.stockUSD || 0), 0);
   const capitalPctAtrapado = capitalTotal > 0
     ? +((capitalAtrapado / capitalTotal) * 100).toFixed(1) : 0;

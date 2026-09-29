@@ -118,10 +118,13 @@ export const DOMINIOS_REGISTRO = [
     metricas: ["capital", "capital_frenado", "capital_inmovilizado", "rotacion", "dias_inventario", "dias_sin_venta",
       "unidades_stock", "margen_inventario", "piso_rotacion", "techo_cobertura"],
     lentes: ["materialidad", "severidad", "urgencia"],
-    /* verificado en vivo: al pedir SOLO inventario el agregado sale como «Capital frenado · total»; dentro de un
-     * pedido conjunto con comercial puede salir «Capital frenado · subtotal» a secas — el mismo número, otro
-     * rótulo según qué tool lo trajo primero. Se casan los dos. */
-    dineroEnJuego: { rotulo: "Capital frenado", regex: /^Capital frenado · (?:total|subtotal)$/i, concepto: "capital_frenado" },
+    /* verificado en vivo: al pedir SOLO inventario el agregado sale como «Capital inmovilizado crítico · total»;
+     * dentro de un pedido conjunto con comercial puede salir «Capital inmovilizado crítico · subtotal» a secas —
+     * el mismo número, otro rótulo según qué tool lo trajo primero. Se casan los dos.
+     * RENOMBRE (owner 2026-09-28, §7.3·30-32, decisión 0.1 del diseño de inventario): antes → «Capital frenado»;
+     * ahora → «Capital inmovilizado crítico» (`_ESTADO_LABEL.capital_frenado`, specRetrieval.js). El `concepto`
+     * interno (`capital_frenado`) NO cambia — es la clave del detector, no la etiqueta de superficie. */
+    dineroEnJuego: { rotulo: "Capital inmovilizado crítico", regex: /^Capital inmovilizado cr[ií]tico · (?:total|subtotal)$/i, concepto: "capital_frenado" },
     relaciones: [{ con: "comercial", tipo: "alimenta", clave: "sku" }],
   },
   {

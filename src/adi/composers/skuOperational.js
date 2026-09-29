@@ -7,6 +7,7 @@ import { skuInventario } from "../../data/demoData.js";
 import { filterTextualSuggestions } from "../helpers.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../../config/voiceFlags.js";
 import { simboloMoneda } from "../../config/moneda.js";
+import { jerarquiaInventario } from "../diagnosis/economicDiagnosis.js";   // owner 2026-09-28 §7.3·30-32: lee J — retira el predicado ad hoc (alerta del archivo ∨ texto crudo `estado !== "Activo"`)
 
 // ── classifySkuOperationalProfile · perfil individual del SKU (L11476) ────
 // operational_inefficient · DOH > 90 ∧ rotación < 3 → driver activo · liquidar
@@ -71,10 +72,16 @@ function buildNarrativeSignalsForSkuOperational(top4) {
 }
 
 export function composeSkuOperationalAnalysis(scenarioId) {
-  // ── 1. Filtrar SKUs críticos (alerta crit/warn o estado ≠ Activo)
-  //       ordenados por capital descendente
+  /* ── 1. Filtrar SKUs inmovilizados, ordenados por capital descendente ──
+   * LEE `jerarquiaInventario` (owner 2026-09-28, §7.3·30-32, diseño §2/R1-R2/R9): antes mezclaba DOS predicados
+   * ad hoc — la alerta del archivo (`r.alerta === "crit"/"warn"`, R9, ningún pack real la trae) y el texto crudo
+   * `estado !== "Activo"` (R2, raíz A2 del diseño — marca el 100% del capital en una planilla real, porque ahí
+   * `estado` es la CLAVE del motor, no el texto "Activo"). Ahora es `J.inmovilizado` — capital_frenado ⊎
+   * sobrestock, la única definición aprobada. */
+  const J = jerarquiaInventario(skuInventario);
+  const inmovSet = new Set(J.inmovilizado.skus);
   const criticalSkus = skuInventario
-    .filter(s => s.alerta === "crit" || s.alerta === "warn" || s.estado !== "Activo")
+    .filter(s => inmovSet.has(s.sku))
     .sort((a, b) => b.stockUSD - a.stockUSD);
 
   const top4 = criticalSkus.slice(0, 4);

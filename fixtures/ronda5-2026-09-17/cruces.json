@@ -118,7 +118,7 @@
    "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
    "v3": true,
    "nota": "partitivo entre dominios: el capital frenado ($33K, inventario) dicho como parte del saldo vencido ($12.6M, cobranza)",
-   "cierre": "<<HECHOS>>\n{\"id\":\"hVT\",\"tipo\":\"ref\",\"de\":\"Saldo vencido · total\"}\n{\"id\":\"hCF\",\"tipo\":\"ref\",\"de\":\"Capital frenado · total\"}\n<<FIN>>\n{{hVT hCF: Tienes {hVT} vencidos y, de esos, {hCF} están frenados en bodega}}.",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hVT\",\"tipo\":\"ref\",\"de\":\"Saldo vencido · total\"}\n{\"id\":\"hCF\",\"tipo\":\"ref\",\"de\":\"Capital inmovilizado crítico · total\"}\n<<FIN>>\n{{hVT hCF: Tienes {hVT} vencidos y, de esos, {hCF} están frenados en bodega}}.",
    "falsedades": [
     "de esos, $33k estan frenados en bodega"
    ]
@@ -128,7 +128,7 @@
    "tipo": "ataque",
    "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
    "v3": true,
-   "nota": "«de los cuales» cruza cobranza (Lider · Saldo vencido) con inventario (Valparaíso · Capital frenado)",
+   "nota": "«de los cuales» cruza cobranza (Lider · Saldo vencido) con inventario (Valparaíso · Capital inmovilizado crítico)",
    "cierre": "<<HECHOS>>\n{\"id\":\"h2\",\"tipo\":\"cifra\",\"sujeto\":\"Lider\",\"metrica\":\"saldo_vencido\"}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{h2 hV: Lider arrastra {h2} vencidos, de los cuales {hV} están frenados en Valparaíso}}.",
    "falsedades": [
     "de los cuales $25k estan frenados en valparaiso"
@@ -547,7 +547,7 @@
    "pregunta": "¿los SKU que más vendo son los que más capital inmovilizan?",
    "v3": true,
    "nota": "partitivo DENTRO de inventario con la métrica cambiada: el capital de SAM-TV55 ($13K, capital total) dicho como parte del capital frenado ($33K); SAM-TV55 no está frenado",
-   "cierre": "<<HECHOS>>\n{\"id\":\"hCF\",\"tipo\":\"ref\",\"de\":\"Capital frenado · total\"}\n{\"id\":\"hTc\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-TV55\",\"metrica\":\"capital\"}\n<<FIN>>\n{{hCF hTc: Tienes {hCF} frenados en bodega y, de esos, {hTc} son de SAM-TV55}}.",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCF\",\"tipo\":\"ref\",\"de\":\"Capital inmovilizado crítico · total\"}\n{\"id\":\"hTc\",\"tipo\":\"cifra\",\"sujeto\":\"SAM-TV55\",\"metrica\":\"capital\"}\n<<FIN>>\n{{hCF hTc: Tienes {hCF} frenados en bodega y, de esos, {hTc} son de SAM-TV55}}.",
    "falsedades": [
     "de esos, $13k son de sam-tv55"
    ]
@@ -589,7 +589,7 @@
    "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
    "v3": true,
    "nota": "control · partitivo verdadero dentro de inventario ($25K de $33K)",
-   "cierre": "<<HECHOS>>\n{\"id\":\"hCF\",\"tipo\":\"ref\",\"de\":\"Capital frenado · total\"}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hCF hV: De los {hCF} frenados en bodega, {hV} están en Valparaíso}}.",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hCF\",\"tipo\":\"ref\",\"de\":\"Capital inmovilizado crítico · total\"}\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n{{hCF hV: De los {hCF} frenados en bodega, {hV} están en Valparaíso}}.",
    "falsedades": []
   },
   {
@@ -751,7 +751,7 @@
    "pregunta": "¿los SKU que más vendo son los que más capital inmovilizan?",
    "v3": true,
    "nota": "control",
-   "cierre": "<<HECHOS>>\n{\"id\":\"hF3\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"]}}\n{\"id\":\"hCF\",\"tipo\":\"ref\",\"de\":\"Capital frenado · total\"}\n<<FIN>>\n{{hF3: Tienes {hF3.n} SKU frenados}} que {{hCF: suman {hCF}}}.",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hF3\",\"tipo\":\"conteo\",\"n\":3,\"de\":{\"eje\":\"sku\",\"estados\":[\"frenado\"]}}\n{\"id\":\"hCF\",\"tipo\":\"ref\",\"de\":\"Capital inmovilizado crítico · total\"}\n<<FIN>>\n{{hF3: Tienes {hF3.n} SKU frenados}} que {{hCF: suman {hCF}}}.",
    "falsedades": []
   },
   {

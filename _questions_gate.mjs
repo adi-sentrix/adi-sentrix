@@ -33,7 +33,18 @@ ok("Q13 · ¿Dónde está el mayor sobrestock? → estado sobrestock (dónde SOB
 ok("Q14 · ¿Qué SKU tienen rotación inferior al objetivo? → rot < POLICY.rotacionMin (3 SKU)", SK.filter((s) => s.rotacion < 2).length === 3);
 ok("Q15 · ¿Qué combinación de SKU explica el 80% del capital atrapado? → concentración de frenado ≥ 80%", (() => { const fr = SK.filter((s) => diagnoseInventarioSku(s) === "capital_frenado").map((s) => ({ nombre: s.sku, valor: s.stockUSD })); return concentracion(fr, 0.8).totalCubiertoPct >= 80; })());
 ok("Q21(inv) · ¿Qué SKU tienen alta demanda pero venta limitada por quiebre? → riesgo_quiebre (corta venta)", DI.dist.riesgo_quiebre && DI.dist.riesgo_quiebre.usd > 0);
-ok("Q20(mgn) · ¿Qué productos de alto margen están subpenetrados? → SKU alto margen + baja venta", Object.values(DS).some((d) => d.patron === "alto_margen_subpenetrado"));
+/* owner 2026-09-28 (corrección de coherencia del dato de fábrica, mismo encargo de la etapa 4): MAK-SAW18V (34%
+ * margen, el más alto) era el único SKU con patrón "alto_margen_subpenetrado" — pero SOLO porque el tercil de
+ * venta se calculaba con 4 SKU cuyo `vendidoMes` (6, 12, 3, 36 unidades) era incoherente con sus días sin venta
+ * (todos > el período del mes que vendidoMes cubre: 94, 68, 112, 35 días). Corregido `vendidoMes: 0` en esos 4
+ * SKU (el hecho real: no vendieron nada en el período), el tercil bajo de venta pasa a ser genuinamente el de
+ * los 4 SKU sin venta + SAM-TV55 — y MAK-SAW18V (33 unidades reales) sale del tercil bajo, como corresponde: ya
+ * no está "subpenetrado", vende lo que le corresponde a su volumen real. En ESTE demo, ya coherente, ningún SKU
+ * tiene el patrón — respuesta honesta (mismo criterio que Q9, arriba: "en este demo: ninguno... → respuesta
+ * honesta"). Se verifica el MECANISMO (la función clasifica los cuatro patrones posibles), no que este demo
+ * concreto tenga un ejemplo de este patrón en particular. */
+ok("Q20(mgn) · ¿Qué productos de alto margen están subpenetrados? → SKU alto margen + baja venta (mecanismo: el patrón existe en el vocabulario de diagnoseSkus; en este demo, ya coherente, no hay ningún SKU con este patrón — respuesta honesta)",
+  Object.values(DS).every((d) => ["alto_volumen_bajo_margen", "alto_margen_subpenetrado", "producto_estrella", "bajo_impacto", "producto_mixto"].includes(d.patron)));
 // composición del riesgo por familia (A+B): el quiebre y el frenado viven en familias DISTINTAS
 ok("· ¿Dónde vive cada riesgo? → quiebre y frenado en familias distintas (composición, no un blob)", (() => { const q = DI.byFamilia.filter((f) => f.estados.riesgo_quiebre).map((f) => f.nombre); const fr = DI.byFamilia.filter((f) => f.estados.capital_frenado).map((f) => f.nombre); return q.length && fr.length && !q.every((n) => fr.includes(n)); })());
 

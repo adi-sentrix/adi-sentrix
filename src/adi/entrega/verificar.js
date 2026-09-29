@@ -646,8 +646,21 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
       const eje = (u && u.eje) || p.eje || "cliente";
       let R = null;
       try { R = conjuntoDeUniverso(u, indice, eje, ""); } catch { R = null; }
-      if (!R || !R.set) continue;   // no se pudo resolver de forma independiente: no se exige coincidencia — el propio compositor ya declina con un límite cuando esto pasa (fallo cerrado en el ORIGEN, no doble penalización acá)
       const entradaUniverso = (entrega.universos || []).find((x) => x && x.id === p.id);
+      if (!R || !R.set) {
+        // RAÍZ A (supervisor 2026-09-29, defensa en profundidad — precisa la nota vieja de esta línea) — antes,
+        // «no se pudo resolver de forma independiente» simplemente CONFIABA en que el compositor ya declinó
+        // («fallo cerrado en el ORIGEN, no doble penalización acá») y no verificaba esa promesa. Esa confianza fue
+        // exactamente el hueco del bug real (RAÍZ A, `entrega/componer.js:_planCifraGrupo`/`_entidadesDelTopVerificado`):
+        // el compositor SÍ podía servir entidades (el eje sin filtrar, típicamente TODAS) con un universo cuya
+        // resolución independiente falla acá con el mismo `{error}`. Ahora se VERIFICA la promesa en vez de
+        // asumirla: si la parte de todos modos sirvió entidades cuando el universo no se puede demostrar, es una
+        // violación — nunca un silencio ni una segunda oportunidad para el mismo bug.
+        if (entradaUniverso && Array.isArray(entradaUniverso.entidades) && entradaUniverso.entidades.length) {
+          v("universo-propio-no-coincide", `la parte "${p.id}" sirvió ${entradaUniverso.entidades.length} entidad(es) (${entradaUniverso.entidades.join(", ")}) pero su universo declarado no se pudo resolver de forma independiente (conjuntoDeUniverso sin ".set") — tenía que declinar con un límite, nunca servir el conjunto sin verificar`);
+        }
+        continue;
+      }
       const servidas = new Set((entradaUniverso ? entradaUniverso.entidades || [] : []).map((n) => normalizar(n)));
       const fueraDelConjunto = [...servidas].filter((n) => !R.set.has(n));
       if (fueraDelConjunto.length) {

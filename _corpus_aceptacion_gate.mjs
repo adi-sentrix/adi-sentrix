@@ -235,7 +235,10 @@ pregunta(7, "Explicame el capital total de $135K", "responde",
     ok(estados.length === 4, `el total se explica por sus 4 estados — ${estados.map((f) => f.value).join(" · ")}`);
     const suma = estados.reduce((a, f) => a + (f.raw || 0), 0);
     ok(Math.abs(suma - total.raw) < 1, `los 4 estados RECONCILIAN con el total — Σ ${suma} vs ${total.raw}`);
-    const g = guard(`El capital en inventario suma ${total.value} a hoy: ${estados.map((f) => `${f.label.replace(/^Estado del inventario: /, "")} ${f.value}`).join(", ")}.`);
+    // owner 2026-09-28 (§7.3·30-32): «crítico» suelto en prosa libre colisiona con el canon «critico» del Notario
+    // (estados.js, ligado hoy a la alerta del archivo, R9 — migrarlo es la etapa 5); una narración cuidadosa dice
+    // «capital inmovilizado» a secas al enumerar los cuatro estados (igual que asesoria.js/specRetrieval.js).
+    const g = guard(`El capital en inventario suma ${total.value} a hoy: ${estados.map((f) => `${f.label.replace(/^Estado del inventario: /, "").replace(/^capital inmovilizado cr[ií]tico$/, "capital inmovilizado")} ${f.value}`).join(", ")}.`);
     ok(g.ok, "la explicación por estados pasa el muro", JSON.stringify(g.violations));
     return `${total && total.value} = ${estados.map((f) => f.value).join(" + ")} (cierra exacto)`;
   });

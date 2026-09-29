@@ -23,9 +23,9 @@
   "dos-ordenes"
  ],
  "linea_base": {
-  "esperado": 96,
+  "esperado": 89,
   "detectable": 96,
-  "nota": "medido el 2026-09-15: 96/96 mismo veredicto y el esperado; 96/96 con punto detectable en las tres redacciones; el Notario viejo cambia de veredicto en 36/96"
+  "nota": "medido el 2026-09-15: 96/96 mismo veredicto y el esperado; 96/96 con punto detectable en las tres redacciones; el Notario viejo cambia de veredicto en 36/96 · MIGRACIÓN owner 2026-09-28 §7.3·34b (etapa 5, significado de «frenado»): esperado baja a 89/96 — tr-069, tr-070, tr-075, tr-087, tr-088, tr-090, tr-091 pinzaban «frenado»/«SKU frenados»/«bodegas con capital frenado» con el significado viejo (capital_frenado, rotación) y ahora son no-verificable (sin umbral de venta frenada declarado en el fixture); las tres redacciones siguen dando el MISMO veredicto entre sí (96/96, sin cambio) y el punto sigue siendo detectable en las tres (96/96, sin cambio) — registro histórico, no se reetiqueta"
  },
  "items": [
   {

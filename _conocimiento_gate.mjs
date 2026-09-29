@@ -140,7 +140,9 @@ const TABLA = construirTablaDeSenales({ scenario: ESCENARIO_INICIAL, pregunta: P
   const bajoBenchmark = Object.entries(TABLA.cuentas).filter(([, c]) => c.bajoBenchmark).map(([e]) => e);
   const cargaAlta = Object.entries(TABLA.cuentas).filter(([, c]) => c.cargaAlta).map(([e]) => e);
   const vencido = Object.entries(TABLA.cuentas).filter(([, c]) => c.vencidoPositivo).map(([e]) => e);
-  const frenados = Object.entries(TABLA.skus).filter(([, s]) => s.frenado).map(([e]) => e);
+  // RENOMBRE (owner 2026-09-28, §7.3·30-32): el campo de `tablaSenales.js` pasó de `frenado` a `inmovilizadoCritico`
+  // (mismo predicado — el detector, `capital_frenado`; `sku.frenado` queda libre para la venta frenada, etapa 5).
+  const frenados = Object.entries(TABLA.skus).filter(([, s]) => s.inmovilizadoCritico).map(([e]) => e);
   console.log(`      cuentas bajo benchmark (${bajoBenchmark.length}): ${bajoBenchmark.join(", ")}`);
   console.log(`      cuentas con carga alta (${cargaAlta.length}): ${cargaAlta.join(", ")}`);
   console.log(`      cuentas con vencido > 0 (${vencido.length}): ${vencido.join(", ")}`);
@@ -158,7 +160,7 @@ H("4 · evaluarPertinencia.js — las entidades encendidas, no un booleano");
   ok(pCAU01.entidades.length > 0 && pCAU01.entidades.length < Object.keys(TABLA.cuentas).length, `CAU-01 enciende en ${pCAU01.entidades.length} de ${Object.keys(TABLA.cuentas).length} cuentas — pertinencia POR ENTIDAD, no global`);
   const pCAU06 = evaluarPertinencia(piezaPorId("CAU-06"), TABLA, PERFIL_COMPLETO, PREGUNTA_LECTURA);
   ok(pCAU06.eje === "sku", "CAU-06 recorre el eje \"sku\"");
-  ok(pCAU06.entidades.length === Object.entries(TABLA.skus).filter(([, s]) => s.frenado).length, "CAU-06 enciende exactamente en los SKU frenados, ni uno más");
+  ok(pCAU06.entidades.length === Object.entries(TABLA.skus).filter(([, s]) => s.inmovilizadoCritico).length, "CAU-06 enciende exactamente en los SKU frenados, ni uno más");
   // control negativo: una pieza cuyo predicado nunca se cumple (una copia de CAU-01 pidiendo un predicado indisponible)
   const nuncaEnciende = { ...piezaPorId("CAU-01"), id: "CTRL-NUNCA", pertinencia: { todo: ["cuenta.bajo_benchmark", "cuenta.contraparte_cadena"] } };
   const pNunca = evaluarPertinencia(nuncaEnciende, TABLA, PERFIL_COMPLETO, PREGUNTA_LECTURA);

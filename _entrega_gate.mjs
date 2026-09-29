@@ -235,7 +235,7 @@ ok(VI.ok, `verificarEntrega sobre la ruta de inventario: 0 violaciones (${VI.vio
 }
 {
   // carnada I · regla 10 (registro), sobre la TERCERA ruta
-  const rotaI = { ...RI, texto: RI.texto.replace("El mayor es", "Che, mirá vos, el mayor es") };
+  const rotaI = { ...RI, texto: RI.texto.replace("El mayor SKU crítico es", "Che, mirá vos, el mayor SKU crítico es") };
   const vI = verificarEntrega(rotaI);
   ok(!vI.ok && vI.violaciones.some((x) => x.regla === "registro-informal"), "carnada I (coloquialismo, ruta de inventario) → verificarEntrega la caza (registro-informal)", JSON.stringify(vI.violaciones));
 }

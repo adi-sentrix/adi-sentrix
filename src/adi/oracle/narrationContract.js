@@ -401,6 +401,9 @@ const _PALANCAS = [
   // `accion` va en la palabra correcta porque VIAJA AL PROMPT como acción permitida y el narrador la ecoa.
   // R5 (examen 1 del agente, 2026-08-31): el canónico pasó a «capital frenado» (el dinero del foco ES el
   // subconjunto frenado); las dos formas viejas se siguen reconociendo, misma mecánica de la migración anterior.
+  // RENOMBRE (owner 2026-09-28, §7.3·30-32, decisión 0.1): el canónico pasa a «capital inmovilizado crítico»
+  // (specRetrieval `_ESTADO_LABEL.capital_frenado`) — el regex ya matchea por SUBSTRING «capital inmovilizado»,
+  // así que sigue reconociendo el rótulo nuevo sin tocarse; se documenta acá para que no se lea como huérfano.
   { re: /capital (?:detenido|inmovilizado|frenado)/i, clase: "capital_detenido",  accion: "liberar el capital inmovilizado en inventario",           esParte: true },
   { re: /\bbrecha\b/i,                     clase: "brecha_margen",        accion: "cerrar la brecha de margen contra el benchmark",          esParte: false },
 ];

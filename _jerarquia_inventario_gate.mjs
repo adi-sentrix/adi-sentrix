@@ -233,12 +233,14 @@ initTenant(TENANT_DEMO);
   ok("getInvKPI === deriveKpis().inventario (misma fuente, mismo escenario)", JSON.stringify(gK) === JSON.stringify(dK));
   const c = cifrasDelDato("bonanza");
   const kInmov = c.kpis.find((k) => /^Capital inmovilizado · subtotal/.test(k.label));
-  const kFren = c.kpis.find((k) => /^Capital frenado · subtotal/.test(k.label));
+  // RENOMBRE (owner 2026-09-28, §7.3·30-34, etapa 5): «Capital frenado · subtotal» → «Capital inmovilizado crítico · subtotal».
+  const kFren = c.kpis.find((k) => /^Capital inmovilizado cr[ií]tico · subtotal/.test(k.label));
   ok("la carpeta (datoProyectado) declara el MISMO inmovilizado que jerarquiaInventario", !!kInmov && kInmov.raw === Jd.inmovilizado.usd && new RegExp(`${Jd.inmovilizado.n} SKU$`).test(kInmov.label));
   ok("la carpeta (datoProyectado) declara el MISMO crítico que jerarquiaInventario", !!kFren && kFren.raw === Jd.critico.usd && new RegExp(`${Jd.critico.n} SKU$`).test(kFren.label));
   const skusInmovCarpeta = new Set(c.estados.filter((e) => e.estado === "inmovilizado").map((e) => e.entidad));
   ok("la carpeta declara el MISMO conjunto de SKU inmovilizados (I.estados)", JSON.stringify([...skusInmovCarpeta].sort()) === JSON.stringify(Jd.inmovilizado.skus.slice().sort()));
-  ok("todo frenado (I.estados) sigue ⊆ inmovilizado — la doctrina de la carpeta no se rompió", c.estados.filter((e) => e.estado === "frenado").every((e) => skusInmovCarpeta.has(e.entidad)));
+  // MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): canon «frenado» → «inmovilizado critico».
+  ok("todo inmovilizado crítico (I.estados) sigue ⊆ inmovilizado — la doctrina de la carpeta no se rompió", c.estados.filter((e) => e.estado === "inmovilizado critico").every((e) => skusInmovCarpeta.has(e.entidad)));
 }
 {
   // la ingesta: calcularDataset() directo (sin pasar por el portero), misma jerarquía que jerarquiaInventario

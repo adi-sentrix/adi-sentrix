@@ -38,6 +38,11 @@ export const CLAVES_DE_METRICA = [
   { clave: "umbral_materialidad", nombre: "Umbral de materialidad", conceptos: ["umbral de materialidad"], dominio: "comercial", polaridad: "referencia", unidad: "pct", muro: [], referencia: true },
   { clave: "piso_rotacion", nombre: "Piso de rotación", conceptos: ["piso de rotacion"], dominio: "inventario", polaridad: "referencia", unidad: "ratio", muro: ["rotacion"], referencia: true },
   { clave: "techo_cobertura", nombre: "Techo de cobertura", conceptos: ["techo de cobertura", "techo de dias de inventario"], dominio: "inventario", polaridad: "referencia", unidad: "days", muro: ["cobertura"], referencia: true },
+  /* «umbral_frenado» (owner 2026-09-28, §7.3·30-34, etapa 5 — diseño §3.4): el umbral de DÍAS SIN VENTA que hace
+   * verificable la palabra «frenado» (venta interrumpida). Referencia del negocio o PLANTEADA EN LA CONSULTA
+   * (`criterio.referencia`, `validar.js:173-176` ya acepta cualquier clave con `referencia:true` — nada que tocar
+   * ahí). Sin este umbral declarado, «frenado» nunca es verdadero ni falso (Notario, `estados.js`). */
+  { clave: "umbral_frenado", nombre: "Umbral de venta frenada", conceptos: ["umbral de venta frenada", "umbral de frenado", "dias de frenado", "dias sin venta para frenado"], dominio: "inventario", polaridad: "referencia", unidad: "days", muro: ["sinventa", "frenado"], referencia: true },
   /* ── cobranza ── */
   /* «caja ≠ cobranza» (owner 2026-09-24, ADI_CAJA_NO_ES_COBRANZA): la venta A CRÉDITO del flujo de cobranza —
    * «Venta a crédito» (planilla) / «Venta (flujo)» (demo) — es una clave DISTINTA de la venta comercial total
@@ -51,7 +56,11 @@ export const CLAVES_DE_METRICA = [
   { clave: "dias_vencido", nombre: "Días vencido", conceptos: ["dias vencido", "dias de atraso", "dias de mora", "atraso"], dominio: "cobranza", polaridad: "menor", unidad: "days", muro: ["diasvencido", "vencido"] },   // «269 días de mora», «lleva 269 días vencido», «cuántos días de atraso lleva»
   /* ── inventario ── */
   { clave: "capital", nombre: "Capital", conceptos: ["capital", "valor de inventario", "stock", "capital en inventario", "inventario"], dominio: "inventario", polaridad: null, unidad: "money", muro: ["capital"] },
-  { clave: "capital_frenado", nombre: "Capital frenado", conceptos: ["capital frenado"], dominio: "inventario", polaridad: "menor", unidad: "money", muro: ["frenado", "capital"] },
+  /* MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): la clave/dato sigue siendo `capital_frenado` (el mismo
+   * tramo de rotación, ver dominios.js:dineroEnJuego) pero el nombre visible es «Capital inmovilizado crítico»
+   * — el concepto exacto se agrega para que la máscara de metricasConPosicion() lo reconozca como nombre de
+   * métrica y no como un estado sin ancla; «frenado» queda en el muro por compatibilidad con prosa histórica. */
+  { clave: "capital_frenado", nombre: "Capital inmovilizado crítico", conceptos: ["capital inmovilizado critico", "capital frenado"], dominio: "inventario", polaridad: "menor", unidad: "money", muro: ["frenado", "capital"] },
   { clave: "capital_inmovilizado", nombre: "Capital inmovilizado", conceptos: ["capital inmovilizado"], dominio: "inventario", polaridad: "menor", unidad: "money", muro: ["capital"] },
   { clave: "rotacion", nombre: "Rotación", conceptos: ["rotacion"], dominio: "inventario", polaridad: "mayor", unidad: "ratio", muro: ["rotacion"] },
   { clave: "dias_inventario", nombre: "Días de inventario", conceptos: ["dias de inventario", "cobertura", "cobertura (doh)"], dominio: "inventario", polaridad: "menor", unidad: "days", muro: ["cobertura"] },
@@ -259,7 +268,11 @@ export const METRICAS_DE_ESTADO = {
   "al dia": ["saldo_vencido", "dias_vencido"], "en mora": ["saldo_vencido", "dias_vencido"], "sin deuda": ["saldo_pendiente", "saldo_vencido"], "sin pagos": ["abonado", "recuperado"],
   "buen pagador": ["saldo_vencido", "dias_vencido", "abonado", "recuperado"], "mal pagador": ["saldo_vencido", "dias_vencido", "abonado", "recuperado"],
   "sin contribucion": ["contribucion", "margen"], "sin margen": ["margen", "contribucion"],
-  frenado: ["capital_frenado", "capital", "dias_sin_venta"], inmovilizado: ["capital_inmovilizado", "capital", "unidades_stock"], sobrestock: ["capital_inmovilizado", "capital", "stock", "dias_inventario"],
+  /* MIGRACIÓN DE SIGNIFICADO (owner 2026-09-28, §7.3·30-34, etapa 5): «frenado» deja de ser sinónimo de
+   * `capital_frenado` (rotación) — pasa a ser venta interrumpida, sus métricas son días sin venta y el umbral que
+   * lo verifica. «inmovilizado critico» (canon nuevo) hereda las métricas que «frenado» tenía antes (el tramo
+   * capital_frenado del inventario). */
+  frenado: ["dias_sin_venta", "umbral_frenado"], "inmovilizado critico": ["capital_frenado", "capital", "dias_sin_venta"], inmovilizado: ["capital_inmovilizado", "capital", "unidades_stock"], sobrestock: ["capital_inmovilizado", "capital", "stock", "dias_inventario"],
   "riesgo de quiebre": ["unidades_stock", "dias_inventario"], "en quiebre": ["unidades_stock"], "capital sano": ["capital"], critico: [], "sin venta": ["dias_sin_venta", "ventas"], "rota bien": ["rotacion", "piso_rotacion"], "rota lento": ["rotacion", "piso_rotacion"],
 };
 /* las palabras genéricas de cobranza («debe», «deuda», «saldo», «por cobrar») nombran cualquier saldo; las específicas («pendiente», «vencido») uno solo */

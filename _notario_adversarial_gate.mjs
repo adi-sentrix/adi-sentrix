@@ -101,14 +101,22 @@ console.log(`  por ángulo: ${Object.entries(porAngulo).map(([k, v]) => `${k} ${
 
 /* ═══ B · LOS CONTROLES: la puerta se cierra sin bloquear al que dice la verdad ═══════════════════════════════════════════════════════ */
 const CONTROLES = [["B", "ronda 1", F.controles || { verificar: [], turno: [] }], ["B2", "ronda 2", F.controlesRonda2 || { verificar: [], turno: [] }], ["B3", "ronda 3", F.controlesRonda3 || { verificar: [], turno: [] }]];
+/* CONGELAMIENTO (owner 2026-09-28, §7.3·34b, etapa 5 — migración de significado de «frenado»): estos 4 controles
+ * pinzan el significado VIEJO de «frenado» (capital_frenado, rotación) en la METRICA o el UNIVERSO de la
+ * declaración («Capital frenado», «los SKU con capital frenado», «SKU frenados» como predicado de conteo).
+ * Registro histórico, no se juzgan contra el canon vigente. Verificado: ningún otro control del archivo
+ * depende de «frenado». */
+const HISTORICOS_CTL = new Set(["ctl-t-estado-en-metrica", "ctl2-v-frenados-en-bodega", "ctl2-v-orden-en-bodega", "ctl2-t-bodega-de-la-prosa"]);
 for (const [letra, ronda, CTL] of CONTROLES) {
 H(`${letra} · controles de la ${ronda}: ${CTL.verificar.length} declaraciones verdaderas (verificar) + ${CTL.turno.length} turnos correctos (verde en una llamada)`);
 for (const c of CTL.verificar) {
+  if (HISTORICOS_CTL.has(c.id)) { console.log(`  ❄ HISTÓRICO · ${c.id} — congelado (frenado-regla-de-rotacion, §7.3·34b)`); continue; }
   const vs = correrVerificar(c);
   const malas = vs.filter((v) => v.veredicto !== "verdadera");
   ok(!malas.length, `${c.id} · ${c.afirmaciones.map((a) => "«" + String(a.texto).slice(0, 60) + "»").join(" + ")} → verdadera`, malas.map((v) => `${v.id}: ${v.veredicto} · ${String(v.motivo).slice(0, 140)}`).join(" | "));
 }
 for (const c of CTL.turno) {
+  if (HISTORICOS_CTL.has(c.id)) { console.log(`  ❄ HISTÓRICO · ${c.id} — congelado (frenado-regla-de-rotacion, §7.3·34b)`); continue; }
   const r = await correrTurno(c);
   const max = Number.isFinite(c.llamadasMax) ? c.llamadasMax : 1;   // el cierre que omitió una declaración la paga con una llamada más, y se sirve
   const bien = r.estado === "verde" && r.servidoPremium !== false && r.llamadas.length <= max;

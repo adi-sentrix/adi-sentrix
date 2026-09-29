@@ -62,7 +62,8 @@ function _lectura(figs) {
    * SKU — medido 2026-09-14 en el ensamblador del encargo, donde la boleta trae las bodegas antes que los SKU y el texto
    * decía «el capital frenado está en Valparaíso, Antofagasta, LG-DRYER8KG» */
   const bodegas = new Set((() => { try { return axisEntityNames("bodega"); } catch { return []; } })());
-  const frenados = new Map(_all(figs, /· Capital frenado$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]).filter(([e]) => e && !bodegas.has(e)));
+  // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «Capital frenado» → «Capital inmovilizado crítico».
+  const frenados = new Map(_all(figs, /· Capital (?:frenado|inmovilizado cr[ií]tico)$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]).filter(([e]) => e && !bodegas.has(e)));
   const capital = _all(figs, /· Valor de inventario$/i).map((f) => ({ sku: _entidadDe(_lab(f)), fmt: _val(f), n: _num(f) })).filter((x) => x.sku && Number.isFinite(x.n)).sort((a, b) => b.n - a.n);
   const esSku = new Set([...stock.keys(), ...dias.keys(), ...frenados.keys(), ...capital.map((x) => x.sku), ..._all(figs, /· (?:Capital|Unidades en stock)$/i).map((f) => _entidadDe(_lab(f)))].filter(Boolean));
   const ventas = _all(figs, /· Venta$/i).map((f) => ({ sku: _entidadDe(_lab(f)), fmt: _val(f), n: _num(f) })).filter((x) => x.sku && stock.has(x.sku)).sort((a, b) => b.n - a.n);
@@ -94,9 +95,13 @@ function _premisa(pregunta, L) {
   if (_PREMISA_CAPITAL_TOP.test(q)) {
     const cierta = L.frenadosTop.length > 0;
     return { texto: "los que más venden son los que más capital inmovilizan", cierta,
+      /* MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): el nombre nuevo «Capital inmovilizado crítico»
+       * empieza con el nombre de «Capital inmovilizado» (canon amplio) — la «familia larga» de anclas.js
+       * (línea de metrica-ajena en L.metricaDeClave) exige el nombre COMPLETO cuando el hecho es el tramo
+       * crítico; decir «inmovilizado» a secas aquí ya no basta (antes «frenado» no compartía prefijo). */
       medido: cierta
-        ? `entre los que más venden, ${L.frenadosTop.join(" y ")} ${L.frenadosTop.length === 1 ? "tiene" : "tienen"} capital frenado`
-        : `entre los que más venden no aparece capital frenado${L.frenados.size ? `: el capital frenado está en ${[...L.frenados.keys()].slice(0, 3).join(", ")}${L.frenados.size > 3 ? ` y ${L.frenados.size - 3} más` : ""}` : ""}` };
+        ? `entre los que más venden, ${L.frenadosTop.join(" y ")} ${L.frenadosTop.length === 1 ? "está" : "están"} inmovilizados críticos`
+        : `entre los que más venden no aparece inmovilizado crítico${L.frenados.size ? `: lo inmovilizado crítico está en ${[...L.frenados.keys()].slice(0, 3).join(", ")}${L.frenados.size > 3 ? ` y ${L.frenados.size - 3} más` : ""}` : ""}` };
   }
   return null;
 }
@@ -135,19 +140,22 @@ export const crucePorSku = {
 
     /* EL NOTARIO SEMÁNTICO (fase 2): cada línea se declara al escribirse, con el mismo estándar que el cerebro. Lo que la ficha afirma:
      * «los que más venden» es un orden top-k de Venta sobre el eje entero (los k que publica el cruce); cada línea trae tres cifras
-     * (Venta · Stock · Días de inventario) y, si lo dice, el capital frenado con su estado; «no aparece capital frenado» entre ellos
-     * es un conteo n=0 con predicado «frenados» sobre los k que más venden; los que dejan contribución y concentran capital son dos
-     * top-k (Contribución · Valor de inventario) con el corte de `_lectura` (los 5 de cada lista); «cada uno está frenado» es el estado. */
+     * (Venta · Stock · Días de inventario) y, si lo dice, el capital inmovilizado crítico con su estado; «no aparece capital
+     * inmovilizado crítico» entre ellos es un conteo n=0 con predicado «inmovilizados críticos» sobre los k que más venden; los que
+     * dejan contribución y concentran capital son dos top-k (Contribución · Valor de inventario) con el corte de `_lectura` (los 5 de
+     * cada lista); «cada uno está inmovilizado crítico» es el estado.
+     * MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): la palabra «frenado» (prosa y canon) migra acá a «inmovilizado crítico» —
+     * el tramo `capital_frenado` (rotación), no venta interrumpida (que exige un umbral declarado que este cruce no evalúa). */
     const D = declaradorDe(declarar);
     const U_SKU = _universoSku();
     const U_TOP = `los ${ventas.length} SKU que más venden`;
     const kContrib = topC.size, kCapital = Math.min(5, capital.length);   // los mismos cortes de `_lectura` (contrib.slice(0, 5) · capital.slice(0, 5))
     const declaraTopVenta = (texto, textoV3 = null) => D.orden({ sujeto: ventas.map((v) => v.sku), metrica: "Venta", forma: "topk", k: ventas.length, direccion: "mayor", universo: U_SKU, texto, ...(textoV3 ? { textoV3 } : {}) });
-    /* los frenados entre los que más venden: el conteo (0 o los que hay, con su estado) y, si la línea nombra dónde está el capital
-     * frenado, la enumeración de los frenados del eje (los tres primeros con nombre; los demás, contados) */
+    /* los inmovilizados críticos entre los que más venden: el conteo (0 o los que hay, con su estado) y, si la línea nombra dónde
+     * está ese capital, la enumeración del eje (los tres primeros con nombre; los demás, contados) */
     const declaraFrenadosTop = (texto) => {
-      if (frenadosTop.length) { D.estado({ sujeto: frenadosTop, estado: "frenado", texto }); D.conteo({ n: frenadosTop.length, predicado: "frenados", universo: U_TOP, texto }); }
-      else { D.conteo({ n: 0, predicado: "frenados", universo: U_TOP, texto }); if (frenados.size) D.conteo({ n: frenados.size, predicado: "frenados", universo: U_SKU, sujeto: [...frenados.keys()].slice(0, 3), texto }); }
+      if (frenadosTop.length) { D.estado({ sujeto: frenadosTop, estado: "inmovilizado critico", texto }); D.conteo({ n: frenadosTop.length, predicado: "inmovilizados críticos", universo: U_TOP, texto }); }
+      else { D.conteo({ n: 0, predicado: "inmovilizados críticos", universo: U_TOP, texto }); if (frenados.size) D.conteo({ n: frenados.size, predicado: "inmovilizados críticos", universo: U_SKU, sujeto: [...frenados.keys()].slice(0, 3), texto }); }
     };
     const declaraTopContrib = (sujeto, texto) => D.orden({ sujeto, metrica: "Contribución", forma: "topk", k: kContrib, direccion: "mayor", universo: U_SKU, texto });
 
@@ -168,17 +176,19 @@ export const crucePorSku = {
     partes.push(cab);
     declaraTopVenta(cab, cab.split(",")[0]);   // verdad finita (E4): el v3 ancla el orden sobre su cláusula («Los SKU que más venden»), no sobre la leyenda del marco
     for (const v of ventas) {
-      const extra = [stock.has(v.sku) ? `stock ${stock.get(v.sku)}` : "sin registro de inventario", dias.has(v.sku) ? `${dias.get(v.sku)} de inventario` : null, frenados.has(v.sku) ? `capital frenado ${frenados.get(v.sku)}` : null].filter(Boolean).join(" · ");
+      const extra = [stock.has(v.sku) ? `stock ${stock.get(v.sku)}` : "sin registro de inventario", dias.has(v.sku) ? `${dias.get(v.sku)} de inventario` : null, frenados.has(v.sku) ? `capital inmovilizado crítico ${frenados.get(v.sku)}` : null].filter(Boolean).join(" · ");
       const l = `- ${v.sku} · vende ${v.fmt} · ${extra}`;
       partes.push(l);
       D.cifra({ sujeto: v.sku, metrica: "Venta", valor: v.fmt, texto: l });
       if (stock.has(v.sku)) D.cifra({ sujeto: v.sku, metrica: "Stock", valor: stock.get(v.sku), texto: l });
       if (dias.has(v.sku)) D.cifra({ sujeto: v.sku, metrica: "Días de inventario", valor: dias.get(v.sku), texto: l });
-      if (frenados.has(v.sku)) { D.cifra({ sujeto: v.sku, metrica: "Capital frenado", valor: frenados.get(v.sku), texto: l }); D.estado({ sujeto: v.sku, estado: "frenado", texto: l }); }
+      if (frenados.has(v.sku)) { D.cifra({ sujeto: v.sku, metrica: "Capital inmovilizado crítico", valor: frenados.get(v.sku), texto: l }); D.estado({ sujeto: v.sku, estado: "inmovilizado critico", texto: l }); }
     }
+    /* MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): nombre completo «inmovilizado crítico» — ver el
+     * comentario gemelo en _premisa() más arriba (familia larga con «Capital inmovilizado»). */
     const lFrenados = frenadosTop.length
-      ? `De los que más venden, ${frenadosTop.join(" y ")} ${frenadosTop.length === 1 ? "tiene" : "tienen"} capital frenado según la referencia de inventario declarada.`
-      : `Entre los que más venden no aparece capital frenado${frenados.size ? `: el capital frenado está en ${[...frenados.keys()].slice(0, 3).join(", ")}${frenados.size > 3 ? ` y ${frenados.size - 3} más` : ""}, fuera de los que más venden` : ""}.`;
+      ? `De los que más venden, ${frenadosTop.join(" y ")} ${frenadosTop.length === 1 ? "está" : "están"} inmovilizados críticos según la referencia de inventario declarada.`
+      : `Entre los que más venden no aparece inmovilizado crítico${frenados.size ? `: lo inmovilizado crítico está en ${[...frenados.keys()].slice(0, 3).join(", ")}${frenados.size > 3 ? ` y ${frenados.size - 3} más` : ""}, fuera de los que más venden` : ""}.`;
     partes.push(lFrenados);
     declaraTopVenta(lFrenados);
     declaraFrenadosTop(lFrenados);
@@ -203,9 +213,9 @@ export const crucePorSku = {
         for (const x of soloCapital) D.cifra({ sujeto: x.sku, metrica: "Valor de inventario", valor: x.fmt, texto: `${x.sku} (${x.fmt} en inventario)` });
       }
     }
-    const lFreno = "Por qué cada uno está frenado no está en este dato: queda localizado, no explicado.";
+    const lFreno = "La causa de que cada uno esté inmovilizado no está en este dato: queda localizado, no explicado.";
     partes.push(`Venta y contribución son del ${mVenta}; el stock, los días y el capital son la ${mFoto} — se leen lado a lado y no se suman.${frenados.size ? ` ${lFreno}` : ""}`);
-    if (frenados.size) D.estado({ sujeto: [...frenados.keys()], estado: "frenado", texto: lFreno });
+    if (frenados.size) D.estado({ sujeto: [...frenados.keys()], estado: "inmovilizado", texto: lFreno });
     return partes.join("\n");
   },
 
@@ -216,7 +226,7 @@ export const crucePorSku = {
     if (!L) return "";
     const lineas = [
       "[CONCLUSIÓN DEL PROCEDIMIENTO — cruce por SKU · no es el usuario] Lo MEDIDO en esta boleta, que la respuesta conserva:",
-      `- ${L.frenadosTop.length ? `entre los que más venden, ${L.frenadosTop.join(" y ")} ${L.frenadosTop.length === 1 ? "tiene" : "tienen"} capital frenado` : `entre los que más venden NO aparece capital frenado${L.frenados.size ? ` (el frenado está en ${[...L.frenados.keys()].slice(0, 3).join(", ")}${L.frenados.size > 3 ? " y otros" : ""})` : ""}`}.`,
+      `- ${L.frenadosTop.length ? `entre los que más venden, ${L.frenadosTop.join(" y ")} ${L.frenadosTop.length === 1 ? "está" : "están"} inmovilizados críticos` : `entre los que más venden NO aparece capital inmovilizado crítico${L.frenados.size ? ` (está en ${[...L.frenados.keys()].slice(0, 3).join(", ")}${L.frenados.size > 3 ? " y otros" : ""})` : ""}`}.`,
       `- de los ${L.ventas.length} que más venden, ${L.ventaEnContrib.length} están entre los que más contribución dejan${L.ventaEnContrib.length ? ` (${L.ventaEnContrib.join(", ")})` : ""}.`,
       L.soloCapital.length ? `- concentran capital sin estar entre los que más venden ni más contribuyen: ${L.soloCapital.map((x) => x.sku).join(", ")}.` : null,
       "La conclusión sale de esto, NO de la premisa de la pregunta: si el usuario supone algo que estas cifras contradicen, dilo en la primera frase («No: …») en vez de abrir con «sí». Cada cifra con su marco (venta y contribución del período · stock, días y capital de la foto); no las sumes ni las relaciones con «frente a / por cada / equivale».",

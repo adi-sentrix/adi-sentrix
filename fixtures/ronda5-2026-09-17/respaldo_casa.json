@@ -117,7 +117,7 @@
       "id": "RA11",
       "modo": "figs",
       "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
-      "texto": "Lo que sí tengo verificado: Capital frenado · total: $33K.",
+      "texto": "Lo que sí tengo verificado: Capital inmovilizado crítico · total: $33K.",
       "verdadero": true,
       "falsedades": []
     },
@@ -1293,18 +1293,18 @@
       "id": "RP1",
       "modo": "declaracion",
       "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
-      "texto": "El capital frenado se concentra en Valparaíso: $25K, el 75% del total.",
+      "texto": "El capital inmovilizado crítico se concentra en Valparaíso: $25K, el 75% del total.",
       "verdadero": true,
       "declaraciones": [
         {
           "fn": "deFig",
-          "label": "Valparaíso · Capital frenado",
-          "texto": "El capital frenado se concentra en Valparaíso: $25K, el 75% del total."
+          "label": "Valparaíso · Capital inmovilizado crítico",
+          "texto": "El capital inmovilizado crítico se concentra en Valparaíso: $25K, el 75% del total."
         },
         {
           "fn": "deFig",
           "label": "Valparaíso · % del total",
-          "texto": "El capital frenado se concentra en Valparaíso: $25K, el 75% del total."
+          "texto": "El capital inmovilizado crítico se concentra en Valparaíso: $25K, el 75% del total."
         }
       ],
       "falsedades": []
@@ -1317,7 +1317,7 @@
       "declaraciones": [
         {
           "fn": "deFig",
-          "label": "Valparaíso · Capital frenado",
+          "label": "Valparaíso · Capital inmovilizado crítico",
           "texto": "El capital frenado se concentra en Antofagasta: $25K, el 75% del total."
         },
         {
@@ -1602,7 +1602,7 @@
       "id": "RA15",
       "modo": "figs",
       "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
-      "texto": "Lo que sí tengo verificado: LG-DRYER8KG · Capital frenado: $14K.",
+      "texto": "Lo que sí tengo verificado: LG-DRYER8KG · Capital inmovilizado crítico: $14K.",
       "verdadero": true,
       "falsedades": []
     },

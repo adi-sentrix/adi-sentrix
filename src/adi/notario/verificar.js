@@ -196,13 +196,18 @@ function _bodegaNombrada(texto, I) {
 /* los SKU cuyo estado (proyección) está en una bodega */
 function _skusEnBodega(bodega, I, estado = null) {
   const out = new Set();
-  for (const x of I.estados || []) if (normalizar(x.bodega || "") === bodega && (!estado || estadoCanon(x.estado) === estado || (estado === "inmovilizado" && /^(?:frenado|sobrestock)$/.test(estadoCanon(x.estado))))) out.add(normalizar(x.entidad));
+  /* MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): «inmovilizado» = inmovilizado crítico ∪ sobrestock — antes
+   * el tramo crítico se declaraba con el canon «frenado», ahora con «inmovilizado critico» (estados.js). */
+  for (const x of I.estados || []) if (normalizar(x.bodega || "") === bodega && (!estado || estadoCanon(x.estado) === estado || (estado === "inmovilizado" && /^(?:inmovilizado critico|sobrestock)$/.test(estadoCanon(x.estado))))) out.add(normalizar(x.entidad));
   return out;
 }
-/* el estado que nombra un universo («los SKU frenados de Valparaíso», «los críticos de Antofagasta»): restringe a ese estado; sin estado, null */
+/* el estado que nombra un universo («los SKU frenados de Valparaíso», «los críticos de Antofagasta»): restringe a ese estado; sin estado, null.
+ * MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): «inmovilizado crítico» (las dos palabras) restringe al canon
+ * NUEVO del tramo Mesa Capital; «crítico» a secas sigue siendo la alerta del archivo (decisión 0.1, sin cambio);
+ * «frenado» a secas sigue reconociéndose primero — ahora nombra venta interrumpida, no Mesa Capital. */
 function _estadoNombrado(texto) {
   const t = normalizar(texto);
-  return /frenad/.test(t) ? "frenado" : /cr[ií]tic/.test(t) ? "critico" : /inmoviliz|deten|parad/.test(t) ? "inmovilizado" : /sobrestock/.test(t) ? "sobrestock" : /quiebre/.test(t) ? "riesgo de quiebre" : /\bsan[oa]s?\b/.test(t) ? "capital sano" : null;
+  return /frenad/.test(t) ? "frenado" : /inmoviliz[a-z]*\s+cr[ií]tic/.test(t) ? "inmovilizado critico" : /cr[ií]tic/.test(t) ? "critico" : /inmoviliz|deten|parad/.test(t) ? "inmovilizado" : /sobrestock/.test(t) ? "sobrestock" : /quiebre/.test(t) ? "riesgo de quiebre" : /\bsan[oa]s?\b/.test(t) ? "capital sano" : null;
 }
 function _universoCasa(declarado, f, I = null) {
   const u = Array.isArray(declarado) ? declarado.join(", ") : conDigitos(String(declarado || ""));
@@ -288,9 +293,9 @@ function _sumaDelSuperconjunto(f, U, I) {
 /* el vocabulario de conjuntos de la evidencia: las palabras de los conjuntos conocidos y de los calificadores de los agregados */
 const _VOCAB_CACHE = new WeakMap();
 function _vocabularioDeConjuntos(I) {
-  if (!I) return new Set(["bajo", "sobre", "encima", "debajo", "benchmark", "materiales", "material", "sanos", "sano", "caen", "crecen", "grandes", "frenado", "frenados", "critico", "criticos", "nivel", "declarado", "umbral", "presupuesto", "vencido"]);
+  if (!I) return new Set(["bajo", "sobre", "encima", "debajo", "benchmark", "materiales", "material", "sanos", "sano", "caen", "crecen", "grandes", "frenado", "frenados", "critico", "criticos", "inmovilizado", "inmovilizados", "nivel", "declarado", "umbral", "presupuesto", "vencido"]);
   if (_VOCAB_CACHE.has(I)) return _VOCAB_CACHE.get(I);
-  const out = new Set(["bajo", "sobre", "encima", "debajo", "benchmark", "materiales", "material", "sanos", "sano", "caen", "crecen", "grandes", "frenado", "frenados", "critico", "criticos", "nivel", "declarado", "umbral", "presupuesto", "vencido"]);
+  const out = new Set(["bajo", "sobre", "encima", "debajo", "benchmark", "materiales", "material", "sanos", "sano", "caen", "crecen", "grandes", "frenado", "frenados", "critico", "criticos", "inmovilizado", "inmovilizados", "nivel", "declarado", "umbral", "presupuesto", "vencido"]);
   try { for (const c of _conjuntosConocidos(I)) for (const t of tokens(c.nombre)) out.add(t); } catch { /* sin conjuntos */ }
   for (const f of I.figs) if (f.agregado && f.calificador) { for (const t of tokens(String(f.calificador).replace(/\bsubtotal\b|\bpromedio\b|\bresto de\b/g, " "))) out.add(t); }
   _VOCAB_CACHE.set(I, out);
@@ -326,19 +331,30 @@ function _conjuntosConocidos(I) {
   const out = [];
   const porEstado = new Map();
   for (const x of I.estados) { const e = estadoCanon(x.estado); if (!porEstado.has(e)) porEstado.set(e, new Set()); porEstado.get(e).add(normalizar(x.entidad)); }
-  for (const [e, set] of porEstado) out.push({ nombre: e, eje: "sku", set, fuente: `estados «${e}»`, re: new RegExp(e === "inmovilizado" ? "\\b(?:inmoviliz|deten|parad)" : e === "frenado" ? "\\bfrenad" : e === "sobrestock" ? "\\bsobrestock" : e === "riesgo de quiebre" ? "\\bquiebre" : e === "critico" ? "\\bcr[ií]tic" : "\\bsan[oa]s?\\b", "i") });
-  /* §7.3·13 (supervisor 2026-09-27, diagnóstico v8, raíz A3) — «con capital frenado» de SKU, desde el ranking
-   * ESTÁTICO de la proyección (`I.rankings.sku.capital_frenado`, `datoProyectado.js`, siempre disponible),
+  /* MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): «inmovilizado critico» es el canon nuevo del tramo Mesa
+   * Capital (antes «frenado» acá) — misma regex que ya reconocía «capital inmovilizado crítico» en prosa. */
+  /* ⚠️ ORDEN DE `porEstado` (owner 2026-09-28, §7.3·30-34, etapa 5): el Map se llena en el orden en que
+   * `I.estados` trae las entradas (datoProyectado.js declara «inmovilizado» ANTES que «inmovilizado critico»
+   * por SKU), así que en `conocidos.find(...)` (más abajo) «inmovilizado» se prueba primero. Su regex NECESITA
+   * excluir «inmovilizado crítico» con un lookahead — si no, «los SKU inmovilizados críticos» resuelve al
+   * conjunto AMPLIO (bug medido: universo-incompleto en varios gates) aunque el conjunto «inmovilizado critico»
+   * también exista y sea más específico. */
+  for (const [e, set] of porEstado) out.push({ nombre: e, eje: "sku", set, fuente: `estados «${e}»`, re: new RegExp(e === "inmovilizado" ? "\\binmoviliz(?!ad[oa]s?\\s+cr[ií]tic)[a-z]*|\\bdeten|\\bparad" : e === "inmovilizado critico" ? "\\binmoviliz[a-z]*\\s+cr[ií]tic" : e === "frenado" ? "\\bfrenad" : e === "sobrestock" ? "\\bsobrestock" : e === "riesgo de quiebre" ? "\\bquiebre" : e === "critico" ? "\\bcr[ií]tic" : "\\bsan[oa]s?\\b", "i") });
+  /* §7.3·13 (supervisor 2026-09-27, diagnóstico v8, raíz A3) — «con capital inmovilizado crítico» de SKU, desde el
+   * ranking ESTÁTICO de la proyección (`I.rankings.sku.capital_frenado`, `datoProyectado.js`, siempre disponible),
    * el MISMO patrón que ya usa «con saldo vencido» para cliente unas líneas más abajo — NUNCA las figs de ESTE
-   * turno: si la llamada del turno no traía el capital frenado de TODAS las SKU, el conjunto quedaba incompleto
-   * o irresoluble («universo-no-resoluble»), dependiendo de qué tool call se disparó. Otros ejes (bodega,
-   * familia) no tienen ese registro estático todavía — para esos sigue el camino de las figs de la boleta,
-   * documentado como gap (fuera de esta corrección). */
+   * turno: si la llamada del turno no traía el capital inmovilizado crítico de TODAS las SKU, el conjunto quedaba
+   * incompleto o irresoluble («universo-no-resoluble»), dependiendo de qué tool call se disparó. Otros ejes
+   * (bodega, familia) no tienen ese registro estático todavía — para esos sigue el camino de las figs de la boleta,
+   * documentado como gap (fuera de esta corrección).
+   * RENOMBRE (owner 2026-09-28, §7.3·30-34, etapa 5): antes «con capital frenado» / `re: /\bfrenad/i` — la MISMA
+   * cifra (ranking `capital_frenado`, sin tocar), la palabra ya no le corresponde: «frenado» quedó para venta
+   * interrumbida. `re` reconoce «inmovilizado crítico»/«capital inmovilizado crítico», la prosa vigente (etapa 4). */
   const RskuFrenado = (I.rankings.sku || {}).capital_frenado;
-  if (RskuFrenado) out.push({ nombre: "con capital frenado", eje: "sku", set: new Set(RskuFrenado.filas.filter((x) => Number.isFinite(+x.valor) && +x.valor > 0).map((x) => normalizar(x.entidad))), fuente: "ranking sku · capital_frenado > 0", re: /\bfrenad/i });
+  if (RskuFrenado) out.push({ nombre: "con capital inmovilizado critico", eje: "sku", set: new Set(RskuFrenado.filas.filter((x) => Number.isFinite(+x.valor) && +x.valor > 0).map((x) => normalizar(x.entidad))), fuente: "ranking sku · capital_frenado > 0", re: /inmoviliz[a-z]*\s+cr[ií]tic/i });
   const frenadoPorEje = new Map();
-  for (const f of I.figs) if (f.entidad && f.eje && f.eje !== "sku" && /^capital frenado$/.test(f.conceptoNorm) && Number.isFinite(f.raw) && f.raw > 0) { if (!frenadoPorEje.has(f.eje)) frenadoPorEje.set(f.eje, new Set()); frenadoPorEje.get(f.eje).add(normalizar(f.entidad)); }
-  for (const [eje, set] of frenadoPorEje) out.push({ nombre: "con capital frenado", eje, set, fuente: "«Capital frenado» por " + eje + " en la boleta", re: /\bfrenad/i });
+  for (const f of I.figs) if (f.entidad && f.eje && f.eje !== "sku" && /^capital (?:frenado|inmovilizado cr[ií]tico)$/.test(f.conceptoNorm) && Number.isFinite(f.raw) && f.raw > 0) { if (!frenadoPorEje.has(f.eje)) frenadoPorEje.set(f.eje, new Set()); frenadoPorEje.get(f.eje).add(normalizar(f.entidad)); }
+  for (const [eje, set] of frenadoPorEje) out.push({ nombre: "con capital inmovilizado critico", eje, set, fuente: "«Capital inmovilizado crítico» por " + eje + " en la boleta", re: /inmoviliz[a-z]*\s+cr[ií]tic/i });
   const R = I.rankings.cliente || {};
   const bench = I.figs.find((f) => /^benchmark de margen$/.test(f.conceptoNorm) && !f.entidad);
   if (R.margen && bench) {
@@ -1637,7 +1653,12 @@ function _variacion(a, I) {
 }
 
 /* ── ESTADO (inventario) ────────────────────────────────────────────────────────────────────────────────────────────────── */
-const _ESTADOS_CONOCIDOS = new Set(["inmovilizado", "frenado", "sobrestock", "riesgo de quiebre", "capital sano", "critico"]);   // los de la Mesa Capital (la proyección los declara SKU por SKU); el resto tiene definición propia en estados.js
+/* MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): «inmovilizado critico» reemplaza a «frenado» en esta lista
+ * de estados de Mesa Capital (declarados por la proyección SKU por SKU, sin `verificar:` propio). «frenado» SIGUE
+ * acá por completitud (universo/conteo, `_conjuntosConocidos`), pero para el VEREDICTO puntual de una entidad ya
+ * no llega a esta rama: tiene `verificar:` propio en `estados.js` (línea 1660 de este archivo la intercepta
+ * primero — devuelve `ok`/`falsa`/`null`, nunca cae al chequeo genérico de abajo). */
+const _ESTADOS_CONOCIDOS = new Set(["inmovilizado", "inmovilizado critico", "frenado", "sobrestock", "riesgo de quiebre", "capital sano", "critico"]);   // los de la Mesa Capital (la proyección los declara SKU por SKU); el resto tiene definición propia en estados.js
 function _estado(a, I) {
   const e = a.estado;
   if (Array.isArray(a.sujeto)) {
@@ -1666,7 +1687,7 @@ function _estado(a, I) {
   if (!_ESTADOS_CONOCIDOS.has(quiere)) return _nv(`estado-desconocido: «${e.estado}» no es un estado con definición en la casa (${[...ESTADOS_CANON].join(" · ")})`, ev, verdad);
   const tiene = propios.map((x) => estadoCanon(x.estado));
   /* la proyección lo lista sano y detenido a la vez (o en un estado y en su complemento): el dato se contradice y no afirma ninguno */
-  { const alerta = tiene.filter((t) => t === "frenado" || t === "sobrestock"); if (tiene.includes("capital sano") && alerta.length) return _nv(`estado-contradictorio: la proyección lista a ${ent.nombre} como «capital sano» y «${alerta.join(", ")}» a la vez`, ev, verdad); }   // «inmovilizado» (estado ≠ Activo) convive con «capital sano» (= no frenado)
+  { const alerta = tiene.filter((t) => t === "inmovilizado critico" || t === "sobrestock"); if (tiene.includes("capital sano") && alerta.length) return _nv(`estado-contradictorio: la proyección lista a ${ent.nombre} como «capital sano» y «${alerta.join(", ")}» a la vez`, ev, verdad); }   // «inmovilizado» convive con «capital sano» (= sin alerta de Mesa Capital); MIGRACIÓN owner 2026-09-28 §7.3·30-34: antes «frenado», ahora «inmovilizado critico»
   if (!propios.length) {
     if (quiere === "capital sano" && I.dias[ent.nombre]) return _ok(`${ent.nombre} no tiene estado de alerta declarado`, ev, verdad);
     return _nv(`sin-evidencia: la proyección no declara estado para ${ent.nombre}`, ev, verdad);

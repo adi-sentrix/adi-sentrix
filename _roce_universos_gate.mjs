@@ -116,24 +116,34 @@ ok((vReal.violations || []).some((x) => x.kind === "etiqueta-ambigua"), "…y ta
 ok(J("MAK-SAW18V rota 5.2x, sobre el piso de rotación de 2.0x, y su margen de inventario es 34.0% — el mejor de la lista. Está en estado Activo.").ok,
   "…y la misma lectura, escrita bien (vara propia + etiqueta completa), pasa");
 
-/* ── 3c · DOS ESTADOS, DOS PALABRAS (owner 2026-08-15) ────────────────────────────────────────────────────────
- * «capital inmovilizado = categoría amplia; frenado = estado crítico DENTRO de capital inmovilizado. El notario
- * debe vetar si ADI usa "frenado" como sinónimo de "inmovilizado".» La carpeta declara los dos, con nombre,
- * criterio y monto — antes no traía ninguno (deriveKpis().inventario es null) y el cerebro sumaba a mano. */
-console.log("\n── 3c · «FRENADO» NO ES SINÓNIMO DE «INMOVILIZADO» ──");
+/* ── 3c · DOS ESTADOS, DOS PALABRAS (owner 2026-08-15; MIGRADO owner 2026-09-28 §7.3·30-34, etapa 5) ──────────
+ * «capital inmovilizado = categoría amplia; inmovilizado crítico = estado crítico DENTRO de capital inmovilizado.
+ * El notario debe vetar si ADI usa "inmovilizado crítico" como sinónimo bare de "inmovilizado".» La carpeta
+ * declara los dos, con nombre, criterio y monto. MIGRACIÓN: el canon que antes se llamaba «frenado» (el tramo
+ * capital_frenado) pasó a «inmovilizado critico» — «frenado» ahora significa venta interrumpida (otro hecho,
+ * con su propio umbral), no este tramo. */
+console.log("\n── 3c · «INMOVILIZADO CRÍTICO» NO ES SINÓNIMO BARE DE «INMOVILIZADO» ──");
 {
   const c = cifrasDelDato("actual");
   const est = c.estados || [];
-  const nF = est.filter((e) => e.estado === "frenado").length, nI = est.filter((e) => e.estado === "inmovilizado").length;
+  const nF = est.filter((e) => e.estado === "inmovilizado critico").length, nI = est.filter((e) => e.estado === "inmovilizado").length;
   // decisión del owner 2026-09-28, §7.3·31: "inmovilizado" pasó de "estado ≠ Activo" (5 SKU, $55,8K) a
   // capital_frenado ∪ sobrestock (jerarquiaInventario) — 4 SKU, $43,0K en el demo (diseño §6.1).
-  ok(nF === 3 && nI === 4, `la carpeta declara los DOS estados: ${nF} frenados (crítico) y ${nI} inmovilizados (amplio)`);
-  ok(est.filter((e) => e.estado === "frenado").every((e) => est.some((x) => x.estado === "inmovilizado" && x.entidad === e.entidad)),
-    "…y todo frenado está también declarado inmovilizado: es un SUBCONJUNTO, no otra lista");
+  ok(nF === 3 && nI === 4, `la carpeta declara los DOS estados: ${nF} inmovilizados críticos y ${nI} inmovilizados (amplio)`);
+  ok(est.filter((e) => e.estado === "inmovilizado critico").every((e) => est.some((x) => x.estado === "inmovilizado" && x.entidad === e.entidad)),
+    "…y todo inmovilizado crítico está también declarado inmovilizado: es un SUBCONJUNTO, no otra lista");
   const figs = c.figs || [];
   ok(figs.some((f) => (f.duenos || []).includes("inmovilizado") && f.value === "$43K"), "el monto de la categoría amplia ($43K) viaja al cerebro con su dueño");
-  ok(figs.some((f) => (f.duenos || []).includes("frenado") && f.value === "$33K"), "…y el del estado crítico ($33K) también");
+  ok(figs.some((f) => (f.duenos || []).includes("frenado") && f.value === "$33K"), "…y el del estado crítico ($33K) también (el dueño de la fig, «frenado», es la CLAVE de la métrica en dinero — sin cambio)");
 }
+// NOTA (owner 2026-09-28, §7.3·30-34, etapa 5): el detector de guardC de ESTA sección («dos estados, dos
+// palabras») es LÉXICO, no el canon del Notario — sigue dos palabras («frenado»/«bloqueado»/«estancado» para el
+// tramo crítico; «inmovilizado»/«detenido»/«parado» para la categoría amplia, `_RE_FRENADO`/`_RE_INMOV` en
+// guardC.js). Eso NO cambia con la migración: «frenado» sigue siendo la palabra ESTRICTA que este detector
+// reconoce para el tramo crítico (una cosa es el CANON del Notario — ahora venta interrumpida — y otra la
+// palabra que este chequeo léxico, más antiguo y más angosto, usa como sinónimo del tramo). El campo de DATOS
+// que consulta («frenados»/`_frenados`) SÍ se releyó del canon nuevo (`estado === "inmovilizado critico"`,
+// arriba y en guardC.js) — mismo SKU, misma cifra.
 ok(V("Cuatro SKU frenados concentran $43K de capital.") === "estado-no-declarado",
   `usar «frenados» para el conteo de la categoría amplia muere (${V("Cuatro SKU frenados concentran $43K de capital.")})`);
 ok(/no son sinónimos/i.test(String((J("Cuatro SKU frenados concentran $43K de capital.").violations[0] || {}).detail || "")),

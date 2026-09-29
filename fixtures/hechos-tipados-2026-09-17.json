@@ -83,6 +83,17 @@
         { "id": "i19", "tipo": "conteo", "n": 2, "de": { "eje": "sku", "estados": ["frenado"], "filtros": [{ "metrica": "dias_sin_venta", "op": ">=", "valor": 90, "unidad": "days" }] } }
       ],
       "esperado": { "i1": "verdadera", "i2": "verdadera", "i2b": "falsa", "i3": "verdadera", "i4": "verdadera", "i5": "falsa", "i7": "verdadera", "i8": "verdadera", "i8b": "verdadera", "i9": "verdadera", "i10": "falsa", "i11": "verdadera", "i11b": "falsa", "i12": "no-verdadera", "i13": "verdadera", "i14": "falsa", "i14b": "falsa", "i16": "verdadera", "i17": "verdadera", "i18": "falsa", "i19": "verdadera" },
+      "historico": {
+        "i7": "frenado-regla-de-rotacion (§7.3·34b) — «estados:[frenado]» excluyendo Valparaíso pinzaba el tramo capital_frenado (rotación); owner 2026-09-28, congelado como registro histórico, no se juzga contra el canon vigente (frenado = venta interrumpida, sin umbral declarado en este caso)",
+        "i8": "frenado-regla-de-rotacion (§7.3·34b) — «estados:[frenado]» pinzaba el tramo capital_frenado (rotación), n=3",
+        "i8b": "frenado-regla-de-rotacion (§7.3·34b) — «estados:[frenado]» en Valparaíso pinzaba el tramo capital_frenado (rotación), n=2",
+        "i11": "frenado-regla-de-rotacion (§7.3·34b) — «estado:frenado» de LG-DRYER8KG en Valparaíso pinzaba capital_frenado (rotación)",
+        "i11b": "frenado-regla-de-rotacion (§7.3·34b) — «estado:frenado» de LG-DRYER8KG en Santiago (falsa por bodega) pinzaba capital_frenado (rotación)",
+        "i13": "frenado-regla-de-rotacion (§7.3·34b) — universo «estados:[frenado]» para ordenar rotación pinzaba capital_frenado (rotación)",
+        "i14": "frenado-regla-de-rotacion (§7.3·34b) — universo «estados:[frenado]» para ordenar rotación (min) pinzaba capital_frenado (rotación)",
+        "i14b": "frenado-regla-de-rotacion (§7.3·34b) — universo «estados:[frenado]» para ordenar rotación (peor) pinzaba capital_frenado (rotación)",
+        "i19": "frenado-regla-de-rotacion (§7.3·34b) — «estados:[frenado]» combinado con un filtro de días sin venta pinzaba capital_frenado (rotación) Y el hecho nuevo (venta interrumpida) a la vez; el veredicto viejo dependía de la lectura vieja de «frenado» como universo"
+      },
       "render": { "i1": "$25K", "i2": "64%" }
     },
     { "id": "com-1", "pregunta": "¿Cómo viene mi margen?",

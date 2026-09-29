@@ -154,8 +154,11 @@ export const skuInventario = [
   { sku:"LS-LECHE-1L",  bodega:"Bodega Centro", marca:"LactoSur",    sfamilia:"Lácteos",    stockUSD:7900, stockUnd:52, ventaDiaria:6.0, vendidoMes:180, rotacion:11.8, doh:12,  cobertura:14,  margenPct:27, diasSinVenta:0,  estado:"Activo", alerta:"ok",   pctInv:13.2 },
   { sku:"LS-QUESO-GDA", bodega:"Bodega Centro", marca:"LactoSur",    sfamilia:"Lácteos",    stockUSD:5600, stockUnd:24, ventaDiaria:0.9, vendidoMes:27,  rotacion:2.6,  doh:62,  cobertura:62,  margenPct:28, diasSinVenta:12, estado:"Lento",  alerta:"warn", pctInv:9.3  },
   { sku:"FA-HELADO-5L", bodega:"Bodega Sur",    marca:"FrostAl",     sfamilia:"Congelados", stockUSD:4800, stockUnd:30, ventaDiaria:2.2, vendidoMes:66,  rotacion:6.8,  doh:21,  cobertura:22,  margenPct:30, diasSinVenta:0,  estado:"Activo", alerta:"ok",   pctInv:8.0  },
-  { sku:"FA-PIZZA-FAM", bodega:"Bodega Sur",    marca:"FrostAl",     sfamilia:"Congelados", stockUSD:4100, stockUnd:18, ventaDiaria:0.3, vendidoMes:9,   rotacion:1.2,  doh:132, cobertura:132, margenPct:31, diasSinVenta:58, estado:"120d",   alerta:"crit", pctInv:6.8  },
-  { sku:"NV-SNACK-MIX", bodega:"Bodega Norte",  marca:"NevadaFoods", sfamilia:"Abarrotes",  stockUSD:3400, stockUnd:16, ventaDiaria:0.2, vendidoMes:6,   rotacion:0.9,  doh:148, cobertura:148, margenPct:29, diasSinVenta:84, estado:"120d",   alerta:"crit", pctInv:5.7  },
+  // vendidoMes 9 → 0 (owner 2026-09-28, corrección de coherencia del dato de fábrica: 58 días sin venta > el
+  // período de un mes que vendidoMes cubre). diasSinVenta/rotacion/doh/stockUSD NO se tocan.
+  { sku:"FA-PIZZA-FAM", bodega:"Bodega Sur",    marca:"FrostAl",     sfamilia:"Congelados", stockUSD:4100, stockUnd:18, ventaDiaria:0.3, vendidoMes:0,   rotacion:1.2,  doh:132, cobertura:132, margenPct:31, diasSinVenta:58, estado:"120d",   alerta:"crit", pctInv:6.8  },
+  // vendidoMes 6 → 0 (mismo criterio de coherencia: 84 días sin venta > el período de un mes).
+  { sku:"NV-SNACK-MIX", bodega:"Bodega Norte",  marca:"NevadaFoods", sfamilia:"Abarrotes",  stockUSD:3400, stockUnd:16, ventaDiaria:0.2, vendidoMes:0,   rotacion:0.9,  doh:148, cobertura:148, margenPct:29, diasSinVenta:84, estado:"120d",   alerta:"crit", pctInv:5.7  },
   { sku:"NV-BARRA-CER", bodega:"Bodega Sur",    marca:"NevadaFoods", sfamilia:"Abarrotes",  stockUSD:2200, stockUnd:12, ventaDiaria:1.0, vendidoMes:30,  rotacion:4.6,  doh:28,  cobertura:26,  margenPct:30, diasSinVenta:2,  estado:"Activo", alerta:"ok",   pctInv:3.7  },
 ];
 

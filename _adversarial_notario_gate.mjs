@@ -44,6 +44,19 @@ const juezDe = (pregunta) => {
 };
 const MUESTRA = Number(process.env.ADI_ADVERSARIAL_MUESTRA || 12);
 const FIXTURES = [["adversarial-notario-2026-09-14.json", "EL CONJUNTO ADVERSARIAL (con el que se trabajó)"], ["adversarial-notario-oos-2026-09-15.json", "LA RONDA FUERA DE MUESTRA (la medida que vale)"]];
+/* CONGELAMIENTO (owner 2026-09-28, §7.3·34b, etapa 5 — migración de significado de «frenado»): estos 6 items del
+ * conjunto adversarial (con el que se trabajó) pinzaban el significado VIEJO de «frenado» (capital_frenado,
+ * rotación) o son un efecto directo y medido de esa migración — verificado línea a línea contra `scratchpad/wt_head`
+ * (8e96bd5e, limpio, ANTES de esta migración): ningún otro item del conjunto (ni de la ronda fuera de muestra)
+ * cambió de veredicto. No se reetiquetan ni se borran: quedan como registro histórico, reportados aparte. */
+const HISTORICOS = new Map([
+  ["fn-atribucion-2013", "frenado-regla-de-rotacion (§7.3·34b) — «el capital frenado total» pinzaba capital_frenado (subtotal $25K Valparaíso vs total $33K)"],
+  ["fn-atribucion-2014", "frenado-regla-de-rotacion (§7.3·34b) — idem, contexto P2"],
+  ["fn-atribucion-2369", "frenado-regla-de-rotacion (§7.3·34b) — «el capital frenado del negocio» pinzaba capital_frenado (bodega→negocio)"],
+  ["fn-atribucion-2370", "frenado-regla-de-rotacion (§7.3·34b) — idem, contexto P2"],
+  ["fp-prosa-0108", "efecto medido de la migración (§7.3·34b): «LG-DRYER8KG y MAK-COMP-AIR suman $22K liberables» — el rótulo «Medida · liberar…» que antes absolvía esta coordinación ya no calza byte a byte tras el renombre de superficie (capital_frenado → inmovilizado crítico); la raíz exacta vive en guardC.js:_totalMisattribution (comparación de canon entre la cifra dicha y el rótulo del ledger) y no se tocó — fuera del alcance de esta etapa (Notario/Entrega/encargo)"],
+  ["fp-prosa-0109", "efecto medido de la migración (§7.3·34b) — idem, contexto P2"],
+]);
 for (const [archivo, titulo] of FIXTURES) {
   const A = JSON.parse(fs.readFileSync(new URL("./fixtures/" + archivo, import.meta.url), "utf8"));
   const J = { P1: juezDe(A.preguntas.P1), P2: juezDe(A.preguntas.P2) };
@@ -53,7 +66,9 @@ for (const [archivo, titulo] of FIXTURES) {
   const tot = { pasa: 0, fp: 0, arde: 0, fn: 0 };
   const porLente = {};
   const fallas = [];
+  const historicosVistos = [];
   for (const it of A.items) {
+    if (HISTORICOS.has(it.id)) { historicosVistos.push(it.id); continue; }
     const texto = stripLanguageLeaks(String(it.frase));
     const ctxs = it.contexto === "ambos" ? ["P1", "P2"] : [it.contexto];
     const vetos = [];
@@ -66,6 +81,7 @@ for (const [archivo, titulo] of FIXTURES) {
     if (it.esperado === "pasa") { tot.pasa++; if (vetos.length) { tot.fp++; L.mal++; fallas.push(`FP ${it.id} · «${it.frase.slice(0, 110)}» → ${[...new Set(vetos)].slice(0, 3).join(", ")}`); } }
     else { tot.arde++; if (!vetos.length) { tot.fn++; L.mal++; fallas.push(`FN ${it.id} · «${it.frase.slice(0, 110)}» (${it.verdad.slice(0, 60)})`); } }
   }
+  if (historicosVistos.length) console.log(`  ❄ HISTÓRICOS (§7.3·34b, no juzgados contra el canon vigente): ${historicosVistos.length} — ${historicosVistos.join(", ")}`);
   const fpPct = tot.pasa ? (100 * tot.fp / tot.pasa) : 0, fnPct = tot.arde ? (100 * tot.fn / tot.arde) : 0;
   console.log(`\n${titulo} · ${A.items.length} frases · ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   console.log(`  falsos positivos: ${tot.fp}/${tot.pasa} = ${fpPct.toFixed(1)}%   (meta ≤ 5 %)`);

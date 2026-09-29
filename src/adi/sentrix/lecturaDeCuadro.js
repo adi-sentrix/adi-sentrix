@@ -74,8 +74,12 @@ const CAMPOS = {
   carga: "Carga comercial", acciones: "Acciones comerciales", rebate: "Acciones comerciales",
   exceso: "Exceso sobre la referencia", recuperable: "Contribución no capturada",
   // capital e inventario (registro de la casa: «inmovilizado» / «frenado», jamás «detenido»)
+  // RENOMBRE (owner 2026-09-28, §7.3·30-32, decisión 0.1 del diseño de inventario): antes → los tres campos
+  // (`inmovilizado`/`detenido`/`frenado`) apuntaban al mismo rótulo «Capital frenado», confundiendo el universo
+  // (inmovilizado = crítico ⊎ sobrestock) con el tramo crítico. Ahora → `inmovilizado`/`detenido` (legado) dicen
+  // «Capital inmovilizado»; `frenado` queda para su significado nuevo (venta interrumpida), no una cifra de $.
   capital: "Capital", usd: "Capital", stock: "Stock", stockUnd: "Unidades en stock",
-  inmovilizado: "Capital frenado", detenido: "Capital frenado", frenado: "Capital frenado",
+  inmovilizado: "Capital inmovilizado", detenido: "Capital inmovilizado", frenado: "Venta frenada",
   rotacion: "Rotación", doh: "Días de inventario", diasSinVenta: "Días sin venta",
   // cobro
   abonado: "Abonado", saldo: "Saldo pendiente", vencido: "Saldo vencido", recuperado: "Recuperado",
@@ -115,7 +119,9 @@ const COMPARADOS = { vsAnterior: "vs año anterior", vsPresupuesto: "vs presupue
 const SENALES = {
   bajoBenchmark: { alerta: true, dice: "queda bajo el benchmark", dicen: "quedan bajo el benchmark" },
   sobreMeta: { alerta: true, dice: "carga acciones comerciales sobre tu objetivo", dicen: "cargan acciones comerciales sobre tu objetivo" },
-  critico: { alerta: true, dice: "está en estado crítico", dicen: "están en estado crítico" },
+  // MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): «crítico» a secas colisiona con la alerta del archivo
+  // (decisión 0.1) — esta señal (mesaCapital.js `_fila`/`js.critico`) es SIEMPRE el tramo inmovilizado crítico.
+  critico: { alerta: true, dice: "está inmovilizado crítico", dicen: "están inmovilizados críticos" },
   sinReferencia: { alerta: true, dice: "no tiene referencia declarada", dicen: "no tienen referencia declarada" },
   material: { alerta: false, dice: "pesa lo suficiente para mover el resultado", dicen: "pesan lo suficiente para mover el resultado" },
   enGrupo: { alerta: false, dice: "está en el grupo que sostiene la venta", dicen: "están en el grupo que sostiene la venta" },

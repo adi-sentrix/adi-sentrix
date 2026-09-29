@@ -64,6 +64,13 @@ H("2 · el bloque <<HECHOS>> se extrae antes de la prosa y se quita");
 /* ═══ 3 · LOS HECHOS TIPADOS CONTRA LA BOLETA REAL ═══ */
 const acepta = (esperado, veredicto) => (esperado === "no-verdadera" ? veredicto !== "verdadera" && veredicto !== "sellada" : veredicto === esperado);
 let total = 0, aciertos = 0, fnConfirmadas = 0, fpConfirmados = 0;
+/* CONGELAMIENTO (owner 2026-09-28, §7.3·34b, etapa 5 — migración de significado de «frenado»): los casos cuyo
+ * veredicto dependía del significado VIEJO de «frenado» (capital_frenado, rotación) quedan como REGISTRO
+ * HISTÓRICO — `caso.historico[id]` trae el motivo. No se reetiquetan ni se borran: se reportan aparte, sin
+ * juzgarlos contra el canon vigente (frenado = venta interrumpida). Todo lo demás del caso se sigue juzgando
+ * igual. Un id que no está en `caso.historico` corre por el camino normal, sin excepción. */
+let historicos = 0;
+const HISTORICOS_VISTOS = [];
 for (const c of F.casos) {
   H(`3 · ${c.id} · «${c.pregunta}»`);
   const figs = figsDe(c.pregunta);
@@ -71,6 +78,13 @@ for (const c of F.casos) {
   const libro = libroDeHechos(c.hechos, { indice: I });
   for (const [id, esperado] of Object.entries(c.esperado)) {
     const Hh = libro.porId.get(id);
+    const motivoHistorico = c.historico && c.historico[id];
+    if (motivoHistorico) {
+      historicos++;
+      HISTORICOS_VISTOS.push({ caso: c.id, id, motivo: motivoHistorico });
+      console.log(`  ❄ HISTÓRICO · ${id} [${Hh ? Hh.tipo : "?"}] — congelado, no se juzga contra el canon vigente (hoy: ${Hh ? Hh.veredicto : "sin hecho"})`);
+      continue;
+    }
     total++;
     const bien = !!Hh && acepta(esperado, Hh.veredicto);
     if (bien) aciertos++;
@@ -95,6 +109,7 @@ H("4 · medidas");
 ok(fnConfirmadas === 0, `falsedades dictadas verdaderas: ${fnConfirmadas} (debe ser 0)`);
 ok(fpConfirmados === 0, `hechos verdaderos bloqueados: ${fpConfirmados} (debe ser 0)`);
 console.log(`  veredictos correctos: ${aciertos}/${total}`);
+console.log(`  CONGELADOS (histórico, §7.3·34b, no juzgados contra el canon vigente): ${historicos} — ${HISTORICOS_VISTOS.map((h) => `${h.caso}.${h.id}`).join(", ")}`);
 
 /* ═══ 5 · EL NOMBRADOR DE UNIVERSOS ═══ */
 H("5 · el universo lo escribe la casa");

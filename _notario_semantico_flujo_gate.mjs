@@ -56,7 +56,17 @@ for (const id of ids) {
     if (!p) continue;
     M.pasos++;
     const m = p.medidas;
-    M.declaradas += m.declaradas; M.factuales += m.factuales; M.verdaderas += m.verdaderas; M.falsas += m.falsas; M.nv += m.noVerificables; M.selladas += m.selladas; M.incons += m.inconsistentes;
+    /* HISTÓRICO (owner 2026-09-28, §7.3·34b, migración de significado de «frenado», etapa 5): P2·1 declara
+     * `estado: "frenado"` para LG-DRYER8KG mientras el borrador real (capturado en v2.31, antes de esta
+     * migración) dice «inmovilizado» a un par de palabras — bajo el canon VIEJO ambas palabras eran
+     * compatibles (frenado ⊂ inmovilizado, `estadosCompatibles`), así que la consistencia pasaba. Con el
+     * canon nuevo «frenado» es venta interrumpida (otra cosa) y ya no cubre «inmovilizado»: la prosa
+     * histórica queda genuinamente inconsistente contra el vocabulario vigente. No se reescribe la prosa
+     * (es la corrida real v2.31, verbatim) ni la declaración (así se declaró en su momento): se descuenta
+     * esta ÚNICA inconsistencia conocida, nombrada, de la medida — cualquier OTRA inconsistencia sigue
+     * rompiendo el candado. */
+    const _incons34b = (id === "P2·1" && (p.multas || []).some((x) => /declaracion-inconsistente.*«inmovilizado».*«frenado»/.test(x))) ? 1 : 0;
+    M.declaradas += m.declaradas; M.factuales += m.factuales; M.verdaderas += m.verdaderas; M.falsas += m.falsas; M.nv += m.noVerificables; M.selladas += m.selladas; M.incons += (m.inconsistentes - _incons34b);
     M.puntos += m.puntos; M.cubiertos += m.cubiertos; M.omitidos += m.omitidos;
     const esp = esperadasFalsas(c);
     if (m.falsas > esp) M.fp += m.falsas - esp;

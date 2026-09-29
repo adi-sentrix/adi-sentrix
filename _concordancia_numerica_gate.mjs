@@ -184,7 +184,11 @@ const CONCEPTO_ETIQUETA = {              // etiqueta de una fig del ledger → c
   // R5 del examen 1 del agente (2026-08-31): el canónico del ledger pasó a «capital frenado» (el rótulo dice lo
   // que la cifra ES — el subconjunto frenado, no el inmovilizado amplio). Las dos formas viejas se siguen
   // leyendo, misma mecánica de la migración detenido→inmovilizado.
+  // RENOMBRE (owner 2026-09-28, §7.3·30-32, decisión 0.1 del diseño de inventario): el rótulo del ledger pasó a
+  // «Capital inmovilizado crítico» (specRetrieval `_ESTADO_LABEL.capital_frenado`) — el concepto CANÓNICO de este
+  // gate (interno, "capital frenado") no cambia; se agrega la forma nueva, misma mecánica de siempre.
   "capital detenido": "capital frenado", "capital inmovilizado": "capital frenado", "capital frenado": "capital frenado",
+  "capital inmovilizado critico": "capital frenado", "capital inmovilizado crítico": "capital frenado",
   // el ledger nunca había emitido esta etiqueta porque el manifiesto pedía un focus que la tool no conocía y caía a
   // "frenado": con el focus corregido aparece, y sin esta línea el gate reportaba un choque de conceptos fantasma.
   "riesgo de quiebre": "capital quiebre",

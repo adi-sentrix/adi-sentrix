@@ -1845,10 +1845,11 @@ function _conjuntosDerivables(ledger, datoProyectado, ejesDelTenant = null) {
   /* las cuentas MATERIALES: el grupo que la boleta declara en su subtotal («5 cuentas materiales») */
   const material = new Map();
   for (const f of figs) if (f && f.grupo && Array.isArray(f.grupo.entidades) && /cuentas materiales/i.test(String(f.label || ""))) for (const e of f.grupo.entidades) material.set(_norm(e), 1);
-  /* las BODEGAS: el catálogo del tenant como universo; con capital frenado, las bodegas de los SKU frenados de la proyección */
+  /* las BODEGAS: el catálogo del tenant como universo; con capital inmovilizado crítico, las bodegas de los SKU
+   * de la proyección (MIGRACIÓN owner 2026-09-28, §7.3·30-34, etapa 5: canon «frenado» → «inmovilizado critico») */
   const bodegas = new Map();
   for (const b of (ejesDelTenant && Array.isArray(ejesDelTenant.bodega) ? ejesDelTenant.bodega : [])) bodegas.set(_norm(b), 0);
-  if (datoProyectado && Array.isArray(datoProyectado.estados)) for (const e of datoProyectado.estados) if (e && e.estado === "frenado" && e.bodega) { const b = _norm(e.bodega); bodegas.set(b, (bodegas.get(b) || 0) + 1); }
+  if (datoProyectado && Array.isArray(datoProyectado.estados)) for (const e of datoProyectado.estados) if (e && e.estado === "inmovilizado critico" && e.bodega) { const b = _norm(e.bodega); bodegas.set(b, (bodegas.get(b) || 0) + 1); }
   return {
     cliente: {
       universo: _universo(cliente),
@@ -6001,7 +6002,13 @@ export function guardC(narration, { ledger, results = [], trace = null, question
    * era el único estado declarado e «inmovilizado» quedaba fuera del chequeo a propósito (era el label del
    * capital, no una clasificación); ahora los dos son clasificaciones declaradas y cada una tiene su palabra. */
   if (datoProyectado && Array.isArray(datoProyectado.estados) && datoProyectado.estados.length) {
-    const _frenados = new Set(datoProyectado.estados.filter((e) => e && e.estado === "frenado").map((e) => e.entidad));
+    // RENOMBRE (owner 2026-09-28, §7.3·30-34, etapa 5, migración de significado de «frenado»): el canon que
+    // `datoProyectado.js` declaraba como `estado: "frenado"` (el tramo capital_frenado) pasó a
+    // `estado: "inmovilizado critico"` — «frenado» ahora significa venta interrumpida (Notario, estados.js), un
+    // hecho distinto que este chequeo del muro no evalúa. Este guard sigue policiando la misma colisión de
+    // siempre («frenado»/«bloqueado»/«estancado» dichos por el modelo para el tramo crítico vs. «inmovilizado»
+    // para la categoría amplia) — mismo comportamiento, releído del canon nuevo.
+    const _frenados = new Set(datoProyectado.estados.filter((e) => e && e.estado === "inmovilizado critico").map((e) => e.entidad));
     const _inmov = new Set(datoProyectado.estados.filter((e) => e && e.estado === "inmovilizado").map((e) => e.entidad));
     /* «PARADO» ES LA PALABRA VAGA DE LA CATEGORÍA AMPLIA, NO DEL ESTADO CRÍTICO (medido 2026-08-15, examen 2 ·
      * turno 2): el borrador escribió «para cortar la mayoría del capital parado» nombrando SKU inmovilizados pero
@@ -6530,10 +6537,11 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // «5 marcas» — el largo de cada universo proyectado). Sin condición de dueño: un conteo viaja pegado a su
   // sustantivo («13 clientes») y la proyección solo declara los largos reales de sus secciones.
   if (datoProyectado && Array.isArray(datoProyectado.counts)) for (const c of datoProyectado.counts) if (Number.isFinite(c)) authCounts.add(c);
-  // el TAMAÑO de una clasificación declarada es un conteo declarado («3 SKU frenados» = frenados.length del
-  // motor — matriz 2026-08-14): la consistencia N↔estado la vigila el chequeo de estados; acá solo se autoriza.
+  // el TAMAÑO de una clasificación declarada es un conteo declarado («3 SKU inmovilizados críticos» =
+  // inmovilizados_criticos.length del motor — matriz 2026-08-14, MIGRACIÓN owner 2026-09-28 §7.3·30-34 etapa 5:
+  // antes «frenados»): la consistencia N↔estado la vigila el chequeo de estados; acá solo se autoriza.
   if (datoProyectado && Array.isArray(datoProyectado.estados)) {
-    const _nFren = datoProyectado.estados.filter((e) => e && e.estado === "frenado").length;
+    const _nFren = datoProyectado.estados.filter((e) => e && e.estado === "inmovilizado critico").length;
     if (_nFren) authCounts.add(_nFren);
   }
   // CONTEO AUTO-ENUMERADO (constitución 2026-08-14 · matriz P6): «tus tres principales…» seguido de EXACTAMENTE

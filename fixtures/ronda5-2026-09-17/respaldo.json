@@ -128,7 +128,7 @@
    "id": "RA11",
    "modo": "casa:figs",
    "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
-   "texto": "Lo que sí tengo verificado: Capital frenado · total: $33K.",
+   "texto": "Lo que sí tengo verificado: Capital inmovilizado crítico · total: $33K.",
    "verdadero": true,
    "falsedades": [],
    "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
@@ -1353,18 +1353,18 @@
    "id": "RP1",
    "modo": "casa:declaracion",
    "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
-   "texto": "El capital frenado se concentra en Valparaíso: $25K, el 75% del total.",
+   "texto": "El capital inmovilizado crítico se concentra en Valparaíso: $25K, el 75% del total.",
    "verdadero": true,
    "declaraciones": [
     {
      "fn": "deFig",
-     "label": "Valparaíso · Capital frenado",
-     "texto": "El capital frenado se concentra en Valparaíso: $25K, el 75% del total."
+     "label": "Valparaíso · Capital inmovilizado crítico",
+     "texto": "El capital inmovilizado crítico se concentra en Valparaíso: $25K, el 75% del total."
     },
     {
      "fn": "deFig",
      "label": "Valparaíso · % del total",
-     "texto": "El capital frenado se concentra en Valparaíso: $25K, el 75% del total."
+     "texto": "El capital inmovilizado crítico se concentra en Valparaíso: $25K, el 75% del total."
     }
    ],
    "falsedades": [],
@@ -1378,7 +1378,7 @@
    "declaraciones": [
     {
      "fn": "deFig",
-     "label": "Valparaíso · Capital frenado",
+     "label": "Valparaíso · Capital inmovilizado crítico",
      "texto": "El capital frenado se concentra en Antofagasta: $25K, el 75% del total."
     },
     {
@@ -1679,7 +1679,7 @@
    "id": "RA15",
    "modo": "casa:figs",
    "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
-   "texto": "Lo que sí tengo verificado: LG-DRYER8KG · Capital frenado: $14K.",
+   "texto": "Lo que sí tengo verificado: LG-DRYER8KG · Capital inmovilizado crítico: $14K.",
    "verdadero": true,
    "falsedades": [],
    "runner": "adv5_respaldo_casa.mjs (node --import ./scripts/offline-guard.mjs ../_notario_adv5_2026-09-17/adv5_respaldo_casa.mjs <casos.json>)"
@@ -1813,7 +1813,7 @@
    "id": "RA11 · turno",
    "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
    "v3": true,
-   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c208\"}\n<<FIN>>\nLo que sí tengo verificado: Capital frenado · total: {r1}.",
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c208\"}\n<<FIN>>\nLo que sí tengo verificado: Capital inmovilizado crítico · total: {r1}.",
    "falsedades": [],
    "verdadero": true,
    "modo": "turno",
@@ -2373,7 +2373,7 @@
    "id": "RP1 · turno",
    "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
    "v3": true,
-   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Valparaíso · Capital frenado\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Valparaíso · % del total\"}\n<<FIN>>\nEl capital frenado se concentra en Valparaíso: {{d1: $25K}}, el {{d2: 75%}} del total.",
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Valparaíso · Capital inmovilizado crítico\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Valparaíso · % del total\"}\n<<FIN>>\nEl capital inmovilizado crítico se concentra en Valparaíso: {{d1: $25K}}, el {{d2: 75%}} del total.",
    "falsedades": [],
    "verdadero": true,
    "modo": "turno",
@@ -2383,7 +2383,7 @@
    "id": "RP2 · turno",
    "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
    "v3": true,
-   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Valparaíso · Capital frenado\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Valparaíso · % del total\"}\n<<FIN>>\nEl capital frenado se concentra en Antofagasta: {{d1: $25K}}, el {{d2: 75%}} del total.",
+   "cierre": "<<HECHOS>>\n{\"id\":\"d1\",\"tipo\":\"ref\",\"de\":\"Valparaíso · Capital inmovilizado crítico\"}\n{\"id\":\"d2\",\"tipo\":\"ref\",\"de\":\"Valparaíso · % del total\"}\n<<FIN>>\nEl capital frenado se concentra en Antofagasta: {{d1: $25K}}, el {{d2: 75%}} del total.",
    "falsedades": [
     "Antofagasta: $25K"
    ],
@@ -2563,7 +2563,7 @@
    "id": "RA15 · turno",
    "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
    "v3": true,
-   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c23\"}\n<<FIN>>\nLo que sí tengo verificado: LG-DRYER8KG · Capital frenado: {r1}.",
+   "cierre": "<<HECHOS>>\n{\"id\":\"r1\",\"tipo\":\"ref\",\"de\":\"c23\"}\n<<FIN>>\nLo que sí tengo verificado: LG-DRYER8KG · Capital inmovilizado crítico: {r1}.",
    "falsedades": [],
    "verdadero": true,
    "modo": "turno",

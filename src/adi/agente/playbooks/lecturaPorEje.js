@@ -61,8 +61,19 @@ const EJES = [
    * pregunta por otra cifra, y darle capital sería contestarle otra cosa. */
   { eje: "sku_frenado", re: new RegExp(`\\bfrenad|\\binmoviliz|\\bsin rotaci[oó]n|\\bno rot(?:a|an)${_FIN}|\\bstock (?:lento|muerto|parado)${_FIN}|(?<!d[ií]as de )\\binventario${_FIN}|\\bstock${_FIN}`, "i"),
     pasos: [{ tool: "inventoryStatus", args: { focus: "frenado" }, para: "qué SKU tienen el capital frenado, con su monto, sus días de inventario y su rotación" }],
-    obligatorias: [/^Capital frenado · total$/i, /· Capital frenado$/i],
-    metrica: /· Capital frenado$/i, unidad: "capital frenado" },
+    /* RENOMBRE (owner 2026-09-28, §7.3·30-32, revisado en etapa 5 §7.3·30-34): «Capital frenado» → «Capital
+     * inmovilizado crítico» en el rótulo. `unidad` viaja DIRECTO a la prosa («Así viene tu ${unidad} por
+     * SKU…», línea ~230) — con «capital frenado» ahí, el binding semántico (R5) no encontraba ninguna fig
+     * cuyo label calzara y el turno caía a «vacío» (medido: `_certificacion_congelada_gate` p7). Pasó primero
+     * a «capital inmovilizado» a secas (sin «crítico», porque el bare «crítico» colisionaba con el canon
+     * «critico» del Notario, ligado a la alerta del archivo, R9). Ahora tiene que decir el nombre COMPLETO
+     * «capital inmovilizado crítico»: al nombrar «Capital inmovilizado crítico» como canon propio en
+     * `estados.js`, su nombre en `lexico.js` quedó como PREFIJO de «Capital inmovilizado» (canon amplio) —
+     * la «familia larga» de anclas.js (metrica-ajena) exige el nombre completo para desambiguar. La palabra
+     * «crítico» pegada a «inmovilizado» NO colisiona con el bare-«crítico» de la alerta: `estados.js` excluye
+     * esa forma con el lookbehind `(?<!inmoviliz[a-záéíóúñ]*\s)` en el canon «critico». */
+    obligatorias: [/^Capital (?:frenado|inmovilizado cr[ií]tico) · total$/i, /· Capital (?:frenado|inmovilizado cr[ií]tico)$/i],
+    metrica: /· Capital (?:frenado|inmovilizado cr[ií]tico)$/i, unidad: "capital inmovilizado crítico" },
   { eje: "canal", re: new RegExp(`\\bcanal(?:es)?${_FIN}`, "i"),
     pasos: [{ tool: "queryMetric", args: { metric: "ventas", dimension: "canal" }, para: "la venta por canal, con el nombre de cada canal y su cifra" }],
     obligatorias: [/· Ventas$/i],
@@ -127,8 +138,8 @@ const _delEje = (eje) => {
  * lee como top-k invertido («los 5 clientes que menos venden»). El verbo va por métrica porque «unidades vendidas»
  * dicho literal casa primero con la venta, no con las unidades. */
 const _UNIVERSO = { cliente: ["los", "clientes"], marca: ["las", "marcas"], familia: ["las", "familias"], bodega: ["las", "bodegas"], canal: ["los", "canales"] };
-const _universoDe = (eje, delEje) => (eje === "sku_frenado" || !_UNIVERSO[eje]) ? "los SKU frenados" : `${_UNIVERSO[eje][0]} ${delEje && delEje.size ? `${delEje.size} ` : ""}${_UNIVERSO[eje][1]}`;
-const _QUE_MENOS = { venta: "venden", margen: "margen dejan", capital: "capital tienen", "capital frenado": "capital frenado tienen", "unidades vendidas": "unidades mueven" };
+const _universoDe = (eje, delEje) => (eje === "sku_frenado" || !_UNIVERSO[eje]) ? "los SKU inmovilizados críticos" : `${_UNIVERSO[eje][0]} ${delEje && delEje.size ? `${delEje.size} ` : ""}${_UNIVERSO[eje][1]}`;
+const _QUE_MENOS = { venta: "venden", margen: "margen dejan", capital: "capital tienen", "capital inmovilizado": "capital inmovilizado tienen", "unidades vendidas": "unidades mueven" };
 /* el concepto del rótulo —lo que sigue a «Entidad · »—: la métrica con la que se declara cada cifra */
 const _metricaDe = (label) => String(label || "").split("·").slice(1).join("·").trim();
 
@@ -221,10 +232,12 @@ export const lecturaPorEje = {
      * frenado, se dice en la primera línea. Callarlo dejaría creer que ese ranking es todo su stock. */
     const partes = [];
     if (e.eje === "sku_frenado" && !_NOMBRA_FRENADO.test(String(pregunta || ""))) {
-      const recorte = `De tu inventario, lo que este dato publica es el capital que quedó frenado — no una foto del stock completo.`;
+      // MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): «frenado» → «inmovilizado crítico» — el tramo `capital_frenado`,
+      // no venta interrumpida (sin umbral evaluado en este corte).
+      const recorte = `De tu inventario, lo que este dato publica es el capital que quedó inmovilizado crítico — no una foto del stock completo.`;
       partes.push(recorte);
-      /* «lo que quedó frenado» nombra un ESTADO: el de los SKU que siguen en la lista, que la proyección declara frenados */
-      D.estado({ sujeto: filas.map((x) => x.entidad), estado: "frenado", texto: recorte });
+      /* «lo que quedó inmovilizado crítico» nombra un ESTADO: el de los SKU que siguen en la lista, que la proyección declara así */
+      D.estado({ sujeto: filas.map((x) => x.entidad), estado: "inmovilizado critico", texto: recorte });
     }
     const cabecera = `${/^unidades/i.test(e.unidad) ? `Así vienen tus ${e.unidad}` : `Así viene tu ${e.unidad}`} por ${e.eje === "sku_frenado" ? "SKU" : e.eje}${conRaw ? ", de mayor a menor" : ""}:`;
     partes.push(cabecera);

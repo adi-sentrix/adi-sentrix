@@ -412,6 +412,35 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   }
 }
 
+/* ── (18b) CARNADA · LA DETECCIÓN DE INCOHERENCIA SIGUE VIVA (owner 2026-09-28, corrección de datos de fábrica,
+ * §7.3·30-32) ── El dato de fábrica del demo y de empresa2 tenía 6 SKU con `vendidoMes` > 0 y `diasSinVenta` >
+ * el período de un mes (31d) a la vez — incoherente por construcción (más días sin venta que el largo del mes
+ * que `vendidoMes` cubre). Se corrigió el DATO (`vendidoMes: 0` en esos SKU; `diasSinVenta`/`rotacion`/`doh`/
+ * `stockUSD` intactos), así que el fixture del demo quedó 100% coherente — y sin un caso incoherente que
+ * ejercitarla, la rama "no se muestra el contraste" de `_hechoVenta` (mesaCapital.js) queda SIN PROBAR por este
+ * gate (podría romperse en silencio). Se inyecta un SKU sintético incoherente (mismo patrón que la carnada de
+ * "transferencia" más abajo: un tenant mutado, la MISMA función pública, sin tocar la detección) y se exige que
+ * la vista lo declare incoherente — NUNCA que muestre el contraste. */
+{
+  // BUG PROPIO CORREGIDO (owner 2026-09-28): `TENANT_DEMO` no está destructurado de `M` en este archivo (solo
+  // se usa `M.initTenant(M.TENANT_DEMO)` línea 34) — la primera versión de esta carnada usaba el identificador
+  // suelto `TENANT_DEMO` (ReferenceError, nunca corrida). Se referencia `M.TENANT_DEMO` explícito.
+  const incoherente = { ...M.TENANT_DEMO, skuInventario: M.TENANT_DEMO.skuInventario.map((s) =>
+    s.sku === M.TENANT_DEMO.skuInventario[0].sku ? { ...s, vendidoMes: 5, diasSinVenta: 45 } : s) };
+  const skuCarnada = M.TENANT_DEMO.skuInventario[0].sku;
+  M.initTenant(incoherente);
+  const mcInc = buildMesaCapital("bonanza");
+  const filaInc = mcInc.diasSinVenta && mcInc.diasSinVenta.filas.find((f) => f.sku === skuCarnada);
+  M.initTenant(M.TENANT_DEMO);   // restaurar ANTES de cualquier ok() — si una aserción de abajo lanza, el resto del gate sigue con el tenant real
+  ok(!!filaInc, "carnada-incoherencia-existe", `no se encontró la fila de ${skuCarnada} en días sin venta`);
+  if (filaInc) {
+    ok(filaInc.coherente === false, "carnada-incoherencia-detectada",
+      `vendidoMes=5 diasSinVenta=45 (>31) debía declararse incoherente; la vista dice coherente=${filaInc.coherente}`);
+    ok(!/unidades vendidas en el per[ií]odo · [uú]ltima venta/.test(filaInc.texto) && /no se muestra el contraste/.test(filaInc.texto),
+      "carnada-incoherencia-sin-contraste", filaInc.texto);
+  }
+}
+
 /* ── (19) LAS BARRAS · el reparto por SKU, sin corte silencioso (owner 2026-08-09, tras el dashboard Power BI) ──
  * El owner trajo dos gráficos y preguntó por el de barras azules: monto al final, unidades adentro, dos filtros.
  * Un gráfico de barras es la superficie MÁS FÁCIL de volver deshonesta sin querer: se dibujan los 10 primeros, el

@@ -127,9 +127,10 @@ const _PRODUCTOR_RESIDUAL = {
   // mesaFlujo.js (flujoComercial): SOLO cliente — marca/familia/sku/canal/bodega ⇒ concepto_sin_productor
   venta_credito: ["cliente"], saldo_vencido: ["cliente"], saldo_pendiente: ["cliente"], saldo_por_vencer: ["cliente"],
   abonado: ["cliente"], recuperado: ["cliente"], dias_vencido: ["cliente"],
-  // referencias de la POLICY/perfil (benchmark, nivel_carga, umbral_materialidad, piso_rotacion, techo_cobertura):
-  // «se citan, no se ordenan» (contrato §3.3) — ningún eje de entidad las produce como cifra puntual.
-  benchmark: [], nivel_carga: [], umbral_materialidad: [], piso_rotacion: [], techo_cobertura: [],
+  // referencias de la POLICY/perfil (benchmark, nivel_carga, umbral_materialidad, piso_rotacion, techo_cobertura,
+  // umbral_frenado — etapa 5, owner 2026-09-28, §7.3·30-34): «se citan, no se ordenan» (contrato §3.3) — ningún
+  // eje de entidad las produce como cifra puntual.
+  benchmark: [], nivel_carga: [], umbral_materialidad: [], piso_rotacion: [], techo_cobertura: [], umbral_frenado: [],
   // margen_promedio es un escalar del negocio (lexico.js: negocio:true) — sin eje de entidad propio.
   margen_promedio: [],
 };

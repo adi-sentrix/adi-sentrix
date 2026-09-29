@@ -787,7 +787,10 @@ const TABLE_INSTRUCTION_DECISION = "Tus cifras_autorizadas traen 2+ entidades co
 // el label salía VERBATIM a pantalla por el respaldo determinístico y CLAUDE.md §4 veta «detenido». La forma
 // VIEJA se conserva en la lista para que una boleta del camino legado —que todavía la emite— siga reconociéndose
 // y siga recibiendo su encabezado impuesto; el encabezado que se impone es SIEMPRE el que el ledger trae.
-const _CONCEPTOS_INVENTARIO = ["Capital inmovilizado", "Capital detenido", "Riesgo de quiebre", "Sobrestock", "Capital sano"];
+// RENOMBRE (owner 2026-09-28, §7.3·30-32, decisión 0.1 del diseño de inventario): el foco `frenado` pasó a
+// emitir «· Capital inmovilizado crítico» (antes «· Capital frenado»/«· Capital inmovilizado») — se agrega la
+// forma nueva; las viejas se conservan para boletas del camino legado que aún las emitan.
+const _CONCEPTOS_INVENTARIO = ["Capital inmovilizado crítico", "Capital inmovilizado", "Capital detenido", "Riesgo de quiebre", "Sobrestock", "Capital sano"];
 function _conceptoCapitalDeFigs(figs) {
   if (!_needsTableFormat(figs)) return null;
   if (!Array.isArray(figs)) return null;

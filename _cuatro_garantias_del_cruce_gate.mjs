@@ -134,7 +134,8 @@ H("3 · «la conclusión debe venir del análisis, no de la premisa del usuario.
   const r1 = await answerViaAgente({ text: Q1.pregunta, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
   ok(r1.r.agente.estado === "playbook" && /^No: los que más venden también están entre los que más contribución dejan: SAM-TV55/.test(r1.r.text), "★ el piso de Q1 abre «No: los que más venden también están entre los que más contribución dejan: SAM-TV55…»", r1.r.text.slice(0, 120));
   const r2 = await answerViaAgente({ text: Q2.pregunta, history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: MUDO });
-  ok(r2.r.agente.estado === "playbook" && /^No: entre los que más venden no aparece capital frenado/.test(r2.r.text), "★ el piso de Q2 abre «No: entre los que más venden no aparece capital frenado…»", r2.r.text.slice(0, 120));
+  // MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): crucePorSku.js ya no dice «capital frenado» (canon migrado) — dice «inmovilizado».
+  ok(r2.r.agente.estado === "playbook" && /^No: entre los que más venden no aparece inmovilizado/.test(r2.r.text), "★ el piso de Q2 abre «No: entre los que más venden no aparece inmovilizado…»", r2.r.text.slice(0, 120));
   const d1 = B1.pb.conclusiones(B1.figs, Q1.pregunta);
   ok(/CONCLUSIÓN DEL PROCEDIMIENTO/.test(d1) && /es FALSA en este dato/.test(d1) && /en vez de abrir con «sí»/i.test(d1), "la doctrina que viaja al cerebro declara la premisa FALSA y manda abrir con «No: …» en vez de «sí»", d1.slice(0, 200));
   ok(/es FALSA en este dato/.test(B2.pb.conclusiones(B2.figs, Q2.pregunta)), "…y en Q2 igual (la premisa «más venden = más capital» es falsa en el demo)");

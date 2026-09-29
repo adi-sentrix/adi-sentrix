@@ -297,7 +297,8 @@ if (fs.existsSync(COMPLETA)) {
         `c11 · los 3 riesgos, la venta cayendo primero (${a.estado})`);
       // (la OFERTA, medida como conducta desde la voz ejecutiva del owner 2026-09-03: pregunta o «si te
       //  parece/si quieres», y ninguna orden — el cierre pasó a ser UNO solo, priorizado)
-      ok(/Capital frenado en inventario: \$38\.1M/.test(t) && /encabeza ELE-CAB25/.test(t)
+      // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «Capital frenado en inventario» → «Capital inmovilizado en inventario».
+      ok(/Capital inmovilizado en inventario: \$38\.1M/.test(t) && /encabeza ELE-CAB25/.test(t)
         && (/¿[^?]{0,80}\?/.test(t) || /si (?:quieres|te parece)/i.test(t)) && !/ten[eé]s que|hay que\b/i.test(t),
         "c11 · QUÉ·DÓNDE·PRIMERO con cifras del negocio — ofertas, jamás órdenes");
     } },
@@ -331,7 +332,8 @@ if (fs.existsSync(PARCIAL)) {
         `p6 · NO-DEGRADACIÓN: el margen funciona igual con el dato incompleto (${a.estado})`);
     } },
     { q: "qué SKU tienen capital frenado", check: (a, t) => {
-      ok(a.estado === "playbook" && /ELE-CAB25/.test(t) && /Capital frenado/i.test(t), `p7 · NO-DEGRADACIÓN: el frenado responde por SKU (${a.estado})`);
+      // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «Capital frenado» → «capital inmovilizado» en la prosa narrada.
+      ok(a.estado === "playbook" && /ELE-CAB25/.test(t) && /capital inmovilizado/i.test(t), `p7 · NO-DEGRADACIÓN: el frenado responde por SKU (${a.estado})`);
     } },
     { q: "cuánto me compró Easy el último mes", check: (a, t) => {
       // sin «$»: la planilla parcial no declara símbolo de moneda y el formateador respeta SU archivo

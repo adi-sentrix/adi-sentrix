@@ -54,7 +54,9 @@ ok("sobrestock → NO lidera con 'capital inmovilizado'", !/^Ten[eé]s .* capita
 // stale (+90 días) — antes DEGRADABA a "supuesto no habilitado"; ahora responde
 const rT = ans(S({ operation: "inventory", metric: "capital", dimension: "sku", focus: "stale", staleDays: 90 }));
 ok("stale → responde 'sin una sola venta en más de 90 días' (NO degrada a simulación)", /90 d[ií]as/i.test(rT) && !/no est[aá] habilitado|supuesto/i.test(rT));
-ok("stale → identifica 2 SKU parados +90d", (() => { const m = rT.match(/Hay (\d+) SKU sin una sola venta/i); return m && Number(m[1]) === 2; })());
+// RENOMBRE (owner 2026-09-28, §7.3·30-32, diseño §3.4): con staleDays explícito, el umbral es "planteado en la
+// consulta" y el foco `stale` pasa a hablar de VENTA FRENADA (no ya "SKU sin una sola venta" a secas).
+ok("stale → identifica 2 SKU con venta frenada +90d", (() => { const m = rT.match(/hay (\d+) SKU con la venta frenada/i); return m && Number(m[1]) === 2; })());
 
 // Q4 EXACTO como llega del LLM en vivo: operation inventory + transform{unit:days} → el guard pct-only NO lo hijackea a simular
 const rT2 = ans(S({ operation: "inventory", metric: "capital", dimension: "sku", focus: "stale", staleDays: 90, transform: { kind: "assumption", op: "delta", value: 90, unit: "days", base: "real" } }));

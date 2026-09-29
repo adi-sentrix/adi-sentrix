@@ -112,6 +112,22 @@ for (const angulo of ANGULOS_TURNO) {
 }
 
 /* ═══ hechos (canal 1) ═══ */
+/* HISTÓRICO (owner 2026-09-28, §7.3·34b, migración de significado de «frenado», etapa 5): estos 9 casos
+ * de hechos.json declaran `estado: "frenado"` esperando «verdadera» bajo el significado ANTERIOR (tramo
+ * capital_frenado, verificable sin umbral). Con el canon nuevo «frenado» = venta interrumpida, SOLO
+ * verificable con un umbral declarado (empresa o consulta) — este escenario no lo declara, así que el
+ * veredicto correcto es «no-verificable», no «verdadera». No se re-etiquetan ni se borran: se excluyen del
+ * conteo, congelados contra el significado histórico que probaban. t15-control-inventario-4 arrastra además
+ * h5 y h7: h7 se apoya explícitamente en h1 (frenado) y por transitividad queda «no-verificable»; h5 cambió
+ * de veredicto porque publicar la fig nueva «Capital inmovilizado · subtotal» (línea 463 de datoProyectado.js,
+ * necesaria para el canon «inmovilizado» de esta misma migración) corrió el id numérico de la fig que h5
+ * referenciaba por posición — mismo origen: esta migración, no un bug aparte. */
+const HISTORICOS_HECHOS_FRENADO = new Set([
+  "e01-estado-bodega-falsa h4", "t06-control-inventario-1 h4", "t06-control-inventario-1 h5",
+  "t07-control-inventario-2 h5", "t08-control-integrada h3", "t12-control-inventario-3 h5",
+  "x02-estado-negado-inventario h3", "x15-excluir-bodega-en-eje-bodega h3", "x15-excluir-bodega-en-eje-bodega h4",
+  "t15-control-inventario-4 h1", "t15-control-inventario-4 h5", "t15-control-inventario-4 h7",
+]);
 if (!solo || solo.has("hechos")) {
   const F = leer("hechos.json");
   for (const c of (F.casos || F)) {
@@ -127,6 +143,7 @@ if (!solo || solo.has("hechos")) {
       if (H.derivadoDe) continue;
       if (vistosId.has(H.id)) continue; vistosId.add(H.id);   /* un id repetido: solo el primero entra al libro */
       const e = esp[H.id]; if (!e) continue;
+      if (HISTORICOS_HECHOS_FRENADO.has(`${c.id} ${H.id}`)) { cuenta("hechos", "excluidos"); console.log(`  ❄ HISTÓRICO · ${c.id} ${H.id} — congelado (frenado-regla-de-rotacion, §7.3·34b), no se juzga contra el canon vigente`); continue; }
       cuenta("hechos", "hechos");
       const esperadoVerdadero = /^(?:verdadera|sellada)$/.test(e);
       const salioVerdadero = H.veredicto === "verdadera" || H.veredicto === "sellada";

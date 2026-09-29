@@ -97,7 +97,8 @@ const _TIPOS = {
       { tool: "inventoryStatus", args: {}, para: "el capital frenado: el lado del monto, en dinero" },
       { tool: "queryMetric", args: { metric: "doh", dimension: "sku" }, para: "los días de inventario por SKU: el lado del tiempo, que es el que el monto no muestra" },
     ],
-    lados: [/^Capital frenado · total$|^Estado del inventario: capital frenado$/i, /\(DOH\)$|d[ií]as de inventario$/i],
+    // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «Capital frenado» → «Capital inmovilizado crítico».
+    lados: [/^Capital (?:frenado|inmovilizado cr[ií]tico) · total$|^Estado del inventario: capital (?:frenado|inmovilizado cr[ií]tico)$/i, /\(DOH\)$|d[ií]as de inventario$/i],
   },
 };
 
@@ -284,7 +285,7 @@ export const contradiccionDeMetricas = {
     }
 
     /* ── (d) INVENTARIO · «bajo en monto pero alto en días» ───────────────────────────────────────────────── */
-    const frenado = _find(figs, /^Capital frenado · total$|^Estado del inventario: capital frenado$/i);
+    const frenado = _find(figs, /^Capital (?:frenado|inmovilizado cr[ií]tico) · total$|^Estado del inventario: capital (?:frenado|inmovilizado cr[ií]tico)$/i);
     const dias = _all(figs, /\(DOH\)$|d[ií]as de inventario$/i)
       .map((f) => ({ n: _lab(f).split("·")[0].trim(), v: _ord(f), fmt: _val(f), f }))
       .filter((x) => x.n && Number.isFinite(x.v)).sort((a, b) => b.v - a.v);

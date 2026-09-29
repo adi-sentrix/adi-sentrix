@@ -193,10 +193,11 @@ function _recuperado(figs, D) {
 }
 
 /* ── INVENTARIO ── */
+// RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «Capital frenado» → «Capital inmovilizado crítico».
 function _participacionFrenado(figs, D) {
-  const idTotal = D.ref(_find(figs, /^Capital frenado · total$/i));
+  const idTotal = D.ref(_find(figs, /^Capital (?:frenado|inmovilizado cr[ií]tico) · total$/i));
   if (idTotal == null) return null;
-  const filas = _all(figs, /· Capital frenado$/i).filter((f) => !/^Capital frenado · total$/i.test(_lab(f)));
+  const filas = _all(figs, /· Capital (?:frenado|inmovilizado cr[ií]tico)$/i).filter((f) => !/^Capital (?:frenado|inmovilizado cr[ií]tico) · total$/i.test(_lab(f)));
   const conRaw = filas.map((f) => ({ f, entidad: _entidadDe(_lab(f)), raw: Number.isFinite(f.raw) ? f.raw : null })).filter((x) => x.entidad && x.raw != null && x.raw > 0);
   if (conRaw.length < 2) return null;
   conRaw.sort((a, b) => b.raw - a.raw);

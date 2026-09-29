@@ -33,7 +33,11 @@ export const PREDICADOS_CERRADOS = Object.freeze([
   { predicado: "cuenta.contraparte_cadena", sujeto: "cuenta", disponible: false, fuente: "Ficha — confirmación del usuario, no integrada todavía (plan §7)" },
   { predicado: "cuenta.contraparte_comercio", sujeto: "cuenta", disponible: false, fuente: "idem" },
   { predicado: "cuenta.grupo_declarado", sujeto: "cuenta", disponible: false, fuente: "Ficha + mapa IMP-05, no integrado todavía" },
-  { predicado: "sku.frenado", sujeto: "sku", disponible: true, fuente: "inventoryStatus{focus:\"frenado\"} — Mesa Capital" },
+  // RENOMBRE (owner 2026-09-28, §7.3·30-32, decisión 0.1 del diseño de inventario): antes → `sku.frenado`; ahora
+  // → `sku.inmovilizado_critico` — su significado es y siempre fue el DETECTOR (`capital_frenado`, rotación bajo
+  // el piso o días sobre el techo). `sku.frenado` queda LIBRE para la venta frenada (etapa 5, sin umbral
+  // declarado hoy no hay con qué evaluarlo — no se siembra ese predicado en esta etapa).
+  { predicado: "sku.inmovilizado_critico", sujeto: "sku", disponible: true, fuente: "inventoryStatus{focus:\"frenado\"} — Mesa Capital" },
   { predicado: "sku.top_seller", sujeto: "sku", disponible: true, fuente: "inventoryStatus{focus:\"top_sellers\"} — orden por Venta, el mismo cruce de crucePorSku.js" },
   { predicado: "sku.estado_critico", sujeto: "sku", disponible: true, fuente: "Mesa Capital (mesaCapital.js CAPITAL_ESTADOS) — estado \"critico\"" },
   { predicado: "periodo.abierto", sujeto: "periodo", disponible: true, fuente: "figureType.periodoDeFiguras — tipo distinto de \"cerrado\" (el mismo campo que ya declara el Marco de la Entrega)" },
@@ -113,7 +117,7 @@ export function evaluarPredicadoAtomico(predicado, entidad, tabla, ctx = {}) {
     const s = tabla && tabla.skus && entidad ? tabla.skus[entidad] : null;
     if (!s) return null;
     switch (predicado) {
-      case "sku.frenado": return s.frenado;
+      case "sku.inmovilizado_critico": return s.inmovilizadoCritico;
       case "sku.top_seller": return s.topSeller;
       case "sku.estado_critico": return s.estado === "critico";
       default: return null;

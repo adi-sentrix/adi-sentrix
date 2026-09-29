@@ -30,6 +30,7 @@ import {
 } from "../../engine/metrics.js";
 import { scanMechanisms } from "./thesis.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
+import { jerarquiaInventario } from "../diagnosis/economicDiagnosis.js";   // owner 2026-09-28 §7.3·30-32: reveal "sku_operational" lee J, no el predicado ad hoc
 
 // ── classifySkuOperationalProfile · clasificación perfil SKU (monolito L11476) ──
 function classifySkuOperationalProfile(sku) {
@@ -70,8 +71,11 @@ function _buildHiddenAngleCifras(reveal, scenarioId) {
       // Reusa lógica de _detectExecutiveActions (N.B.1) · NO duplica helper.
       // SKUs operational_inefficient · top 3 por stockUSD descendente.
       const inv = applyScenarioToSkuInventario(scenarioId);
+      // LEE `jerarquiaInventario` (owner 2026-09-28, §7.3·30-32): antes mezclaba la alerta del archivo (R9) con
+      // el texto crudo `estado !== "Activo"` (R2) — ahora `J.inmovilizado` es la única definición.
+      const _inmovSet = new Set(jerarquiaInventario(inv).inmovilizado.skus);
       const critical = inv
-        .filter(s => s.alerta === "crit" || s.alerta === "warn" || s.estado !== "Activo")
+        .filter(s => _inmovSet.has(s.sku))
         .sort((a, b) => (b.stockUSD || 0) - (a.stockUSD || 0))
         .slice(0, 4);
       const op = critical.filter(s => classifySkuOperationalProfile(s) === "operational_inefficient").slice(0, 3);

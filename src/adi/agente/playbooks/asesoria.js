@@ -253,18 +253,24 @@ export const inventarioInmovilizado = {
     return _B_TEMA.test(q) && _B_ESTADO.test(q) && _B_ASESORIA.test(q);
   },
   pasos: [
-    { tool: "inventoryStatus", args: { focus: "frenado" }, para: "cuánto capital está frenado y en qué SKU, con los días de inventario y la rotación de cada uno" },
+    { tool: "inventoryStatus", args: { focus: "frenado" }, para: "cuánto capital está inmovilizado crítico y en qué SKU, con los días de inventario y la rotación de cada uno" },
   ],
-  obligatorias: [/^Capital frenado · total$/i, /· Capital frenado$/i],
-  entregable: "cuánto capital está frenado (y si es material para este negocio, con el umbral declarado), en qué SKU está, y cuál abrir primero — ofrecido con su cifra, jamás ordenado. Se localiza dónde; el porqué de cada freno no está en este dato.",
+  /* RENOMBRE DE ROTULO (owner 2026-09-28, §7.3·30-34, decisión 0.1 del diseño de inventario): antes → «Capital
+   * frenado»; ahora → «Capital inmovilizado crítico» (el fig de total) / «· Capital inmovilizado crítico» (el fig
+   * por SKU) — `_ESTADO_LABEL.capital_frenado` en `specRetrieval.js`. Razón: «frenado» queda reservada para venta
+   * interrumpida (días sin venta sobre un umbral DECLARADO); sin umbral, el agente no puede recibir «frenado» como
+   * veredicto. La palabra Notario-interna (más abajo, `D.estado`) SÍ se migra acá (etapa 5): pasa de `"frenado"` a
+   * `"inmovilizado critico"` — el canon nuevo que `datoProyectado.js` declara en `I.estados` SKU por SKU. */
+  obligatorias: [/^Capital inmovilizado cr[ií]tico · total$/i, /· Capital inmovilizado cr[ií]tico$/i],
+  entregable: "cuánto capital está inmovilizado crítico (y si es material para este negocio, con el umbral declarado), en qué SKU está, y cuál abrir primero — ofrecido con su cifra, jamás ordenado. Se localiza dónde; el porqué de cada uno no está en este dato.",
   componer({ figs, semilla, pregunta, declarar } = {}) {
-    const total = _find(figs, /^Capital frenado · total$/i);
+    const total = _find(figs, /^Capital inmovilizado cr[ií]tico · total$/i);
     if (!total) return null;
     const dias = new Map(_all(figs, /· D[ií]as de inventario$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
     const rota = new Map(_all(figs, /· Rotaci[oó]n$/i).map((f) => [_entidadDe(_lab(f)), _val(f)]));
-    /* «X · Capital frenado» mezcla bodegas y SKU bajo el MISMO label: la pertenencia separa (la técnica de
-     * lectura-por-eje) — es SKU quien además trae días de inventario o rotación; la bodega no los tiene. */
-    const skus = _all(figs, /· Capital frenado$/i)
+    /* «X · Capital inmovilizado crítico» mezcla bodegas y SKU bajo el MISMO label: la pertenencia separa (la
+     * técnica de lectura-por-eje) — es SKU quien además trae días de inventario o rotación; la bodega no los tiene. */
+    const skus = _all(figs, /· Capital inmovilizado cr[ií]tico$/i)
       .map((f) => ({ entidad: _entidadDe(_lab(f)), usd: _num(f), fmt: _val(f) }))
       .filter((x) => x.entidad && Number.isFinite(x.usd) && (dias.has(x.entidad) || rota.has(x.entidad)))
       .sort((a, b) => b.usd - a.usd);
@@ -272,51 +278,61 @@ export const inventarioInmovilizado = {
     const piso = _piso();
     const esMaterial = Number.isFinite(_num(total)) && piso > 0 ? _num(total) >= piso : true;
     /* EL NOTARIO SEMÁNTICO (fase 2): el total es una cifra del negocio (universo «total»); «está bajo el umbral» es el total MENOR que la
-     * referencia declarada en dinero, con las dos cifras del umbral; la lista es el top-k de Capital frenado entre los SKU frenados, cada
-     * línea con sus tres cifras y su estado; «cada uno está frenado» es el estado de los listados; «el mayor» es el máximo entre los frenados
-     * y «$14K de $33K» una parte del total. */
+     * referencia declarada en dinero, con las dos cifras del umbral; la lista es el top-k de Capital inmovilizado crítico entre esos SKU, cada
+     * línea con sus tres cifras y su estado; «cada uno está inmovilizado crítico» es el estado de los listados; «el mayor» es el máximo entre
+     * ellos y «$14K de $33K» una parte del total. */
     const D = declaradorDe(declarar);
     const U_SKU = _universo("sku", "SKU");
-    const U_FRENADOS = "los SKU frenados";
+    /* MIGRACIÓN SEMÁNTICA DEL NOTARIO, ETAPA 5 (owner 2026-09-28, §7.3·30-34): acá SÍ se completa lo que la etapa 4
+     * dejó pendiente («la migración semántica del Notario es la etapa 5, no esta»). `U_FRENADOS`/`estado`/
+     * `predicado` pasan de «frenado(s)» a «inmovilizado(s) crítico(s)» — el canon nuevo que `estados.js` declara
+     * para el tramo `capital_frenado` (`datoProyectado.js` ya lo publica como `estado: "inmovilizado critico"`).
+     * «frenado» queda reservado para venta interrumpida con umbral declarado: declararlo acá para estos SKU (que
+     * no tienen ese umbral evaluado en este playbook) dejaría la afirmación no verificable. */
+    const U_FRENADOS = "los SKU inmovilizados críticos";
     const [uPct, uUsd] = _figsUmbral(figs);
     const partes = [];
     // LA VOZ (2026-09-03): «Capital inmovilizado (frenado): $X.» rotulaba; el asesor lo dice.
-    /* la cifra es el capital FRENADO (rotación bajo el piso / días sobre el techo), subconjunto del inmovilizado amplio: se nombra por lo que es (owner 2026-09-15) */
-    const l0 = `Tienes ${_val(total)} de capital frenado — stock que no está rotando.${esMaterial ? "" : ` Está ${_fraseUmbral() || "bajo el umbral de materialidad de tu negocio"} — no es tu incendio de hoy.`}`;
+    /* LA PROSA NO DICE «crítico» SUELTO (owner 2026-09-28, hallazgo al correr `_cobertura_del_encargo_gate`): la
+     * palabra colisiona con el canon «critico» del Notario (estados.js, ligado hoy a la alerta del archivo, R9 —
+     * migrarlo es la etapa 5) y el muro la marca «afirmación no declarada». El RÓTULO de la boleta SÍ dice
+     * «Capital inmovilizado crítico» (`_rotulo_frenado_gate` lo prueba verde); la PROSA narrada dice
+     * «inmovilizado» a secas, que el Notario YA verifica correctamente (datoProyectado declara ese estado). */
+    const l0 = `Tienes ${_val(total)} de capital inmovilizado — stock que no está rotando.${esMaterial ? "" : ` Está ${_fraseUmbral() || "bajo el umbral de materialidad de tu negocio"} — no es tu incendio de hoy.`}`;
     partes.push(l0);
-    D.cifra({ sujeto: "negocio", metrica: "Capital frenado", valor: _val(total), universo: "total", texto: l0 });
+    D.cifra({ sujeto: "negocio", metrica: "Capital inmovilizado crítico", valor: _val(total), universo: "total", texto: l0 });
     if (!esMaterial) {
-      if (uUsd) D.relacion({ sujeto: "negocio", metrica: "Capital frenado", forma: "menor", vs: { sujeto: "negocio", metrica: _lab(uUsd) }, texto: l0 });
+      if (uUsd) D.relacion({ sujeto: "negocio", metrica: "Capital inmovilizado crítico", forma: "menor", vs: { sujeto: "negocio", metrica: _lab(uUsd) }, texto: l0 });
       if (uPct) D.deFig(uPct, l0);
       if (uUsd) D.deFig(uUsd, l0);
     }
     const top = skus.slice(0, 4);
     const cab = `Dónde está:`;
     partes.push(`\n${cab}`);
-    D.orden({ sujeto: top.map((s) => s.entidad), metrica: "Capital frenado", forma: "topk", k: top.length, direccion: "mayor", universo: U_FRENADOS, texto: cab });
-    if (skus.length <= top.length) D.conteo({ n: skus.length, predicado: "frenados", universo: U_SKU, sujeto: top.map((s) => s.entidad), texto: cab });   // la lista es completa: dónde está el capital frenado son estos
+    D.orden({ sujeto: top.map((s) => s.entidad), metrica: "Capital inmovilizado crítico", forma: "topk", k: top.length, direccion: "mayor", universo: U_FRENADOS, texto: cab });
+    if (skus.length <= top.length) D.conteo({ n: skus.length, predicado: "inmovilizados críticos", universo: U_SKU, sujeto: top.map((s) => s.entidad), texto: cab });   // la lista es completa: dónde está el capital inmovilizado crítico son estos
     for (const s of top) {
       /* cada cifra pegada a su concepto: «$14K (165d · rotación 1.0x)» dejaba el monto huérfano y el muro lo
        * leía atribuido a la rotación — el dueño de cada número se nombra al lado del número. */
       const extra = [dias.get(s.entidad) ? `${dias.get(s.entidad)} de inventario` : null, rota.get(s.entidad) ? `rotación ${rota.get(s.entidad)}` : null].filter(Boolean).join(" · ");
-      const l = `- ${s.entidad} · capital frenado ${s.fmt}${extra ? ` · ${extra}` : ""}`;
+      const l = `- ${s.entidad} · capital inmovilizado ${s.fmt}${extra ? ` · ${extra}` : ""}`;
       partes.push(l);
-      D.cifra({ sujeto: s.entidad, metrica: "Capital frenado", valor: s.fmt, texto: l });
-      D.estado({ sujeto: s.entidad, estado: "frenado", texto: l });
+      D.cifra({ sujeto: s.entidad, metrica: "Capital inmovilizado crítico", valor: s.fmt, texto: l });
+      D.estado({ sujeto: s.entidad, estado: "inmovilizado critico", texto: l });
       if (dias.get(s.entidad)) D.cifra({ sujeto: s.entidad, metrica: "Días de inventario", valor: dias.get(s.entidad), texto: l });
       if (rota.get(s.entidad)) D.cifra({ sujeto: s.entidad, metrica: "Rotación", valor: rota.get(s.entidad), texto: l });
     }
     if (skus.length > top.length) {
-      const l = `(${top.length} de ${skus.length} SKU con capital frenado.)`;
+      const l = `(${top.length} de ${skus.length} SKU con capital inmovilizado.)`;
       partes.push(l);
-      D.conteo({ n: skus.length, predicado: "frenados", universo: U_SKU, sujeto: top.map((s) => s.entidad), texto: l });   // los listados son parte de los N frenados; el «4» es el corte de la lista, no un hecho del dato
+      D.conteo({ n: skus.length, predicado: "inmovilizados críticos", universo: U_SKU, sujeto: top.map((s) => s.entidad), texto: l });   // los listados son parte de los N; el «4» es el corte de la lista, no un hecho del dato
     }
-    const lPorQue = `Por qué cada uno está frenado no está en este dato: queda localizado, no explicado.`;
+    const lPorQue = `Por qué cada uno está inmovilizado no está en este dato: queda localizado, no explicado.`;
     partes.push(`\n${lPorQue}`);
-    D.estado({ sujeto: top.map((s) => s.entidad), estado: "frenado", texto: lPorQue });
+    D.estado({ sujeto: top.map((s) => s.entidad), estado: "inmovilizado critico", texto: lPorQue });
     const cierre = esMaterial
       ? (skus.length === 1
-        ? `Si quieres, empiezo por ${top[0].entidad}: es el único con capital frenado. Dime y lo abrimos.`
+        ? `Si quieres, empiezo por ${top[0].entidad}: es el único con capital inmovilizado. Dime y lo abrimos.`
         : variante(semilla, [
           `Si quieres, empiezo por ${top[0].entidad}: es el mayor (${top[0].fmt} de ${_val(total)}). Dime y lo abrimos.`,
           `El mayor es ${top[0].entidad} (${top[0].fmt} de ${_val(total)}) — ¿lo abrimos?`,
@@ -324,13 +340,13 @@ export const inventarioInmovilizado = {
         ]))
       : `Si igual quieres verlo, empiezo por ${top[0].entidad}, que es el mayor. Dime y lo abrimos.`;
     partes.push(cierre);
-    if (skus.length === 1) D.conteo({ n: 1, predicado: "frenados", universo: U_SKU, sujeto: [top[0].entidad], texto: cierre });
+    if (skus.length === 1) D.conteo({ n: 1, predicado: "inmovilizados críticos", universo: U_SKU, sujeto: [top[0].entidad], texto: cierre });
     else {
-      D.orden({ sujeto: top[0].entidad, metrica: "Capital frenado", forma: "max", universo: U_FRENADOS, texto: cierre });
+      D.orden({ sujeto: top[0].entidad, metrica: "Capital inmovilizado crítico", forma: "max", universo: U_FRENADOS, texto: cierre });
       if (esMaterial) {
-        D.cifra({ sujeto: top[0].entidad, metrica: "Capital frenado", valor: top[0].fmt, texto: cierre });
-        D.cifra({ sujeto: "negocio", metrica: "Capital frenado", valor: _val(total), universo: "total", texto: cierre });
-        D.relacion({ sujeto: top[0].entidad, metrica: "Capital frenado", forma: "parte", vs: "negocio", texto: cierre });
+        D.cifra({ sujeto: top[0].entidad, metrica: "Capital inmovilizado crítico", valor: top[0].fmt, texto: cierre });
+        D.cifra({ sujeto: "negocio", metrica: "Capital inmovilizado crítico", valor: _val(total), universo: "total", texto: cierre });
+        D.relacion({ sujeto: top[0].entidad, metrica: "Capital inmovilizado crítico", forma: "parte", vs: "negocio", texto: cierre });
       }
     }
     /* LA LEY DEL PORQUÉ (owner 2026-09-09): el inventario NO trae la causa de un freno —está declarado en la
@@ -348,7 +364,7 @@ export const inventarioInmovilizado = {
     for (const o of t.split(/[.!?\n]+/)) {
       if (!new RegExp(`\\bporque\\b|\\bse debe a\\b|\\bla causa (?:es|est[aá])${_FIN}`, "i").test(o)) continue;
       if (!MEC.test(o) && !CIFRA.test(o)) {
-        v.push({ regla: "causa-sin-respaldo", multa: "afirmas por qué está frenado y este dato no lo declara: localiza (qué SKU y cuánto) o di que la causa no está medida." });
+        v.push({ regla: "causa-sin-respaldo", multa: "afirmas por qué está inmovilizado crítico y este dato no lo declara: localiza (qué SKU y cuánto) o di que la causa no está medida." });
         break;
       }
     }

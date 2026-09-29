@@ -68,7 +68,8 @@ export const prioridadPorLente = {
    * retiraba en silencio y el turno degradaba a la línea del límite). */
   obligatorias(pregunta) {
     const c = _criterio(pregunta);
-    if (c) return { riesgo: [/· Contribución no capturada$/i, /· Saldo vencido$/i], contribucion: [/· Contribución no capturada$/i], credito: [/· Saldo vencido$/i], ventas: [/· Venta(?: (flujo))?$/i], crecimiento: [/· YoY$/i], capital: [/· Capital frenado$/i] }[c.criterio] || [];
+    // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «Capital frenado» → «Capital inmovilizado crítico».
+    if (c) return { riesgo: [/· Contribución no capturada$/i, /· Saldo vencido$/i], contribucion: [/· Contribución no capturada$/i], credito: [/· Saldo vencido$/i], ventas: [/· Venta(?: (flujo))?$/i], crecimiento: [/· YoY$/i], capital: [/· Capital (?:frenado|inmovilizado cr[ií]tico)$/i] }[c.criterio] || [];
     if (_pideTesoreria(pregunta)) return [/· Saldo vencido$/i];
     return [];
   },

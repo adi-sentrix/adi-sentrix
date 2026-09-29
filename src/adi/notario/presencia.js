@@ -138,8 +138,13 @@ function _cubrePorClase(p, a, s, nombres) {
   return _CUBRE[p.clase].has(a.tipo);
 }
 const _METRICA_DE_VARIACION_G = /yoy|variaci|crecim|ca[ií]da|vs\s+a[ñn]o\s+anterior|contra\s+el\s+a[ñn]o\s+anterior/i;
-/* «$14K de capital frenado» cubre el punto «frenado» de su oración, no «riesgo de quiebre»; «3 SKU con capital frenado» tampoco cubre «capital sano» */
-const _ESTADO_LO_CUBRE = (dicho, declarado) => dicho === declarado || (dicho === "inmovilizado" && (declarado === "frenado" || declarado === "sobrestock"));
+/* «$14K de capital inmovilizado crítico» cubre el punto «inmovilizado» de su oración, no «riesgo de quiebre»; «3 SKU inmovilizados críticos»
+ * tampoco cubre «capital sano». MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): antes «declarado === "frenado"» — ese canon ahora significa
+ * venta interrumpida, no el tramo Mesa Capital; el tramo se declara con «inmovilizado critico» (estados.js). Misma tabla que
+ * `estadosCompatibles` (estados.js) — duplicada acá a propósito (presencia.js no la importa; ver la cabecera del archivo, «nunca dos tablas que
+ * puedan divergir» es la doctrina, pero esta función tiene una firma distinta —dicho/declarado en vez de a/b simétrico— así que se mantiene
+ * local y se actualiza junto con la otra). */
+const _ESTADO_LO_CUBRE = (dicho, declarado) => dicho === declarado || (dicho === "inmovilizado" && (declarado === "inmovilizado critico" || declarado === "sobrestock"));
 /* el estado canónico de un punto: el dicho, o su contrario si la prosa lo niega («no está al día» = «en mora») */
 const _estadoDelPunto = (p) => { const d = estadoCanon(p.span); if (p.negadoEstado) { const c = complementoDe(d); return c || d; } return d; };
 function _estadoCubierto(span, a, p = null) {
@@ -160,7 +165,7 @@ function _estadoCubierto(span, a, p = null) {
   const descripcion = a.sujeto && typeof a.sujeto === "object" ? a.sujeto.descripcion : "";
   const textoDecl = normalizar([a.tipo === "orden" || a.tipo === "relacion" ? "" : a.metrica, a.conteo && a.conteo.predicado, a.estado && a.estado.estado, universoTexto, baseTexto, descripcion, a.tipo === "cifra" ? "" : a.metrica].filter(Boolean).join(" "));
   if (!textoDecl) return false;
-  if (_ESTADOS_DE_LA_CASA.has(dicho)) { const enDecl = [...textoDecl.matchAll(new RegExp(ESTADO_NOMBRADO_SRC, "g"))].map((m) => estadoCanon(m[0])); return enDecl.includes(dicho) || (dicho === "inmovilizado" && enDecl.some((e) => e === "frenado" || e === "sobrestock")); }
+  if (_ESTADOS_DE_LA_CASA.has(dicho)) { const enDecl = [...textoDecl.matchAll(new RegExp(ESTADO_NOMBRADO_SRC, "g"))].map((m) => estadoCanon(m[0])); return enDecl.includes(dicho) || (dicho === "inmovilizado" && enDecl.some((e) => e === "inmovilizado critico" || e === "sobrestock")); }
   /* «sin venta», «sin movimiento», «sin vencido», «por vencer»: la métrica o el predicado tienen que decirlo */
   const clave = normalizar(span).replace(/^sin\s+/, "").replace(/^por\s+/, "");
   return textoDecl.includes(clave);

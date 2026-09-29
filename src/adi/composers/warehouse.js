@@ -2,12 +2,25 @@
  * ADI conversacional extraído de 41cc33d8 · verbatim · solo imports agregados.
  * Importa motor (engine/) + datos/config sellados. Cero cambio de cálculo. */
 import { FEATURE_CMP_DOH_FIX, FEATURE_ENTITY_COMPARISON, FEATURE_WAREHOUSE_AS_ENTITY } from "../../config/features.js";
-import { ADI_CAPITAL_CIFRA_REAL_ENABLED, ADI_CAPITAL_DEF_CANONICA_ENABLED } from "../../config/voiceFlags.js";
+import { ADI_CAPITAL_DEF_CANONICA_ENABLED } from "../../config/voiceFlags.js";
 import { SUCURSALES } from "../../data/catalogs.js";
 import { clientesMargen, skuInventario } from "../../data/demoData.js";
 import { applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { buildResponseContract, filterTextualSuggestions } from "../helpers.js";
 import { simboloMoneda } from "../../config/moneda.js";
+import { diagnoseInventarioSku } from "../diagnosis/economicDiagnosis.js";   // owner 2026-09-28 §7.3·30-32: "lentos" pasa a leer el estado real del motor (sobrestock), no el literal doh>60
+
+/* RETIRO DE «L60» Y RENOMBRE DE «Def2» (owner 2026-09-28, §7.3·30-32, diseño §8.4/R3-R4):
+ *   · «L60» (días sin venta > 60, fijo en el código) SE RETIRA como regla de ADI — nunca fue un criterio
+ *     declarado, era un número escrito a mano. `ADI_CAPITAL_DEF_CANONICA_ENABLED` es `true` SIEMPRE (constante,
+ *     no un flag de perfil) desde antes de esta etapa, así que las ramas que dependían de L60
+ *     (`inmovilizadoUSD`/`inmovilizadoTotalCartera`, la rama `_capRealOn`/el fallback plano de `_valFor` y
+ *     `_baseCartera`) eran código MUERTO — se retiran acá, no solo se renombran.
+ *   · «Def2» (`alerta ∈ {crit,warn} ∨ rotación < 2`, `_capitalInmovilizado`/`inmovilizadoDef2USD`) SE CONSERVA
+ *     —es una definición real, R3 del diseño— pero deja de llamarse «capital inmovilizado» en superficie: pasa a
+ *     «Stock en alerta», el nombre que ya tiene en el resto de la casa desde 2026-08-10 (`cuadro.js`/`control.js`/
+ *     `kpis.js`). El cálculo de `_capitalInmovilizado()` NO se toca acá (lo comparte `crossDomain.js`, fuera del
+ *     alcance de esta etapa) — solo el TEXTO que este archivo arma con su resultado. */
 
 export function composeWarehouseAnalysis(scenarioId, params) {
   // ── 1. Helpers formato
@@ -37,11 +50,8 @@ export function composeWarehouseAnalysis(scenarioId, params) {
       return { sucursal: sucursalName, skus: [], totalStock: 0, dohPromedio: 0, sfamilias: {} };
     }
     const totalStock = skus.reduce((acc, s) => acc + s.stockUSD, 0);
-    // FIX #D-CAPITAL-CIFRA-REAL · el capital INMOVILIZADO real (def L60 · diasSinVenta > 60), no el total.
-    const inmovilizadoUSD = skus
-      .filter(s => s.diasSinVenta > 60)
-      .reduce((acc, s) => acc + s.stockUSD, 0);
-    // FIX #D-CAPITAL-DEF-CANONICA · el inmovilizado Def 2 (alerta crit/warn O rotacion<2) por sucursal.
+    // FIX #D-CAPITAL-DEF-CANONICA · el «Stock en alerta» (Def 2: alerta crit/warn O rotación<2) por sucursal —
+    // R3 del diseño de inventario: SE CONSERVA el cálculo, NUNCA se llama «inmovilizado» en superficie.
     const inmovilizadoDef2USD = skus
       .filter(s => s.alerta === "crit" || s.alerta === "warn" || s.rotacion < 2)
       .reduce((acc, s) => acc + s.stockUSD, 0);
@@ -54,14 +64,10 @@ export function composeWarehouseAnalysis(scenarioId, params) {
       sfamilias[s.sfamilia].dohSum += s.doh;
     });
     Object.values(sfamilias).forEach(f => { f.dohPromedio = f.dohSum / f.count; });
-    return { sucursal: sucursalName, skus, totalStock, inmovilizadoUSD, inmovilizadoDef2USD, dohPromedio: +dohPromedio.toFixed(0), sfamilias };
+    return { sucursal: sucursalName, skus, totalStock, inmovilizadoDef2USD, dohPromedio: +dohPromedio.toFixed(0), sfamilias };
   }
 
   const stockTotalCartera = _invSource.reduce((acc, s) => acc + s.stockUSD, 0);
-  // FIX #D-CAPITAL-CIFRA-REAL · el inmovilizado total de la cartera (def L60) para contexto honesto.
-  const inmovilizadoTotalCartera = _invSource
-    .filter(s => s.diasSinVenta > 60)
-    .reduce((acc, s) => acc + s.stockUSD, 0);
   // FIX #D-CAPITAL-DEF-CANONICA · las cifras canónicas (Def 2 + submétrica) vía el single source of truth.
   const _capCanon = _capitalInmovilizado(_invSource);
   const _capDefOn = (typeof ADI_CAPITAL_DEF_CANONICA_ENABLED !== "undefined" && ADI_CAPITAL_DEF_CANONICA_ENABLED);
@@ -97,13 +103,12 @@ export function composeWarehouseAnalysis(scenarioId, params) {
     const pctCartera = ((agg.totalStock / stockTotalCartera) * 100).toFixed(1);
 
     // ── 3. EVIDENCIA · header
-    // FIX #D-CAPITAL-CIFRA-REAL · distinguir inventario TOTAL de capital INMOVILIZADO (def L60).
-    // OFF: el header decía "capital inmovilizado {totalStock}" (la mentira · el total etiquetado mal).
+    // FIX #D-CAPITAL-DEF-CANONICA · distinguir inventario TOTAL de «Stock en alerta» (Def 2 — R3 del diseño de
+    // inventario, owner 2026-09-28 §7.3·30-32: renombrado, NUNCA «capital inmovilizado»). `ADI_CAPITAL_DEF_CANONICA_ENABLED`
+    // es una constante siempre `true`; el fallback plano (sin Def 2) queda como último recurso si algún día no lo fuera.
     const headerLine = (typeof ADI_CAPITAL_DEF_CANONICA_ENABLED !== "undefined" && ADI_CAPITAL_DEF_CANONICA_ENABLED)
-      ? `${specificSucursal} concentra ${pctCartera}% del inventario total · ${agg.skus.length} SKUs activos · inventario ${fmtK(agg.totalStock)} · de eso, capital inmovilizado ${fmtK(agg.inmovilizadoDef2USD)} (SKUs críticos o rotación muy baja) · DOH promedio ${agg.dohPromedio} días.`
-      : ((typeof ADI_CAPITAL_CIFRA_REAL_ENABLED !== "undefined" && ADI_CAPITAL_CIFRA_REAL_ENABLED)
-        ? `${specificSucursal} concentra ${pctCartera}% del inventario total · ${agg.skus.length} SKUs activos · inventario ${fmtK(agg.totalStock)} · de eso, capital inmovilizado ${fmtK(agg.inmovilizadoUSD)} · DOH promedio ${agg.dohPromedio} días.`
-        : `${specificSucursal} concentra ${pctCartera}% del inventario total · ${agg.skus.length} SKUs activos · capital inmovilizado ${fmtK(agg.totalStock)} · DOH promedio ${agg.dohPromedio} días.`);
+      ? `${specificSucursal} concentra ${pctCartera}% del inventario total · ${agg.skus.length} SKUs activos · inventario ${fmtK(agg.totalStock)} · de eso, stock en alerta ${fmtK(agg.inmovilizadoDef2USD)} (SKUs críticos o rotación muy baja) · DOH promedio ${agg.dohPromedio} días.`
+      : `${specificSucursal} concentra ${pctCartera}% del inventario total · ${agg.skus.length} SKUs activos · inventario ${fmtK(agg.totalStock)} · DOH promedio ${agg.dohPromedio} días.`;
 
     // ── 4. EVIDENCIA · top 3 sfamilia por stock
     const topFamilias = Object.entries(agg.sfamilias)
@@ -140,7 +145,9 @@ export function composeWarehouseAnalysis(scenarioId, params) {
     }
 
     // ── 7. FOCO
-    const lentos = agg.skus.filter(s => s.doh > 60).sort((a, b) => b.stockUSD - a.stockUSD);
+    // «lentos» dejó de ser el literal `doh > 60` (owner 2026-09-28 §7.3·30-32, diseño §8.4/R6) — pasa a ser el
+    // estado `sobrestock` del motor (`diagnoseInventarioSku`, el mismo detector que usa toda la casa).
+    const lentos = agg.skus.filter(s => diagnoseInventarioSku(s) === "sobrestock").sort((a, b) => b.stockUSD - a.stockUSD);
     const rapidos = agg.skus.filter(s => s.rotacion >= 5).sort((a, b) => b.rotacion - a.rotacion);
     let focoText = "";
     if (lentos.length > 0) {
@@ -213,30 +220,28 @@ export function composeWarehouseAnalysis(scenarioId, params) {
   // ─────────────────────────────────────────────────────────────────────
   const aggs = SUCURSALES.map(s => _aggregateBySucursal(s));
   const aggsConData = aggs.filter(a => a.skus.length > 0);
-  // FIX #D-CAPITAL-CIFRA-REAL · rankear por el INMOVILIZADO real, no el total (la def L60).
-  const _capRealOn = (typeof ADI_CAPITAL_CIFRA_REAL_ENABLED !== "undefined" && ADI_CAPITAL_CIFRA_REAL_ENABLED);
-  // FIX #D-CAPITAL-DEF-CANONICA · el valor por sucursal según la def vigente: Def 2 (canon) > >60d > total.
-  const _valFor = (a) => _capDefOn ? a.inmovilizadoDef2USD : (_capRealOn ? a.inmovilizadoUSD : a.totalStock);
-  const _baseCartera = _capDefOn ? (_capCanon.total || 1) : (_capRealOn ? (inmovilizadoTotalCartera || 1) : stockTotalCartera);
+  // FIX #D-CAPITAL-DEF-CANONICA · el valor por sucursal según la def vigente: Def 2 («Stock en alerta») > total.
+  // `_capRealOn`/`inmovilizadoUSD`/`inmovilizadoTotalCartera` (L60) SE RETIRARON (owner 2026-09-28, §7.3·30-32):
+  // `_capDefOn` es una constante siempre `true`, así que esas ramas eran código muerto.
+  const _valFor = (a) => _capDefOn ? a.inmovilizadoDef2USD : a.totalStock;
+  const _baseCartera = _capDefOn ? (_capCanon.total || 1) : stockTotalCartera;
   const aggsRanked = [...aggsConData].sort((a, b) => _valFor(b) - _valFor(a));
 
   // ── 3. EVIDENCIA · header agregado
-  // FIX #D-CAPITAL-DEF-CANONICA · cifra dual: Def 2 ($56K) principal + submétrica >60d ($33.2K) sub-lectura.
-  // FIX #D-CAPITAL-CIFRA-REAL (OFF de canon): el header del TOTAL es honesto · ranking por >60d.
+  // FIX #D-CAPITAL-DEF-CANONICA · cifra dual: Def 2 (stock en alerta) principal + submétrica >60d sub-lectura
+  // (esa submétrica es el HECHO «stock sin venta por más de 60 días», descriptiva — no un veredicto de ADI).
   const headerLine = _capDefOn
-    ? `El inventario total entre ${aggsConData.length} sucursales (${aggsConData.map(a => a.sucursal).join(", ")}) suma ${fmtK(stockTotalCartera)}. De eso, ${fmtK(_capCanon.total)} es capital inmovilizado en SKUs críticos o de rotación muy baja. De eso, ${fmtK(_capCanon.estricto60d)} corresponde a stock sin venta por más de 60 días. Distribución por bodega:`
-    : (_capRealOn
-        ? `El inventario total entre ${aggsConData.length} sucursales (${aggsConData.map(a => a.sucursal).join(", ")}) suma ${fmtK(stockTotalCartera)}. De eso, ${fmtK(inmovilizadoTotalCartera)} es capital inmovilizado (más de 60 días sin movimiento), distribuido así:`
-        : `El inventario distribuido entre ${aggsConData.length} sucursales (${aggsConData.map(a => a.sucursal).join(", ")}) suma ${fmtK(stockTotalCartera)} totales.`);
+    ? `El inventario total entre ${aggsConData.length} sucursales (${aggsConData.map(a => a.sucursal).join(", ")}) suma ${fmtK(stockTotalCartera)}. De eso, ${fmtK(_capCanon.total)} es stock en alerta (SKUs críticos o de rotación muy baja). De eso, ${fmtK(_capCanon.estricto60d)} corresponde a stock sin venta por más de 60 días. Distribución por bodega:`
+    : `El inventario distribuido entre ${aggsConData.length} sucursales (${aggsConData.map(a => a.sucursal).join(", ")}) suma ${fmtK(stockTotalCartera)} totales.`;
 
-  // ── 4. EVIDENCIA · ranking por capital inmovilizado (Def 2 canónica)
+  // ── 4. EVIDENCIA · ranking por stock en alerta (Def 2 canónica)
   const rankingLines = aggsRanked.map(a => {
     const _val = _valFor(a);
     const pct = ((_val / _baseCartera) * 100).toFixed(1);
     return `${a.sucursal.padEnd(13, " ")} → ${fmtK(_val)} · ${pct}% · DOH promedio ${a.dohPromedio}d · ${a.skus.length} SKUs`;
   }).join("\n");
 
-  const evidencia = `${headerLine}\n\nRanking por capital inmovilizado:\n${rankingLines}`;
+  const evidencia = `${headerLine}\n\nRanking por stock en alerta:\n${rankingLines}`;
 
   // ── 5. LECTURA causal
   const top = aggsRanked[0];
@@ -245,28 +250,27 @@ export function composeWarehouseAnalysis(scenarioId, params) {
   const _bottomVal = bottom ? _valFor(bottom) : 0;
   const _baseCausal = _baseCartera;
   const topPct = top ? ((_topVal / _baseCausal) * 100).toFixed(0) : "0";
-  const _capInmovWording = _capDefOn || _capRealOn;
   let lecturaCausal = "";
   if (top && bottom && top !== bottom && _topVal > 0) {
     const ratio = (_topVal / Math.max(_bottomVal, 1)).toFixed(1);
-    lecturaCausal = _capInmovWording
-      ? `${top.sucursal} concentra ${topPct}% del capital inmovilizado, ${ratio}x lo que mantiene ${bottom.sucursal}.`
+    lecturaCausal = _capDefOn
+      ? `${top.sucursal} concentra ${topPct}% del stock en alerta, ${ratio}x lo que mantiene ${bottom.sucursal}.`
       : `${top.sucursal} concentra ${topPct}% del capital, ${ratio}x lo que mantiene ${bottom.sucursal}.`;
     // Detectar bodega con DOH crítico
     const dohCritica = aggsRanked.find(a => a.dohPromedio > 80);
     if (dohCritica) {
       lecturaCausal += ` ${dohCritica.sucursal} opera con cobertura más alta del portafolio (${dohCritica.dohPromedio}d promedio).`;
     }
-  } else if (_capInmovWording && top && _topVal > 0) {
-    lecturaCausal = `${top.sucursal} concentra el capital inmovilizado del portafolio (${fmtK(_topVal)}).`;
+  } else if (_capDefOn && top && _topVal > 0) {
+    lecturaCausal = `${top.sucursal} concentra el stock en alerta del portafolio (${fmtK(_topVal)}).`;
   }
 
   // ── 6. FOCO
   const sucursalCritica = aggsRanked.find(a => a.dohPromedio > 80) || aggsRanked[0];
   const _critVal = sucursalCritica ? _valFor(sucursalCritica) : 0;
   const focoText = sucursalCritica
-    ? (_capInmovWording
-        ? `Mecanismo disponible: ${sucursalCritica.sucursal} concentra mayor presión (${fmtK(_critVal)} inmovilizado · DOH ${sucursalCritica.dohPromedio}d) · zona estructural a profundizar antes que la palanca de redistribución o liquidación opere.`
+    ? (_capDefOn
+        ? `Mecanismo disponible: ${sucursalCritica.sucursal} concentra mayor presión (${fmtK(_critVal)} en alerta · DOH ${sucursalCritica.dohPromedio}d) · zona estructural a profundizar antes que la palanca de redistribución o liquidación opere.`
         : `Mecanismo disponible: ${sucursalCritica.sucursal} concentra mayor presión (${fmtK(_critVal)} · DOH ${sucursalCritica.dohPromedio}d) · zona estructural a profundizar antes que la palanca de redistribución o liquidación opere.`)
     : `Estructura balanceada: la distribución opera dentro del rango healthy · la evolución mensual es la métrica de seguimiento natural.`;
 
@@ -325,6 +329,9 @@ export function composeWarehouseComparison(whA, whB, scenario) {
   const dStock = A.totalStock - B.totalStock;
   const masGrande = A.totalStock >= B.totalStock ? whA : whB;
   const masSano = A.dohPromedio <= B.dohPromedio ? whA : whB;       // menor DOH = más sano
+  // «Def 2» (R3 del diseño de inventario, owner 2026-09-28 §7.3·30-32) — SE CONSERVA el cálculo, se dice
+  // «stock en alerta», NUNCA «capital inmovilizado» ni «capital atrapado» (esas palabras nombran el detector,
+  // `capital_frenado` ⊎ sobrestock, otra definición).
   const masAtrapado = A.inmovilizadoDef2 >= B.inmovilizadoDef2 ? whA : whB;
   // MICRO-FIX FEATURE_CMP_DOH_FIX · el veredicto pega "con DOH crítico" a masAtrapado,
   // así que el umbral debe mirar el DOH PROPIO de masAtrapado, no el máximo de ambas.
@@ -333,10 +340,10 @@ export function composeWarehouseComparison(whA, whB, scenario) {
     ? (masAtrapadoDoh >= 80)
     : (Math.max(A.dohPromedio, B.dohPromedio) >= 80);
   const masLento = A.dohPromedio >= B.dohPromedio ? whA : whB;
-  const lead = `${masGrande} más grande${masSano === masGrande ? " y más sano" : ""}; ${masAtrapado} con más capital atrapado.`;
+  const lead = `${masGrande} más grande${masSano === masGrande ? " y más sano" : ""}; ${masAtrapado} con más stock en alerta.`;
   let opener = `**${whA} vs ${whB}** (inventario) · ${lead}\n\n`;
-  opener += `Stock: ${_cmpFmtK(A.totalStock)} vs ${_cmpFmtK(B.totalStock)} (${masGrande} ${_cmpRatio(A.totalStock, B.totalStock).toFixed(1)}× · Δ ${_cmpSigned(dStock)}). Inmovilizado: ${_cmpFmtK(A.inmovilizadoDef2)} vs ${_cmpFmtK(B.inmovilizadoDef2)} (${masAtrapado} peor). DOH: ${A.dohPromedio} vs ${B.dohPromedio} días${Math.abs(A.dohPromedio - B.dohPromedio) >= 20 ? ` (${masLento} mucho más lento)` : ""}.\n\n`;
-  opener += `Veredicto: ${masGrande} concentra más stock${masSano === masGrande ? " y rota mejor" : ""}; ${masAtrapado} tiene más capital inmovilizado${dohCritico ? " con DOH crítico" : ""}.`;
+  opener += `Stock: ${_cmpFmtK(A.totalStock)} vs ${_cmpFmtK(B.totalStock)} (${masGrande} ${_cmpRatio(A.totalStock, B.totalStock).toFixed(1)}× · Δ ${_cmpSigned(dStock)}). Stock en alerta: ${_cmpFmtK(A.inmovilizadoDef2)} vs ${_cmpFmtK(B.inmovilizadoDef2)} (${masAtrapado} peor). DOH: ${A.dohPromedio} vs ${B.dohPromedio} días${Math.abs(A.dohPromedio - B.dohPromedio) >= 20 ? ` (${masLento} mucho más lento)` : ""}.\n\n`;
+  opener += `Veredicto: ${masGrande} concentra más stock${masSano === masGrande ? " y rota mejor" : ""}; ${masAtrapado} tiene más stock en alerta${dohCritico ? " con DOH crítico" : ""}.`;
   return {
     opener,
     suggestions: filterTextualSuggestions([`Qué hay en ${whA}`, `Qué hay en ${whB}`, "Inventario por bodega"]),

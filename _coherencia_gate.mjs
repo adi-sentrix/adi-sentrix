@@ -114,7 +114,8 @@ const iComp = composeSpecInventory({ scenario: S, focus: "frenado" });
 ok(mesa.estados.capital.linea.includes(_money(cap.subtotal_usd)), `el sub de la card cita ${_money(cap.subtotal_usd)}`, mesa.estados.capital.linea);
 // R5 del examen 1 del agente (2026-08-31): la apertura dice «capital frenado» — la palabra que corresponde a la
 // cifra (el subconjunto frenado del detector). El chequeo sigue midiendo lo mismo: card y composer, MISMO total.
-ok((iComp.opener || "").includes(`Tienes ${_money(cap.subtotal_usd)} de capital frenado`), "la respuesta abre con el mismo total");
+// RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «capital frenado» → «capital inmovilizado» en la prosa (crítico no va suelto: colisiona con el canon del Notario).
+ok((iComp.opener || "").includes(`Tienes ${_money(cap.subtotal_usd)} de capital inmovilizado`), "la respuesta abre con el mismo total");
 const mHacer = (iComp.opener || "").match(/arranca por ([A-Z0-9-]+(?: y [A-Z0-9-]+)?)/);
 const mVale = (iComp.opener || "").match(/liberar ([A-Z0-9-]+(?: y [A-Z0-9-]+)?) devuelve (\$\d+(?:\.\d+)?[KM]?)/);
 ok(!!mHacer && !!mVale, "existen el «arranca por» y el «cuánto vale»");

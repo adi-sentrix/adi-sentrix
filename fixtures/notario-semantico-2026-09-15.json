@@ -11,12 +11,12 @@
   "P2·1·cierre: «con Lider, Jumbo y Falabella liderando el crecimiento» pasa de no-verificable a falsa (la variación por cliente ya tiene rótulo; por % Falabella va 5.º)"
  ],
  "linea_base": {
-  "acuerdo": 1096,
+  "acuerdo": 1040,
   "fp": 0,
   "fn": 0,
   "errores_atrapados": 18,
   "quitadas_detectadas": 595,
-  "nota": "medido el 2026-09-15 al cerrar la fase 1: exactitud 1093/1099 (99.5 %), 0 FP, 0 FN, 6 no-verificables donde se esperaba verdadera (4 × la venta del año anterior sin rótulo propio en la boleta, 1 referente ambiguo, 1 conteo de métricas comparadas), 18/18 errores reales atrapados, 17/17 falsos positivos servidos, 595/665 afirmaciones quitadas detectadas (+258 redundantes) · fase 2 (2026-09-15): 1096/1099 (99.7 %) — 3 de los 6 no-verificables pasaron a verdaderas al saldar las deudas de evidencia (la venta del año anterior con rótulo propio, el techo de días como KPI)"
+  "nota": "medido el 2026-09-15 al cerrar la fase 1: exactitud 1093/1099 (99.5 %), 0 FP, 0 FN, 6 no-verificables donde se esperaba verdadera (4 × la venta del año anterior sin rótulo propio en la boleta, 1 referente ambiguo, 1 conteo de métricas comparadas), 18/18 errores reales atrapados, 17/17 falsos positivos servidos, 595/665 afirmaciones quitadas detectadas (+258 redundantes) · fase 2 (2026-09-15): 1096/1099 (99.7 %) — 3 de los 6 no-verificables pasaron a verdaderas al saldar las deudas de evidencia (la venta del año anterior con rótulo propio, el techo de días como KPI) · MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): 1096→1040 — los 12 borradores citan «capital frenado»/estado «frenado» con el significado ANTERIOR (tramo capital_frenado, rotación); el canon «frenado» ahora es venta interrumpida y exige un umbral declarado que este dato no publica, así que esas afirmaciones puntuales pasan a no-verificable contra el veredicto histórico. No se re-etiqueta el corpus (es la prosa verbatim de una corrida real v2.31): se ajusta el piso medido tras la migración."
  },
  "corpus": [
   {
@@ -14976,8 +14976,8 @@
   }
  ],
  "linea_base_flujo": {
-  "omitidos": 20,
-  "correctas": 1050,
-  "nota": "medido el 2026-09-15 al cerrar la fase 2 (offline, 12 borradores con declaración manual dentro del flujo): declaradas 1099 (923 de hecho) · 874 verdaderas + 176 selladas = 1050 correctas (95.5 %) · 31 falsas · 18 no-verificables · 0 inconsistentes · 28/950 puntos de la prosa sin declarar (2.9 %) · 0 FP · 0 FN · 6/6 reparaciones por declaraciones falsas/incompletas · 0/6 servido sin pasar por el Notario semántico · RONDA 2 (2026-09-16): 20 omitidos — las 8 que se fueron eran «31» de «al 31 de agosto» (una fecha, no una cifra); las 20 que quedan son las mismas de la fase 2 («los que más», «menor», «41,4% contra 57,3», «Vendes más», «vende más pero», «más profundo», «primero»/«segundo», «entre los tres», «120»)"
+  "omitidos": 21,
+  "correctas": 998,
+  "nota": "medido el 2026-09-15 al cerrar la fase 2 (offline, 12 borradores con declaración manual dentro del flujo): declaradas 1099 (923 de hecho) · 874 verdaderas + 176 selladas = 1050 correctas (95.5 %) · 31 falsas · 18 no-verificables · 0 inconsistentes · 28/950 puntos de la prosa sin declarar (2.9 %) · 0 FP · 0 FN · 6/6 reparaciones por declaraciones falsas/incompletas · 0/6 servido sin pasar por el Notario semántico · RONDA 2 (2026-09-16): 20 omitidos — las 8 que se fueron eran «31» de «al 31 de agosto» (una fecha, no una cifra); las 20 que quedan son las mismas de la fase 2 («los que más», «menor», «41,4% contra 57,3», «Vendes más», «vende más pero», «más profundo», «primero»/«segundo», «entre los tres», «120») · MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): omitidos 20→21, correctas 1050→998 — varios de los 12 borradores citan «capital frenado»/«frenados»/estado «frenado» con el significado ANTERIOR (tramo capital_frenado, rotación); el canon «frenado» ahora exige un umbral de días sin venta que este dato no publica, así que esas afirmaciones puntuales pasan de verdadera a no-verificable (0 FP · 0 FN se mantienen: ninguna se sirve como falsa ni como verdadera indebida) y una cláusula («…, en Valparaíso») que antes cubría la palabra «frenado» con «parados» queda sin declarar aparte. La prosa no se reescribe (corrida real v2.31, verbatim); se ajusta el piso medido tras la migración, no el corpus."
  }
 }

@@ -210,7 +210,13 @@ arde("En Lider más de la mitad del saldo pendiente ya está vencido ($4.6M de $
 arde("Lider y Falabella —las dos con más vencido— suman $7.1M, dos tercios del total vencido de $12.6M.", RELACION, "P1", "7.1 / 12.6 = 56 % con el numerador dicho");
 pasa("Falabella, Lider y Jumbo ($19.4M, $17.8M y $17.3M) concentran más de la mitad de los $99.9M.", "P1", "54.5 / 99.9 = 55 %: la suma de la lista contra el total dicho");
 pasa("Antofagasta tiene un tercio del frenado de Valparaíso ($8K contra $25K).", "P1", "la comparación con una entidad en el complemento: el par entre paréntesis");
-pasa("liberar esos dos suma $22K, casi dos tercios del capital frenado total ($33K).", "P1", "el NUMERADOR DICHO junto a la fracción (22 / 33 = 67 %): la cifra del sujeto ($8K) no es la parte — borrador real de la corrida en vivo");
+/* owner 2026-09-28 (corrección de coherencia del dato de fábrica, mismo encargo de la etapa 4): el par que
+ * "Medida · liberar" recomienda cambió de LG-DRYER8KG+MAK-COMP-AIR ($22K) a LG-DRYER8KG+BOS-SANDER ($25K) — no
+ * por este frente, sino porque el "crítico" que antes distinguía el arranque leía la alerta del ARCHIVO (R9:
+ * MAK-COMP-AIR alerta="crit", BOS-SANDER alerta="warn") y ahora lee el detector real (los 3 SKU frenados son
+ * igual de críticos entre sí), cayendo al desempate por capital. El texto del borrador (dato histórico) no se
+ * toca; el par y la cifra autorizados hoy sí cambiaron. */
+pasa("liberar esos dos suma $25K, casi tres cuartos del capital frenado total ($33K).", "P1", "el NUMERADOR DICHO junto a la fracción (25 / 33 = 76 %): la cifra del sujeto ($11K) no es la parte");
 pasa("Lider debe casi el doble que Falabella ($4.6M contra $2.5M).", "P1", "1.83: «casi el doble»");
 pasa("Sodimac recupera casi la mitad que Jumbo (35% frente a 70.5%).", "P1", "0.496");
 pasa("Falabella recupera más que Lider (57.7% frente a 45%) y su vencido es casi la mitad ($2.5M frente a $4.6M).", "P1", "0.54: «casi la mitad» calibrada (0.8–1.1)");

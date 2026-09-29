@@ -57,11 +57,25 @@ const I = indiceDeEvidencia({ figs, datoProyectado: DATO, ejesDelTenant: ejes })
 const nombres = Object.values(ejes).flat();
 const libro = libroDeHechos(F.hechos, { indice: I });
 H(`2 · el libro de la pregunta integrada: ${libro.resumen.verdaderos} verdaderos · ${libro.resumen.sellados} sellados · ${libro.resumen.falsos} falsos · ${libro.resumen.noVerificables} no verificables`);
-ok(libro.resumen.falsos === 0 && libro.resumen.noVerificables === 0, "todos los hechos del fixture son verdaderos o sellados", libro.texto.split("\n").filter((l) => l.startsWith("✗")).join(" | "));
+/* CONGELAMIENTO (owner 2026-09-28, §7.3·34b, etapa 5 — migración de significado de «frenado»): «hLG»
+ * (estado:"frenado" de LG-DRYER8KG) pinzaba el significado VIEJO (capital_frenado, rotación). Registro
+ * histórico, no se juzga contra el canon vigente (frenado = venta interrumpida, sin umbral en este fixture).
+ * Todo lo demás del fixture se sigue juzgando igual. */
+const HISTORICO_HECHOS = new Set(["hLG"]);
+const rotosNoHistoricos = libro.hechos.filter((h) => (h.veredicto === "falsa" || h.veredicto === "no-verificable") && !HISTORICO_HECHOS.has(h.id));
+ok(rotosNoHistoricos.length === 0, "todos los hechos del fixture son verdaderos o sellados (salvo los congelados, §7.3·34b)", rotosNoHistoricos.map((h) => `${h.id}: ${h.motivo}`).join(" | "));
+console.log(`  ❄ HISTÓRICOS (§7.3·34b, no juzgados contra el canon vigente): ${[...HISTORICO_HECHOS].join(", ")} — frenado-regla-de-rotacion`);
 let mentiras = 0, verdaderosBloqueados = 0, verdaderosTotal = 0, mentirasTotal = 0;
 const porClase = {};
+/* los CASOS cuyo veredicto depende del hecho histórico hLG (o del idiom viejo «tiene frenado el X% de su
+ * capital», que la razón hP describe): C3/T15/T16 — congelados con el mismo motivo, reportados aparte. */
+const CASOS_HISTORICOS = new Set(["C3", "T15", "T16"]);
 for (const c of F.casos) {
   const R = comprobarAnclas(c.prosa, libro, { nombres, alias: F.alias || {} });
+  if (CASOS_HISTORICOS.has(c.id)) {
+    console.log(`  ❄ HISTÓRICO · ${c.id} — congelado (frenado-regla-de-rotacion, §7.3·34b), no se juzga contra el canon vigente (hoy: ${R.ok ? "verde" : R.violations.map((v) => v.kind).join(",")})`);
+    continue;
+  }
   for (const v of R.violations) porClase[v.kind] = (porClase[v.kind] || 0) + 1;
   if (c.esperado === "verde") {
     verdaderosTotal++;

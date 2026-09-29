@@ -76,10 +76,13 @@ export const LENTES = {
   },
   inventario: {
     clave: "sku",
-    materialidad: { re: /· Capital frenado$/i, nombre: "capital frenado", peor: "mayor", como: (v) => `${v} frenados` },
+    // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «Capital frenado» → «Capital inmovilizado crítico»
+    // en el RÓTULO; la PROSA (`como`) dice «inmovilizados» a secas — «crítico» suelto colisiona con el canon
+    // «critico» del Notario (estados.js, ligado hoy a la alerta del archivo, R9 — migrarlo es la etapa 5).
+    materialidad: { re: /· Capital (?:frenado|inmovilizado cr[ií]tico)$/i, nombre: "capital inmovilizado crítico", peor: "mayor", como: (v) => `${v} inmovilizados` },
     severidad: { re: /· Días de inventario$/i, nombre: "días de inventario", peor: "mayor", como: (v) => `${v} de inventario` },
     urgencia: { re: /· Días sin venta$/i, nombre: "días sin venta", peor: "mayor", como: (v) => `${v} sin venta` },
-    universo: () => "los SKU frenados",   // en la prioridad solo entran los SKU frenados (los que tienen días): el estado que la proyección declara
+    universo: () => "los SKU inmovilizados críticos",   // en la prioridad solo entran los SKU inmovilizados críticos (los que tienen días): el estado que la proyección declara — MIGRACIÓN owner 2026-09-28 §7.3·30-34: antes «frenados»
   },
 };
 const _LENTES = ["materialidad", "severidad", "urgencia"];
@@ -244,7 +247,7 @@ export const CRITERIOS = {
   credito:      { nombre: "exposición de crédito", dicho: "el saldo vencido al corte y su atraso", clave: "cliente", dominio: "cobranza", lente: "materialidad", desempate: "urgencia" },   // se pide como «cobranza», «cobrar», «vencido», «deuda», «crédito» o «exposición»; NUNCA con «caja»/«liquidez» (tesorería) — ver la nota de arriba
   ventas:       { nombre: "ventas", dicho: "la venta del período", clave: "cliente" },
   crecimiento:  { nombre: "crecimiento", dicho: "la variación de la venta contra el año anterior", clave: "cliente", figs: /· YoY$/i },
-  capital:      { nombre: "capital", dicho: "el capital frenado en inventario", clave: "sku", dominio: "inventario", lente: "materialidad" },
+  capital:      { nombre: "capital", dicho: "el capital inmovilizado crítico en inventario", clave: "sku", dominio: "inventario", lente: "materialidad" },
 };
 const _SINONIMOS = [
   [/\b(?:riesgo|riesgos|grave|graves|gravedad|urgente|urgencia|peligro)\b/i, "riesgo"],
@@ -324,7 +327,7 @@ export function ordenPorCriterio(figs, dominios = [], criterio = "riesgo") {
       .map((x) => ({ entidad: x.entidad, valor: [L.materialidad.como(x.materialidad.fmt), C.desempate && x[C.desempate] ? L[C.desempate].como(x[C.desempate].fmt) : null].filter(Boolean).join(", "),
         cifras: [{ metrica: x.materialidad.rotulo, valor: x.materialidad.fmt }, ...(C.desempate && x[C.desempate] ? [{ metrica: x[C.desempate].rotulo, valor: x[C.desempate].fmt }] : [])] }));
     const conteo = C.dominio === "cobranza" && s.every((x) => x.materialidad.n > 0) ? { predicado: "con saldo vencido", universo: _ejeEntero("cliente", "clientes") }
-      : C.dominio === "inventario" ? { predicado: "frenados", universo: _ejeEntero("sku", "SKU") } : null;
+      : C.dominio === "inventario" ? { predicado: "inmovilizados críticos", universo: _ejeEntero("sku", "SKU") } : null;
     return { criterio, lista, metrica: lista[0].cifras[0].metrica, direccion: L.materialidad.peor, universo: L.universo(), conteo };
   }
   /* ventas · crecimiento: cifras por cliente de la boleta (la venta del flujo cubre a todos los clientes; si no está, la de margen) */
@@ -386,7 +389,13 @@ const _DOM_TXT = { comercial: "comercial", cobranza: "cobranza", inventario: "in
  * prioridad integrada es la conclusión del procedimiento, no un ranking de una métrica, y las listas «1. Lider … 2. Falabella …»
  * declaran los hechos de cada línea, no el puesto. Cada declaración lleva como `texto` el TRAMO literal que la escribe (único en el
  * bloque: el detector de presencia cubre por tramo, y un mismo tramo repetido se ubica una sola vez). Sin colector, todo es mudo. */
-const _senalesDe = (D, entidad, x, texto) => { for (const l of _LENTES) if (x[l]) D.cifra({ sujeto: entidad, metrica: x[l].rotulo, valor: x[l].fmt, texto }); };
+/* MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): en inventario, `materialidad.como` imprime la palabra de
+ * estado «inmovilizados» pegada a la cifra (bare, punto de prosa del canon «inmovilizado») — antes eso lo cubría
+ * `estadosCompatibles` porque el punto coincidía con el canon «frenado» declarado en otro lado del mismo turno;
+ * ahora «frenado» significa otra cosa, así que la señal se declara ACÁ, donde se imprime, con el canon nuevo
+ * («inmovilizado critico», el tramo que `materialidad` mide en este dominio — compatible con el «inmovilizado»
+ * bare que la prosa dice). Sin este `D.estado`, el punto queda sin declarar. */
+const _senalesDe = (D, entidad, x, texto, dominio = null) => { for (const l of _LENTES) if (x[l]) D.cifra({ sujeto: entidad, metrica: x[l].rotulo, valor: x[l].fmt, texto }); if (dominio === "inventario" && x.materialidad) D.estado({ sujeto: entidad, estado: "inmovilizado critico", texto }); };
 const _lider = (x, dominio, D = declaradorDe(null)) => {
   const L = LENTES[dominio];
   const partes = [L.materialidad.como(x.materialidad.fmt)];
@@ -395,7 +404,7 @@ const _lider = (x, dominio, D = declaradorDe(null)) => {
   const t = `${x.entidad} (${partes.join(", ")})`;
   /* la líder del dominio: el extremo de la lente de materialidad en su universo, y sus tres señales como cifras */
   D.orden({ sujeto: x.entidad, metrica: x.materialidad.rotulo, forma: L.materialidad.peor === "menor" ? "min" : "max", universo: L.universo(), texto: t });
-  _senalesDe(D, x.entidad, x, t);
+  _senalesDe(D, x.entidad, x, t, dominio);
   return t;
 };
 /* por qué el segundo de un dominio no va primero en él, cuando le gana al líder en alguna otra lente */
@@ -417,6 +426,9 @@ const _matiz = (porDominio, dominio, D = declaradorDe(null)) => {
   const matiz = (q, gana) => {
     const cabeza = `${q.entidad} ${L.materialidad.como(q.materialidad.fmt)}`;
     D.cifra({ sujeto: q.entidad, metrica: q.materialidad.rotulo, valor: q.materialidad.fmt, texto: cabeza });
+    // MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): mismo punto de prosa «inmovilizados» que `_senalesDe` —
+    // acá el materialidad.como() de inventario también lo imprime bare, se declara con el canon nuevo.
+    if (dominio === "inventario") D.estado({ sujeto: q.entidad, estado: "inmovilizado critico", texto: cabeza });
     return `${cabeza} y ${gana.map((l) => lente(q, l)).join(" y ")}`;
   };
   return "; " + matices.map(({ q, gana }) => matiz(q, gana)).join("; ");
@@ -425,7 +437,7 @@ const _matiz = (porDominio, dominio, D = declaradorDe(null)) => {
 const _lineaIntegrada = (c, i, total, D = declaradorDe(null), figs = []) => {
   const senales = Object.keys(c.senales).map((d) => `${_DOM_TXT[d]}: ${_LENTES.filter((l) => c.senales[d][l]).map((l) => LENTES[d][l].como(c.senales[d][l].fmt)).join(", ")}`).join(" · ");
   const cabeza = `${i + 1}. ${c.entidad} — ${senales}`;
-  for (const d of Object.keys(c.senales)) _senalesDe(D, c.entidad, c.senales[d], cabeza);
+  for (const d of Object.keys(c.senales)) _senalesDe(D, c.entidad, c.senales[d], cabeza, d);
   let razon = "";
   if (c.versus) {
     const { contra, gana, pierde } = c.versus;
@@ -525,15 +537,15 @@ export function componerPrioridadIntegrada(figs, dominios = [], { criterio = nul
     const sola = P.integrada[0];
     const l = `Integrada: ${sola.entidad} — ${Object.keys(sola.senales).map((d) => `${_DOM_TXT[d]}: ${_LENTES.filter((l) => sola.senales[d][l]).map((l) => LENTES[d][l].como(sola.senales[d][l].fmt)).join(", ")}`).join(" · ")}.`;
     L.push(l);
-    for (const d of Object.keys(sola.senales)) _senalesDe(D, sola.entidad, sola.senales[d], l);
+    for (const d of Object.keys(sola.senales)) _senalesDe(D, sola.entidad, sola.senales[d], l, d);
   }
   if (P.porDominio.inventario) {
     const s = P.porDominio.inventario[0];
     const l = `En inventario (clave SKU: no se compara con las cuentas): ${s.entidad} primero — ${_LENTES.filter((l) => s[l]).map((l) => LENTES.inventario[l].como(s[l].fmt)).join(", ")}.`;
     L.push(l);
-    /* el primero del inventario: el extremo de su lente de materialidad entre los SKU frenados, con sus señales como cifras */
+    /* el primero del inventario: el extremo de su lente de materialidad entre los SKU inmovilizados críticos, con sus señales como cifras */
     D.orden({ sujeto: s.entidad, metrica: s.materialidad.rotulo, forma: LENTES.inventario.materialidad.peor === "menor" ? "min" : "max", universo: LENTES.inventario.universo(), texto: l });
-    _senalesDe(D, s.entidad, s, l);
+    _senalesDe(D, s.entidad, s, l, "inventario");
   }
   if (!P.porDominio.comercial || !LENTES.comercial.urgencia) L.push(`El comercial no trae señal de tiempo en este dato: ahí la prioridad es por materialidad y distancia al benchmark.`);
   const otras = _otrasLentes(figs, dominios, "riesgo", D);

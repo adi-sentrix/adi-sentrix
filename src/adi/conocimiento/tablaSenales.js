@@ -291,17 +291,20 @@ export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta
     }
   } catch { /* sin fig de variación: queda "sin_serie" para todas — declarado, no inventado */ }
 
-  // ── INVENTARIO: sku.frenado / sku.top_seller — el MISMO cruce que ya certifica crucePorSku.js (`stock` es la
-  // clave que separa un SKU de una entidad de otro eje, igual que ese playbook) ──
+  /* ── INVENTARIO: sku.inmovilizado_critico / sku.top_seller — el MISMO cruce que ya certifica crucePorSku.js
+   * (`stock` es la clave que separa un SKU de una entidad de otro eje, igual que ese playbook).
+   * RENOMBRE (owner 2026-09-28, §7.3·30-32, decisión 0.1 del diseño de inventario): el campo interno `frenado`
+   * pasa a `inmovilizadoCritico` y el regex de fig sigue el rótulo nuevo de `_ESTADO_LABEL.capital_frenado`
+   * (specRetrieval.js): antes «· Capital frenado», ahora «· Capital inmovilizado crítico». */
   let figsInv = [], figsTop = [];
   try {
     const rInv = _correrPasos(pasosDe(inventarioInmovilizado, _PREG_INVENTARIO), { scenario, pregunta: _PREG_INVENTARIO });
     figsInv = rInv.figs;
     const bodegas = new Set((() => { try { return axisEntityNames("bodega") || []; } catch { return []; } })());
-    for (const f of _all(figsInv, /· Capital frenado$/i)) {
+    for (const f of _all(figsInv, /· Capital inmovilizado cr[ií]tico$/i)) {
       const e = _entidadDe(_lab(f)); if (!e || bodegas.has(e)) continue;
-      if (!skus[e]) skus[e] = { frenado: false, topSeller: null, estado: null };
-      skus[e].frenado = true;
+      if (!skus[e]) skus[e] = { inmovilizadoCritico: false, topSeller: null, estado: null };
+      skus[e].inmovilizadoCritico = true;
     }
   } catch { /* sin boleta de inventario en este pack */ }
   try {
@@ -310,7 +313,7 @@ export function construirTablaDeSenales({ scenario = ESCENARIO_INICIAL, pregunta
     const stock = new Set(_all(figsTop, /· Stock$/i).map((f) => _entidadDe(_lab(f))).filter(Boolean));
     for (const f of _all(figsTop, /· Venta$/i)) {
       const e = _entidadDe(_lab(f)); if (!e || !stock.has(e)) continue;   // solo SKU (clave: trae fig de Stock, igual que crucePorSku.js)
-      if (!skus[e]) skus[e] = { frenado: false, topSeller: null, estado: null };
+      if (!skus[e]) skus[e] = { inmovilizadoCritico: false, topSeller: null, estado: null };
       skus[e].topSeller = true;
     }
     // los SKU con stock pero sin fig de Venta en este top: no son top seller (dato disponible, veredicto false)

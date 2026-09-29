@@ -62,10 +62,16 @@ const _ESTADOS = definicionesDeEstados().map((e) => ({ nombre: e.canon, eje: e.e
  * por SKU); acá solo se declara su nombre+eje, con las MISMAS constantes que ese archivo usa, para que el
  * validador pueda reconocerlos sin necesitar las figs del turno. */
 export const NOMBRE_CON_SALDO_VENCIDO = "con saldo vencido";
-export const NOMBRE_CON_CAPITAL_FRENADO = "con capital frenado";
+/* RENOMBRE (owner 2026-09-28, §7.3·30-34, etapa 5, migración de significado de «frenado»): la constante y el
+ * nombre que produce `notario/verificar.js:_conjuntosConocidos` cambiaron de «con capital frenado» a «con capital
+ * inmovilizado critico» — la MISMA cifra (ranking `capital_frenado`, sin tocar), la palabra «frenado» ya no le
+ * corresponde. Se mantiene el nombre exportado `NOMBRE_CON_CAPITAL_FRENADO` como alias de compatibilidad (nadie
+ * más lo importa hoy — verificado — pero evita un nombre de export que mienta si algo lo hiciera mañana). */
+export const NOMBRE_CON_CAPITAL_INMOVILIZADO_CRITICO = "con capital inmovilizado critico";
+export const NOMBRE_CON_CAPITAL_FRENADO = NOMBRE_CON_CAPITAL_INMOVILIZADO_CRITICO;
 const _ESTADO_DEPENDIENTE_DE_EJE_FIJO = [
   { nombre: NOMBRE_CON_SALDO_VENCIDO, eje: "cliente", familia: "estado" },
-  { nombre: NOMBRE_CON_CAPITAL_FRENADO, eje: "sku", familia: "estado" },
+  { nombre: NOMBRE_CON_CAPITAL_INMOVILIZADO_CRITICO, eje: "sku", familia: "estado" },
 ];
 
 /** CONJUNTOS_DE_LA_CASA → [{nombre, eje, familia}] · el catálogo ESTÁTICO completo (nombre + eje), sin membresía. */
@@ -113,11 +119,15 @@ export function referenciaDeBase(nombre) {
  * lento» citan el piso de rotación de la POLICY, `piso_rotacion` en `lexico.js`) — un `universo.estados`/
  * `no_estados` con uno de estos nombres, o una afirmación `estado` directa sobre una sola entidad, tiene que
  * imprimir el VALOR del piso en la MISMA oración del veredicto (§7.3·12/·19), igual que ya hace `referenciaDeBase`
- * para benchmark/nivel de carga. Un estado que NO cita ninguna referencia numérica (p. ej. «al día», «frenado»)
- * no está acá — no dispara nada, nunca se inventa una referencia que su propia definición no declara. */
+ * para benchmark/nivel de carga. Un estado que NO cita ninguna referencia numérica (p. ej. «al día») no está
+ * acá — no dispara nada, nunca se inventa una referencia que su propia definición no declara.
+ * «frenado» SÍ entró acá en la migración (owner 2026-09-28, §7.3·30-34, etapa 5): su definición nueva («venta
+ * interrumpida: días sin venta ≥ el umbral declarado») cita el umbral `umbral_frenado` (lexico.js) contra la
+ * métrica `dias_sin_venta` — el mismo patrón que «rota bien»/«rota lento» con `piso_rotacion`/`rotacion`. */
 const _REFERENCIA_DE_ESTADO = [
   { canon: "rota bien", concepto: "piso_rotacion", metrica: "rotacion" },
   { canon: "rota lento", concepto: "piso_rotacion", metrica: "rotacion" },
+  { canon: "frenado", concepto: "umbral_frenado", metrica: "dias_sin_venta" },
 ];
 /** referenciaDeEstado(canon) → {canon, concepto, metrica} | null — el concepto de referencia (para
  *  `valorDeReferencia`) y la métrica natural (para rescatar la cifra propia de una entidad) de un estado de la

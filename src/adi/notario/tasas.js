@@ -163,9 +163,12 @@ export function mismaBase(dicha, ev) {
   if (!dicha || !ev) return false;
   const conceptoIgual = (dicha.claves.size || ev.claves.size) ? _mismasClaves(dicha.claves, ev.claves) : (dicha.estado && ev.estado && dicha.estado === ev.estado);
   if (!conceptoIgual) {
-    /* «del capital frenado» dicho contra un cuadro cuyo contexto es el estado «frenado» (o al revés) */
-    if (dicha.estado && ev.claves.has("frenado") && dicha.estado === "frenado" && !dicha.claves.size) return !dicha.entidad;
-    if (ev.estado && dicha.claves.has("frenado") && ev.estado === "frenado" && !ev.claves.size) return !dicha.entidad;
+    /* «del capital inmovilizado crítico» dicho contra un cuadro cuyo contexto es el estado «inmovilizado critico»
+     * (o al revés). MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): el estado que representaba el tramo
+     * `capital_frenado` pasó de canon «frenado» a «inmovilizado critico» — la CLAVE de métrica «frenado» (muro de
+     * `capital_frenado`, lexico.js) no cambia, sigue siendo la cifra en dinero. */
+    if (dicha.estado && ev.claves.has("frenado") && dicha.estado === "inmovilizado critico" && !dicha.claves.size) return !dicha.entidad;
+    if (ev.estado && dicha.claves.has("frenado") && ev.estado === "inmovilizado critico" && !ev.claves.size) return !dicha.entidad;
     return false;
   }
   return !dicha.entidad;   // una entidad dicha en la base («en Valparaíso») restringe el denominador: ya no es el total del cuadro

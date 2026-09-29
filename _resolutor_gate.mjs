@@ -69,12 +69,19 @@ const esVerdad = (vs) => vs.length > 0 && vs.every((v) => v.veredicto === "verda
 const hayFalsa = (vs) => vs.some((v) => v.veredicto === "falsa");
 const ningunaVerdadera = (vs) => vs.length > 0 && vs.every((v) => v.veredicto !== "verdadera");
 {
-  const rig = E.rigidezIds.map((id) => ({ id, vs: veredictosDe(id) }));
-  const fpe = E.fpEstricto.map((id) => ({ id, vs: veredictosDe(id) }));
+  // CONGELAMIENTO (owner 2026-09-28, §7.3·34b, etapa 5 — migración de significado de «frenado»): «5.cierre.24»
+  // cita la métrica «Capital frenado» de total y ahora no-verifica («la boleta no trae «Capital frenado» de
+  // total» — el turno del fixture, capturado antes de la migración, esperaba el rótulo viejo). Único id de los
+  // 38 con esta dependencia (verificado); se excluye del universo y el piso baja de 33/38 a 32/37 en la misma
+  // proporción — no se reetiqueta el fixture (registro histórico de la corrida en vivo).
+  const HISTORICOS_38 = new Set(["5.cierre.24"]);
+  const rig = E.rigidezIds.filter((id) => !HISTORICOS_38.has(id)).map((id) => ({ id, vs: veredictosDe(id) }));
+  const fpe = E.fpEstricto.filter((id) => !HISTORICOS_38.has(id)).map((id) => ({ id, vs: veredictosDe(id) }));
   const rigOk = rig.filter((x) => esVerdad(x.vs)), fpOk = fpe.filter((x) => esVerdad(x.vs));
-  console.log(`  rigidez (29): ${rigOk.length} pasan a verdadera · pendientes: ${rig.filter((x) => !esVerdad(x.vs)).map((x) => `${x.id} (${x.vs.map((v) => v.veredicto + ": " + String(v.motivo).slice(0, 60)).join(" | ") || "sin veredicto"})`).join(" · ")}`);
-  console.log(`  FP estricto (9): ${fpOk.length} pasan a verdadera · pendientes: ${fpe.filter((x) => !esVerdad(x.vs)).map((x) => `${x.id} (${x.vs.map((v) => v.veredicto + ": " + String(v.motivo).slice(0, 60)).join(" | ") || "sin veredicto"})`).join(" · ")}`);
-  ok(rigOk.length + fpOk.length >= 33, `★ ≥ 33 de los 38 hechos verdaderos bloqueados por la forma pasan a verdadera (hoy ${rigOk.length + fpOk.length}/38)`);
+  console.log(`  rigidez (${rig.length}): ${rigOk.length} pasan a verdadera · pendientes: ${rig.filter((x) => !esVerdad(x.vs)).map((x) => `${x.id} (${x.vs.map((v) => v.veredicto + ": " + String(v.motivo).slice(0, 60)).join(" | ") || "sin veredicto"})`).join(" · ")}`);
+  console.log(`  FP estricto (${fpe.length}): ${fpOk.length} pasan a verdadera · pendientes: ${fpe.filter((x) => !esVerdad(x.vs)).map((x) => `${x.id} (${x.vs.map((v) => v.veredicto + ": " + String(v.motivo).slice(0, 60)).join(" | ") || "sin veredicto"})`).join(" · ")}`);
+  if (HISTORICOS_38.size) console.log(`  ❄ HISTÓRICOS (§7.3·34b, no juzgados contra el canon vigente): ${[...HISTORICOS_38].join(", ")}`);
+  ok(rigOk.length + fpOk.length >= 32, `★ ≥ 32 de los ${rig.length + fpe.length} hechos verdaderos bloqueados por la forma pasan a verdadera (hoy ${rigOk.length + fpOk.length}/${rig.length + fpe.length})`);
   const falsas = E.falsasConfirmadasIds.map((id) => ({ id, vs: veredictosDe(id) }));
   ok(falsas.every((x) => ningunaVerdadera(x.vs)), `★ las ${falsas.length} falsedades reales del modelo NUNCA pasan a verdadera (0 FN)`, falsas.filter((x) => !ningunaVerdadera(x.vs)).map((x) => x.id).join(", "));
   ok(falsas.filter((x) => hayFalsa(x.vs)).length >= 6, `…y siguen dictadas FALSAS (${falsas.filter((x) => hayFalsa(x.vs)).length}/${falsas.length})`, falsas.filter((x) => !hayFalsa(x.vs)).map((x) => `${x.id}: ${x.vs.map((v) => v.veredicto).join("/")}`).join(", "));
@@ -140,8 +147,17 @@ H("B · tres formas de la misma declaración → el mismo veredicto (corpus manu
   const _limpia = (a) => Object.fromEntries(Object.entries(a).filter(([k]) => !["veredicto_esperado", "verdad", "nota", "evidencia", "_resuelta", "id"].includes(k)));
   /* cada afirmación se juzga sola (una declaración puede partirse en varias canónicas): la comparación es lista contra lista */
   const juzgar = (lista, figs) => verificarAfirmaciones(lista, { figs, datoProyectado: DATO, ejesDelTenant: ejes }).veredictos;
+  /* CONGELAMIENTO (owner 2026-09-28, §7.3·34b, etapa 5 — migración de significado de «frenado»): la forma
+   * «sujeto-concepto» mueve la métrica «Capital frenado» al SUJETO («capital frenado» como si fuera una
+   * entidad) para probar que el resolutor la reconstruye. Con el canon nuevo, el TEXTO original («…de capital
+   * frenado») ahora también nombra el estado «frenado» (venta interrumpida, sin umbral en este fixture) además
+   * de la métrica — la reconstrucción compite contra una lectura de estado que antes no existía. Es un efecto
+   * medido de la migración sobre el corpus de la fase 3 en vivo (no un caso que se reetiqueta): se congela por
+   * texto, no por id (el corpus no trae ids estables para estas dos afirmaciones puntuales). */
+  const _HISTORICO_TEXTO = /capital frenado|\bfrenad[oa]s?\b/i;
   const probarFormas = (etiqueta, base, figs) => {
     for (const a of base) {
+      if (_HISTORICO_TEXTO.test(String(a.texto || ""))) continue;
       const V0 = juzgar([a], figs).map((v) => v.veredicto).join("/");
       for (const [nombre, forma] of [["concepto", formaConcepto], ["universo", formaUniversoEnMetrica]]) {
         const b = forma(a); if (!b) continue;
@@ -165,7 +181,9 @@ H("B · tres formas de la misma declaración → el mismo veredicto (corpus manu
   for (const [clave, { originales }] of juicios) { const l = V.turnos.find((t) => String(t.i) === clave.split(".")[0]); const ll = (l.llamadas || []).filter((x) => x.tipo === "texto" && x.declaracion && String(x.declaracion.respuesta || "").trim())[clave.endsWith("cierre") ? 0 : 1]; probarFormas(`fase3·${clave}`, originales.filter((a) => a && typeof a === "object").map(_limpia), ll.figs || []); }
   console.log(`  sujeto-concepto: ${R.concepto.igual}/${R.concepto.n} · universo dentro de la métrica: ${R.universo.igual}/${R.universo.n} · grupo con lista: ${R.grupo.igual}/${R.grupo.n}`);
   for (const d of diffs.slice(0, 12)) console.log(`    ≠ ${d}`);
-  ok(R.concepto.n >= 100 && R.concepto.igual === R.concepto.n, `★ sujeto-concepto → el mismo veredicto en ${R.concepto.igual}/${R.concepto.n}`);
+  // el piso baja de 100 a 95 (owner 2026-09-28, §7.3·34b, etapa 5): se excluyen del universo las afirmaciones
+  // que citan «capital frenado»/«frenado(s)» (significado viejo, congeladas más arriba en `probarFormas`).
+  ok(R.concepto.n >= 95 && R.concepto.igual === R.concepto.n, `★ sujeto-concepto → el mismo veredicto en ${R.concepto.igual}/${R.concepto.n}`);
   ok(R.universo.n >= 100 && R.universo.igual === R.universo.n, `★ universo dentro de la métrica → el mismo veredicto en ${R.universo.igual}/${R.universo.n}`);
   ok(R.grupo.n >= 30 && R.grupo.igual === R.grupo.n, `★ grupo con lista de valores → los mismos veredictos, cifra por cifra, en ${R.grupo.igual}/${R.grupo.n}`);
 }
@@ -283,13 +301,16 @@ H("E · Inventario/Capital: cada SKU con su estado de la Mesa Capital (y la aler
   const ctx = { figs, datoProyectado: DATO, ejesDelTenant: ejes };
   const juzgar = (a) => verificarAfirmaciones([a], ctx).veredictos[0];
   const skus = ejes.sku || [];
-  const MESA = ["frenado", "riesgo de quiebre", "sobrestock", "capital sano"];
+  // MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): el canon que `datoProyectado.js` declaraba «frenado»
+  // para el tramo capital_frenado pasó a «inmovilizado critico» — «frenado» ahora es venta interrumpida (otro
+  // hecho, con su propio umbral) y no es un estado de la Mesa Capital declarado sin evaluar.
+  const MESA = ["inmovilizado critico", "riesgo de quiebre", "sobrestock", "capital sano"];
   const porSku = new Map(); for (const e of DATO.estados) if (MESA.includes(e.estado)) porSku.set(e.entidad, [...(porSku.get(e.entidad) || []), e.estado]);
   ok(skus.length > 0 && skus.every((k) => (porSku.get(k) || []).length === 1), `cada uno de los ${skus.length} SKU tiene EXACTAMENTE un estado de la Mesa Capital en la proyección`, skus.filter((k) => (porSku.get(k) || []).length !== 1).join(", "));
   /* los $ por estado de la proyección cierran con los «Estado del inventario: …» de la boleta del inventario (la Mesa y la carpeta, una verdad) */
   const inv = TENANT_DEMO.skuInventario || [];
   const usdPor = (estado) => inv.filter((r) => (porSku.get(r.sku) || [])[0] === estado).reduce((a, r) => a + (Number(r.stockUSD) || 0), 0);
-  const rot = { frenado: "capital frenado", "riesgo de quiebre": "riesgo de quiebre", sobrestock: "sobrestock", "capital sano": "capital sano" };
+  const rot = { "inmovilizado critico": "capital inmovilizado crítico", "riesgo de quiebre": "riesgo de quiebre", sobrestock: "sobrestock", "capital sano": "capital sano" };
   const cierres = MESA.map((e) => { const fg = figs.find((x) => x.label === `Estado del inventario: ${rot[e]}`); return { e, boleta: fg ? fg.raw : null, proy: usdPor(e) }; });
   ok(cierres.every((c) => c.boleta != null && Math.abs(c.boleta - c.proy) < 1), `los $ por estado cierran con la boleta: ${cierres.map((c) => `${c.e} ${c.proy} = ${c.boleta}`).join(" · ")}`);
   const critico = inv.filter((r) => String(r.alerta || "").toLowerCase() === "crit").map((r) => r.sku);

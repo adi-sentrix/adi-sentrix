@@ -95,24 +95,30 @@ export const PIEZAS_CONOCIMIENTO = [
     // "causalidad"`; las lecturas de riesgo (ex RSG-06) y de siguiente movimiento (ex MOV-05) viajan en el
     // enunciado y en `no_implica`/`medicion.no_excluye` — ver la nota completa en la cabecera del archivo. ===
     id: "CAU-06", version: 2, tipo: "senal", alimenta: "causalidad", etiqueta: ["B", "C"], grado: "usual",
-    enunciado: "Cuando un SKU está frenado (capital inmovilizado), el oficio mira si ese SKU está entre los que más venden. Si lo está, el capital frenado es probablemente cobertura de nivel de servicio: las cadenas exigen ese nivel y multan la entrega incompleta, así que liquidarlo puede costar más de lo que libera, y el oficio sugiere dejarlo quieto. Si no vende, es más probable que sea exceso de compra, y ahí el oficio sugiere liquidarlo por un canal que la cadena principal no vea como competencia directa de precio.",
+    // «crítico» no vive en el enunciado (prosa que se sirve al usuario): colisiona con el canon «critico» del
+    // Notario (estados.js, ligado hoy a la alerta del archivo, R9 — migrarlo es la etapa 5). «Inmovilizado» a
+    // secas es lo que el Notario ya verifica correctamente para estos SKU (owner 2026-09-28, §7.3·30-32).
+    enunciado: "Cuando un SKU está inmovilizado y no rota, el oficio mira si ese SKU está entre los que más venden. Si lo está, el capital inmovilizado es probablemente cobertura de nivel de servicio: las cadenas exigen ese nivel y multan la entrega incompleta, así que liquidarlo puede costar más de lo que libera, y el oficio sugiere dejarlo quieto. Si no vende, es más probable que sea exceso de compra, y ahí el oficio sugiere liquidarlo por un canal que la cadena principal no vea como competencia directa de precio.",
     sujeto: "sector",
     fuente: { tipo: "principio-del-oficio", detalle: "controller senior; validación owner + socio pendiente" },
     alcance: { ..._ALCANCE_BASE },
     fecha: "2026-09-23", vigencia: "2027-09-23", firma: null, estado: "borrador",
     no_implica: "No implica que esta cobertura esté exigida contractualmente por esta cadena en particular, ni que deba tocarse: liquidar un SKU de cobertura puede costar más de lo que libera. Confírmelo usted.",
-    pertinencia: { todo: ["sku.frenado"] },
+    // RENOMBRE (owner 2026-09-28, §7.3·30-32, decisión 0.1 del diseño de inventario): antes → `sku.frenado`;
+    // ahora → `sku.inmovilizado_critico` (predicados.js) — mismo predicado, mismo cálculo; `sku.frenado` queda
+    // libre para la venta frenada (etapa 5).
+    pertinencia: { todo: ["sku.inmovilizado_critico"] },
     medicion: {
       calculo: "skuFrenadoVsTopSeller", existe_en_motor: true, derivado_barato: true,
       por_entidad: "sku", comparador: "pertenece", referencia: "top_seller",
       decisivo: true,
       no_excluye: "que además haya un error de compra dentro del grupo de cobertura, y que liquidar este exceso por un canal alternativo cueste más de lo que libera (no hay hoy un canal alternativo confirmado)",
-      insumos: ["SKU frenados (inventoryStatus focus frenado)", "SKU que más venden (inventoryStatus focus top_sellers)"],
+      insumos: ["SKU inmovilizados críticos (inventoryStatus focus frenado)", "SKU que más venden (inventoryStatus focus top_sellers)"],
     },
     efecto: { sobre: "causalidad", sentido: "orienta", condicion: "estado = ocurre o estado = no_ocurre" },
     // la CONTRAINDICACIÓN de la ex MOV-05 ("no tocar la cobertura") no se pierde: ya está en `no_implica` de
     // arriba, servido justo en el estado "ocurre" — que es el SKU que la contraindicación pedía dejar quieto.
-    contraindicacion: { medicion: "sku.frenado y sku.top_seller — la cobertura, que no se toca" },
+    contraindicacion: { medicion: "sku.inmovilizado_critico y sku.top_seller — la cobertura, que no se toca" },
   },
   {
     id: "CAU-03", version: 1, tipo: "senal", alimenta: "causalidad", etiqueta: ["B"], grado: "usual",

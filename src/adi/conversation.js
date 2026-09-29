@@ -273,9 +273,11 @@ export function composeExplain(last, ctx = null, state = {}) {
     // boleta = total + capital POR SKU (money · para que el narrador pueda ser rico) · SIN DOH/rotación sueltas (evitan el
     // guard) · sin `inventory` pesado en la evidencia → la narración pasa el guard (NARRADO), no cae a tabla cruda.
     /* R5 del examen 1 del agente (2026-08-31): `inv.total` es el subconjunto FRENADO (el foco del bloque de
-     * inventario) — el rótulo dice lo que la cifra es; «inmovilizado» es la categoría AMPLIA y es OTRA cifra. */
-    const bol = [fig("Capital frenado · total", _m(inv.total), { unit: "money", raw: inv.total, mandatory: true, context: "capital frenado" })];
-    for (const s of inv.bySku.slice(0, 3)) bol.push(fig(`SKU · ${s.sku}`, _m(s.usd), { unit: "money", raw: s.usd, context: "capital frenado" }));
+     * inventario) — el rótulo dice lo que la cifra es; «inmovilizado» es la categoría AMPLIA y es OTRA cifra.
+     * RENOMBRE (owner 2026-09-28, §7.3·30-32, decisión 0.1): «Capital frenado» → «Capital inmovilizado crítico»
+     * (misma cifra, misma distinción — solo cambia la palabra de superficie). */
+    const bol = [fig("Capital inmovilizado crítico · total", _m(inv.total), { unit: "money", raw: inv.total, mandatory: true, context: "capital inmovilizado crítico" })];
+    for (const s of inv.bySku.slice(0, 3)) bol.push(fig(`SKU · ${s.sku}`, _m(s.usd), { unit: "money", raw: s.usd, context: "capital inmovilizado crítico" }));
     return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "explain", boleta: bol }, route: "followup_explain" };
   }
   // CONTINUIDAD (D) tras un DIAGNÓSTICO: el "por qué" explica el FOCO TOP (contribución/carga/capital), no un relleno

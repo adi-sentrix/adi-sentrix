@@ -310,7 +310,14 @@ H("5 · pieza 3 (veredicto de premisas) — cada premisa del catálogo, contra e
     ok(!!lp, `${id} · entrega.procedencia.libroPremisas existe (el libro APARTE de las premisas)`);
     if (!lp) continue;
     const esperadas = (caso.esperado.premisas || []);
+    /* CONGELAMIENTO (owner 2026-09-28, §7.3·34b, etapa 5 — migración de significado de «frenado»): D23/q1 y
+     * D23/q2 (fixtures/encargos-desarrollo.json) pinzan «estado: "frenado"» con el significado VIEJO
+     * (capital_frenado, rotación — "premisasDelGate": "LG-DRYER8KG rotación 1.0 < 2 → capital_frenado"). Registro
+     * histórico, no se juzgan contra el canon vigente (frenado = venta interrumpida, sin umbral en este fixture).
+     * Únicos dos casos del catálogo con `estado:"frenado"` en una premisa — verificado. */
+    const HISTORICOS_PREMISA = id === "D23" ? new Set(["q1", "q2"]) : new Set();
     for (const esp of esperadas) {
+      if (HISTORICOS_PREMISA.has(esp.id)) { console.log(`  ❄ HISTÓRICO · ${id}/${esp.id} — congelado (frenado-regla-de-rotacion, §7.3·34b)`); continue; }
       const H1 = lp.porId.get(String(esp.id));
       ok(!!H1, `${id}/${esp.id} · la premisa quedó en el libro de premisas`);
       if (!H1) continue;

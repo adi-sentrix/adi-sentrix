@@ -35,14 +35,49 @@ const _ejeDe = (I, ent) => { try { const r = I && typeof I.resolverEntidad === "
 
 export const ESTADOS_DE_LA_CASA = [
   /* ── inventario (SKU): los estados de la Mesa Capital, declarados por la proyección ── */
-  { canon: "inmovilizado", eje: "sku", re: /inmoviliz|deten|parad|bloquead|estancad/, prosa: /inmoviliz[a-záéíóúñ]*|detenid[oa]s?|parad[oa]s?|bloquead[oa]s?|estancad[oa]s?/, definicion: "SKU no activo en la Mesa Capital: frenado o en sobrestock", fuente: "estados de la proyección" },
-  { canon: "frenado", eje: "sku", re: /frenad/, prosa: /frenad[oa]s?/, definicion: "SKU frenado según la Mesa Capital (capital detenido sin rotación)", fuente: "estados de la proyección" },
+  /* «inmovilizado critico» VA ANTES que «inmovilizado» a propósito (owner 2026-09-28, §7.3·30-34, etapa 5,
+   * decisión 0.1 del diseño de inventario): «el orden de la lista es el de prioridad» (ver `estadoCanon`, más
+   * abajo) — el patrón MÁS ESPECÍFICO tiene que probarse primero, si no «inmovilizados críticos» matchea la
+   * alternativa corta de «inmovilizado» (`/inmoviliz|.../`) y el canon nuevo nunca se reconoce. Es el tramo
+   * `capital_frenado` de la Mesa Capital — rotación bajo el piso o días de inventario sobre el techo. Reemplaza
+   * al canon que ANTES se llamaba «frenado» acá (esa palabra queda para venta interrumpida, abajo). Sigue siendo
+   * un estado DECLARADO por la proyección (`I.estadosDe`, sin `verificar:` propio — mismo mecanismo que
+   * «sobrestock»/«riesgo de quiebre»/«capital sano»): `datoProyectado.js` lo declara como
+   * `estado: "inmovilizado critico"` SKU por SKU (antes `"frenado"`, renombrado en la migración). */
+  { canon: "inmovilizado critico", eje: "sku", re: /inmoviliz[a-záéíóúñ]*\s+cr[ií]tic[oa]s?/, prosa: /inmoviliz[a-záéíóúñ]*\s+cr[ií]tic[oa]s?/, definicion: "el tramo crítico del inventario (capital_frenado): rotación bajo el piso o días de inventario sobre el techo — subconjunto de inmovilizado, verificable", fuente: "estados de la proyección" },
+  { canon: "inmovilizado", eje: "sku", re: /inmoviliz|deten|parad|bloquead|estancad/, prosa: /inmoviliz[a-záéíóúñ]*(?!\s+cr[ií]tic)|detenid[oa]s?|parad[oa]s?|bloquead[oa]s?|estancad[oa]s?/, definicion: "SKU inmovilizado: en la Mesa Capital, inmovilizado crítico o en sobrestock (jerarquiaInventario)", fuente: "estados de la proyección" },
+  /* «frenado» (MIGRACIÓN DE SIGNIFICADO, owner 2026-09-28, §7.3·30-34, etapa 5, diseño §0.3/§4.3): antes sinónimo
+   * de `capital_frenado` (rotación) — ahora VENTA INTERRUMPIDA: días sin venta ≥ el umbral declarado (empresa o
+   * planteado en la consulta, `criterio.referencia{umbral_frenado}`). SIN umbral publicado, la afirmación no es
+   * verificable — nunca verdadera ni falsa por un umbral inventado (CLAUDE.md §2, «nada hardcodeado»; owner:
+   * «nunca 60 días como verdad de ADI»). El umbral se publica como KPI «Umbral de venta frenada» (datoProyectado.js,
+   * SOLO si `J.frenado.evaluado`) y los días sin venta ya vienen en `I.dias[ent].sinVenta` (estado «sin venta», arriba). */
+  { canon: "frenado", eje: "sku", re: /frenad/, prosa: /frenad[oa]s?/, definicion: "SKU con la venta interrumpida: días sin venta ≥ el umbral declarado (empresa o consulta) — sin umbral declarado, no verificable", fuente: "días de la proyección y el umbral declarado",
+    verificar: (I, ent) => {
+      const d = I && I.dias && I.dias[ent];
+      /* BUG REAL (encontrado 2026-09-29, cerrando la etapa 5 — no es la clase A del contrato, es un typo de
+       * mayúscula): `_kpi` busca contra `g.conceptoNorm`, que SIEMPRE es la etiqueta NORMALIZADA (minúsculas —
+       * ver el resto de este archivo: `/^piso de rotacion$/`, `/^unidades en stock$|.../`, todas en minúscula).
+       * Este regex tenía la «U» en mayúscula («Umbral de venta frenada»): nunca calzaba con «umbral de venta
+       * frenada» y `_kpi` siempre devolvía null — «frenado» salía "no-verificable" SIEMPRE, incluso con la
+       * empresa declarando el umbral en su perfil (verificado: `I.figs` SÍ trae la fig «Umbral de venta
+       * frenada» con `conceptoNorm:"umbral de venta frenada"` cuando `frenadoDiasSinVenta` está en el perfil —
+       * el hueco era puramente el `case` del patrón, no el dato ni el mecanismo de publicación). */
+      const umbral = _kpi(I, /^umbral de venta frenada$/);
+      if (!d || !Number.isFinite(d.sinVenta) || !Number.isFinite(umbral)) return null;
+      return { ok: d.sinVenta >= umbral, verdad: `${ent}: ${d.sinVenta} días sin venta · Umbral de venta frenada = ${umbral}`, evidencia: ["días de la proyección", "Umbral de venta frenada"] };
+    } },
   { canon: "sobrestock", eje: "sku", re: /sobrestock|sobre\s*stock|exceso\s+de\s+stock|sobreinventari/, prosa: /sobrestock|sobre\s+stock|sobreinventariad[oa]s?|exceso\s+de\s+stock/, definicion: "SKU en sobrestock según la Mesa Capital", fuente: "estados de la proyección" },
   { canon: "riesgo de quiebre", eje: "sku", re: /riesgo\s+de\s+quiebre|(?:al\s+borde|cerca|a\s+punto)\s+(?:del?\s+)?(?:quiebre|quebrar)|pr[oó]xim[oa]s?\s+a\s+(?:quebrar|quiebre|agotarse)|por\s+quebrar|se\s+(?:le\s+)?(?:acaba|agota)|quiebre\s+pr[oó]ximo/, prosa: /riesgo\s+de\s+quiebre|al\s+borde\s+del\s+quiebre|a\s+punto\s+de\s+quebrar|pr[oó]xim[oa]s?\s+a\s+(?:quebrar|agotarse)|quiebre\s+pr[oó]ximo/, definicion: "SKU en riesgo de quiebre según la Mesa Capital (cobertura bajo el mínimo)", fuente: "estados de la proyección" },
   { canon: "en quiebre", eje: "sku", re: /\ben\s+quiebre\b(?!\s+pr[oó]xim)|\bquebrad[oa]s?\b|desabastecid[oa]s?|sin\s+stock\b|stock\s+(?:en\s+)?(?:cero|0)\b|agotad[oa]s?\b/, prosa: /en\s+quiebre(?!\s+pr[oó]xim)|quebrad[oa]s?|desabastecid[oa]s?|sin\s+stock|agotad[oa]s?/, definicion: "quiebre consumado: unidades en stock = 0 — no es «riesgo de quiebre» (un estado de la Mesa Capital con stock todavía)", fuente: "unidades en stock",
     verificar: (I, ent) => { const u = _figDe(I, ent, /^unidades en stock$|^stock \(unidades\)$|^unidades$/); if (u == null) return null; return { ok: u === 0, verdad: `${ent} · Unidades en stock = ${u}`, evidencia: [`${ent} · Unidades en stock`] }; } },
   { canon: "capital sano", eje: "sku", re: /\bsan[oa]s?\b|saludable|en\s+regla|sin\s+alerta/, prosa: /capital\s+sano|(?:viene|vienen|est[aá]n?|sigue|siguen|queda|quedan)\s+san[oa]s?/, definicion: "SKU sin alerta de la Mesa Capital", fuente: "estados de la proyección" },
-  { canon: "critico", eje: "sku", re: /cr[ií]tic/, prosa: /cr[ií]tic[oa]s?(?!\s+(?:para|que|si|en\s+(?:el|la)\s+(?:lectura|decisi))\b)/, definicion: "alerta crítica del dato (la proyección la declara SKU por SKU)", fuente: "estados de la proyección" },
+  /* «critico» a secas SOLO es la alerta del archivo (decisión 0.1 del diseño de inventario, sin cambio) — nunca
+   * el tramo `capital_frenado`, que ahora se dice «inmovilizado crítico» (canon propio, arriba). El punto de
+   * prosa de ESTE canon excluye «crítico» pegado a «inmovilizado» con un lookbehind (owner 2026-09-28, §7.3·30-34,
+   * etapa 5): sin la exclusión, cada mención de «inmovilizado crítico» dispara TAMBIÉN un punto «critico» bare
+   * sin declarar — la palabra es una subcadena literal de la otra. */
+  { canon: "critico", eje: "sku", re: /cr[ií]tic/, prosa: /(?<!inmoviliz[a-záéíóúñ]*\s)cr[ií]tic[oa]s?(?!\s+(?:para|que|si|en\s+(?:el|la)\s+(?:lectura|decisi))\b)/, definicion: "alerta crítica del dato (la proyección la declara SKU por SKU)", fuente: "estados de la proyección" },
   { canon: "sin venta", eje: "sku", re: /sin\s+venta|sin\s+movimiento|no\s+(?:se\s+)?vende|sin\s+salida|no\s+rota\b/, prosa: /sin\s+venta|sin\s+movimiento|sin\s+salida/, definicion: "días sin venta > 0 en la proyección", fuente: "días de la proyección",
     verificar: (I, ent) => { const d = I && I.dias && I.dias[ent]; if (!d || !Number.isFinite(d.sinVenta)) return null; return { ok: d.sinVenta > 0, verdad: `${ent}: ${d.sinVenta} días sin venta`, evidencia: ["días de la proyección"] }; } },
   // RAÍZ A4 (supervisor 2026-09-27, diagnóstico v9) — el piso se imprime con UN decimal (`.toFixed(1)`, «2.0x»),
@@ -91,8 +126,13 @@ for (const e of ESTADOS_DE_LA_CASA) {
   e.re = new RegExp(e.re.source + "|" + extra.join("|"), e.re.flags);
   e.prosa = new RegExp(e.prosa.source + "|" + extra.join("|"), e.prosa.flags);
 }
-/* «frenado» no lleva complemento en el catálogo: el juez v2 (presencia) leería «no está frenado» como un punto de «capital sano» sin declarar; el libro v3 usa COMPLEMENTO_V3 */
-export const COMPLEMENTO_V3 = { frenado: "capital sano" };
+/* «frenado» no lleva complemento en el catálogo: el juez v2 (presencia) leería «no está frenado» como un punto de «capital sano» sin declarar; el libro v3 usa COMPLEMENTO_V3.
+ * MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): «inmovilizado critico» hereda el complemento que «frenado»
+ * tenía antes («capital sano», la Mesa Capital). «frenado» (venta interrumpida) YA NO tiene complemento acá — no
+ * hay un único estado canónico contrario dentro del catálogo (no está vendiendo ≠ ningún estado de Mesa Capital);
+ * sin entrada, `_verdadDeLoFalso` (hechos.js:769) simplemente no ofrece un hecho sintético adicional para la
+ * negación, que sigue siendo correcta por el veredicto directo de `verificar()` (estados.js, arriba). */
+export const COMPLEMENTO_V3 = { "inmovilizado critico": "capital sano" };
 for (const e of ESTADOS_DE_LA_CASA) if (e.canon === "sin contribucion" || e.canon === "sin margen") e.ejes = ["cliente", "sku", "marca", "familia", "canal"];   // se demuestran con la métrica, en cualquier eje que la tenga
 /** ejeCompatible(def, eje) → el estado vale en ese eje */
 export const ejeCompatible = (def, eje) => !def || !eje || (Array.isArray(def.ejes) ? def.ejes.includes(eje) : !def.eje || def.eje === eje);
@@ -125,8 +165,9 @@ export function estadoCanon(t) {
 /** ESTADOS: la tabla [re, canon] que la casa exponía antes (compatibilidad) */
 export const ESTADOS = ESTADOS_DE_LA_CASA.map((e) => [e.re, e.canon]);
 
-/** compatibles(dicho, otro) → el estado dicho no contradice al otro: iguales, o «inmovilizado» con frenado/sobrestock */
-export const estadosCompatibles = (dicho, otro) => dicho === otro || (dicho === "inmovilizado" && (otro === "frenado" || otro === "sobrestock")) || (otro === "inmovilizado" && (dicho === "frenado" || dicho === "sobrestock"));
+/** compatibles(dicho, otro) → el estado dicho no contradice al otro: iguales, o «inmovilizado» con inmovilizado
+ *  crítico/sobrestock (MIGRACIÓN owner 2026-09-28, §7.3·30-34: antes «frenado», ahora «inmovilizado critico») */
+export const estadosCompatibles = (dicho, otro) => dicho === otro || (dicho === "inmovilizado" && (otro === "inmovilizado critico" || otro === "sobrestock")) || (otro === "inmovilizado" && (dicho === "inmovilizado critico" || dicho === "sobrestock"));
 /** complementoDe(canon) → el estado contrario («al día» ↔ «en mora»), o null */
 export const complementoDe = (canon) => { const e = _porCanon.get(canon); return e && e.complemento ? e.complemento : null; };
 /** la expresión regular de los PUNTOS de estado en la prosa (todas las formas de todos los estados), sin flags */

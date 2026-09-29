@@ -89,7 +89,7 @@
    "falsedades": [
     "Antofagasta tiene frenado el 21.5% de su capital"
    ],
-   "mentira": "Antofagasta · Capital frenado $8K ÷ Antofagasta · Capital $13K = 65.6%; el 21.5% divide por el capital de Valparaíso ($39K)"
+   "mentira": "Antofagasta · Capital inmovilizado crítico $8K ÷ Antofagasta · Capital $13K = 65.6%; el 21.5% divide por el capital de Valparaíso ($39K)"
   },
   {
    "id": "A10 · participación en lo frenado vestida de participación en el inventario (base «del»)",
@@ -250,17 +250,17 @@
    "falsedades": [
     "Antofagasta concentra $25K"
    ],
-   "mentira": "Valparaíso · Capital frenado = $25K; Antofagasta · Capital frenado = $8K"
+   "mentira": "Valparaíso · Capital inmovilizado crítico = $25K; Antofagasta · Capital inmovilizado crítico = $8K"
   },
   {
    "id": "A26 · fila «Total» con un grupo parcial (falta MAK-COMP-AIR)",
    "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
    "v3": true,
-   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hG2\",\"tipo\":\"grupo\",\"miembros\":[\"LG-DRYER8KG\",\"BOS-SANDER\"],\"metrica\":\"capital_frenado\",\"agregado\":\"suma\"}\n<<FIN>>\n| SKU | Capital frenado |\n|---|---|\n| LG-DRYER8KG | {hL1} |\n| BOS-SANDER | {hB1} |\n| Total | {hG2} |",
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hG2\",\"tipo\":\"grupo\",\"miembros\":[\"LG-DRYER8KG\",\"BOS-SANDER\"],\"metrica\":\"capital_frenado\",\"agregado\":\"suma\"}\n<<FIN>>\n| SKU | Capital inmovilizado crítico |\n|---|---|\n| LG-DRYER8KG | {hL1} |\n| BOS-SANDER | {hB1} |\n| Total | {hG2} |",
    "falsedades": [
     "| Total | $25K |"
    ],
-   "mentira": "Capital frenado · total = $33K; $25K es la suma de solo dos de los tres frenados"
+   "mentira": "Capital inmovilizado crítico · total = $33K; $25K es la suma de solo dos de los tres frenados"
   },
   {
    "id": "A27 · participación en lo frenado vestida con «de tu inventario» (sin preposición de base)",
@@ -370,7 +370,7 @@
    "falsedades": [
     "| Total | $25K |"
    ],
-   "mentira": "Capital frenado · total = $33K; $25K suma solo dos de los tres frenados"
+   "mentira": "Capital inmovilizado crítico · total = $33K; $25K suma solo dos de los tres frenados"
   },
   {
    "id": "A38 · lista SKU → «ubicación» con la bodega equivocada",
@@ -578,7 +578,7 @@
    "id": "C03 · tabla SKU × capital frenado, días sin venta, rotación",
    "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
    "v3": true,
-   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hL2\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hL3\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"rotacion\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB2\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hB3\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"rotacion\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM2\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hM3\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"rotacion\"}\n<<FIN>>\n| SKU | Capital frenado | Días sin venta | Rotación |\n|---|---|---|---|\n| LG-DRYER8KG | {hL1} | {hL2} | {hL3} |\n| BOS-SANDER | {hB1} | {hB2} | {hB3} |\n| MAK-COMP-AIR | {hM1} | {hM2} | {hM3} |"
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hL2\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hL3\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"rotacion\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB2\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hB3\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"rotacion\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM2\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"dias_sin_venta\"}\n{\"id\":\"hM3\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"rotacion\"}\n<<FIN>>\n| SKU | Capital inmovilizado crítico | Días sin venta | Rotación |\n|---|---|---|---|\n| LG-DRYER8KG | {hL1} | {hL2} | {hL3} |\n| BOS-SANDER | {hB1} | {hB2} | {hB3} |\n| MAK-COMP-AIR | {hM1} | {hM2} | {hM3} |"
   },
   {
    "id": "C04 · conteo n de m",
@@ -632,7 +632,7 @@
    "id": "C12 · encabezado + viñetas rotuladas por bodega",
    "pregunta": "¿Qué SKU tengo frenados en la bodega de Valparaíso y cuánto capital hay ahí?",
    "v3": true,
-   "cierre": "<<HECHOS>>\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hA\",\"tipo\":\"cifra\",\"sujeto\":\"Antofagasta\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n### Capital frenado por bodega\n- Valparaíso: {hV}\n- Antofagasta: {hA}"
+   "cierre": "<<HECHOS>>\n{\"id\":\"hV\",\"tipo\":\"cifra\",\"sujeto\":\"Valparaíso\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hA\",\"tipo\":\"cifra\",\"sujeto\":\"Antofagasta\",\"metrica\":\"capital_frenado\"}\n<<FIN>>\n### Capital inmovilizado crítico por bodega\n- Valparaíso: {hV}\n- Antofagasta: {hA}"
   },
   {
    "id": "C13 · grupo suma «entre los dos»",
@@ -722,7 +722,7 @@
    "id": "C27 · grupo de los tres frenados como total",
    "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
    "v3": true,
-   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hG3\",\"tipo\":\"grupo\",\"miembros\":[\"LG-DRYER8KG\",\"BOS-SANDER\",\"MAK-COMP-AIR\"],\"metrica\":\"capital_frenado\",\"agregado\":\"suma\"}\n<<FIN>>\n| SKU | Capital frenado |\n|---|---|\n| LG-DRYER8KG | {hL1} |\n| BOS-SANDER | {hB1} |\n| MAK-COMP-AIR | {hM1} |\n| Total | {hG3} |"
+   "cierre": "<<HECHOS>>\n{\"id\":\"hL1\",\"tipo\":\"cifra\",\"sujeto\":\"LG-DRYER8KG\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hB1\",\"tipo\":\"cifra\",\"sujeto\":\"BOS-SANDER\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hM1\",\"tipo\":\"cifra\",\"sujeto\":\"MAK-COMP-AIR\",\"metrica\":\"capital_frenado\"}\n{\"id\":\"hG3\",\"tipo\":\"grupo\",\"miembros\":[\"LG-DRYER8KG\",\"BOS-SANDER\",\"MAK-COMP-AIR\"],\"metrica\":\"capital_frenado\",\"agregado\":\"suma\"}\n<<FIN>>\n| SKU | Capital inmovilizado crítico |\n|---|---|\n| LG-DRYER8KG | {hL1} |\n| BOS-SANDER | {hB1} |\n| MAK-COMP-AIR | {hM1} |\n| Total | {hG3} |"
   },
   {
    "id": "C28 · razón de Antofagasta sobre su propio capital",
@@ -770,7 +770,7 @@
    "id": "C35 · derivada por rótulos de la boleta",
    "pregunta": "¿Cómo está mi inventario? Dame una lectura de capital, rotación y qué SKU están frenados",
    "v3": true,
-   "cierre": "<<HECHOS>>\n{\"id\":\"hDlab\",\"tipo\":\"derivada\",\"op\":\"diferencia\",\"de\":[\"LG-DRYER8KG · Capital frenado\",\"BOS-SANDER · Capital frenado\"]}\n<<FIN>>\n{{hDlab: Entre LG-DRYER8KG y BOS-SANDER hay {hDlab} de diferencia en capital frenado}}."
+   "cierre": "<<HECHOS>>\n{\"id\":\"hDlab\",\"tipo\":\"derivada\",\"op\":\"diferencia\",\"de\":[\"LG-DRYER8KG · Capital inmovilizado crítico\",\"BOS-SANDER · Capital inmovilizado crítico\"]}\n<<FIN>>\n{{hDlab: Entre LG-DRYER8KG y BOS-SANDER hay {hDlab} de diferencia en capital frenado}}."
   },
   {
    "id": "C36 · retórica + hechos anclados, con «piezas»",

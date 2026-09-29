@@ -225,11 +225,17 @@ export function buildMesaCapital(scenario) {
     diasSinVenta: typeof s.diasSinVenta === "number" ? s.diasSinVenta : null,
     // decisión ·34a: en SUPERFICIE (mesaCapital.js/SentrixPanel.jsx) el rótulo pasa de "· crítico" a "· con
     // alerta en el archivo" — «crítico» queda solo para inmovilizado crítico. `conAlertaArchivo` es el campo
-    // que esta cara usa para SU texto. `critico` se CONSERVA además, byte-idéntico, porque `lecturaDeCuadro.js`
-    // (fuera de esta etapa: es el puente genérico cuadro→agente, no la pantalla) lo lee por ese nombre para su
-    // propia señal narrativa — tocar ese archivo es etapa 4/5, no esta. Las dos claves valen lo mismo; ninguna
-    // se lee dos veces con dos verdades.
-    critico: conAlertaArchivo(s), conAlertaArchivo: conAlertaArchivo(s) });
+    // que esta cara usa para SU texto (la alerta del archivo, R9).
+    // CERRADO (owner 2026-09-28, §7.3·30-34, etapa 5): la etapa 3/4 había REVERTIDO `critico:
+    // s.estado === "capital_frenado"` porque el Notario todavía no tenía el canon «inmovilizado critico» — el
+    // señalador `lecturaDeCuadro.js`/`SENALES.critico` decía «está en estado crítico» (la palabra SUELTA, que
+    // colisionaba con la alerta del archivo) y `cuadroExplicado.js` §6b declaraba el conteo contra el eje
+    // ENTERO (13 SKU) en vez del universo del cuadro (3), así que ninguna forma verificaba. Ahora el canon
+    // «inmovilizado critico» existe (estados.js) y se declara SKU por SKU en `I.estados`, así que un conteo de
+    // 3 contra el eje de 13 SKU SÍ es verificable (coincide exacto con el conjunto que la proyección declara).
+    // Se restaura el campo, y `SENALES.critico` pasa a decir «inmovilizado crítico» (no «crítico» a secas).
+    critico: s.estado === "capital_frenado",
+    conAlertaArchivo: conAlertaArchivo(s) });
   // QUIEBRE PRÓXIMO · ordenado por urgencia real: menos días de inventario primero. Es el que se queda sin stock
   // antes, y eso lo dice su propio dato — no la venta de otra tabla.
   const _quiebreFilas = D.perSku.filter((s) => s.estado === "riesgo_quiebre").map(_fila)
@@ -531,6 +537,9 @@ export function buildMesaCapital(scenario) {
       // `inmovilizado`/`situacion` (Crítico | Sobrestock) y `venta` (Frenada | Con venta | Sin evaluar).
       conAlertaArchivo: r.alerta === "crit",
       inmovilizado: !!js.inmovilizado,
+      // señal genérica para `lecturaDeCuadro.js` (SENALES.critico, owner 2026-09-28 §7.3·30-32): lee `J.critico`
+      // (el detector, `capital_frenado`), NUNCA la alerta del archivo — mismo campo que `_diasSinVentaVista` ya usa.
+      critico: !!js.critico,
       situacion: js.critico ? "Crítico" : s.estado === "sobrestock" ? "Sobrestock" : null,
       venta: js.frenado === true ? "Frenada" : js.frenado === false ? "Con venta" : "Sin evaluar",
       ventaEvaluada: js.frenado !== "sin_evaluar",

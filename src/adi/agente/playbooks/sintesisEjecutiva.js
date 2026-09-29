@@ -150,7 +150,11 @@ export const sintesisEjecutiva = {
     };
     mk(/^Contribuci[oó]n no capturada · subtotal(?: · \d+ cuentas materiales [^·]*)?$/i, "Contribución no capturada", /· Contribuci[oó]n no capturada$/i, "esa cuenta");
     mk(/^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$/i, "Carga comercial alta", /· Carga comercial alta$/i, "esa carga");
-    mk(/^Capital frenado · subtotal$/i, "Capital frenado en inventario", /· Capital frenado$/i, "ese SKU");
+    // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): la fig del rótulo pasó de «Capital frenado» a
+    // «Capital inmovilizado crítico», pero `nombre` se imprime en la PROSA narrada (línea 203) — ahí «crítico»
+    // suelto colisiona con el canon del Notario (estados.js, ligado a la alerta del archivo). Se dice
+    // «Capital inmovilizado en inventario» en la prosa; el rótulo de la fig no cambia.
+    mk(/^Capital (?:frenado|inmovilizado cr[ií]tico) · subtotal$/i, "Capital inmovilizado en inventario", /· Capital (?:frenado|inmovilizado cr[ií]tico)$/i, "ese SKU");
     if (!candidatos.length) return null;
 
     const materiales = piso > 0 ? candidatos.filter((c) => c.usd >= piso) : candidatos;

@@ -55,11 +55,12 @@ console.log("\n── 3 · LA CARPETA ES LA MISMA · las seis cosas que el owner
   const k = deriveKpis(ESCENARIO_INICIAL);
   ok(/Ventas totales: \$[\d.]+M/.test(t), `misma VENTA TOTAL: ${(t.match(/Ventas totales: \$[\d.]+M/) || [])[0]}`);
   ok(!!k.inventario && /Inventario \(foto de hoy\)/.test(t), "mismos KPI DE INVENTARIO: el escenario los trae y la carpeta los emite");
-  ok(/Capital inmovilizado \(categoría AMPLIA\)/.test(t) && /Frenado \(estado CRÍTICO/.test(t), "…con las dos métricas definidas por el owner (amplia y crítica)");
+  ok(/Capital inmovilizado \(categoría AMPLIA\)/.test(t) && /Inmovilizado cr[ií]tico \(subconjunto/.test(t), "…con las dos métricas definidas por el owner (amplia y crítica)");
   ok((c.figs || []).length > 0 && (c.figs || []).every((f) => Array.isArray(f.duenos) && f.duenos.length), "mismos DUEÑOS: toda cifra de la carpeta trae los suyos");
   ok((c.figs || []).every((f) => f.universo), "mismos UNIVERSOS: toda cifra trae el suyo");
   const est = new Set((c.estados || []).map((e) => e.estado));
-  ok(est.has("frenado") && est.has("inmovilizado"), `mismos ESTADOS: ${[...est].join(", ")}`);
+  // MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): el canon «frenado» pasó a «inmovilizado critico».
+  ok(est.has("inmovilizado critico") && est.has("inmovilizado"), `mismos ESTADOS: ${[...est].join(", ")}`);
   ok(/PROHIBIDO cruzarlos/.test(t) && /LOS DOS UNIVERSOS QUE NO RECONCILIAN/.test(t), "mismo CONTRATO: la carpeta lleva la divergencia declarada");
 }
 

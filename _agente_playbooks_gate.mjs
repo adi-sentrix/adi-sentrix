@@ -388,8 +388,11 @@ H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materi
   // (ancla común de TODAS las variantes del cierre — la oferta varía por semilla desde 2026-09-03)
   ok(/por qué se cae no está en este dato/.test(ra.r.text) && /la serie mensual de La Polar/.test(ra.r.text),
     "…02 LOCALIZA sin causas y 03 OFRECE abrir al que más cae");
+  // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): la prosa narrada dice «capital inmovilizado» (no ya
+  // «capital frenado» — esa palabra queda para venta interrumpida con umbral declarado; el RÓTULO de la boleta,
+  // en cambio, sigue diciendo «Capital inmovilizado crítico», probado en `_rotulo_frenado_gate`).
   const rb = await T("qué hago con el inventario inmovilizado");
-  ok(rb.r.agente.estado === "playbook" && /\$33K de capital frenado/.test(rb.r.text) && /capital frenado \$14K/.test(rb.r.text),
+  ok(rb.r.agente.estado === "playbook" && /\$33K de capital inmovilizado/.test(rb.r.text) && /capital inmovilizado \$14K/.test(rb.r.text),
     `★ B · el total y cada SKU con el monto pegado a su concepto (${rb.r.agente.estado})`, rb.r.text.slice(0, 120));
   ok(/bajo el 0.05% de tu venta: \$50K/.test(rb.r.text) && /no es tu incendio de hoy/.test(rb.r.text),
     "★ B · MATERIALIDAD: $33K está bajo el piso relativo y el entregable LO DICE con el umbral declarado");
@@ -455,7 +458,8 @@ H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materi
       ok(/Comercial Valparaiso · -\$11\.0M/.test(ca.r.text) && /Bazar Centro · -\$10\.6M/.test(ca.r.text),
         "★ COMPLETA · A: los dos que caen de verdad, con sus cifras", ca.r.text.slice(0, 120));
       const cb = await T("qué hago con el inventario inmovilizado");
-      ok(/\$38\.1M/.test(cb.r.text) && /ELE-CAB25/.test(cb.r.text) && /el único con capital frenado/.test(cb.r.text),
+      // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «capital frenado» → «capital inmovilizado» en la prosa.
+      ok(/\$38\.1M/.test(cb.r.text) && /ELE-CAB25/.test(cb.r.text) && /el único con capital inmovilizado/.test(cb.r.text),
         "★ COMPLETA · B: $38.1M en ELE-CAB25, nombrado como el único");
       const cc = await T("se me está cayendo la venta, ¿dónde?");
       ok(/-40\.5%/.test(cc.r.text) && /viene por debajo/.test(cc.r.text),
@@ -594,9 +598,10 @@ H("1g · certificación: el límite honesto con alternativa, y los 3 riesgos del
       ok(cr.r.agente.estado === "playbook" && /150 filas con 5 valores distintos/.test(cr.r.text) && /todavía no analiza/.test(cr.r.text),
         "★ REAL T4 · su planilla declara el guardado (150 filas · 5 valores) y ADI ahora LO DICE", cr.r.text.slice(0, 120));
       const cs = await T("dame los 3 riesgos para el directorio");
+      // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «Capital frenado en inventario» → «Capital inmovilizado en inventario».
       ok(cs.r.agente.estado === "playbook" && /Los 3 riesgos, por materialidad:/.test(cs.r.text)
-        && /-40\.5%[^\n]{0,50}año anterior/.test(cs.r.text) && /Capital frenado en inventario: \$38\.1M/.test(cs.r.text) && /encabeza ELE-CAB25/.test(cs.r.text),
-        "★ REAL T11 · los 3 riesgos con sus cifras: la venta cayendo primero, el capital frenado localizado", cs.r.text.slice(0, 140));
+        && /-40\.5%[^\n]{0,50}año anterior/.test(cs.r.text) && /Capital inmovilizado en inventario: \$38\.1M/.test(cs.r.text) && /encabeza ELE-CAB25/.test(cs.r.text),
+        "★ REAL T11 · los 3 riesgos con sus cifras: la venta cayendo primero, el capital inmovilizado localizado", cs.r.text.slice(0, 140));
     }
   } else {
     console.log("      (la planilla real del owner no está en esta máquina: 2 checks de la certificación no corren)");
@@ -819,7 +824,7 @@ H("1h · T3 · ventas neutra, contra el plan, la serie y el inventario en fraseo
     "el inventario en fraseo natural tiene camino en sus cuatro formas",
     INV.filter((q) => !playbookPara(q)).join(" | "));
   const tI = await texto("cómo está el inventario");
-  ok(/De tu inventario, lo que este dato publica es el capital que qued[oó] frenado — no una foto del stock completo\./.test(tI),
+  ok(/De tu inventario, lo que este dato publica es el capital que qued[oó] inmovilizado crítico — no una foto del stock completo\./.test(tI),
     "★ quien pregunta por el inventario entero recibe el recorte DECLARADO en la primera línea", tI.slice(0, 130));
   const tF = await texto("capital inmovilizado");
   ok(!/no una foto del stock completo/.test(tF),
@@ -1018,16 +1023,17 @@ H("1k · el ask de cuadro: anclado a SU fila, contra el cuadro VIVO");
     "★ …y NO cita la venta comercial ni margen: la frontera de universos (mesaCapital no importa skusMargen)");
   ok(/\bficha\b/i.test(tP), "…y ofrece la ficha para el lado comercial, en vez de servirlo acá");
 
-  /* ── LIBERO: el frenado con sus cifras; el no frenado dicho con el estado que la carpeta declara ── */
+  /* ── LIBERO: el inmovilizado crítico con sus cifras; el no-crítico dicho con el estado que la carpeta declara
+   * (MIGRACIÓN owner 2026-09-28, §7.3·30-34, etapa 5: askDeCuadro.js migró «frenado» → «inmovilizado crítico») ── */
   const tL = await texto("¿Cómo libero el capital de LG-DRYER8KG?");
-  ok(/LG-DRYER8KG tiene \$14K frenados — 165d de días de inventario, rotación 1\.0x\./.test(tL),
-    "★ el SKU frenado: su monto, sus días y su rotación — la fila del corte frenado", tL.slice(0, 110));
-  ok(/Por qué se frenó no está en este dato/.test(tL), "…y la causa NO se inventa: el cuadro localiza");
+  ok(/LG-DRYER8KG tiene \$14K inmovilizados críticos — 165d de días de inventario, rotación 1\.0x\./.test(tL),
+    "★ el SKU inmovilizado crítico: su monto, sus días y su rotación — la fila del corte", tL.slice(0, 110));
+  ok(/Por qué llegó a este punto no está en este dato/.test(tL), "…y la causa NO se inventa: el cuadro localiza");
   const tN = await texto("¿Cómo libero el capital de SAM-REF500L?");
-  ok(/SAM-REF500L no está frenado en el corte de este turno\./.test(tN) && /LG-DRYER8KG · BOS-SANDER · MAK-COMP-AIR/.test(tN),
-    "★ el SKU NO frenado se dice con el estado que la carpeta declara (y quiénes sí lo están)", tN.slice(0, 120));
+  ok(/SAM-REF500L no está inmovilizado crítico en el corte de este turno\./.test(tN) && /LG-DRYER8KG · BOS-SANDER · MAK-COMP-AIR/.test(tN),
+    "★ el SKU NO crítico se dice con el estado que la carpeta declara (y quiénes sí lo están)", tN.slice(0, 120));
   const tB = await texto("¿Cómo libero el capital inmovilizado en Valparaíso?");
-  ok(/En Valparaíso hay \$25K de capital frenado\./.test(tB),
+  ok(/En Valparaíso hay \$25K de capital inmovilizado crítico\./.test(tB),
     "★ la variante por bodega ancla a SU bodega ($25K es Valparaíso, no el total $33K)", tB.slice(0, 90));
   const tQ = await texto("¿Qué SKU libero primero?");
   ok(/el primero es LG-DRYER8KG/.test(tQ) && /criterio m[ií]o/.test(tQ),
@@ -1153,16 +1159,16 @@ H("1n · tanda 3: la cola del top-4, la colisión declarada, la procedencia del 
     { label: "Resto (2 de 6) · Capital frenado", value: "$5K", raw: 5000 },
   ];
   const tCola = String(askDeCuadro.componer({ figs: FIGS5, pregunta: "¿Cómo libero el capital de LG-DRYER8KG?", semilla: "s" }) || "");
-  ok(/no aparece entre los SKU que este corte publica por nombre/.test(tCola) && !/no está frenado/.test(tCola),
+  ok(/no aparece entre los SKU que este corte publica por nombre/.test(tCola) && !/no está inmovilizado crítico/.test(tCola),
     "★ con cola presente, el SKU ausente NO se niega: «no aparece entre los publicados» (negar contra top-4 mentiría)", tCola.slice(0, 120));
   ok(/resto \(2 de 6\) suma \$5K/i.test(tCola),
     "…y la cola se DECLARA con su cifra — la lista recortada ya no se lee completa", tCola.slice(0, 160));
   const tQ5 = String(askDeCuadro.componer({ figs: FIGS5, pregunta: "¿Qué SKU libero primero?", semilla: "s" }) || "");
   ok(/AAA-1 \$20K/.test(tQ5) && /resto \(2 de 6\) suma \$5K/i.test(tQ5),
     "…y el ranking de «qué libero primero» lleva la cola también", tQ5.slice(0, 160));
-  /* el demo real (3 frenados, sin Resto): la negación canónica de siempre sigue intacta */
+  /* el demo real (3 inmovilizados críticos, sin Resto): la negación canónica de siempre sigue intacta */
   const tSin = await (async () => String((await answerViaAgente({ text: "¿Cómo libero el capital de SAM-REF500L?", history: [], mem: {}, scenario: "bonanza", callAgente: MUDO })).r.text || ""))();
-  ok(/SAM-REF500L no está frenado en el corte de este turno\./.test(tSin),
+  ok(/SAM-REF500L no está inmovilizado crítico en el corte de este turno\./.test(tSin),
     "…y SIN cola (el corte completo publicado), la negación canónica se conserva");
 
   /* ── LA COLISIÓN DE EJES (punto 11): un tenant cuyo catálogo repite el nombre en dos ejes ── */
@@ -1633,7 +1639,7 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
 
   // (W) el recorte del inventario deja de declararse: un ranking de lo frenado se lee como si fuera todo el stock
   await carnada("el inventario recortado se sirve como si fuera el stock entero", "src/adi/agente/playbooks/lecturaPorEje.js",
-    [[/      const recorte = `De tu inventario, lo que este dato publica es el capital que quedó frenado — no una foto del stock completo\.`;\n      partes\.push\(recorte\);/,
+    [[/      const recorte = `De tu inventario, lo que este dato publica es el capital que quedó inmovilizado crítico — no una foto del stock completo\.`;\n      partes\.push\(recorte\);/,
       "      const recorte = \"\";   /* CARNADA: el recorte se calla */"]],
     async (Mut) => {
       initTenant(TENANT_DEMO);
@@ -1643,8 +1649,12 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
         { label: "LG-DRYER8KG · Rotación", value: "1" }, { label: "BOS-SANDER · Rotación", value: "2" },
       ];
       const t = String(Mut.lecturaPorEje.componer({ figs: FIGS, pregunta: "cómo está el inventario" }) || "");
-      /* el composer TIENE que haber respondido: si devolvió vacío, la carnada no probó nada y debe fallar */
-      return /capital frenado por SKU/i.test(t) && !/no una foto del stock completo/.test(t);
+      /* el composer TIENE que haber respondido: si devolvió vacío, la carnada no probó nada y debe fallar.
+       * RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32, revisado etapa 5 §7.3·30-34): la cabecera
+       * («Así viene tu ${unidad} por SKU») pasó de «capital frenado» a «capital inmovilizado» y, al exigir
+       * el nombre completo por la familia larga de anclas.js (metrica-ajena), a «capital inmovilizado
+       * crítico» — ver la nota en lecturaPorEje.js. */
+      return /capital inmovilizado cr[ií]tico por SKU/i.test(t) && !/no una foto del stock completo/.test(t);
     });
 
   // (X) el eje cliente sin exigir la métrica: «mis clientes» a secas se convierte en un ranking de venta
@@ -1760,7 +1770,7 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
         { label: "Resto (2 de 6) · Capital frenado", value: "$5K", raw: 5000 },
       ];
       const t = String(Mut.askDeCuadro.componer({ figs: FIGS5, pregunta: "¿Cómo libero el capital de LG-DRYER8KG?", semilla: "s" }) || "");
-      return /no está frenado en el corte de este turno/.test(t);   // el defecto: negar con cola invisible
+      return /no está inmovilizado crítico en el corte de este turno/.test(t);   // el defecto: negar con cola invisible
     });
   // (GG) la colisión tragada: el guardia vuelve a elegir en silencio
   await carnada("la colisión de ejes se traga (el guardia elige en silencio)", "src/adi/agente/playbooks/indiceEntidades.js",

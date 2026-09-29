@@ -99,7 +99,7 @@ const _INV_BASE = [
   /* `estado` es la foto ENTERA (total y los cuatro estados, suman exacto) y responde también cuando nada está frenado —
    * `frenado` solo declina en ese caso (medido en la plantilla de ejemplo: «no hay señal de inventario»). */
   { tool: "inventoryStatus", args: { focus: "estado" }, para: "la foto completa del inventario: el capital total y cómo se reparte en los cuatro estados (rotando en rango · riesgo de quiebre · sobrestock · inmovilizado), con la referencia declarada" },
-  { tool: "inventoryStatus", args: { focus: "frenado" }, para: "el capital frenado: los SKU inmovilizados con su monto, días y rotación, y el corte por bodega y familia (declina si no hay ninguno: eso también es una lectura)" },
+  { tool: "inventoryStatus", args: { focus: "frenado" }, para: "el capital inmovilizado crítico: los SKU sin rotación con su monto, días y rotación, y el corte por bodega y familia (declina si no hay ninguno: eso también es una lectura)" },
   { tool: "queryMetric", args: { metric: "capital", dimension: "sku" }, para: "el capital en inventario de cada SKU y el total de la foto" },
   { tool: "queryMetric", args: { metric: "doh", dimension: "sku" }, para: "los días de inventario de cada SKU (declarados por el dato, no recalculados)" },
   { tool: "queryMetric", args: { metric: "stock", dimension: "sku" }, para: "las unidades físicas en stock de cada SKU" },
@@ -187,7 +187,7 @@ export function doctrinaInventario(figs) {
   return [
     `[CONTRATO DE INVENTARIO — no es el usuario] Este turno también es de inventario: la foto completa está arriba (capital total y los cuatro estados · SKU con capital, días y rotación · unidades en stock · bodega · familia/marca).`,
     `Marco: ${_fotoDe()} — es una foto, nunca un acumulado ni una evolución: no hay serie de inventario en este dato. Referencias declaradas de inventario: ${_varas()}; nómbralas así, jamás como «meta».`,
-    `Límites del dato, dichos si hacen falta: no hay entradas ni recepciones, ni órdenes de compra, ni lead time de proveedor; por qué un SKU está frenado no está en este dato (localiza, no expliques).${transfer}`,
+    `Límites del dato, dichos si hacen falta: no hay entradas ni recepciones, ni órdenes de compra, ni lead time de proveedor; por qué un SKU está inmovilizado crítico no está en este dato (localiza, no expliques).${transfer}`,
   ].join("\n");
 }
 

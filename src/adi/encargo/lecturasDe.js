@@ -72,7 +72,12 @@ export const REGISTRO_LECTURAS = cajaDelAgente(TOOLS);
  * cada familia tiene UN productor fijo, sea cual sea el eje que le llegue (el eje lo filtra `validar.js` — acá ya
  * llegó validado). El orden de estas listas es el de la tabla del contrato, no arbitrario. ─────────────────────── */
 const _FAM_DIAGNOSE = new Set(["no_capturada", "carga_alta", "brecha", "brecha_precio_costo"]);
-const _FAM_CAPITAL_FRENADO = new Set(["capital_frenado", "capital_inmovilizado", "dias_sin_venta", "margen_inventario"]);
+const _FAM_CAPITAL_FRENADO = new Set(["capital_frenado", "dias_sin_venta", "margen_inventario"]);
+/* `capital_inmovilizado` (owner 2026-09-28, §7.3·30-34, etapa 5): antes vivía en `_FAM_CAPITAL_FRENADO` y leía
+ * `inventoryStatus({focus:"frenado"})` — el foco CRÍTICO (capital_frenado, ⊆ inmovilizado), nunca el universo ∪
+ * que el concepto nombra. Familia propia: lee el foco `inmovilizado` (etapa 4, specRetrieval.js:1174) — todos los
+ * SKU del universo (crítico ⊎ sobrestock), cada uno con su cifra. */
+const _FAM_CAPITAL_INMOVILIZADO = new Set(["capital_inmovilizado"]);
 /* markup/peso_costo NO tienen familia acá (corrección del contraste, `esquema.js:_PRODUCTOR_RESIDUAL`, con
  * evidencia): `specRetrieval.js` calcula esos dos valores pero nunca los publica como `fig()` — ni `marginRead`
  * ni `entityRecord` traen una cifra autorizada que citar. `ejesConProductor("markup"|"peso_costo") === []` en
@@ -113,8 +118,11 @@ function _callsDeConceptoEje(tema, concepto, eje) {
   if (_FAM_DIAGNOSE.has(concepto)) {
     return [{ tool: "diagnose", args: {}, para: `${concepto} — el detector de brecha comercial, por cliente (contrato §3.3)` }];
   }
+  if (_FAM_CAPITAL_INMOVILIZADO.has(concepto)) {
+    return [{ tool: "inventoryStatus", args: { focus: "inmovilizado" }, para: `${concepto} — capital inmovilizado (crítico ⊎ sobrestock), todos los SKU con su cifra (mesaCapital)` }];
+  }
   if (_FAM_CAPITAL_FRENADO.has(concepto)) {
-    return [{ tool: "inventoryStatus", args: { focus: "frenado" }, para: `${concepto} — capital frenado por ${eje} (mesaCapital)` }];
+    return [{ tool: "inventoryStatus", args: { focus: "frenado" }, para: `${concepto} — capital inmovilizado crítico por ${eje} (mesaCapital)` }];
   }
   if (_FAM_VS_ANTERIOR.has(concepto)) {
     // R-VARIACION-SIN-CIFRA-EN-TOP (diagnóstico v6, owner 2026-09-26): `figsPct:true` — SOLO acá, la lectura del

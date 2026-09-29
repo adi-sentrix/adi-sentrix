@@ -228,8 +228,10 @@ H("6 · el cruce por SKU cambia la conclusión: el piso compone la ficha enumera
   const t = r.r.text;
   ok(r.r.agente.estado === "playbook" && r.r.agente.playbook === "cruce-por-sku" || (r.r.agente.estado === "playbook" && /Los SKU que más venden, con su inventario/.test(t)), `el playbook del cruce compone (${r.r.agente.estado})`, t.slice(0, 100));
   ok(/período cerrado/.test(t) && /foto de inventario/.test(t), "…cada cifra con su marco: período cerrado · foto de inventario");
-  ok(/Entre los que más venden no aparece capital frenado: el capital frenado está en LG-DRYER8KG, BOS-SANDER, MAK-COMP-AIR/.test(t),
-    "★ LA CONCLUSIÓN QUE CAMBIA: el capital frenado NO está en los que más venden — antes la respuesta era un ranking de frenados sin la venta al lado");
+  // MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): crucePorSku.js ya no dice «capital frenado» — dice «inmovilizado
+  // crítico» completo (familia larga con «Capital inmovilizado» en anclas.js, metrica-ajena).
+  ok(/Entre los que más venden no aparece inmovilizado crítico: lo inmovilizado crítico está en LG-DRYER8KG, BOS-SANDER, MAK-COMP-AIR/.test(t),
+    "★ LA CONCLUSIÓN QUE CAMBIA: lo inmovilizado NO está en los que más venden — antes la respuesta era un ranking de inmovilizados sin la venta al lado");
   ok(/Dejan contribución y también concentran capital en inventario: SAM-REF500L/.test(t) && /Concentran capital sin estar entre los que más contribuyen ni más venden: LG-DRYER8KG/.test(t),
     "…y la intersección contribución × capital, con quién queda solo en una lista");
   ok(!/(?<!no se )\bsuman?\b|frente a|por cada|equivale/.test(t) && /no se suman/.test(t), "sin sumar venta con stock ni relaciones que el demo no permite: enumeración pura, y lo dice («no se suman»)");

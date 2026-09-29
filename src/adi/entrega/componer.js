@@ -18,14 +18,13 @@
  * dados. Sin red, sin estado global nuevo. Detrás de la bandera `ADI_ENTREGA` (APAGADA en todos los perfiles):
  * este módulo no se importa desde ningún camino de producción todavía — lo ejercita solo el gate. */
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
-import { benchmarkOf } from "../../config/businessPolicy.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae
+import { benchmarkOf, ETIQUETA_ORIGEN } from "../../config/businessPolicy.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
 import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "../agente/herramientasAgente.js";
 import { pasosDe } from "../agente/playbooks/registro.js";
 import { margenEnRiesgo, lecturaDeMargen, prioridadDe } from "../agente/playbooks/margenEnRiesgo.js";
 import { cobranza } from "../agente/playbooks/cobranza.js";
-import { inventarioInmovilizado } from "../agente/playbooks/asesoria.js";
 import { buildRolesCartera } from "../sentrix/rolesCartera.js";
 // CORTE 3e (owner 2026-09-26) — `CONCEPT_DEFS[slug].neutra`: la redacción en tercera persona del glosario, para
 // el cierre `definicion` (`_planDefinicion`, más abajo). Cruzar hacia `sentrix/` desde `entrega/` ya es un patrón
@@ -294,8 +293,11 @@ function _preguntaAbiertaComercial(roles, perfil) {
 }
 function _preguntaAbiertaInventario(entidad, perfil) {
   if (!entidad) return null;
+  // RENOMBRE (owner 2026-09-28, §7.3·30-34, etapa 5, migración de significado de «frenado»): la pregunta habla
+  // de un SKU inmovilizado (crítico o sobrestock) — «frenado» queda para venta interrumpida, que esta pregunta
+  // no afirma. `metrica` sigue siendo «capital frenado» (el clave de la MÉTRICA en dinero, sin cambio).
   return construirPreguntaAbierta({
-    pregunta: `¿Qué explica que ${entidad} esté frenado — sobrecompra, temporada, cliente que no retiró, o proveedor tardío?`,
+    pregunta: `¿Qué explica que ${entidad} esté inmovilizado — sobrecompra, temporada, cliente que no retiró, o proveedor tardío?`,
     sobre: { entidad, metrica: "capital frenado" },
     porQueNoEstaEnLosDatos: "El dato no mide causa.",
     dominio: "inventario", tipoDeHueco: "causa_no_medida",
@@ -750,49 +752,95 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
  *      toolRegistry.js) se reusa TAL CUAL — `cap.motivo`/`cap.faltante` son el texto que el owner ya selló para
  *      la cara Capital (capability.js): no se redacta una frase nueva para decir lo mismo. */
 export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregunta = PREGUNTA_INVENTARIO, conocimientoActivo = undefined, conocimientoCatalogo = undefined } = {}) {
-  // 1 · LA BOLETA — el mismo (único) paso que el playbook `inventario-inmovilizado` ya certifica
-  const { rp, figs } = _correrPlaybook(inventarioInmovilizado, { scenario, pregunta });
+  // 1 · LA BOLETA — TRES focos del MISMO tool, en UN plan (un solo `runPlan`, un solo ledger: la migración de
+  // significado de «frenado» — owner 2026-09-28, §7.3·30-34, etapa 5, diseño §4.3 — exige los tres universos en
+  // la misma Entrega: inmovilizado crítico (por SKU, con días/rotación — el playbook `inventario-inmovilizado`
+  // ya lo certifica), inmovilizado ∪ (crítico ⊎ sobrestock, con SU fig por SKU) y venta frenada (el hecho SIEMPRE;
+  // el veredicto SOLO con umbral publicado — `specRetrieval.js` focus "stale", etapa 4). Los tres comparten
+  // tenant+escenario: la MISMA jerarquía (`J`, `evidence.inventory.jerarquia`) viaja en los tres resultados.
+  const rp = runPlan(
+    { intent: "answer", calls: [
+      { tool: "inventoryStatus", args: { focus: "frenado" } },
+      { tool: "inventoryStatus", args: { focus: "inmovilizado" } },
+      { tool: "inventoryStatus", args: { focus: "stale" } },
+    ] },
+    { scenario, maxCalls: 8, preguntaUsuario: pregunta, registry: cajaDelAgente(TOOLS) },
+  );
+  const figs = asignarIds((rp.ledger && rp.ledger.figs) || []);
   if (!figs.length) return _vacia("sin boleta: el motor no produjo cifras para esta pregunta con los datos activos");
 
-  // 2 · EL ÍNDICE DE EVIDENCIA — el mismo helper que las dos rutas anteriores
+  // 2 · EL ÍNDICE DE EVIDENCIA — el mismo helper que las demás rutas
   const { I, ejesDelTenant } = _indiceDelTenant(figs, scenario);
 
-  // 3 · LA LECTURA — `facts.inventory` YA viene estructurado (nota 1 de arriba): no hay que parsear prosa
-  const inv = rp.results[0] && rp.results[0].facts && rp.results[0].facts.inventory;
-  const figTotal = _find(figs, /^Capital frenado · total$/i);
-  if (!inv || !figTotal) return _vacia("sin evidencia suficiente: falta el capital frenado total de la Mesa Capital");
-  const bySku = Array.isArray(inv.bySku) ? [...inv.bySku].sort((a, b) => (b.usd || 0) - (a.usd || 0)) : [];
-  if (!bySku.length) return _vacia("sin evidencia suficiente: no hay SKU con capital frenado en los datos activos");
-  const topSku = bySku[0], segundoSku = bySku.length > 1 ? bySku[1] : null;
+  // 3 · LA LECTURA — `facts.inventory` YA viene estructurado; `jerarquia` es la MISMA que ya pinta la Mesa Capital
+  // (mesaCapital.js) y sirve el foco `inmovilizado` (specRetrieval.js) — una sola verdad, sin recalcular nada acá.
+  const rCritico = rp.results[0], rInmov = rp.results[1], rFrenado = rp.results[2];
+  const invCritico = rCritico && rCritico.facts && rCritico.facts.inventory;
+  const invUnion = rInmov && rInmov.facts && rInmov.facts.inventory;
+  const J = (invUnion && invUnion.jerarquia) || (invCritico && invCritico.jerarquia) || null;
+  const figTotalInmov = _find(figs, /^Capital inmovilizado · total$/i);
+  if (!J || !invUnion || !figTotalInmov || !J.inmovilizado || !J.inmovilizado.n) return _vacia("sin evidencia suficiente: no hay capital inmovilizado en los datos activos");
+  const figCriticoSub = _find(figs, /^Capital inmovilizado cr[ií]tico · subtotal$/i);
+  const figSobrestockSub = _find(figs, /^Sobrestock · subtotal$/i);
+  // el top-2 «por qué / qué hacer» sigue viniendo del tramo CRÍTICO (con días/rotación — el hecho que explica la
+  // recomendación); el sobrestock no tiene ese relato (rota, solo que de más).
+  const byCritico = Array.isArray(invCritico && invCritico.bySku) ? [...invCritico.bySku].sort((a, b) => (b.usd || 0) - (a.usd || 0)) : [];
+  const topSku = byCritico[0] || null, segundoSku = byCritico.length > 1 ? byCritico[1] : null;
 
-  const figSkuMonto = (sku) => _find(figs, new RegExp(`^${_esc(sku)} · Capital frenado$`, "i"));
+  const figSkuCritico = (sku) => _find(figs, new RegExp(`^${_esc(sku)} · Capital inmovilizado cr[ií]tico$`, "i"));
+  const figSkuInmov = (sku) => _find(figs, new RegExp(`^${_esc(sku)} · capital inmovilizado$`, "i"));
   const figSkuDias = (sku) => _find(figs, new RegExp(`^${_esc(sku)} · D[ií]as de inventario$`, "i"));
   const figSkuRot = (sku) => _find(figs, new RegExp(`^${_esc(sku)} · Rotaci[oó]n$`, "i"));
   const figSano = _find(figs, /^Estado del inventario: capital sano$/i);
   const figQuiebre = _find(figs, /^Estado del inventario: riesgo de quiebre$/i);
-  const figSobrestock = _find(figs, /^Estado del inventario: sobrestock$/i);
   const figUmbralPct = _find(figs, /^Umbral de materialidad · % de la venta$/i);
   const figUmbralUsd = _find(figs, /^Umbral de materialidad · en dinero$/i);
+  // «FRENADO» (venta interrumpida) — figs del foco `stale`: con umbral evaluado y ≥1 SKU, viene boleta completa
+  // (total + por SKU); sin umbral, o con umbral y cero SKU, la tool declina con facts=null (el hecho igual se
+  // declara con J, más abajo — sin fig que citar como «ref», nunca inventado).
+  const invFrenado = rFrenado && rFrenado.facts && rFrenado.facts.inventory;
+  const figFrenadoTotal = _find(figs, /^Venta frenada · total$/i);
 
-  // 4 · EL LIBRO DE HECHOS — mismo mecanismo que las dos rutas anteriores
+  // 4 · EL LIBRO DE HECHOS — mismo mecanismo que las demás rutas
   const hechos = [];
   const contador = { n: 0 };
   const figsUsadas = [];
   const ref = (fig) => { if (fig) figsUsadas.push(fig); return _declararRef(hechos, contador, fig); };
+  // «la suma de N SKU» (mecanismo 6 del plan: la tentación precalculada) — para la intersección medida (§4.3):
+  // un solo SKU se cita directo (su propia fig), dos o más se declaran como `derivada` (suma) sobre sus refs.
+  const _sumaDeSkus = (skus, buscador) => {
+    const ids = (skus || []).map((s) => { const f = buscador(s); return f ? ref(f) : null; }).filter(Boolean);
+    if (!ids.length) return null;
+    if (ids.length === 1) return ids[0];
+    const id = `e${++contador.n}`; hechos.push({ id, tipo: "derivada", op: "suma", de: ids }); return id;
+  };
 
-  const idTotal = ref(figTotal);
+  const idTotal = ref(figTotalInmov);
+  const idCritico = figCriticoSub ? ref(figCriticoSub) : null;
+  const idSobrestock = figSobrestockSub ? ref(figSobrestockSub) : null;
   const idSano = figSano ? ref(figSano) : null;
   const idQuiebre = figQuiebre ? ref(figQuiebre) : null;
-  const idSobrestock = figSobrestock ? ref(figSobrestock) : null;
   const idUmbralPct = figUmbralPct ? ref(figUmbralPct) : null;
   const idUmbralUsd = figUmbralUsd ? ref(figUmbralUsd) : null;
-  const _declararSku = (s) => ({ monto: ref(figSkuMonto(s.sku)), dias: (() => { const f = figSkuDias(s.sku); return f ? ref(f) : null; })(), rot: (() => { const f = figSkuRot(s.sku); return f ? ref(f) : null; })() });
-  const idsTop = _declararSku(topSku);
+  const _declararSku = (s) => ({ monto: ref(figSkuCritico(s.sku)), dias: (() => { const f = figSkuDias(s.sku); return f ? ref(f) : null; })(), rot: (() => { const f = figSkuRot(s.sku); return f ? ref(f) : null; })() });
+  const idsTop = topSku ? _declararSku(topSku) : null;
   const idsSeg = segundoSku ? _declararSku(segundoSku) : null;
 
-  // la tentación precalculada (mecanismo 6 del plan): la participación del mayor SKU sobre el total frenado
+  // la tentación precalculada: la participación del mayor SKU sobre el total inmovilizado crítico
   let idShare = null;
-  if (idsTop.monto && idTotal) { idShare = (() => { const id = `e${++contador.n}`; hechos.push({ id, tipo: "razon", num: { id: idsTop.monto }, den: { id: idTotal }, forma: "pct" }); return id; })(); }
+  if (idsTop && idsTop.monto && idCritico) { idShare = (() => { const id = `e${++contador.n}`; hechos.push({ id, tipo: "razon", num: { id: idsTop.monto }, den: { id: idCritico }, forma: "pct" }); return id; })(); }
+
+  // LA INTERSECCIÓN MEDIDA, SOLO CON UMBRAL (diseño §4.3): «de los $X inmovilizados, $Y tienen además la venta
+  // frenada» — Y es la SUMA de las cifras individuales de cada SKU que está en los dos conjuntos a la vez (nunca
+  // se asume contención; `J.interseccion` la mide). Sin umbral publicado, `J.interseccion` es `null` y nada de
+  // este bloque se declara.
+  const idFrenadoTotal = figFrenadoTotal ? ref(figFrenadoTotal) : null;
+  let idInterseccion = null, idInmovNoFrenado = null, idFrenadoNoInmov = null;
+  if (J.frenado.evaluado && J.interseccion) {
+    if (J.interseccion.frenadoEInmovilizado.n) idInterseccion = _sumaDeSkus(J.interseccion.frenadoEInmovilizado.skus, figSkuInmov);
+    if (J.interseccion.inmovilizadoNoFrenado.n) idInmovNoFrenado = _sumaDeSkus(J.interseccion.inmovilizadoNoFrenado.skus, figSkuInmov);
+    if (J.interseccion.frenadoNoInmovilizado.n) idFrenadoNoInmov = _sumaDeSkus(J.interseccion.frenadoNoInmovilizado.skus, figSkuInmov);
+  }
 
   const libro = libroDeHechos(hechos, { indice: I });
   const rotos = libro.hechos.filter((h) => !h.ok);
@@ -803,76 +851,114 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
   const cifrasImpresas = [];
   const R = (id) => { const v = renderDe(libro, id); if (v != null) cifrasImpresas.push(v); return v; };
 
-  // EL PERÍODO — SÍ se reusa `_periodoDelMarco` (nota 2 de arriba): el universo `inventario` ya declaraba
-  // "hoy" correctamente antes de este incremento.
+  // EL PERÍODO — SÍ se reusa `_periodoDelMarco`: el universo `inventario` ya declara "hoy".
   const nBodegas = ejesDelTenant.bodega ? ejesDelTenant.bodega.length : null;
   const { periodo, faltaRango } = _periodoDelMarco(figsUsadas);
   const { empresaNombre, perfil } = _identidadDelTenant();
+  // LA PROCEDENCIA DEL CRITERIO (diseño §4.3, «Frase de procedencia», impresa UNA vez en el Marco): si los tres
+  // umbrales del detector comparten origen, una sola etiqueta; si no, se nombran por separado. Números de `J`
+  // directos (no un hecho del libro): es la definición del criterio, como ya lo era la glosa vieja — un
+  // «definiciones» descriptivo, no una afirmación que el Notario tenga que verificar cifra por cifra.
+  // SIN CIFRAS DESNUDAS (regla 1 del plan, `entrega/verificar.js`): este párrafo es descriptivo (la definición del
+  // criterio), nunca una afirmación con números propios — los números de `J` NO se imprimen acá (quedarían sin
+  // hecho que los respalde); se nombran en palabras. Las cifras del criterio SÍ se imprimen, con su hecho, en la
+  // tabla de cifras y en `entrega.marco.referenciaDeclarada` (umbral de materialidad) cuando corresponde.
+  const _origRot = J.umbrales.rotacionMin.origen, _origDoh = J.umbrales.dohMax.origen, _origSob = J.umbrales.sobrestockDohMin.origen;
+  const _procedenciaCriterio = (_origRot === _origDoh && _origDoh === _origSob)
+    ? ETIQUETA_ORIGEN[_origRot]
+    : `piso de rotación y techo de días de inventario ${ETIQUETA_ORIGEN[_origRot]}; umbral de sobrestock, ${ETIQUETA_ORIGEN[_origSob]}`;
+  const _definiciones = [
+    `Inmovilizado = capital cuya rotación está bajo el piso declarado o cuyos días de inventario superan el techo declarado (inmovilizado crítico), o entre el umbral de sobrestock y ese techo (sobrestock). Criterio de inventario: ${_procedenciaCriterio}.`,
+    "El capital inmovilizado no se suma ni se compara con la venta comercial: son universos distintos (ver «Lo que no se puede concluir»).",
+  ];
+  if (J.frenado.evaluado) {
+    _definiciones.push(`Venta frenada = días sin venta sobre el umbral declarado, ${ETIQUETA_ORIGEN[J.frenado.umbral.origen]}${J.frenado.n ? "" : " — ningún SKU la cumple hoy"}.`);
+  } else {
+    _definiciones.push("Venta frenada: la empresa no ha declarado a partir de cuántos días sin venta considera frenada la venta de un producto — esa condición queda sin evaluar (ver «Lo que no se puede concluir»).");
+  }
   entrega.marco = {
     empresa: empresaNombre,
     periodo,
-    universo: nBodegas != null ? `${bySku.length} SKU frenados en ${nBodegas} bodegas` : `${bySku.length} SKU frenados`,
+    universo: nBodegas != null ? `${J.inmovilizado.n} SKU inmovilizados en ${nBodegas} bodegas` : `${J.inmovilizado.n} SKU inmovilizados`,
     moneda: "$",
-    definiciones: [
-      // CORTE 3e (owner 2026-09-26) — «tu política» → «la política de la empresa».
-      "Capital frenado = stock cuya rotación está bajo el piso o cuyos días de inventario superan el techo que declara la política de la empresa — no es todo el inventario, es el subconjunto que no está rotando.",
-      "El capital frenado no se suma ni se compara con la venta comercial: son universos distintos (ver «Lo que no se puede concluir»).",
-    ],
+    definiciones: _definiciones,
     referenciaDeclarada: (idUmbralPct && idUmbralUsd)
-      // CORTE 3e (owner 2026-09-26) — «tu negocio»/«declarado por ti» → tercera persona.
       ? { texto: `Umbral de materialidad de la empresa: ${R(idUmbralPct)} de la venta (${R(idUmbralUsd)}), declarado por la empresa.`, hechoId: idUmbralPct }
       : null,
     perfil,
   };
-  if (nBodegas != null) cifrasImpresas.push(`${bySku.length} SKU frenados en ${nBodegas} bodegas`); else cifrasImpresas.push(`${bySku.length} SKU frenados`);
+  if (nBodegas != null) cifrasImpresas.push(`${J.inmovilizado.n} SKU inmovilizados en ${nBodegas} bodegas`); else cifrasImpresas.push(`${J.inmovilizado.n} SKU inmovilizados`);
   if (periodo && periodo.texto) cifrasImpresas.push(periodo.texto);
 
   // ── RESPUESTA ──
   const respuesta = [];
   {
+    // LA APERTURA (diseño §4.3): cifra + dueño + significado, en una sola oración — inmovilizado (∪), con su
+    // partición crítico/sobrestock cuando la hay.
     const vTotal = R(idTotal);
-    // CORTE 3e (owner 2026-09-26) — «Tienes» (segunda persona) → tercera persona.
-    const texto = `La empresa tiene ${vTotal} de capital frenado: stock que no está rotando.`;
-    respuesta.push({ texto, hechos: [idTotal] });
+    const vCritico = idCritico ? R(idCritico) : null, vSobrestock = idSobrestock ? R(idSobrestock) : null;
+    const partes = [vCritico ? `${vCritico} en ${J.critico.n} SKU crítico${J.critico.n === 1 ? "" : "s"} que no rota${J.critico.n === 1 ? "" : "n"}` : null, vSobrestock ? `${vSobrestock} en ${J.sobrestock.n} SKU con sobrestock` : null].filter(Boolean);
+    const texto = `La empresa tiene ${vTotal} de capital inmovilizado en ${J.inmovilizado.n} SKU${partes.length ? `: ${partes.join(" y ")}` : ""}.`;
+    respuesta.push({ texto, hechos: [idTotal, idCritico, idSobrestock].filter(Boolean) });
   }
-  {
+  if (idsTop) {
     const vMonto = R(idsTop.monto), vDias = idsTop.dias ? R(idsTop.dias) : null, vRot = idsTop.rot ? R(idsTop.rot) : null;
     const extra = [vDias ? `${vDias} de inventario` : null, vRot ? `rotación ${vRot}` : null].filter(Boolean).join(" · ");
-    const texto = `El mayor es ${topSku.sku}: ${vMonto} frenados${extra ? ` (${extra})` : ""}.`;
+    const texto = `El mayor SKU crítico es ${topSku.sku}: ${vMonto} inmovilizados${extra ? ` (${extra})` : ""}.`;
     respuesta.push({ texto, hechos: [idsTop.monto, idsTop.dias, idsTop.rot].filter(Boolean) });
   }
   if (idsSeg) {
     const vMonto = R(idsSeg.monto), vDias = idsSeg.dias ? R(idsSeg.dias) : null;
-    const texto = `El segundo es ${segundoSku.sku}: ${vMonto} frenados${vDias ? `, ${vDias} de inventario` : ""}.`;
+    const texto = `El segundo es ${segundoSku.sku}: ${vMonto} inmovilizados${vDias ? `, ${vDias} de inventario` : ""}.`;
     respuesta.push({ texto, hechos: [idsSeg.monto, idsSeg.dias].filter(Boolean) });
   }
-  if (idSano || idQuiebre || idSobrestock) {
-    const partes = [idSano ? `${R(idSano)} está sano` : null, idQuiebre ? `${R(idQuiebre)} en riesgo de quiebre` : null, idSobrestock ? `${R(idSobrestock)} en sobrestock` : null].filter(Boolean);
-    const texto = `Del resto del inventario, ${partes.join(", ")} — estados independientes, no la causa del capital frenado.`;
-    respuesta.push({ texto, hechos: [idSano, idQuiebre, idSobrestock].filter(Boolean) });
+  if (idSano || idQuiebre) {
+    const partes = [idSano ? `${R(idSano)} está sano` : null, idQuiebre ? `${R(idQuiebre)} en riesgo de quiebre` : null].filter(Boolean);
+    const texto = `Del resto del inventario, ${partes.join(", ")} — estados independientes, no la causa del capital inmovilizado.`;
+    respuesta.push({ texto, hechos: [idSano, idQuiebre].filter(Boolean) });
+  }
+  // FRENADO CON UMBRAL (diseño §4.3) — solo si la empresa (o la consulta) lo declaró.
+  if (J.frenado.evaluado && J.frenado.n) {
+    const _proc = ETIQUETA_ORIGEN[J.frenado.umbral.origen];
+    if (idInterseccion) {
+      const vInter = R(idInterseccion);
+      const texto = `De los ${R(idTotal)} inmovilizados, ${vInter} tienen además la venta frenada: ${J.interseccion.frenadoEInmovilizado.n} SKU con más de ${J.frenado.umbral.valor} días sin venta (${_proc}).`;
+      respuesta.push({ texto, hechos: [idTotal, idInterseccion].filter(Boolean) });
+      if (idInmovNoFrenado || idFrenadoNoInmov) {
+        const p2 = [idInmovNoFrenado ? `${R(idInmovNoFrenado)} en ${J.interseccion.inmovilizadoNoFrenado.n} SKU están inmovilizados pero siguen vendiendo` : null, idFrenadoNoInmov ? `${R(idFrenadoNoInmov)} en ${J.interseccion.frenadoNoInmovilizado.n} SKU tienen la venta frenada sin estar inmovilizados` : null].filter(Boolean);
+        respuesta.push({ texto: `${p2.join("; ")}.`, hechos: [idInmovNoFrenado, idFrenadoNoInmov].filter(Boolean) });
+      }
+    } else if (idFrenadoTotal) {
+      const texto = `Con el umbral de ${J.frenado.umbral.valor} días (${_proc}), ${J.frenado.n} SKU tienen la venta frenada por ${R(idFrenadoTotal)}; ninguno de ellos está además inmovilizado.`;
+      respuesta.push({ texto, hechos: [idFrenadoTotal] });
+    }
   }
   {
     const pShare = idShare ? R(idShare) : null;
-    const texto = `Prioridad del procedimiento, por mayor capital frenado: abrir primero ${topSku.sku}${pShare ? `, el ${pShare} del total frenado` : ""}.`;
-    respuesta.push({ texto, hechos: [idsTop.monto, idShare].filter(Boolean) });
+    const texto = idsTop
+      ? `Prioridad del procedimiento, por mayor capital inmovilizado crítico: abrir primero ${topSku.sku}${pShare ? `, el ${pShare} del total crítico` : ""}.`
+      : "Prioridad del procedimiento: sin SKU crítico, el inmovilizado de hoy es todo sobrestock — sigue rotando, sin acción de liquidación urgente.";
+    respuesta.push({ texto, hechos: idsTop ? [idsTop.monto, idShare].filter(Boolean) : [] });
   }
   entrega.respuesta = respuesta;
 
-  // ── CIFRAS · una fila por SKU con capital frenado (mecanismo 2: dueño + cuánto + con qué evidencia, en la misma fila) ──
-  entrega.cifras.columnas = ["SKU", "Bodega", "Capital frenado", "Días de inventario", "Rotación", "Tipo"];
-  const _filaSku = (s, ids) => {
+  // ── CIFRAS · una fila por SKU crítico (con evidencia de días/rotación), más el total ∪ (mecanismo 2: dueño +
+  // cuánto + con qué evidencia, en la misma fila) — tabla de §4.3: SKU · Bodega · Capital · Situación · Días de
+  // inventario · Rotación · (Venta si hay umbral evaluado). ──
+  entrega.cifras.columnas = ["SKU", "Bodega", "Capital inmovilizado", "Situación", "Días de inventario", "Rotación", "Tipo"];
+  const _filaSku = (s, ids, situacion) => {
     const hechosFila = [ids.monto, ids.dias, ids.rot].filter(Boolean);
     const procedencia = _procedenciaDeFila(libro, hechosFila);
     return {
-      valores: { SKU: s.sku, Bodega: s.bodega || "—", "Capital frenado": R(ids.monto), "Días de inventario": ids.dias ? R(ids.dias) : "—", "Rotación": ids.rot ? R(ids.rot) : "—", Tipo: _textoDeTipo(procedencia) },
+      valores: { SKU: s.sku, Bodega: s.bodega || "—", "Capital inmovilizado": R(ids.monto), Situación: situacion, "Días de inventario": ids.dias ? R(ids.dias) : "—", "Rotación": ids.rot ? R(ids.rot) : "—", Tipo: _textoDeTipo(procedencia) },
       hechos: hechosFila,
       procedencia,
     };
   };
-  entrega.cifras.filas.push(_filaSku(topSku, idsTop));
-  if (idsSeg) entrega.cifras.filas.push(_filaSku(segundoSku, idsSeg));
+  if (idsTop) entrega.cifras.filas.push(_filaSku(topSku, idsTop, "Crítico"));
+  if (idsSeg) entrega.cifras.filas.push(_filaSku(segundoSku, idsSeg, "Crítico"));
   { const procedencia = _procedenciaDeFila(libro, [idTotal]); entrega.cifras.filas.push({
-    valores: { SKU: `Total (${bySku.length} SKU frenados)`, Bodega: "", "Capital frenado": R(idTotal), "Días de inventario": "", "Rotación": "", Tipo: _textoDeTipo(procedencia, { subtotal: true }) },
+    valores: { SKU: `Total (${J.inmovilizado.n} SKU inmovilizados)`, Bodega: "", "Capital inmovilizado": R(idTotal), Situación: "", "Días de inventario": "", "Rotación": "", Tipo: _textoDeTipo(procedencia, { subtotal: true }) },
     hechos: [idTotal],
     procedencia,
   }); }
@@ -881,10 +967,17 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
   const _cruce = reconcilian("inventario", "venta_comercial");
   entrega.limites = [];
   if (_cruce.estado !== "reconciled") {
-    entrega.limites.push({ titulo: "El capital frenado y la venta comercial son universos distintos", motivo: "El inventario se mide en una escala y una moneda propias, y no reconcilia con la venta comercial (contrato de datos declarado): nunca se suman ni se comparan directamente en esta Entrega." });
+    entrega.limites.push({ titulo: "El capital inmovilizado y la venta comercial son universos distintos", motivo: "El inventario se mide en una escala y una moneda propias, y no reconcilia con la venta comercial (contrato de datos declarado): nunca se suman ni se comparan directamente en esta Entrega." });
   }
-  entrega.limites.push({ titulo: "La causa de que cada SKU esté frenado no está en los datos", motivo: "Esta lectura localiza cuánto capital y en qué SKU está frenado, no explica por qué — no hay historial de compras, lead time de proveedor ni causa de la detención en este dato." });
-  const lt = rp.results[0] && rp.results[0].facts && rp.results[0].facts.limite_transferencia;
+  entrega.limites.push({ titulo: "La causa de que cada SKU esté inmovilizado no está en los datos", motivo: "Esta lectura localiza cuánto capital y en qué SKU está inmovilizado, no explica por qué — no hay historial de compras, lead time de proveedor ni causa de la detención en este dato." });
+  // LÍMITE «SIN EVALUAR» (diseño §4.3, con el ofrecimiento — NUNCA «no hay SKU frenados»): la empresa no declaró
+  // el umbral de venta frenada. El hecho (días sin venta) igual está en la tabla de la Mesa Capital.
+  if (!J.frenado.evaluado) {
+    // SIN CIFRAS DESNUDAS: el ofrecimiento no imprime días de ejemplo (60/90) sin un hecho que los respalde —
+    // se ofrece el mecanismo, no un número propuesto por esta Entrega.
+    entrega.limites.push({ titulo: "Venta frenada: sin evaluar", motivo: "La empresa no ha declarado a partir de cuántos días sin venta considera frenada la venta. Los días sin venta de cada SKU están en la pestaña de inventario; si se indica un umbral en días, se puede evaluar cuáles lo superan y cuánto capital reúnen." });
+  }
+  const lt = rInmov && rInmov.facts && rInmov.facts.limite_transferencia;
   if (lt && lt.evaluable === false) {
     // `lt.motivo`/`lt.faltante` son el texto que el owner ya selló para la cara Capital (capability.js) — se
     // reusan verbatim; solo se capitaliza `faltante` al pegarlo después de un punto (es una cláusula suelta en
@@ -896,31 +989,30 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
   if (faltaRango) entrega.limites.push({ titulo: "El período no declara una fecha de corte para el inventario", motivo: "El dato confirma que es una foto de inventario a hoy, pero el pack no trae una fecha de corte declarada para este universo — a diferencia de la cobranza, que sí la declara (flujoComercial.fechaCorte). No se afirma una fecha." });
   { const lp = _limitePerfilIncompleto(perfil); if (lp) entrega.limites.push(lp); }
 
-  // ── REFERENCIA DEL OFICIO · Etapa 3 (ver la nota de la ruta 1) — eje SKU: no hay cuentas que el usuario pueda
-  // nombrar en la pregunta para este eje, `entidadesDeLaPregunta` queda vacío (comportamiento de siempre) ──
-  const _refOficio3 = referenciaDelOficioConOfertas({ perfil, pregunta, entidadesEnRespuesta: [topSku.sku, ...(segundoSku ? [segundoSku.sku] : [])], entidadesDeLaPregunta: _entidadesDeLaPregunta(pregunta), scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
+  // ── REFERENCIA DEL OFICIO · eje SKU: no hay cuentas que el usuario pueda nombrar en la pregunta para este eje,
+  // `entidadesDeLaPregunta` queda vacío (comportamiento de siempre) ──
+  const _refOficio3 = referenciaDelOficioConOfertas({ perfil, pregunta, entidadesEnRespuesta: [topSku ? topSku.sku : null, segundoSku ? segundoSku.sku : null].filter(Boolean), entidadesDeLaPregunta: _entidadesDeLaPregunta(pregunta), scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
   entrega.referenciaDelOficio = _refOficio3.salida;
 
   // ── PARA SU JUICIO · la MISMA pregunta que ya certifica el playbook (asesoria.js) — no se redacta una nueva ──
-  // CORTE 3e (owner 2026-09-26) — antes: `Solo tú puedes responder: …` (segunda persona). Ahora: pregunta
-  // abierta en tercera persona, tipo de hueco "causa_no_medida" → función sugerida «compras y abastecimiento».
-  entrega.paraSuJuicio = [_preguntaAbiertaInventario(topSku.sku, perfil)].filter(Boolean);
+  entrega.paraSuJuicio = topSku ? [_preguntaAbiertaInventario(topSku.sku, perfil)].filter(Boolean) : [];
 
   // ── QUÉ MÁS PUEDO CALCULAR ──
   entrega.queMasPuedoCalcular = {
-    puedo: ["Capital frenado por bodega", "Capital por familia y marca", "Detalle de riesgo de quiebre y sobrestock", "Simular el efecto de liberar los SKU frenados", ..._ofertasTexto(_refOficio3.ofertas)],
-    noPuedo: ["Por qué cada SKU quedó frenado (no hay historial de compras ni causa declarada)", "Si conviene transferir stock entre bodegas (ningún SKU está en más de una)"],
+    puedo: ["Capital inmovilizado por bodega", "Capital por familia y marca", "Detalle de riesgo de quiebre y sobrestock", "Simular el efecto de liberar los SKU inmovilizados", ..._ofertasTexto(_refOficio3.ofertas)],
+    noPuedo: ["Por qué cada SKU quedó inmovilizado (no hay historial de compras ni causa declarada)", "Si conviene transferir stock entre bodegas (ningún SKU está en más de una)"],
   };
 
-  // TAREA 3 — el universo: los SKU citados, rankeados por capital frenado descendente (el mismo orden de `bySku`).
-  _declararUniverso(entrega, I, {
-    id: "inventario_prioridad", eje: "sku", top: { metrica: "capital_frenado", k: idsSeg ? 2 : 1, direccion: "mayor" },
-    periodo: periodo ? periodo.tipo : null, entidades: [topSku.sku, ...(segundoSku ? [segundoSku.sku] : [])],
-  });
+  // el universo: los SKU críticos citados, rankeados por capital inmovilizado crítico descendente.
+  if (topSku) {
+    _declararUniverso(entrega, I, {
+      id: "inventario_prioridad", eje: "sku", top: { metrica: "capital_frenado", k: idsSeg ? 2 : 1, direccion: "mayor" },
+      periodo: periodo ? periodo.tipo : null, entidades: [topSku.sku, ...(segundoSku ? [segundoSku.sku] : [])],
+    });
+  }
 
   entrega.procedencia = { libro, cifrasImpresas };
 
-  // CORTE 3e (owner 2026-09-26) — «¿Tienes demasiado inventario?» (segunda persona, «tienes») → tercera persona.
   const texto = _textoDeLaEntrega(entrega, "¿Tiene la empresa demasiado inventario?");
   return { texto, entrega, libro, ok: true, motivo: "" };
 }
@@ -1409,7 +1501,7 @@ function _planCifraEntidad(parte, figs, ref, I, declararDerivada = null) {
     const filas = candidatas.map((c) => ({ clave: c.clave, etiqueta: c.etiqueta || _labelDeClave(c.clave) || c.clave, id: ref(c.fig) })).filter((f) => f.id);
     if (!filas.length) continue;
     const entry = { entidad: e.nombre, eje: e.eje, filas };
-    if (esLecturaODecision) entry.conclusion = _construirConclusionEntidad(parte.tema, e.nombre, figs, filas, ref, I);
+    if (esLecturaODecision) entry.conclusion = _construirConclusionEntidad(parte.tema, e.nombre, figs, filas, ref, I, parte.conceptos);
     filasPorEntidad.push(entry);
   }
   // R-TENTACION-SIN-PLANCIFRAENTIDAD (diagnóstico v6, MEDIA) — mecanismo 6 (tentación precalculada), análogo al
@@ -1463,7 +1555,7 @@ function _rankingCompleto(I, eje, clave) {
   if (!r || !Array.isArray(r.filas) || !r.filas.length) return null;
   return [...r.filas].sort((a, b) => (Number.isFinite(b.valor) ? b.valor : -Infinity) - (Number.isFinite(a.valor) ? a.valor : -Infinity));
 }
-function _construirConclusionEntidad(tema, entidad, figs, filas, ref, I) {
+function _construirConclusionEntidad(tema, entidad, figs, filas, ref, I, conceptos) {
   if (tema === "comercial") {
     const idVenta = _idDeClave(filas, figs, entidad, "ventas", ref);
     const idMargen = _idDeClave(filas, figs, entidad, "margen", ref);
@@ -1507,20 +1599,26 @@ function _construirConclusionEntidad(tema, entidad, figs, filas, ref, I) {
     return { tipo: "cobranza", entidad, idSaldo, idVencido, posicion, total, universoEntidades, universoEje: "cliente", universoCriterio: "clientes con saldo pendiente", universoTexto: "clientes con saldo pendiente" };
   }
   if (tema === "inventario") {
-    const idFrenado = _idDeClave(filas, figs, entidad, "capital_frenado", ref);
+    /* MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): la parte del encargo puede pedir el tramo crítico
+     * («capital_frenado», ahora «inmovilizado crítico») o la categoría amplia («capital_inmovilizado»,
+     * crítico ∪ sobrestock) — son conjuntos DISTINTOS (medido: v10 X03/X50 rankeaban solo el tramo crítico
+     * cuando el encargo pedía la categoría amplia, y SAM-TV55/PHI-IRON-PRO —sobrestock— faltaban del universo).
+     * La clave la decide `parte.conceptos`, nunca se asume «capital_frenado» por defecto para el tema entero. */
+    const claveInv = Array.isArray(conceptos) && conceptos.includes("capital_inmovilizado") ? "capital_inmovilizado" : "capital_frenado";
+    const idFrenado = _idDeClave(filas, figs, entidad, claveInv, ref);
     if (idFrenado == null) return { tipo: "inventario_sin_frenado", entidad };
     const idDias = _idDeClave(filas, figs, entidad, "dias_inventario", ref);
     let posicion = null, total = null, universoEntidades = null;
-    const rankingCF = _rankingCompleto(I, "sku", "capital_frenado");
+    const rankingCF = _rankingCompleto(I, "sku", claveInv);
     if (rankingCF) {
       const idx = rankingCF.findIndex((f) => f.entidad === entidad);
       if (idx >= 0) { posicion = idx + 1; total = rankingCF.length; universoEntidades = rankingCF.map((f) => f.entidad); }
     } else {
-      const filasFrenado = _all(figs, /· Capital frenado$/i).filter((f) => !/^Capital frenado · total$/i.test(_lab(f)));
+      const filasFrenado = (claveInv === "capital_inmovilizado" ? _all(figs, /· Capital inmovilizado$/i) : _all(figs, /· Capital (?:frenado|inmovilizado cr[ií]tico)$/i)).filter((f) => !/^Capital (?:frenado|inmovilizado(?: cr[ií]tico)?) · total$/i.test(_lab(f)));
       const idx = filasFrenado.findIndex((f) => _entidadDe(_lab(f)) === entidad);
       if (idx >= 0) { posicion = idx + 1; total = filasFrenado.length; universoEntidades = filasFrenado.map((f) => _entidadDe(_lab(f))).filter(Boolean); }
     }
-    return { tipo: "inventario", entidad, idFrenado, idDias, posicion, total, universoEntidades, universoEje: "sku", universoCriterio: "SKU con capital frenado", universoTexto: "SKU con capital frenado" };
+    return { tipo: "inventario", entidad, idFrenado, idDias, posicion, total, universoEntidades, universoEje: "sku", universoCriterio: claveInv === "capital_inmovilizado" ? "SKU inmovilizados" : "SKU con capital frenado", universoTexto: claveInv === "capital_inmovilizado" ? "SKU inmovilizados" : "SKU con capital frenado" };
   }
   return null;
 }
@@ -1625,6 +1723,24 @@ function _entidadRepresentativaDeTema(tema, planes) {
  * algo que el usuario pidió; exigir todas a la vez borraría entidades pedidas». DENTRO de una misma parte, sus
  * restricciones siguen combinándose TODAS juntas (una sola llamada a `conjuntoDeUniverso` con todos sus campos,
  * `_entidadEnAlcanceDeUnaParte`) — eso no cambió. */
+/* RAÍZ A (supervisor 2026-09-29, bug real — 12 aserciones de v7/v9/v11, no una consecuencia de la redefinición de
+ * «frenado»): tres sitios de este archivo resuelven el universo DECLARADO de una parte (`base`/`estados`/
+ * `no_estados`/`filtros`/`bodega`/`union`, con o sin `top`) contra `conjuntoDeUniverso` — la MISMA primitiva que
+ * usa el Notario. Cuando esa resolución no puede demostrarse (`{error}`, sin `.set` — p. ej. un `union` con una
+ * rama `estados:["frenado"]` y la empresa no declaró el umbral: `notario/verificar.js:_setDeEstado` devuelve
+ * `{error:"universo-no-resoluble: …"}`), la parte tiene que FALLAR CERRADO: nunca servir el conjunto CRUDO (todo
+ * lo que trajo fig para los conceptos pedidos, que en la práctica casi siempre es el eje entero) como si la
+ * restricción declarada no existiera — eso deshace en silencio lo que el usuario pidió (§7.3·17). Antes, dos de
+ * los tres sitios (`_entidadesDelTopVerificado`, la rama sin `top` de `_planCifraGrupo`) solo miraban `R.set` para
+ * decidir si HABÍA que actuar y nunca revisaban `R.error` para decidir DECLINAR — un `try/catch` no ve ese caso
+ * porque `conjuntoDeUniverso` nunca lanza, siempre RETORNA `{error}` como valor normal. Único punto que decide
+ * esto para los tres sitios: mismo criterio, un solo lugar. */
+function _resolverConjuntoDeclarado(campos, indice, eje) {
+  if (!indice) return { R: null };
+  let R = null;
+  try { R = conjuntoDeUniverso({ eje, ...campos }, indice, eje, ""); } catch (e) { R = { error: `error-de-conjunto: ${e && e.message ? e.message : e}` }; }
+  return { R };
+}
 function _entidadEnAlcanceDeUnaParte(nNorm, p, I, planPorParte) {
   const alcance = alcanceDeParte(p);
   if ((alcance.excluir || []).some((x) => normalizar(x) === nNorm)) return false;
@@ -1645,12 +1761,12 @@ function _entidadEnAlcanceDeUnaParte(nNorm, p, I, planPorParte) {
   if (alcance.filtros) camposDeclarados.filtros = alcance.filtros;
   if (alcance.top) camposDeclarados.top = alcance.top;
   if (Object.keys(camposDeclarados).length && I) {
-    let R = null;
-    try { R = conjuntoDeUniverso({ eje, ...camposDeclarados }, I, eje, ""); } catch { R = null; }
+    const { R } = _resolverConjuntoDeclarado(camposDeclarados, I, eje);
     if (R && R.set) return R.set.has(nNorm);
     // no se pudo verificar (p. ej. `ranking-parcial`, u otro «universo-no-resoluble»): la parte SÍ declaró una
     // restricción real y no hay cómo demostrar que la entidad quedó dentro — falla CERRADO, nunca abierto («nada
-    // se sustituye por un vecino» incluye no poder demostrarlo).
+    // se sustituye por un vecino» incluye no poder demostrarlo). Este sitio ya fallaba cerrado antes de RAÍZ A
+    // (arriba); ahora comparte el mismo helper que los otros dos, sin cambiar su resultado.
     return false;
   }
   return true;
@@ -1981,18 +2097,23 @@ function _entidadesDelTopVerificado(entidadesDeLaToolCruda, figsAcotadas, top, e
   // antes de comparar o de devolver nada.
   const entidadesDeLaTool = [...new Set(entidadesDeLaToolCruda)];
   if (!indice) return { entidades: entidadesDeLaTool, figsExtra: [], resuelto: false };
-  let R = null;
-  try { R = conjuntoDeUniverso({ eje, ...camposUniverso, top }, indice, eje, ""); } catch { R = null; }
+  const { R } = _resolverConjuntoDeclarado({ ...camposUniverso, top }, indice, eje);
   // RAÍZ A9 (supervisor 2026-09-27, diagnóstico v9, contrato §7.3·13) — «un ranking parcial es un problema de
   // LECTURA, no de verificación… un extremo "menor/peor/mejor" no se decide sobre un ranking incompleto»: cuando
   // `conjuntoDeUniverso` declina explícitamente con `ranking-parcial` (la proyección no trae el extremo pedido
   // para TODO el eje), la selección CRUDA de la tool (`entidadesDeLaTool`) NO es un respaldo válido — es
   // exactamente la respuesta NO VERIFICABLE que la decisión 13 prohíbe servir (W99: Bosch sale «ganador» de un
   // ranking de variación que solo trae 4 de 5 marcas). Se declina (`entidades: []`, `resuelto:false`) para que
-  // `_planCifraGrupo` decline la parte entera con un límite — nunca la crudo sin verificar. Cuando `R` falla por
-  // OTRA razón (sin `indice`, sin `set` y sin `error` de ranking-parcial), la crudo sigue siendo el respaldo de
-  // siempre — documentado, nunca silencioso.
+  // `_planCifraGrupo` decline la parte entera con un límite — nunca la crudo sin verificar.
   if (R && R.error && /^ranking-parcial/.test(R.error)) return { entidades: [], figsExtra: [], resuelto: false };
+  // RAÍZ A (supervisor 2026-09-29, bug real — ver la nota grande sobre `_resolverConjuntoDeclarado`, arriba de
+  // `_entidadEnAlcanceDeUnaParte`) — CUALQUIER OTRO error de resolución (p. ej. «universo-no-resoluble» de un
+  // `union` con `estados:["frenado"]` sin umbral declarado) declina TAMBIÉN, con el motivo real (`errorUniverso`)
+  // para que `_planCifraGrupo` lo declare como límite de negocio — antes solo `ranking-parcial` declinaba acá y
+  // cualquier OTRO error caía al respaldo crudo (`entidadesDeLaTool`), sirviendo el eje sin filtrar por la
+  // restricción que la parte declaró (W44 p2, Y10/Y13 p1, Y37 p2). Sin `indice`, sin `set` y sin `error` (nunca
+  // ocurre hoy, pero documentado): la crudo sigue siendo el respaldo, nunca silencioso.
+  if (R && R.error) return { entidades: [], figsExtra: [], resuelto: false, errorUniverso: R.error };
   if (!R || !R.set) return { entidades: entidadesDeLaTool, figsExtra: [], resuelto: false };
   const enJuegoNorm = new Set(entidadesDeLaTool.map((e) => normalizar(e)));
   const coincide = R.set.size === enJuegoNorm.size && [...R.set].every((k) => enJuegoNorm.has(k));
@@ -2041,16 +2162,21 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
   // `conjuntoDeUniverso` CONTRASTÓ de verdad contra la evidencia (aunque el resultado sea vacío — «los 4 mayores
   // están todos bajo el benchmark» es 0, una respuesta correcta, no un hueco) de uno que nunca se pudo verificar
   // (sin `indice`, o la primitiva sin `set`). Solo el segundo caso declina más abajo con «sin evidencia».
-  let entidadesEnJuego, universoResuelto = false;
+  // RAÍZ A (supervisor 2026-09-29) — `errorUniverso` lleva el motivo REAL cuando el universo DECLARADO de la
+  // parte no se pudo resolver (nunca un «sin evidencia» genérico): `_planCifraGrupo` lo devuelve como
+  // `{error: errorUniverso}` en vez de `null` para que el llamador declare el límite de negocio verdadero (ver la
+  // nota grande de `_resolverConjuntoDeclarado`).
+  let entidadesEnJuego, universoResuelto = false, errorUniverso = null;
   if (top) {
     const crudo = _todasLasFilasDeConcepto(figsAcotadas, conceptoTop).map((x) => x.entidad);
     // A1b — el MISMO universo que ya resolvió `figsEnAlcance` para `figsAcotadas` (base/estados/no_estados/
     // filtros/union/excluir), para que el contraste de arriba nunca discrepe con lo que ya filtró el alcance.
     const camposUniverso = _camposDeUniverso(alcance);
-    const { entidades, figsExtra, resuelto } = _entidadesDelTopVerificado(crudo, figsAcotadas, top, eje, conceptoTop, indice, camposUniverso);
+    const { entidades, figsExtra, resuelto, errorUniverso: errU } = _entidadesDelTopVerificado(crudo, figsAcotadas, top, eje, conceptoTop, indice, camposUniverso);
     if (figsExtra.length) figsAcotadas = [...figsAcotadas, ...figsExtra];
     entidadesEnJuego = entidades;
     universoResuelto = resuelto;
+    if (errU) errorUniverso = errU;
   }
   else {
     const v = new Set(); for (const c of conceptos) for (const { entidad } of _todasLasFilasDeConcepto(figsAcotadas, c)) v.add(entidad); entidadesEnJuego = [...v];
@@ -2075,8 +2201,25 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
     // el mismo criterio de A1b, generalizado al camino sin `top`.
     const camposUniverso = _camposDeUniverso(alcance);
     if (indice && Object.keys(camposUniverso).length) {
-      let R = null;
-      try { R = conjuntoDeUniverso({ eje, ...camposUniverso }, indice, eje, ""); } catch { R = null; }
+      const { R } = _resolverConjuntoDeclarado(camposUniverso, indice, eje);
+      // RAÍZ A (supervisor 2026-09-29, bug real, 12 aserciones — Y10/Y13 p1, W44 p2, Y37 p2: la clase A de la
+      // clasificación) — `conjuntoDeUniverso` NUNCA lanza; un universo no-resoluble (p. ej. un `union` con
+      // `estados:["frenado"]` sin umbral declarado — `_setDeEstado` en `notario/verificar.js`) vuelve como
+      // `{error}`, un valor normal, no una excepción. Antes, esta rama solo miraba `R.set` (`universoResuelto =
+      // !!(R && R.set)`, dos líneas más abajo en el código viejo) y el bloque que RESTRINGE `entidadesEnJuego`
+      // solo corría `if (R && R.set && …)`: con `R.error` y sin `.set`, el bloque se saltaba SIN declinar y SIN
+      // filtrar — `entidadesEnJuego` se quedaba con el valor CRUDO de antes (todo lo que trajo fig para los
+      // conceptos pedidos, típicamente el eje ENTERO, porque casi toda métrica de este dominio tiene fig para
+      // todas las entidades). El freno final (`!entidadesEnJuego.length && !universoResuelto`, más abajo) nunca
+      // disparaba porque `entidadesEnJuego` no estaba vacío — la parte se servía «resuelta» con el eje completo,
+      // como si `estados:["frenado"]` nunca hubiera estado en el `union`. Ahora: un `R.error` fuerza el conjunto a
+      // VACÍO (nunca el crudo) y guarda el motivo real en `errorUniverso`, para que el freno de abajo dispare y
+      // el llamador declare el límite de negocio verdadero — nunca el eje entero en su lugar.
+      if (R && R.error) {
+        entidadesEnJuego = [];
+        universoResuelto = false;
+        errorUniverso = R.error;
+      } else {
       universoResuelto = !!(R && R.set);
       // RAÍZ A5 (SUPERVISOR, diagnóstico v10, X16) — «el conjunto CANÓNICO (`R.set`) manda siempre» (nota de
       // abajo) valía solo cuando el universo oficial era MÁS GRANDE que lo que ya trajeron las figs (`>`) — nunca
@@ -2113,6 +2256,7 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
         // cuenta cuando el resto del universo sí tiene evidencia.
         entidadesEnJuego = nombres;
       }
+      }
     }
   }
   // A12 (supervisor 2026-09-27, diagnóstico v8), CERRADO por A7 (diagnóstico v9) — `_camposDeUniverso` ahora SÍ
@@ -2130,7 +2274,11 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
   // ninguna oración de prioridad) en vez de declinar con «sin evidencia en la boleta», que sería un límite falso
   // sobre un universo que SÍ se resolvió. Solo declina (`return null`) cuando ni siquiera se pudo verificar el
   // universo (`universoResuelto:false`) — el caso real de «sin evidencia».
-  if (!entidadesEnJuego.length && !universoResuelto) return null;
+  // RAÍZ A (supervisor 2026-09-29) — cuando la resolución del universo declarado FALLÓ con un motivo real
+  // (`errorUniverso`, arriba), se distingue de un «sin evidencia» genérico: se devuelve `{error}` en vez de
+  // `null` para que el llamador declare el límite de negocio verdadero (p. ej. «la evidencia no demuestra
+  // "frenado" para ninguna entidad del eje», el caso de un umbral no declarado por la empresa).
+  if (!entidadesEnJuego.length && !universoResuelto) return errorUniverso ? { error: errorUniverso } : null;
 
   const porEntidad = new Map();   // nombre → Map(clave → fig)
   for (const c of conceptos) for (const { entidad, fig } of _todasLasFilasDeConcepto(figsAcotadas, c)) {
@@ -2194,7 +2342,8 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null } = {}
 const _CONCEPTO_BASE_DOMINIO = {
   comercial: /· (?:Margen|Venta|Contribuci[oó]n no capturada|Brecha al benchmark|Carga comercial alta)$/i,
   cobranza: /· (?:Saldo pendiente|Saldo vencido|Abonado|Recuperado|Dias Vencido)$/i,
-  inventario: /· (?:Capital frenado|D[ií]as de inventario|D[ií]as sin venta)$/i,
+  // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «Capital frenado» → «Capital inmovilizado crítico».
+  inventario: /· (?:Capital (?:frenado|inmovilizado cr[ií]tico)|D[ií]as de inventario|D[ií]as sin venta)$/i,
 };
 function _planMultiTema(temas, figs, ref, declararRazon, declararDerivada, { conDecision }) {
   const P = prioridadIntegrada(figs, temas);
@@ -2717,10 +2866,18 @@ export function componerEntrega(resolucion) {
       if (conceptosConProductor.length) pParaGrupo = { ...p, conceptos: conceptosConProductor };
     }
     const plan = _planCifraGrupo(pParaGrupo, _figsDeParte(p.id), { ejesDelTenant, indice: I });
-    if (!plan) {
+    if (!plan || plan.error) {
       // INVARIANTE QUE FALLA CERRADO (§7.3·17): sin evidencia para el universo declarado, la parte se declina
       // con un límite — nunca se sirve otra respuesta (la lente de negocio del dominio) en su lugar.
-      limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no encontró evidencia en la boleta`, motivo: "El conjunto se resolvió, pero ninguna fig de este turno trae las cifras pedidas para esas entidades — se declina en vez de servir con otro alcance." });
+      // RAÍZ A (supervisor 2026-09-29) — `plan.error` (distinto de `null`) trae el motivo REAL de por qué el
+      // universo declarado no se pudo resolver (p. ej. un umbral de «frenado» que la empresa no declaró) — se
+      // declara ESE motivo, el mismo criterio y el mismo título que ya usa el camino hermano de `_cerrarGrupoUniverso`
+      // para el mismo tipo de falla (universo por estado SIN `top`, más arriba en este archivo).
+      if (plan && plan.error) {
+        limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no se pudo evaluar`, motivo: plan.error });
+      } else {
+        limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no encontró evidencia en la boleta`, motivo: "El conjunto se resolvió, pero ninguna fig de este turno trae las cifras pedidas para esas entidades — se declina en vez de servir con otro alcance." });
+      }
       continue;
     }
     // tentación precalculada (mecanismo 6) + declaración de las figs: mismo patrón que `cifra`/RC8, más abajo.
@@ -2785,7 +2942,11 @@ export function componerEntrega(resolucion) {
           pParaGrupo = { ...p, conceptos: conceptosConProductor };
         }
         const planG = _planCifraGrupo(pParaGrupo, _figsDeParte(p.id), { ejesDelTenant, indice: I });
-        if (!planG) continue;
+        // RAÍZ A (supervisor 2026-09-29) — `plan.error` (universo declarado no-resoluble) se trata igual que
+        // `null` en este fallback: mismo comportamiento de siempre (la parte no entra a este camino, cae más
+        // abajo a su propio «no se pudo componer»), solo que ahora nunca se le pasa un objeto `{error}` a código
+        // que espera un plan con `.orden`.
+        if (!planG || planG.error) continue;
         // R-COBRANZA-TOP8-SIN-COLA-MENOR (diagnóstico v6, defensa en profundidad, ALTA): «una Entrega nunca
         // revienta» — una entidad de `orden` puede quedar sin NINGÚN concepto en `porEntidad` (ninguna fig
         // publicada para ella en toda la parte), y `.get(entidad)` devuelve `undefined`. Antes, el `.get()`
@@ -2907,7 +3068,11 @@ export function componerEntrega(resolucion) {
         // «cambio silencioso» que CLAUDE.md §5 prohíbe y que el camino hermano de `lectura`/`decision` con
         // universo propio (más arriba, `partesUniversoPropio`) ya declara con un límite. «Declina honestamente
         // cuenta como éxito» (CLAUDE.md §5): se avisa, nunca se calla.
-        if (!plan) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no encontró evidencia en la boleta`, motivo: "El conjunto se resolvió parcialmente o no se pudo verificar contra la evidencia de este turno — se declina en vez de servir con otro alcance o sobre un ranking incompleto." }); }
+        // RAÍZ A (supervisor 2026-09-29) — `plan.error` (universo declarado no-resoluble, p. ej. un `union` con
+        // «frenado» sin umbral) se declara con SU motivo real, no el genérico de «sin evidencia» — mismo criterio
+        // que el sitio hermano de `lectura`/`decision`, arriba.
+        if (plan && plan.error) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no se pudo evaluar`, motivo: plan.error }); }
+        else if (!plan) { limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el universo declarado no encontró evidencia en la boleta`, motivo: "El conjunto se resolvió parcialmente o no se pudo verificar contra la evidencia de este turno — se declina en vez de servir con otro alcance o sobre un ranking incompleto." }); }
         else {
           // tentación precalculada (mecanismo 6): la diferencia entre el primero y el segundo del listado, en la
           // MISMA métrica que ordena — se captura el fig ANTES de convertir el mapa a ids (unit-aware), y se

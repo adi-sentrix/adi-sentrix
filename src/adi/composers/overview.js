@@ -11,6 +11,7 @@ import { POLICY } from "../../config/businessPolicy.js";   // hardening · polí
 import { simboloMoneda } from "../../config/moneda.js";
 import { getTenantData } from "../../data/tenantStore.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";
+import { jerarquiaInventario } from "../diagnosis/economicDiagnosis.js";   // owner 2026-09-28 §7.3·30-32: la concentración por familia lee J.porSku[i].inmovilizado, no el texto crudo `estado !== "Activo"` (R2)
 // monto comercial ALMACENADO → M verdaderos (la escala la declara el pack · demo «K» = identidad · 2026-08-30)
 const _enM = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e6;
 
@@ -199,10 +200,15 @@ export function composeModuleOverview(scenarioId, moduloId) {
     const inmovPct = k.inmovilizadoPct;   // canónico scenario-aware
     const doh = k.doh;
 
-    // Top categoría runtime sobre SKUs con estado !== "Activo"
-    // (autorización BRIEF #2 · Opción C)
+    // Top categoría runtime sobre SKUs inmovilizados (autorización BRIEF #2 · Opción C)
+    /* LEE `jerarquiaInventario` (owner 2026-09-28, §7.3·30-32, diseño §2/R2 — raíz A2): antes `estado !== "Activo"`
+     * era texto CRUDO, no el estado del motor — en una planilla real `estado` es la CLAVE del motor
+     * (riesgo_quiebre/capital_sano/sobrestock/capital_frenado), nunca el texto "Activo", así que ese filtro
+     * marcaba el 100% del capital. Ahora es `J.inmovilizado` (capital_frenado ⊎ sobrestock) — la MISMA
+     * definición que ya resolvió `inmovUSD`/`inmovPct` arriba (`getInvKPI` → `kpiInventario`). */
     const skuScn = applyScenarioToSkuInventario(scenarioId);
-    const inmovSkus = (inmovUSD > 0) ? skuScn.filter(s => s.estado !== "Activo") : [];   // R7: el KPI del motor manda — $0 inmovilizado = cero narrativa de concentración
+    const _inmovSetA = new Set(jerarquiaInventario(skuScn).inmovilizado.skus);
+    const inmovSkus = (inmovUSD > 0) ? skuScn.filter(s => _inmovSetA.has(s.sku)) : [];   // R7: el KPI del motor manda — $0 inmovilizado = cero narrativa de concentración
 
     let topCatName = null;
     let topCatPct = 0;
@@ -383,8 +389,10 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
     const inmovPct = k.inmovilizadoPct;
     const doh = k.doh;
 
+    // LEE `jerarquiaInventario` (owner 2026-09-28, §7.3·30-32, diseño §2/R2 — misma corrección que arriba).
     const skuScn = applyScenarioToSkuInventario(scenarioId);
-    const inmovSkus = (inmovUSD > 0) ? skuScn.filter(s => s.estado !== "Activo") : [];   // R7: el KPI del motor manda — $0 inmovilizado = cero narrativa de concentración
+    const _inmovSetB = new Set(jerarquiaInventario(skuScn).inmovilizado.skus);
+    const inmovSkus = (inmovUSD > 0) ? skuScn.filter(s => _inmovSetB.has(s.sku)) : [];   // R7: el KPI del motor manda — $0 inmovilizado = cero narrativa de concentración
 
     let topCatName = null;
     let topCatPct = 0;

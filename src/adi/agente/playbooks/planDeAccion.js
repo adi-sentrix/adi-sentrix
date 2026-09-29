@@ -71,8 +71,9 @@ const _FRENTES = [
     accion: (n) => `entrar por ${n} y ordenar su cobranza`,
     mirar: "si ese vencido es de una factura en disputa o de plazo simplemente pasado",
     noSostiene: "el dato trae el saldo, no el motivo del atraso", siConfirma: "pondría esa cobranza primera en la semana" },
-  { clave: "capital", re: /^Capital frenado · subtotal$/i, porEntidad: /· Capital frenado$/i,
-    universo: "inventario", nombre: "el capital frenado", senal: /reposici[oó]n|inventario|bodega|stock/i,   // la cifra es el subtotal FRENADO (estado crítico), no el inmovilizado amplio (owner 2026-09-15)
+  // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «Capital frenado» → «Capital inmovilizado crítico».
+  { clave: "capital", re: /^Capital (?:frenado|inmovilizado cr[ií]tico) · subtotal$/i, porEntidad: /· Capital (?:frenado|inmovilizado cr[ií]tico)$/i,
+    universo: "inventario", nombre: "el capital inmovilizado crítico", senal: /reposici[oó]n|inventario|bodega|stock/i,   // la cifra es el subtotal FRENADO (estado crítico), no el inmovilizado amplio (owner 2026-09-15)
     accion: (n) => `frenar la reposición de ${n}`,
     mirar: "si ese artículo tiene una compra ya comprometida",
     noSostiene: "el dato no trae órdenes de compra ni plazos de proveedor", siConfirma: "frenaría el próximo pedido de ese artículo" },
@@ -208,7 +209,7 @@ export const planDeAccion = {
   /* la promesa es el frente que ordena la secuencia: sin una cifra literal que diga por dónde empezar, un
    * plan es una lista de buenas intenciones — y el playbook se retira en vez de improvisar el orden. */
   obligatorias(pregunta) {
-    return _caso(pregunta) ? [/^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$|^Saldo vencido · total$|^Capital frenado · subtotal$/i] : [];
+    return _caso(pregunta) ? [/^Carga comercial alta · subtotal(?: · \d+ cuentas sobre el nivel[^·]*)?$|^Saldo vencido · total$|^Capital (?:frenado|inmovilizado cr[ií]tico) · subtotal$/i] : [];
   },
 
   entregable: "CONVIERTE LA LECTURA EN UNA SECUENCIA, sin gestionar por él. Las cinco piezas, en este orden: (1) LA PRIMERA ACCIÓN, una sola, nombrando por dónde entrar; (2) POR QUÉ ESA PRIMERO, con su cifra y contra qué se compara, y si es criterio tuyo, dilo; (3) QUÉ MIRAR PARA CONFIRMAR — la pieza que él tiene y el dato no; (4) LA SEGUNDA ACCIÓN si eso se confirma, y la alternativa si no; (5) QUÉ NO HARÍAS TODAVÍA, y por qué el dato no lo sostiene. ⚠️ OFRECE, NO ORDENES: todo en primera persona condicional —«haría», «miraría», «entraría»—, jamás en imperativo. ADI asesora, no gestiona: un «llama a Falabella» convierte al asesor en un sistema de tareas. ⚠️ Y no apoyes la primera acción en una cifra que el dato declare no reconciliada.",
