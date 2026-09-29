@@ -182,6 +182,45 @@ export const FORMA_DE_ESTADO = {
   "sin margen": { singular: "sin margen", plural: "sin margen", negado: "con margen", grupo: "los que no tienen margen" },
   "sin pagos": { singular: "sin pagos", plural: "sin pagos", negado: "con pagos", grupo: "los que no tienen pagos" },
 };
+/* LOS UMBRALES QUE SOSTIENEN CADA ESTADO (supervisor 2026-09-29, §7.3·36b — «todo veredicto que depende de un umbral declara el
+ * ORIGEN de su criterio»): una tabla de DATOS junto a `FORMA_DE_ESTADO`, con las MISMAS llaves de POLICY que ya usa la Mesa
+ * Capital para asignar cada estado (`umbralesDeInventario`, businessPolicy.js) — nunca una regla en el composer ni un patrón
+ * sobre lenguaje. La Entrega declara SOLO los umbrales de los estados que usa (`umbralesDeEstados`); el origen de cada uno lo
+ * resuelve `businessPolicy.js` (`clausulasDeProcedencia`, el helper único). Un estado que no aparece acá no depende de un
+ * umbral (en quiebre = stock cero · sin venta = días > 0 · crítico = la alerta del archivo · capital sano = «sin alerta» de la
+ * Mesa Capital, que la §7.3·36b no lista). */
+export const UMBRALES_DE_ESTADO = {
+  "inmovilizado critico": ["rotacionMin", "dohMax"],
+  inmovilizado: ["rotacionMin", "dohMax", "sobrestockDohMin"],
+  sobrestock: ["sobrestockDohMin", "dohMax"],
+  frenado: ["frenadoDiasSinVenta"],
+  "riesgo de quiebre": ["quiebreRotMin", "quiebreDohMax"],
+  "rota bien": ["rotacionMin"],
+  "rota lento": ["rotacionMin"],
+};
+/* Los conceptos del encargo que sirven el CAPITAL de un estado de inventario (los productores de `lecturasDe.js`:
+ * `capital_inmovilizado` lee el foco `inmovilizado`; `capital_frenado` y `margen_inventario`, el tramo crítico): pedirlos pone
+ * en juego el mismo estado, y con él sus umbrales. */
+export const ESTADO_DE_CONCEPTO = {
+  capital_inmovilizado: "inmovilizado",
+  capital_frenado: "inmovilizado critico",
+  margen_inventario: "inmovilizado critico",
+};
+/** estadoDeLaPremisa(campo) → el canon de un estado escrito en el campo `estado` de una premisa («frenado» o «no frenado», la
+ *  forma tipada del contrato §1.3), o null. Lee el CAMPO estructurado, nunca una frase. */
+export function estadoDeLaPremisa(campo) {
+  const t = normalizar(String(campo || "").replace(/_/g, " ")).trim();
+  if (!t) return null;
+  if (ESTADOS_CANON.has(t)) return t;
+  const m = /^no\s+(.+)$/.exec(t);
+  return m && ESTADOS_CANON.has(m[1]) ? m[1] : null;
+}
+/** umbralesDeEstados(estados) → las llaves de POLICY (sin repetir) de los umbrales que sostienen esos estados canónicos */
+export function umbralesDeEstados(estados) {
+  const out = new Set();
+  for (const e of estados || []) for (const k of UMBRALES_DE_ESTADO[e] || []) out.add(k);
+  return [...out];
+}
 /** formaDeEstado(canon) → { singular, plural, negado, grupo } — las palabras de la casa para ese estado (su canon si no tiene forma) */
 export const formaDeEstado = (canon) => {
   const f = FORMA_DE_ESTADO[canon] || { singular: canon, plural: canon };

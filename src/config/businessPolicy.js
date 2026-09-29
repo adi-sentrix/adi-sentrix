@@ -305,3 +305,61 @@ export const umbralesDeInventario = (consulta = null) => ({
   quiebreDohMax: umbral("quiebreDohMax", consulta),
   frenadoDiasSinVenta: umbral("frenadoDiasSinVenta", consulta),
 });
+
+/* ══ LA PROCEDENCIA EN SUPERFICIE — UN SOLO HELPER (owner 2026-09-28 §7.3·32b; supervisor 2026-09-29 §7.3·36b, diagnóstico
+ * v12, raíz A1/A8: «ningún veredicto debe esconder de dónde proviene su criterio») ═══════════════════════════════════
+ * Cada umbral que sostiene un veredicto lleva su ORIGEN (`umbral(key).origen`, más arriba) JUNTO a su nombre, una cláusula
+ * por umbral: «piso de rotación: declarado por la empresa; umbral de sobrestock: criterio general de ADI, ajustable por la
+ * empresa». Este bloque es la ÚNICA redacción de esa cláusula para la Entrega del encargo (marco.definiciones) y para la
+ * frase de ausencias del umbral de materialidad; la tabla estado→umbrales que dice CUÁLES declarar vive junto a
+ * `FORMA_DE_ESTADO` (`notario/estados.js`, `UMBRALES_DE_ESTADO`) — datos, nunca una regla escrita en el composer.
+ * Sin dígitos: es la definición del criterio, no una cifra (las cifras van en la tabla, con su hecho). */
+
+/** Cómo se NOMBRA cada umbral en superficie (una palabra, un significado), en el ORDEN en que se declaran. */
+export const NOMBRE_DE_UMBRAL = Object.freeze({
+  rotacionMin: "piso de rotación",
+  dohMax: "techo de días de inventario",
+  sobrestockDohMin: "umbral de sobrestock",
+  frenadoDiasSinVenta: "umbral de frenado",
+  quiebreRotMin: "piso de quiebre",
+  quiebreDohMax: "techo de quiebre",
+  materialidadFocoPctVenta: "umbral de materialidad",
+});
+
+/** Las DOS familias de umbral que la Entrega declara, cada una con su propia oración (una cláusula por umbral dentro de ella) y su
+ *  prefijo. «Venta frenada» va aparte de los criterios de inventario: es otra magnitud (días sin venta, no rotación ni cobertura) y su
+ *  origen puede ser distinto —incluso «planteado en la consulta»— sin mezclarse con el de los demás. La Entrega reconoce estas oraciones
+ *  por el prefijo (texto propio, nunca un patrón sobre lenguaje ajeno) para no contarlas como una «explicación» más al compactar el Marco
+ *  en «breve» (la procedencia se ve siempre). */
+export const FAMILIAS_DE_PROCEDENCIA = Object.freeze([
+  { id: "inventario", prefijo: "Criterio de inventario — ", umbrales: ["rotacionMin", "dohMax", "sobrestockDohMin", "quiebreRotMin", "quiebreDohMax"] },
+  { id: "venta_frenada", prefijo: "Criterio de venta frenada — ", umbrales: ["frenadoDiasSinVenta"] },
+]);
+/** esProcedenciaDeCriterio(texto) → ¿es una de las oraciones de procedencia de `procedenciaDeUmbrales`? (por su prefijo constante) */
+export const esProcedenciaDeCriterio = (texto) => FAMILIAS_DE_PROCEDENCIA.some((f) => String(texto || "").startsWith(f.prefijo));
+
+/** procedenciaDeUmbral(key, consulta?) → la etiqueta de origen de UN umbral («declarado por la empresa» · «criterio general
+ *  de ADI, ajustable por la empresa» · «planteado en la consulta» · «sin umbral declarado»), la misma que ya usan la
+ *  pantalla y el indicador (`ETIQUETA_ORIGEN`). Sin `key` conocida devuelve null (nunca inventa un origen). */
+export function procedenciaDeUmbral(key, consulta = null) {
+  if (!Object.prototype.hasOwnProperty.call(NOMBRE_DE_UMBRAL, key)) return null;
+  return ETIQUETA_ORIGEN[umbral(key, consulta).origen] || null;
+}
+
+/** clausulasDeProcedencia(claves, consulta?) → ["piso de rotación: declarado por la empresa", …] — una por umbral, sin
+ *  repetir, en el orden de `NOMBRE_DE_UMBRAL`; una clave desconocida no produce cláusula. */
+export function clausulasDeProcedencia(claves, consulta = null) {
+  const pedidas = new Set(claves || []);
+  return Object.keys(NOMBRE_DE_UMBRAL).filter((k) => pedidas.has(k)).map((k) => `${NOMBRE_DE_UMBRAL[k]}: ${procedenciaDeUmbral(k, consulta)}`);
+}
+
+/** procedenciaDeUmbrales(claves, consulta?) → las oraciones del Marco, una por familia con algún umbral pedido («Criterio de inventario — a: x;
+ *  b: y.» · «Criterio de venta frenada — umbral de frenado: z.»); [] si no hay umbral que declarar. */
+export function procedenciaDeUmbrales(claves, consulta = null) {
+  const out = [];
+  for (const fam of FAMILIAS_DE_PROCEDENCIA) {
+    const cl = clausulasDeProcedencia((claves || []).filter((k) => fam.umbrales.includes(k)), consulta);
+    if (cl.length) out.push(`${fam.prefijo}${cl.join("; ")}.`);
+  }
+  return out;
+}

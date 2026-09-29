@@ -321,9 +321,20 @@ function _pasosCifra(p) {
 }
 
 /* ── cierre `comparacion` (contrato §1.1: EXACTAMENTE 2 entidades del MISMO eje → `compareEntities`) ──────────── */
+/* RAÍZ A4 (supervisor 2026-09-29, diagnóstico v12, Z33): `compareEntities` sirve las métricas de `metricRegistry` lado a lado, y NO
+ * produce los conceptos que tienen su propio productor — hoy los días sin venta (`_FAM_DIAS_SIN_VENTA`, el foco `dias_sin_venta`
+ * de `inventoryStatus`). El validador acepta ese concepto en una comparación (su productor existe, contrato §3.3) y, sin esta
+ * lectura, la Entrega lo calla: un concepto pedido, aceptado y desaparecido sin declaración (un cambio silencioso; y con él, el
+ * bloque de lo histórico del Marco, que solo viaja si se sirve un hecho histórico). Por cada concepto pedido de esas familias se
+ * agrega la llamada de SU productor (la misma `_callsDeConceptoEje` que usa una `cifra`); las figs resultantes llegan a
+ * `porParte[parte]` y `_planComparacion` las compara par a par, tipadas como históricas. */
+const _FAM_FUERA_DE_COMPARE = _FAM_DIAS_SIN_VENTA;
 function _pasosComparacion(p) {
   if (p.entidades.length !== 2 || p.entidades[0].eje !== p.entidades[1].eje) return [];
-  return [{ tool: "compareEntities", args: { dimension: p.entidades[0].eje, entities: p.entidades.map((e) => e.nombre) }, para: `comparación ${p.entidades.map((e) => e.nombre).join(" vs ")}` }];
+  const eje = p.entidades[0].eje;
+  const calls = [{ tool: "compareEntities", args: { dimension: eje, entities: p.entidades.map((e) => e.nombre) }, para: `comparación ${p.entidades.map((e) => e.nombre).join(" vs ")}` }];
+  for (const c of p.conceptos || []) if (_FAM_FUERA_DE_COMPARE.has(c)) calls.push(..._callsDeConceptoEje(p.tema, c, eje));
+  return _dedupeCalls(calls);
 }
 
 /* ── cierre `simulacion` (contrato §3.5: el PRODUCTOR ya lo resolvió `validar.js`, acá solo se arman los args) ─── */

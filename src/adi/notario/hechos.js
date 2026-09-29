@@ -469,6 +469,8 @@ function _H(id, tipo, extra = {}) {
 }
 const _addEnt = (H, I, nombre) => { if (!nombre || typeof nombre !== "string" || nombre === "negocio") return; const r = I.resolverEntidad(nombre); H.entidades.add(normalizar(r ? r.nombre : nombre)); };
 const _addClave = (H, m) => { if (m == null || m === "") return; const c = claveDeMetrica(m) || normalizar(String(m)).replace(/\s+/g, "_"); H.claves.add(c); if (!H.dominio) H.dominio = dominioDeClave(c); if (H.polaridad == null) H.polaridad = polaridadDeClave(c); };
+/* RAÍZ A7 (supervisor 2026-09-29, diagnóstico v12): un número de `H.numeros` tiene DUEÑO. `dueno:"universo"` = del conjunto u orden que la premisa declara (el umbral de su filtro, el `k` de su top o de su orden, su tamaño): NUNCA una cifra de la entidad; `dueno:"referencia"` = el valor de una referencia de la casa. Sin `dueno` es la cifra propia de la entidad (o el conteo/valor que el hecho afirma). `k` es el tamaño del top: «Sodimac: saldo vencido 2» pegaba el 2 del «los 2 de mayor» a Sodimac como si fuera su saldo. */
+export const esCifraPropia = (n) => !!n && !n.dueno;
 const _addNum = (H, v, unidad = null) => { const r = typeof v === "object" && v && Number.isFinite(v.raw) ? v : leerValor(v); if (r && Number.isFinite(r.raw)) H.numeros.push({ raw: r.raw, unidad: unidad || r.unidad || "count", texto: r.texto || String(v) }); };
 const _dominioDeFig = (f) => { const c = claveDeMetrica(f.concepto); const d = c ? dominioDeClave(c) : null; if (d) return d; const t = normalizar((f.context || "") + " " + (f.calificador || "") + " " + (f.fig && f.fig.universo || "") + " " + (f.fig && f.fig.context || "") + " " + String(f.label || "").split(" · ").slice(1).join(" "));   /* el rótulo también dice el dominio («Medida · cerrar brecha al piso») */ if (/vencid|pendiente|abonad|recuperad|cobr|mora/.test(t)) return "cobranza"; if (/capital|frenad|inventario|stock|bodega|rotaci/.test(t)) return "inventario"; if (/venta|margen|contribuci|carga|benchmark|costo|brecha|precio|markup/.test(t)) return "comercial"; return null; };
 
@@ -728,10 +730,10 @@ function _conteoTipado(H, h, I) {
   // imprime en la oración de la premisa), no «lo directo tal como llegó»: se formatea con `formatoDeLaCasa`
   // (la MISMA función que ya usa este archivo para cualquier otro número calculado, línea ~1005), nunca
   // `String(f.valor)` a secas — antes el número crudo de la consulta (`5000000`) llegaba tal cual al texto.
-  for (const f of Array.isArray(u.filtros) ? u.filtros : []) { _addClave(H, f.metrica); if (f.valor != null && !Array.isArray(f.valor)) { const unidad = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)) ? "days" : (f.unidad || unidadDeClave(f.metrica) || "count"); const raw = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)) ? diasDe(f.valor, f.unidad) : +f.valor; H.numeros.push({ raw: +f.valor, unidad: unidad === "days" && raw !== +f.valor ? "count" : unidad, texto: formatoDeLaCasa(+f.valor, unidad === "days" && raw !== +f.valor ? "count" : unidad) || String(f.valor) }); if (raw != null && raw !== +f.valor) H.numeros.push({ raw, unidad: "days", texto: `${raw} días` }); H.render.umbral = _fmtUmbral(f).replace(/^.*?(?:superior a|de al menos|inferior a|de hasta|igual a|entre)\s+/, ""); } }
-  if (u.top) { _addClave(H, u.top.metrica); H.numeros.push({ raw: +u.top.k, unidad: "count", texto: String(u.top.k) }); H.render.k = String(u.top.k); }
+  for (const f of Array.isArray(u.filtros) ? u.filtros : []) { _addClave(H, f.metrica); if (f.valor != null && !Array.isArray(f.valor)) { const unidad = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)) ? "days" : (f.unidad || unidadDeClave(f.metrica) || "count"); const raw = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)) ? diasDe(f.valor, f.unidad) : +f.valor; H.numeros.push({ raw: +f.valor, unidad: unidad === "days" && raw !== +f.valor ? "count" : unidad, texto: formatoDeLaCasa(+f.valor, unidad === "days" && raw !== +f.valor ? "count" : unidad) || String(f.valor), dueno: "universo" }); if (raw != null && raw !== +f.valor) H.numeros.push({ raw, unidad: "days", texto: `${raw} días`, dueno: "universo" }); H.render.umbral = _fmtUmbral(f).replace(/^.*?(?:superior a|de al menos|inferior a|de hasta|igual a|entre)\s+/, ""); } }
+  if (u.top) { _addClave(H, u.top.metrica); H.numeros.push({ raw: +u.top.k, unidad: "count", texto: String(u.top.k), dueno: "universo" }); H.render.k = String(u.top.k); }
   for (const e of [..._lista(u.estados), ..._lista(u.no_estados), ..._lista(u.excluir && u.excluir.estados)]) { const c = _canonDe(e); H.estado = H.estado || c; H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(c); if (!H.dominio) H.dominio = dominioDeEstado(c); }
-  H.numeros.push({ raw: set.size, unidad: "count", texto: String(set.size) }, { raw: mBase, unidad: "count", texto: String(mBase) });
+  H.numeros.push({ raw: set.size, unidad: "count", texto: String(set.size), dueno: "universo" }, { raw: mBase, unidad: "count", texto: String(mBase), dueno: "universo" });
   const lista = H.roles.miembros.join(", ");
   let verdad = `${set.size}${mBase ? " de " + mBase : ""} en ${H.universo.texto}${lista ? ": " + lista : ""}`;
   // A4, GENERALIZACIÓN A `conteo` (supervisor 2026-09-27, diagnóstico v9, RAÍZ A4 — precisa el bloque gemelo de
@@ -961,7 +963,7 @@ export function libroDeHechos(hechos, ctx = {}) {
       if (a2.estado) { H.estado = _canonDe(a2.estado.estado); H.roles.bodega = a2.estado.bodega || null; if (a2.estado.bodega) _addEnt(H, I, a2.estado.bodega); H.dominio = H.dominio || dominioDeEstado(H.estado); H.render.estado = nombreDeEstado(H.estado); }
       if (a2.valor != null) _addNum(H, a2.valor);
       if (a2.relacion) { if (a2.relacion.valor != null) _addNum(H, a2.relacion.valor); if (Number.isFinite(+a2.relacion.k)) { H.numeros.push({ raw: +a2.relacion.k, unidad: "ratio", texto: String(a2.relacion.k) }); H.render.k = String(a2.relacion.k); } H.render.rel = _renderRelacion(a2, I); H.matiz = a2.relacion.matiz || ""; H.direccion = a2.relacion.forma; }
-      if (a2.orden) { H.forma = normalizar(String(a2.orden.forma || "")); if (Number.isFinite(+a2.orden.k)) { H.numeros.push({ raw: +a2.orden.k, unidad: "count", texto: String(a2.orden.k) }); H.render.k = String(a2.orden.k); } H.direccion = a2.orden.direccion || direccionPorDefecto(a2.orden.forma);   /* UNA SOLA definición (R-DIRECCION, diagnóstico v3): afirmacion.js:direccionPorDefecto — antes esta línea y la puerta de completitud de afirmacion.js discrepaban (acá ya trataba topk=mayor, allá solo max/min) */ H.forma = a2.orden.forma; }
+      if (a2.orden) { H.forma = normalizar(String(a2.orden.forma || "")); if (Number.isFinite(+a2.orden.k)) { H.numeros.push({ raw: +a2.orden.k, unidad: "count", texto: String(a2.orden.k), dueno: "universo" }); H.render.k = String(a2.orden.k); } H.direccion = a2.orden.direccion || direccionPorDefecto(a2.orden.forma);   /* UNA SOLA definición (R-DIRECCION, diagnóstico v3): afirmacion.js:direccionPorDefecto — antes esta línea y la puerta de completitud de afirmacion.js discrepaban (acá ya trataba topk=mayor, allá solo max/min) */ H.forma = a2.orden.forma; }
       if (a2.variacion) { if (a2.variacion.valor != null) _addNum(H, a2.variacion.valor); H.direccion = a2.variacion.direccion; H.periodo = periodoDe(h.periodo || "anterior"); H.claves.add(H.periodo === "presupuesto" ? "vs_presupuesto" : "variacion"); }
       if (a2.conteo) { H.numeros.push({ raw: +a2.conteo.n, unidad: "count", texto: String(a2.conteo.n) }); H.render.n = String(a2.conteo.n); if (a2.conteo.m != null) { H.numeros.push({ raw: +a2.conteo.m, unidad: "count", texto: String(a2.conteo.m) }); H.render.m = String(a2.conteo.m); } }
       if (a2.periodo && !H.periodo) H.periodo = periodoDe(a2.periodo);
@@ -996,7 +998,7 @@ export function libroDeHechos(hechos, ctx = {}) {
         // `_rotuloDeLaCasaDeH` (componer.js) imprimía «Easy: contribución 1» (el `k`=1 del top, no los $ de Easy).
         // Para `grupo`/`conteo` este número SÍ hace falta (su gemelo de `_conteoTipado`, citado arriba, lo declara
         // igual) — se acota el chequeo a excluir SOLO `orden`, sin tocar los otros dos tipos ni ninguna otra rama.
-        if (_es(u)) { for (const f of Array.isArray(u.filtros) ? u.filtros : []) { _addClave(H, f.metrica); if (f.valor != null && !Array.isArray(f.valor)) { const enDias = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)); H.numeros.push({ raw: +f.valor, unidad: enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count"), texto: formatoDeLaCasa(+f.valor, enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count")) || String(f.valor) }); if (enDias) { const d = diasDe(f.valor, f.unidad); if (d != null) H.numeros.push({ raw: d, unidad: "days", texto: `${d} días` }); } H.render.umbral = _fmtUmbral(f).replace(/^.*?(?:superior a|de al menos|inferior a|de hasta|igual a|entre)\s+/, ""); } } if (u.top) { _addClave(H, u.top.metrica); if (tipo !== "orden") H.numeros.push({ raw: +u.top.k, unidad: "count", texto: String(u.top.k) }); } for (const e of [..._lista(u.estados), ..._lista(u.no_estados), ..._lista(u.excluir && u.excluir.estados)]) { H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(_canonDe(e)); }
+        if (_es(u)) { for (const f of Array.isArray(u.filtros) ? u.filtros : []) { _addClave(H, f.metrica); if (f.valor != null && !Array.isArray(f.valor)) { const enDias = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)); H.numeros.push({ raw: +f.valor, unidad: enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count"), texto: formatoDeLaCasa(+f.valor, enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count")) || String(f.valor), dueno: "universo" }); if (enDias) { const d = diasDe(f.valor, f.unidad); if (d != null) H.numeros.push({ raw: d, unidad: "days", texto: `${d} días`, dueno: "universo" }); } H.render.umbral = _fmtUmbral(f).replace(/^.*?(?:superior a|de al menos|inferior a|de hasta|igual a|entre)\s+/, ""); } } if (u.top) { _addClave(H, u.top.metrica); if (tipo !== "orden") H.numeros.push({ raw: +u.top.k, unidad: "count", texto: String(u.top.k), dueno: "universo" }); } for (const e of [..._lista(u.estados), ..._lista(u.no_estados), ..._lista(u.excluir && u.excluir.estados)]) { H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(_canonDe(e)); }
           // §7.3, tarea 4 (segunda tanda): un `union` trae sus propios filtros DENTRO de cada miembro — declaran
           // su clave acá, con el MISMO `_addClave` de arriba, para que el rescate de la referencia (más abajo, el
           // bloque «GENERALIZACIÓN A filtros[].ref») sepa qué métrica reporta la entidad también en este caso.
@@ -1029,7 +1031,7 @@ export function libroDeHechos(hechos, ctx = {}) {
             const refTxt = `${mRef ? mRef.nombre.toLowerCase() : fam.concepto} ${valTxt}`;
             if (!H.numeros.some((n) => n.texto === valTxt)) {
               H.verdad = `${H.verdad || ""}${H.verdad ? ", " : ""}${refTxt}`;
-              H.numeros.push({ raw: rRef.raw, unidad: rRef.unidad || "pct", texto: valTxt });
+              H.numeros.push({ raw: rRef.raw, unidad: rRef.unidad || "pct", texto: valTxt, dueno: "referencia" });
             }
             // `H.render.referencia` (campo dedicado, no posicional) — `_rotuloDeLaCasaDeH` (entrega/componer.js)
             // lo lee para no perder esta cifra cuando SÍ arma un rótulo propio para la entidad (con su propia
@@ -1091,7 +1093,7 @@ export function libroDeHechos(hechos, ctx = {}) {
         // H.verdad ya escrito) lo tiene, para no duplicar la referencia en la misma oración.
         if (!H.numeros.some((n) => n.texto === valTxtE) && !(H.verdad || "").includes(valTxtE)) {
           H.verdad = `${H.verdad || ""}${H.verdad ? ", " : ""}${refTxtE}`;
-          H.numeros.push({ raw: rRefE.raw, unidad: rRefE.unidad || "pct", texto: valTxtE });
+          H.numeros.push({ raw: rRefE.raw, unidad: rRefE.unidad || "pct", texto: valTxtE, dueno: "referencia" });
         }
         H.render.referencia = H.render.referencia ? `${H.render.referencia}, ${refTxtE}` : refTxtE;
         if (!H.ok && H.roles.sujetos.length === 1 && H.roles.sujetos[0] !== "negocio" && ![...H.claves].some((c) => c === famE.metrica)) {
@@ -1126,7 +1128,7 @@ export function libroDeHechos(hechos, ctx = {}) {
       // cualquier otra cifra del libro) — nunca de una posición dentro de una cadena de texto. Solo con un
       // sujeto único (con varios sujetos —`topk`, un `grupo` de miembros, un `relacion` con `vs` de más de uno—
       // la cifra de cada uno la arma su propio camino, no este rescate genérico).
-      if (!H.numeros.length && H.roles.sujetos.length === 1 && H.roles.sujetos[0] !== "negocio") {
+      if ((!H.numeros.length || ((tipo === "grupo" || tipo === "orden") && !H.numeros.some(esCifraPropia))) && H.roles.sujetos.length === 1 && H.roles.sujetos[0] !== "negocio") {
         const _sujetoRescate = H.roles.sujetos[0];
         let _fSujeto = null;
         if (tipo === "variacion") {
@@ -1140,6 +1142,9 @@ export function libroDeHechos(hechos, ctx = {}) {
         } else {
           const _claveSujeto = [...H.claves].find((c) => c !== "variacion" && c !== "vs_presupuesto") || null;
           _fSujeto = _claveSujeto ? _figDe(I, _sujetoRescate, _claveSujeto) : null;
+          // un `grupo`/`orden` cuya métrica no se publica como fig por entidad (p. ej. `capital_inmovilizado`, solo ranking) trae la cifra PROPIA del
+          // mismo ranking que ya verificó `verificar.js` (`valorDeRanking`), como la variación arriba — nunca el `k` de su top (A7).
+          if (!_fSujeto && _claveSujeto && (tipo === "grupo" || tipo === "orden")) { const _rk = valorDeRanking({ sujeto: _sujetoRescate, metrica: _claveSujeto }, I); if (_rk && Number.isFinite(_rk.raw)) _fSujeto = { raw: _rk.raw, unidad: _rk.unidad, texto: _rk.texto, fig: { value: _rk.texto } }; }
         }
         if (_fSujeto) H.numeros.push({ raw: _fSujeto.raw, unidad: _fSujeto.unidad, texto: _fSujeto.texto || (_fSujeto.fig && String(_fSujeto.fig.value)) || "" });
       }
@@ -1168,7 +1173,7 @@ export function libroDeHechos(hechos, ctx = {}) {
           if (H.render.referencia && H.render.referencia.includes(valTxt)) continue;   // ya declarada (misma cifra)
           const refTxt2 = `${mRef ? mRef.nombre.toLowerCase() : f.ref} ${valTxt}`;
           H.render.referencia = H.render.referencia ? `${H.render.referencia}, ${refTxt2}` : refTxt2;
-          if (!H.numeros.some((n) => n.texto === valTxt)) H.numeros.push({ raw: rRef.raw, unidad: rRef.unidad || "pct", texto: valTxt });
+          if (!H.numeros.some((n) => n.texto === valTxt)) H.numeros.push({ raw: rRef.raw, unidad: rRef.unidad || "pct", texto: valTxt, dueno: "referencia" });
         }
       }
       return H;

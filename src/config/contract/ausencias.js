@@ -30,6 +30,10 @@
  * una ausencia APLICA a un turno — eso lo sigue decidiendo el composer que la usa (ver `ausenciasDe`/
  * `limitesDeAusencias` abajo, y `entrega/componer.js`). */
 
+/* ÚNICA EXCEPCIÓN a «sin imports» (§7.3·36b, diagnóstico v12 raíz A8): el ORIGEN del umbral de materialidad depende del perfil de
+ * la empresa, así que la frase que lo nombra lo pide al helper único de la procedencia en vez de escribirlo a mano. */
+import { NOMBRE_DE_UMBRAL, procedenciaDeUmbral } from "../businessPolicy.js";
+
 // Las categorías que YA se vieron aparecer en el dato — LISTA ABIERTA (owner, textual: «tipos de ausencia que ya
 // viste aparecer»): no es una partición cerrada de todo lo que un dato puede no tener. `no_reconcilia` y
 // `sin_fecha_corte` se declaran acá por completitud del vocabulario, aunque HOY esas dos ausencias las calculan
@@ -63,6 +67,10 @@ export const TIPOS_DE_AUSENCIA = [
  * Los primeros once (`enPrompt: true`) son, en orden y en texto, los que traía `datoProyectado._HUECOS` (CLAUDE.md
  * §4 + los límites que los propios composers ya declaraban en pantalla) — MOVIDOS acá, no reescritos:
  * `datoProyectado.js` ahora arma `_HUECOS` filtrando por `enPrompt`, byte-idéntico (medido, ver el informe). */
+/* el umbral de materialidad con SU origen real, del helper único de la procedencia (businessPolicy.js) — «umbral de materialidad
+ * (declarado por la empresa)» o «(criterio general de ADI, ajustable por la empresa)» */
+const _umbralDeMaterialidad = () => `${NOMBRE_DE_UMBRAL.materialidadFocoPctVenta} (${procedenciaDeUmbral("materialidadFocoPctVenta")})`;
+
 export const AUSENCIAS_DEL_DATO = [
   {
     id: "sin_historial_cliente_sku", tipo: "no_calculado", dominio: "inventario", enPrompt: true,
@@ -157,9 +165,17 @@ export const AUSENCIAS_DEL_DATO = [
   },
   {
     id: "conocimiento_sector_inventario", tipo: "conocimiento_no_construido", dominio: "inventario",
-    texto: "conocimiento del sector (rotación e inventario habituales de la industria): NO construido — la única referencia disponible es el umbral de materialidad que declaró el cliente.",
-    // CORTE 3e (owner 2026-09-26) — «tú declaraste» → «la empresa declaró» (misma ley que la entrada de arriba).
-    entrega: { titulo: "Sin conocimiento del sector cargado todavía", motivo: "El Business Knowledge (referencias del sector sobre rotación e inventario) todavía no está construido: esta Entrega compara solo contra el umbral de materialidad que la empresa declaró, no contra el sector." },
+    /* RAÍZ A8 (supervisor 2026-09-29, diagnóstico v12; decisión del owner §7.3·32b/·36b — «ningún veredicto debe esconder de dónde
+     * proviene su criterio»): antes decía «el umbral de materialidad que la empresa declaró» SIEMPRE, y en el demo ese umbral es
+     * el criterio general de ADI (`umbral("materialidadFocoPctVenta").origen === "adi"`): un origen mal atribuido, peor que ninguno.
+     * Ahora el ORIGEN sale del helper único de `businessPolicy.js` (`procedenciaDeUmbral`), el mismo del Marco de la Entrega,
+     * y se lee al momento de pedir el texto (`get`): el catálogo no congela un origen que depende del perfil de la empresa. La
+     * cláusula del umbral va separada de la del sector (`;`): una cláusula por cosa, cada una con lo suyo. */
+    get texto() { return `conocimiento del sector (rotación e inventario habituales de la industria): NO construido — la única referencia disponible es el ${_umbralDeMaterialidad()}.`; },
+    entrega: {
+      titulo: "Sin conocimiento del sector cargado todavía",
+      get motivo() { return `El Business Knowledge (referencias del sector sobre rotación e inventario) todavía no está construido; esta Entrega compara solo contra el ${_umbralDeMaterialidad()}, no contra el sector.`; },
+    },
   },
   {
     id: "conocimiento_sector_general", tipo: "conocimiento_no_construido", dominio: "general",

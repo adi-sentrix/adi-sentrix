@@ -7973,7 +7973,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         const sku = Object.keys(_diasIdx).find((n) => _reSku(n).test(oracion));
         if (!sku) continue;
         const d = _diasIdx[sku];
-        if (d.sinVenta == null) {
+        if (d.sinVenta == null || d.sinVenta === 0) {   // con venta al día = 0 días sin venta (antes `null`; A2, diagnóstico v12): misma violación
           violations.push({ kind: "dias-etiqueta-incorrecta", detail: `le pones «${mv[0].trim()}» a ${sku} y ese SKU está CON VENTA AL DÍA: no tiene días sin venta. Si lo que quieres citar es cuánto dura su stock, son ${d.inventario}d de inventario` });
           break;
         }

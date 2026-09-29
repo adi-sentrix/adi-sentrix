@@ -341,7 +341,7 @@ function _construir(scenario, consulta = null) {
    * distingue —«Días de inventario 190d» y «112d sin venta»— pero como CIFRAS los dos llegan al notario con el
    * mismo dueño y la misma unidad, así que no tenía cómo ver que el narrador le puso a uno el rótulo del otro
    * («más de 120 días sin rotar» sobre un valor que era de inventario). Acá se declaran nombrados. `sinVenta`
-   * es null cuando el SKU está con venta al día: esa ausencia también es un dato, y el notario la exige. */
+   * es 0 cuando el SKU está con venta al día (un dato, no una ausencia: el notario juzga «sin venta» y «frenado» contra él); null solo si el archivo no trae el campo. */
   const dias = {};
   /* EL UNIVERSO DE CADA CIFRA (owner 2026-08-15, fuga medida en el examen 2): ADI comparó el «margen de
    * inventario 34%» de un SKU contra «el benchmark de cartera (30.1%)», que es del universo de VENTA. Ninguna
@@ -764,7 +764,11 @@ function _construir(scenario, consulta = null) {
     if (Number.isFinite(s.margenPct)) rankings.sku.margen_inventario.filas.push({ entidad: s.sku, valor: +(+s.margenPct).toFixed(1) });
     dias[s.sku] = {
       inventario: typeof s.doh === "number" ? Math.round(s.doh) : null,
-      sinVenta: typeof s.diasSinVenta === "number" && s.diasSinVenta > 0 ? Math.round(s.diasSinVenta) : null,
+      /* RAÍZ A2 (supervisor 2026-09-29, diagnóstico v12, Z22/Z46): un SKU con venta al día tiene 0 días sin venta — un DATO, no una
+       * ausencia. Antes se publicaba `null` y los verificadores de «sin venta» y «frenado» (notario/estados.js) devolvían «sin evidencia»
+       * justo en el único caso donde la respuesta correcta es «falsa» (0 días no supera el umbral ni es «sin venta»). Sin el campo
+       * (`diasSinVenta` no numérico) sigue siendo `null`: eso sí es ausencia. */
+      sinVenta: typeof s.diasSinVenta === "number" && Number.isFinite(s.diasSinVenta) ? Math.max(0, Math.round(s.diasSinVenta)) : null,
     };
     // `estado ${F(s.estado, D)}`: el estado crudo («90d», «120d») ES texto de la carpeta — si el narrador lo cita
     // fiel («estado 90d»), la cita tiene que estar registrada con su dueño (medido en la matriz: FP de P2). F()

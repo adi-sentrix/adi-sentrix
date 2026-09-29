@@ -632,6 +632,15 @@ venta a crédito, ley del owner).
     modelo. Un tipo de afirmación «proyección» en el Notario (la opción B) NO se abre.
     La referencia `umbral_frenado` (días) entra por `criterio.referencia` del encargo, con origen «planteado en la
     consulta» (§7.3·12 y ·19), y vale solo para esa consulta.
+36. [2026-09-29, supervisor; diagnóstico v12, precisa decisiones ya aprobadas por el owner]
+    (a) Una parte que pide «frenado» SIN umbral se declina como VEREDICTO (límite «sin evaluar» con el ofrecimiento), y
+    SIRVE el ranking de días sin venta como HECHO histórico, bajo su propio universo. No es «sin filas»: las filas son el
+    hecho, nunca el veredicto (aprobado por el owner el 2026-09-29).
+    (b) La 32(b) cubre TODO veredicto que depende de un umbral: inmovilizado, inmovilizado crítico, sobrestock, frenado,
+    rota bien/lento (piso de rotación), riesgo de quiebre y el piso de materialidad. Cada uno lleva su origen junto a su
+    umbral en la Entrega (en `marco.definiciones`, una cláusula por umbral).
+    (c) El techo de cobertura (días de inventario máximo) es una referencia que define un conjunto de la casa: cae en la
+    decisión 19 (la referencia del usuario se declara al lado, con su cifra y sus nombres).
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

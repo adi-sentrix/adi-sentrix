@@ -1680,6 +1680,14 @@ function _estado(a, I) {
     const def = estadoDeLaCasa(quiere);
     const r = verificarEstadoDeLaCasa(quiere, I, ent.nombre);
     if (r === null) return _nv(`sin-evidencia: la evidencia no demuestra «${e.estado}» de ${ent.nombre} (definición de la casa: ${def ? def.definicion : quiere})`, def ? [def.fuente] : ev);
+    /* RAÍZ A3 (supervisor 2026-09-29, diagnóstico v12, Z31): la BODEGA de la afirmación también se juzga en los estados con definición propia
+     * (frenado, sin venta, rota bien/lento, en quiebre). Antes este bloque devolvía `ok` sin mirarla —el chequeo de bodega de más abajo
+     * solo lo alcanzaban los estados de la Mesa Capital—, y «BOS-SANDER está frenado en Santiago» salía verdadera con el SKU en
+     * Valparaíso. Un estado dicho en una bodega que no es la del SKU es FALSO (la bodega la declara la proyección, `estadosDe`). */
+    if (r && typeof r === "object" && r.ok && e.bodega) {
+      const suya = propios.find((x) => x.bodega);
+      if (suya && normalizar(suya.bodega) !== normalizar(e.bodega)) return _falsa(`bodega-falsa: ${ent.nombre} está en ${suya.bodega}, no en ${e.bodega}`, verdad, ev);
+    }
     if (r && typeof r === "object") return r.ok ? _ok(`${ent.nombre} ${quiere}: ${r.verdad}`, r.evidencia, r.verdad) : _falsa(`estado-falso: ${ent.nombre} no está «${e.estado}» (${def ? def.definicion : quiere}): ${r.verdad}`, r.verdad, r.evidencia);
     if (def && def.eje === "cliente") return _nv(`sin-evidencia: la proyección no trae la cobranza de ${ent.nombre}`, def ? [def.fuente] : ev);
   }
