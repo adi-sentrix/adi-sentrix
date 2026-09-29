@@ -31,7 +31,7 @@ import { fig, parseFigures, parseNumeroLocalizado } from "../boleta.js";
 // dato del tenant y se empaqueta la boleta con la fórmula declarada. universoDe le pone a cada insumo su
 // universo (figureType, la única autoridad) para que el catálogo pueda declinar el cruce prohibido.
 import { ejecutarCalculo, OPERACIONES_CALCULO, formatearCanon } from "./calculoCatalogo.js";
-import { universoDe } from "../../config/contract/figureType.js";
+import { universoDe, historiaDeFiguras, LIMITE_HISTORICO } from "../../config/contract/figureType.js";
 import { compradoresSku } from "../../data/clienteSkuMatrix.js";
 import { resolveCanonical } from "./entityIndex.js";               // el nombre que el usuario escribió → el del dato   // la transpuesta de la matriz cliente×SKU (E4.t3)
 import { clientCapitalRelacion } from "../specRetrieval.js";      // ¿el cruce está OBSERVADO o es afinidad modelada? · una sola verdad                                    // cifra autorizada (para inyectar el benchmark en el perfil)
@@ -719,6 +719,18 @@ function inventoryStatus({ filters = {}, scenario, focus = "frenado", staleDays 
         nota: `la pregunta pide un corte por días sin venta y ESTA lectura no lo aplica: su criterio son los ESTADOS del motor (rotación/días de inventario contra la política del negocio). DECLARALO en la primera frase y NUNCA presentes estos totales como si fueran el corte por días del usuario.`,
       } };
     }
+  }
+  /* ── LO HISTÓRICO VIAJA TIPADO (owner 2026-09-29, etapa 6, §7.3·35: «Apruebo A») ─────────────────────────────────────
+   * Los días sin venta (y, cuando la lectura los trae, las unidades vendidas del período y la última venta) describen
+   * LO QUE PASÓ. Al agente le llega `facts` completo pero de la boleta solo etiqueta+valor: por eso la naturaleza, la
+   * ventana (los días hasta la fecha de corte / el período) y el límite «describe lo que pasó; no es un pronóstico»
+   * viajan DENTRO de `facts` (`historia`, tipada, la misma que cada fig lleva en su `tipo`) y, además, como escalar
+   * (`historia_limite`) para sobrevivir a la compactación de facts (`_factsCompactos` solo conserva escalares). Sin
+   * cifras de esta clase en la lectura, no se agrega nada. Nunca un hecho de proyección: una proyección exige una
+   * simulación con supuestos. */
+  if (r.coverage && r.coverage.supported) {
+    const historia = historiaDeFiguras(r.boleta);
+    if (historia) r.facts = { ...r.facts, historia, historia_limite: LIMITE_HISTORICO };
   }
   return r;
 }

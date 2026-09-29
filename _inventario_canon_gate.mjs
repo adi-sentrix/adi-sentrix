@@ -25,43 +25,29 @@
  * de `_jerarquia_inventario_gate` que llama `jerarquiaInventario()` directo, sin pasar por esta función, declara
  * `frenadoDiasSinVenta` en un perfil). Sección «frenado con umbral de la EMPRESA», abajo, es la carnada/prueba.
  *
- * ⚠️ `frenado con umbral de la CONSULTA` (`criterio.referencia.umbral_frenado`) — REPORTADO, NO PROBADO AQUÍ.
- * El diseño está documentado (`notario/estados.js:51`: «el umbral declarado, empresa O planteado en la consulta»;
- * `notario/conjuntosDeLaCasa.js:130`: `referenciaDeEstado("frenado") → {concepto:"umbral_frenado", ...}`) pero NO
- * está cableado: `entrega/componer.js:_REFERENCIA_FAMILIAS` (la tabla que ya declara «con la referencia planteada
- * en la consulta, serían N» para benchmark/nivel_carga/piso_rotacion, §7.3·12/·19) no tiene entrada `umbral_frenado`,
- * y `estados.js:verificar("frenado")` solo lee `I.figs` (la KPI «Umbral de venta frenada», publicada SOLO cuando
- * la EMPRESA lo declaró) — nunca `resolucion.criterio.referencia`. Repro con evidencia (offline, guardado en el
- * scratchpad de la sesión que cerró esta etapa): con `criterio.referencia:{concepto:"umbral_frenado", valor:90,
- * unidad:"days"}` y una parte `universo.estados:["frenado"]`, `componerEntrega` devuelve `ok:false` («ninguna
- * parte produjo una oración con evidencia») — la referencia de la consulta NUNCA llega a evaluarse, ni siquiera
- * declarada aparte de la oficial. Implementar ese cableado es un mecanismo nuevo (toca `_REFERENCIA_FAMILIAS` y
- * probablemente `notario/estados.js`/`notario/verificar.js`), no una prueba — se PARA y se reporta al supervisor
- * en vez de escribir una aserción que no puede pasar hoy, o de tocar el Notario sin autorización para ese cambio.
+ * BLOQUE (a2) · `frenado con umbral de la CONSULTA` (`criterio.referencia.umbral_frenado`, ETAPA 6, owner 2026-09-29,
+ * §7.3·35) — CERRADO. Antes reportado (con `criterio.referencia:{umbral_frenado, 90}` y `universo.estados:["frenado"]`,
+ * `componerEntrega` devolvía `ok:false`: la referencia de la consulta nunca llegaba al índice del Notario). Ahora el
+ * umbral lo trae el encargo TIPADO (nunca un reconocedor sobre la pregunta) a `cifrasDelDato(escenario, consulta)`, de
+ * ahí a `I.figs`/`I.estados` y a `estados.js:verificar("frenado")`; la Entrega lo declara en el Marco como «planteado en
+ * la consulta», que vale solo para esa respuesta y nunca es un criterio de la empresa. Mismo patrón de §7.3·12/·19: si
+ * la empresa YA declaró su umbral, manda el oficial y el de la consulta se declara aparte (`_REFERENCIA_FAMILIAS`).
+ * Los oráculos son INDEPENDIENTES del motor: se calculan directo del archivo del tenant (`skuInventario.diasSinVenta`).
+ * Frontera: «sobre el umbral» es ESTRICTO (`>`), igual que `jerarquiaInventario`, el glosario y la Entrega.
  *
- * BLOQUE (b) · LA GARANTÍA «HISTÓRICO, NO PRONÓSTICO» (§7.3·34d) — TAMBIÉN REPORTADO, NO IMPLEMENTADO.
- * El mecanismo que el contrato señala (`MODALIDAD_SRC`/el veto `modalidad-en-ancla` en `notario/anclas.js`, los
- * tipos de hecho `lectura`/`propuesta`) NO distingue pasado de futuro por el TIPO de afirmación, medido con
- * evidencia real contra el demo (repro offline, mismo scratchpad de esta etapa):
- *   (1) una predicción futura escrita como prosa LIBRE junto a un hecho correctamente anclado — el patrón
- *       realista, p. ej. «{{h1: MAK-COMP-AIR lleva {h1} días sin venta}}. Debería volver a venderse pronto.» —
- *       sale VERDE siempre: el Notario no vigila la prosa FUERA de un ancla (diseño a propósito, «prosa infinita,
- *       verdad finita», CLAUDE.md), así que una afirmación sin ancla propia no tiene ningún juez;
- *   (2) forzada DENTRO de un ancla, la predicción casi siempre se rechaza, pero por vetos AJENOS al tiempo verbal
- *       (`metrica-ajena`, `dominio-cruzado`, `sin-dueno` — la palabra «venta»/«vender» dispara un cruce de dominio
- *       contra un hecho de inventario) — y esos MISMOS vetos rechazan PAREJO una prosa histórica legítima
- *       («MAK-COMP-AIR acumula 112 días sin movimiento de venta» también sale rechazada, por «dominio-cruzado»/
- *       «metrica-ajena»): no hay discriminación real entre pasado y futuro, solo una hostilidad genérica a la
- *       palabra «venta» que castiga por igual lo verdadero y lo falso;
- *   (3) el único caso que SÍ dispara el veto pensado para esto (`modalidad-en-ancla`) fue «…debería vender» — un
- *       verbo condicional que `MODALIDAD_SRC` sí reconoce; «volverá», «recuperará», «está por», «ya le toca», «no
- *       tardará en» NO están en ese patrón (una lista de conjugaciones, no una regla semántica).
- * Construir un detector de verbos en futuro NUEVO sería exactamente la «lista de palabras prohibidas» que la
- * regla dura de esta tarea prohíbe extender — y el estándar del contrato (§7.3·34d) es explícito: SEMÁNTICO, no
- * léxico. Cerrar esto de raíz exige una decisión de diseño (por ejemplo: ¿toda prosa que toque un hecho de
- * `dias_sin_venta`/`frenado` debe vivir DENTRO de un ancla, sin excepción, para que `modalidad-en-ancla` tenga
- * jurisdicción? ¿el veto necesita separarse de los vetos de dominio para no castigar la prosa verdadera?) que le
- * toca al supervisor, no a este gate. Se PARA acá, con la evidencia de arriba.
+ * BLOQUE (b) · LA GARANTÍA «HISTÓRICO, NO PRONÓSTICO» (§7.3·34d, precisada por la decisión del owner de §7.3·35: «Apruebo
+ * A. La garantía queda en lo que ADI entrega antes del LLM. No abras B.») — la opción B (un tipo «proyección» en el
+ * Notario) sigue DESCARTADA y este gate no toca al Notario para esto. La garantía NO es un veredicto sobre la prosa del
+ * modelo: vive en lo que ADI ENTREGA. Los días sin venta, las unidades del período y la última venta viajan como hechos
+ * tipados «históricos» (`figureType.js:HECHOS_HISTORICOS`): cada cifra con su naturaleza, su ventana (el período o los
+ * días hasta la fecha de corte) y el límite «describe lo que pasó; no es un pronóstico» DENTRO de su `tipo`; la lectura
+ * de inventario (`facts.historia`) y la Entrega (`marco.historicos`, filas) llevan lo mismo. Las pruebas de abajo miran
+ * ESO —el tipo, la ventana, el límite, la ausencia de hechos de proyección— sobre la boleta de `inventoryStatus` y sobre
+ * la Entrega de `componer.js`. NUNCA sobre el texto de un modelo y SIN listas de palabras.
+ *
+ * BLOQUE (c) · VOCABULARIO VISIBLE (etapa 6, tarea 1, §8.6 del diseño) — «frenado» queda SOLO para la venta interrumpida
+ * con umbral; la regla de rotación se llama «inmovilizado crítico». Barrido estático de las superficies ya migradas
+ * (no vuelven las frases viejas; son cadenas exactas de NUESTRO código, no prosa de un modelo).
  *
  * Solo por `npm run gates:offline` (o con el candado: node --import ./scripts/offline-guard.mjs
  * _inventario_canon_gate.mjs). Cero red. */
@@ -79,6 +65,12 @@ import { dominiosDe, pasosDeDominios, unirPasosDeDominios } from "./src/adi/agen
 import { indiceDeEvidencia } from "./src/adi/notario/evidencia.js";
 import { libroDeHechos, asignarIds } from "./src/adi/notario/hechos.js";
 import { conjuntoDeUniverso } from "./src/adi/notario/verificar.js";
+import { validarEncargo } from "./src/adi/encargo/validar.js";
+import { componerEntrega } from "./src/adi/entrega/componer.js";
+import { ETIQUETA_ORIGEN } from "./src/config/businessPolicy.js";
+import { formatoDeLaCasa } from "./src/adi/notario/hechos.js";
+import { HECHOS_HISTORICOS, LIMITE_HISTORICO, historicoDe, historiaDeFiguras } from "./src/config/contract/figureType.js";
+import { fig as figDeBoleta } from "./src/adi/boleta.js";
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
 import fs from "node:fs";
 
@@ -206,6 +198,176 @@ H("(a) · CARNADAS — el gate detecta una afirmación falsa sobre el canon (no 
   const carnadaFrenadoSano = veredictoEstado(I60, "SAM-TV55", "frenado");
   ok(carnadaFrenadoSano.veredicto !== "verdadera", "CARNADA · SAM-TV55 (12 días, bajo el umbral de 60) NO está frenado", JSON.stringify(carnadaFrenadoSano));
   volverAlDemo();
+}
+
+/* ══ BLOQUE (a2) · «frenado» CON EL UMBRAL DE LA CONSULTA (etapa 6, §7.3·35) ═══════════════════════════════════════
+ * Oráculo INDEPENDIENTE del motor: se calcula del archivo del tenant, no de `jerarquiaInventario` ni del Notario. */
+const SKUS = TENANT_DEMO.skuInventario;
+const oraculoFrenado = (umbral) => SKUS.filter((s) => typeof s.diasSinVenta === "number" && s.diasSinVenta > umbral).map((s) => s.sku).sort();
+const refConsulta = (valor, unidad = "days") => ({ concepto: "umbral_frenado", valor, unidad });
+const encUniverso = (referencia) => ({ version: "encargo/v1", ...(referencia ? { criterio: { referencia } } : {}), partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital"], universo: { eje: "sku", estados: ["frenado"] } }] });
+const encPremisas = (referencia, sujetos) => ({ version: "encargo/v1", ...(referencia ? { criterio: { referencia } } : {}), partes: [{ id: "p1", tema: "inventario", cierre: "comparacion", conceptos: ["capital", "dias_sin_venta"], entidades: sujetos.map((nombre) => ({ nombre })) }], premisas: sujetos.map((s, i) => ({ id: `q${i + 1}`, tipo: "estado", sujeto: s, estado: "frenado" })) });
+const entregaDe = (enc) => componerEntrega(validarEncargo(enc, {}));
+const entidadesDelUniverso = (E) => [...((E.entrega.universos[0] && E.entrega.universos[0].entidades) || [])].sort();
+const nombresLimite = (E, ini) => (E.entrega.limites || []).filter((l) => String(l.titulo).startsWith(ini));
+
+H("(a2) · frenado con umbral de la CONSULTA — un universo por estado, con el oráculo del archivo (90 días)");
+{
+  const E = entregaDe(encUniverso(refConsulta(90)));
+  ok(E.ok === true, "la Entrega SALE (antes: ok:false, la referencia de la consulta nunca llegaba al Notario)", E.motivo);
+  if (E.ok) {
+    const esperado = oraculoFrenado(90);
+    ok(esperado.length >= 1 && esperado.length < SKUS.length, `el oráculo discrimina (${esperado.length} de ${SKUS.length} SKU con más de 90 días sin venta)`, esperado.join(", "));
+    ok(JSON.stringify(entidadesDelUniverso(E)) === JSON.stringify(esperado), "el universo «frenado» servido es EXACTAMENTE el del oráculo (días sin venta > 90)", entidadesDelUniverso(E).join(", "));
+    const mr = E.entrega.marco.referenciaDeclarada;
+    ok(!!mr && mr.texto.includes(ETIQUETA_ORIGEN.consulta) && mr.texto.includes(formatoDeLaCasa(90, "days")), `el Marco declara el umbral con su ORIGEN («${ETIQUETA_ORIGEN.consulta}») y su valor`, JSON.stringify(mr));
+    ok(!!mr && !mr.texto.includes(ETIQUETA_ORIGEN.empresa) && !mr.texto.includes(ETIQUETA_ORIGEN.adi), "…y NUNCA lo presenta como criterio de la empresa ni como el general de ADI", JSON.stringify(mr));
+    ok(E.texto.includes(mr.texto), "…y esa declaración sale en el texto entregado", E.texto.slice(0, 400));
+  }
+  const E94 = entregaDe(encUniverso(refConsulta(94)));
+  ok(E94.ok && JSON.stringify(entidadesDelUniverso(E94)) === JSON.stringify(oraculoFrenado(94)), "frontera ESTRICTA: con 94 días, el SKU que lleva exactamente 94 NO está frenado (sobre el umbral = más de N)", entidadesDelUniverso(E94).join(", "));
+  ok(!oraculoFrenado(94).includes("LG-DRYER8KG") && oraculoFrenado(93).includes("LG-DRYER8KG"), "el oráculo confirma la frontera (94 no es > 94; sí es > 93)");
+}
+
+H("(a2) · frenado con umbral de la CONSULTA — premisas verdadera y falsa (LG-DRYER8KG 94 días · SAM-TV55 12 días)");
+{
+  const I90 = () => indiceDeEvidencia({ figs: [], datoProyectado: cifrasDelDato(ESCENARIO_INICIAL, { frenadoDiasSinVenta: 90 }), ejesDelTenant: ejes });
+  const v1 = veredictoEstado(I90(), "LG-DRYER8KG", "frenado");
+  ok(v1.veredicto === "verdadera", "LG-DRYER8KG (94 > 90 planteado en la consulta) → verdadera", JSON.stringify(v1));
+  const v2 = veredictoEstado(I90(), "SAM-TV55", "frenado");
+  ok(v2.veredicto === "falsa", "SAM-TV55 (12 < 90 planteado en la consulta) → falsa", JSON.stringify(v2));
+  const I94 = indiceDeEvidencia({ figs: [], datoProyectado: cifrasDelDato(ESCENARIO_INICIAL, { frenadoDiasSinVenta: 94 }), ejesDelTenant: ejes });
+  const v3 = veredictoEstado(I94, "LG-DRYER8KG", "frenado");
+  ok(v3.veredicto === "falsa", "LG-DRYER8KG con la consulta en 94 → falsa (94 no supera 94: el veredicto usa la MISMA frontera que la pantalla)", JSON.stringify(v3));
+  const E = entregaDe(encPremisas(refConsulta(90), ["LG-DRYER8KG", "SAM-TV55"]));
+  ok(E.ok === true, "la Entrega con dos premisas «frenado» y umbral de la consulta SALE", E.motivo);
+  if (E.ok) {
+    const premisas = E.entrega.respuesta.filter((r) => r._premisa);
+    ok(premisas.length === 2, "las dos premisas se anuncian (una verdadera, una falsa, cada una en su oración)", String(premisas.length));
+    const mr = E.entrega.marco.referenciaDeclarada;
+    ok(!!mr && mr.texto.includes(ETIQUETA_ORIGEN.consulta), "el Marco declara el umbral de la consulta cuando solo una PREMISA lo usa", JSON.stringify(mr));
+  }
+}
+
+H("(a2) · frenado SIN umbral de la consulta ni de la empresa — la referencia de OTRA magnitud no lo inventa");
+{
+  const Ix = () => indiceDeEvidencia({ figs: [], datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), ejesDelTenant: ejes });
+  const v = veredictoEstado(Ix(), "LG-DRYER8KG", "frenado");
+  ok(v.veredicto === "no-verificable", "sin ningún umbral → no-verificable (después de haber corrido consultas con umbral: la carpeta de una consulta no se filtra a la siguiente)", JSON.stringify(v));
+  const kpiUmbral = (d) => (d.kpis || []).filter((k) => /umbral de venta frenada/i.test(String(k.label || k.canon || "")));
+  const sin = cifrasDelDato(ESCENARIO_INICIAL);
+  const con = cifrasDelDato(ESCENARIO_INICIAL, { frenadoDiasSinVenta: 90 });
+  ok(kpiUmbral(sin).length === 0, "la carpeta SIN consulta no trae la fig «Umbral de venta frenada»", JSON.stringify(kpiUmbral(sin)));
+  ok(kpiUmbral(con).length === 1, "la carpeta CON la consulta la trae (una vez)", JSON.stringify(kpiUmbral(con)));
+  const vOtra = entregaDe(encUniverso(refConsulta(90, "pct")));
+  ok(!(vOtra.ok && vOtra.entrega.marco.referenciaDeclarada && String(vOtra.entrega.marco.referenciaDeclarada.texto).includes(ETIQUETA_ORIGEN.consulta)), "una referencia con OTRA unidad (no días) no se toma como umbral de venta frenada", vOtra.ok ? JSON.stringify(vOtra.entrega.marco.referenciaDeclarada) : vOtra.motivo);
+}
+
+H("(a2) · el umbral de la CONSULTA no reemplaza al de la EMPRESA (§7.3·12/·19) — empresa 60, consulta 90");
+{
+  initTenant(TENANT_DEMO_FRENADO_60);
+  const E = entregaDe(encUniverso(refConsulta(90)));
+  ok(E.ok === true, "la Entrega SALE", E.motivo);
+  if (E.ok) {
+    ok(JSON.stringify(entidadesDelUniverso(E)) === JSON.stringify(oraculoFrenado(60)), "el universo «frenado» es el de la EMPRESA (60 días), no el de la consulta", entidadesDelUniverso(E).join(", "));
+    const mr = E.entrega.marco.referenciaDeclarada;
+    ok(!mr || !String(mr.texto).includes(ETIQUETA_ORIGEN.consulta), "el Marco NO presenta el umbral de la consulta como el operativo", JSON.stringify(mr));
+    const alt = nombresLimite(E, "Con la referencia planteada en la consulta");
+    ok(alt.length === 1, "el de la consulta se declara APARTE, como límite, con su propia cuenta", JSON.stringify((E.entrega.limites || []).map((l) => l.titulo)));
+    if (alt.length === 1) for (const n of oraculoFrenado(90)) ok(alt[0].motivo.includes(n), `…y nombra a ${n} (frenado con 90 días)`, alt[0].motivo);
+    ok(oraculoFrenado(60).length > oraculoFrenado(90).length, "el oráculo distingue los dos umbrales (60 ≠ 90): la prueba no puede pasar por casualidad");
+  }
+  volverAlDemo();
+}
+
+/* ══ BLOQUE (b) · LO HISTÓRICO VIAJA TIPADO (etapa 6, §7.3·35, decisión del owner: opción A) ════════════════════════ */
+const esHistoricoTipado = (f) => { const h = historicoDe(f.label, f.unit); const t = f.tipo || {}; return !!h && t.naturaleza === "historico" && t.ventana === h.ventana && t.limite === LIMITE_HISTORICO && f.source === "actual" && (t.escenario == null); };
+
+H("(b) · el registro: tres hechos históricos, cada uno con su ventana, y el límite exacto de la decisión del owner");
+{
+  ok(LIMITE_HISTORICO === "describe lo que pasó; no es un pronóstico", "el límite es la frase del owner, una sola vez, en el contrato (figureType.js)", LIMITE_HISTORICO);
+  ok(JSON.stringify(Object.keys(HECHOS_HISTORICOS).sort()) === JSON.stringify(["dias_sin_venta", "ultima_venta", "unidades_periodo"]), "los hechos históricos son EXACTAMENTE: días sin venta, unidades del período y última venta", Object.keys(HECHOS_HISTORICOS).join(", "));
+  for (const [k, h] of Object.entries(HECHOS_HISTORICOS)) ok(typeof h.ventana === "string" && h.ventana.length > 20 && typeof h.unidad === "string" && !!h.fuente, `«${k}» declara su ventana (período / días hasta el corte), su unidad y su fuente`);
+}
+
+H("(b) · la BOLETA de inventoryStatus: cada cifra histórica lleva su tipo, su ventana y su límite; la lectura los repite tipados");
+{
+  let total = 0;
+  for (const focus of ["frenado", "stale", "sobrestock", "quiebre", "mas_vendidos_mes"]) {   // `mas_vendidos_mes` trae las UNIDADES del período («Vendido en el mes»)
+    const r = TOOLS.inventoryStatus({ focus, scenario: ESCENARIO_INICIAL });
+    const figsH = (r.boleta || []).filter((f) => historicoDe(f.label, f.unit));
+    total += figsH.length;
+    ok(figsH.length >= 1, `[${focus}] la boleta trae cifras históricas (no es una prueba vacía)`, String((r.boleta || []).length));
+    const malas = figsH.filter((f) => !esHistoricoTipado(f)).map((f) => f.label);
+    ok(malas.length === 0, `[${focus}] TODA cifra histórica sale tipada (naturaleza, ventana, límite, source actual, sin escenario)`, malas.join(" | "));
+    const hist = r.facts && r.facts.historia;
+    ok(!!hist && hist.naturaleza === "historico" && hist.limite === LIMITE_HISTORICO, `[${focus}] facts.historia declara la naturaleza y el límite DENTRO de la lectura`, JSON.stringify(hist));
+    ok(r.facts && r.facts.historia_limite === LIMITE_HISTORICO, `[${focus}] el límite viaja también como escalar (sobrevive a la compactación de facts)`);
+    const clavesBoleta = [...new Set(figsH.map((f) => historicoDe(f.label, f.unit).clave))].sort();
+    ok(!!hist && JSON.stringify(hist.hechos.map((h) => h.clave).sort()) === JSON.stringify(clavesBoleta), `[${focus}] facts.historia lista EXACTAMENTE las clases que la boleta trae`, JSON.stringify(hist && hist.hechos.map((h) => h.clave)));
+    ok(!!hist && hist.hechos.every((h) => h.proyeccion === false && h.ventana === HECHOS_HISTORICOS[h.clave].ventana), `[${focus}] cada hecho declara su ventana y que NO autoriza una proyección`);
+    ok(!!hist && JSON.stringify(Object.keys(hist).sort()) === JSON.stringify(["hechos", "limite", "naturaleza"]), `[${focus}] la lectura no trae ningún otro tipo de hecho junto a lo histórico`, Object.keys(hist || {}).join(","));
+    // ausencia de hechos de proyección: ninguna cifra de la boleta es una simulación con supuestos
+    const proyecciones = (r.boleta || []).filter((f) => f.source === "user_supuesto" || (f.tipo && f.tipo.escenario != null) || (f.tipo && f.tipo.naturaleza && f.tipo.naturaleza !== "historico"));
+    ok(proyecciones.length === 0, `[${focus}] ninguna cifra de la boleta es una proyección (sin supuestos de usuario, sin escenario simulado, sin otra naturaleza)`, proyecciones.map((f) => f.label).join(" | "));
+  }
+  ok(total >= 5, `en los cinco focos viajaron ${total} cifras históricas`);
+  const rIn = TOOLS.inventoryStatus({ focus: "inmovilizado", scenario: ESCENARIO_INICIAL });
+  ok(!(rIn.facts && rIn.facts.historia) && !(rIn.facts && rIn.facts.historia_limite), "una lectura SIN cifras históricas (focus inmovilizado) no agrega ruido: no hay `historia`");
+}
+
+H("(b) · CARNADAS — el gate detecta un hecho histórico mal tipado y una proyección disfrazada de historia");
+{
+  const r = TOOLS.inventoryStatus({ focus: "frenado", scenario: ESCENARIO_INICIAL });
+  const f0 = (r.boleta || []).find((f) => historicoDe(f.label, f.unit));
+  ok(!!f0 && esHistoricoTipado(f0), "la cifra sana pasa el verificador");
+  const sinLimite = { ...f0, tipo: { ...f0.tipo, limite: undefined } };
+  ok(!esHistoricoTipado(sinLimite), "CARNADA · sin el límite dentro del tipo → el verificador la rechaza");
+  const sinVentana = { ...f0, tipo: { ...f0.tipo, ventana: undefined } };
+  ok(!esHistoricoTipado(sinVentana), "CARNADA · sin la ventana (período / días hasta el corte) → la rechaza");
+  const otraNat = { ...f0, tipo: { ...f0.tipo, naturaleza: "proyeccion" } };
+  ok(!esHistoricoTipado(otraNat), "CARNADA · con otra naturaleza → la rechaza");
+  const proyectada = figDeBoleta("LG-DRYER8KG · Días sin venta", "120d", { unit: "days", raw: 120, source: "computed", formula: "días actuales + 26 (simulado)" });
+  ok(!(proyectada.tipo && proyectada.tipo.naturaleza), "CARNADA · una cifra de días sin venta PROYECTADA (source computed, con fórmula) nunca sale con naturaleza «historico»", JSON.stringify(proyectada.tipo));
+  ok(!esHistoricoTipado(proyectada), "…y el verificador la rechaza");
+  ok(historiaDeFiguras([proyectada]) === null, "…y no aparece en la historia de la lectura");
+}
+
+H("(b) · la ENTREGA de componer.js: los días sin venta salen como hecho histórico — tipo, ventana, límite y sin proyección");
+{
+  const enc = { version: "encargo/v1", partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["dias_sin_venta"], entidades: [{ nombre: "LG-DRYER8KG" }, { nombre: "MAK-COMP-AIR" }] }] };
+  const E = entregaDe(enc);
+  ok(E.ok === true, "la Entrega de «días sin venta» SALE", E.motivo);
+  if (E.ok) {
+    const M = E.entrega.marco.historicos;
+    ok(!!M && M.naturaleza === "historico" && M.limite === LIMITE_HISTORICO, "el Marco trae `historicos` tipado, con la naturaleza y el límite", JSON.stringify(M));
+    ok(!!M && M.hechos.length === 1 && M.hechos[0].clave === "dias_sin_venta" && M.hechos[0].ventana === HECHOS_HISTORICOS.dias_sin_venta.ventana && M.hechos[0].proyeccion === false, "…con la clase servida (días sin venta), su ventana (los días hasta la fecha de corte) y sin proyección", JSON.stringify(M && M.hechos));
+    const filas = E.entrega.cifras.filas.filter((f) => /d[ií]as sin venta/i.test(f.valores["Métrica"] || ""));
+    ok(filas.length === 2, "las dos filas de días sin venta están en la tabla", String(filas.length));
+    ok(filas.every((f) => f.naturaleza === "historico" && f.ventana === HECHOS_HISTORICOS.dias_sin_venta.ventana && f.limite === LIMITE_HISTORICO), "CADA fila lleva naturaleza, ventana y límite (dentro del dato, no una nota suelta)", JSON.stringify(filas.map((f) => [f.naturaleza, !!f.ventana, !!f.limite])));
+    ok(E.texto.includes(LIMITE_HISTORICO), "el límite sale en el texto que ADI entrega (Marco), armado del dato tipado");
+    const hechos = E.entrega.procedencia.libro.hechos || [];
+    ok(hechos.length >= 2 && hechos.every((h) => h.procedencia === "medido"), "todos los hechos del libro son MEDIDOS: ninguno es supuesto, propuesta ni estimación (ningún hecho de proyección)", [...new Set(hechos.map((h) => h.procedencia))].join(","));
+    ok(!(E.entrega.respuesta || []).some((r) => r.solicitud === "simulacion"), "ninguna oración de la respuesta es una simulación");
+  }
+  const encCap = { version: "encargo/v1", partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital"], entidades: [{ nombre: "LG-DRYER8KG" }] }] };
+  const Ec = entregaDe(encCap);
+  ok(Ec.ok === true && !Ec.entrega.marco.historicos && !Ec.entrega.cifras.filas.some((f) => f.naturaleza), "una Entrega SIN hechos históricos (solo capital) no trae `historicos` ni filas marcadas: nada de ruido", Ec.motivo);
+}
+
+/* ══ BLOQUE (c) · VOCABULARIO VISIBLE — no vuelven las frases viejas (etapa 6, tarea 1) ══════════════════════════════ */
+H("(c) · barrido: ninguna superficie migrada llama «frenado» a la regla de rotación");
+{
+  const leer = (p) => fs.readFileSync(p, "utf8");
+  const LEGADO = [
+    ["./src/ui/SentrixPanel.jsx", "qué se frena, qué reponer", "el tooltip de la pestaña Capital"],
+    ["./src/ui/SentrixPanel.jsx", "Capital frenado · dónde está frenado tu capital", "el título de respaldo del panel de inventario"],
+    ["./src/ui/GuiaInicio.jsx", "Separa capital inmovilizado de SKU frenados", "la glosa de la guía de inicio"],
+    ["./src/adi/entrega/componer.js", "\"Capital frenado por bodega\"", "la oferta «Qué más puedo calcular» de la Entrega"],
+    ["./src/adi/entrega/iniciativa.js", "del capital frenado total", "la oración de participación de la iniciativa"],
+    ["./src/adi/agente/playbooks/contradiccionDeMetricas.js", "En dinero el capital frenado pesa", "la oración de contradicción de métricas"],
+  ];
+  for (const [ruta, frase, donde] of LEGADO) ok(!leer(ruta).includes(frase), `${donde}: ya no dice «${frase}»`);
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");

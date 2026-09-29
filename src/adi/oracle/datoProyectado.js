@@ -39,7 +39,7 @@ import { AUSENCIAS_DEL_DATO } from "../../config/contract/ausencias.js";   // Et
 import { METRICS } from "../../config/contract/metricRegistry.js";
 import { deriveKpis } from "../../engine/scenarios.js";
 import { getVentasKPI } from "../../engine/metrics.js";   // la venta del negocio que muestra la PANTALLA — decisión del owner 2026-09-01 (ver `_construir`)
-import { tenantPolicyDefault, benchmarkOf, getBenchmarkOverride, POLICY, ETIQUETA_ORIGEN } from "../../config/businessPolicy.js";   // `benchmarkOf`: la misma vara por cliente que usa rolesCartera (brecha al benchmark) · ETIQUETA_ORIGEN: la procedencia del umbral de venta frenada (etapa 5)
+import { tenantPolicyDefault, benchmarkOf, getBenchmarkOverride, POLICY, ETIQUETA_ORIGEN, umbralesDeInventario } from "../../config/businessPolicy.js";   // `benchmarkOf`: la misma vara por cliente que usa rolesCartera (brecha al benchmark) · ETIQUETA_ORIGEN: la procedencia del umbral de venta frenada (etapa 5)
 import { getTenantId, getTenantData, onTenantChange } from "../../data/tenantStore.js";
 import { parseFigures } from "../boleta.js";
 import { composeNoDataMessage } from "./narrationBlocks.js";   // el último recurso ABSOLUTO del suplente digno — la MISMA frase canónica que usa la escalera anti-null, nunca una copia
@@ -150,7 +150,7 @@ function _filas(scenario) {
  * publica como «total del negocio» en conversación, que es exactamente lo que el owner pidió. Los dos números
  * son sumas de verdad, no un redondeo — difieren en 112 (0,112%) por lo que el dataset arrastra entre
  * `ventasKPI` y Σ`clientesVentas`, y `sentrix/temporal.js` ya lo declaraba. */
-function _construir(scenario) {
+function _construir(scenario, consulta = null) {
   const t = getTenantData();
   const f = _filas(scenario);
   const _derivados = deriveKpis(scenario);
@@ -445,7 +445,12 @@ function _construir(scenario) {
    * asignada a la ETAPA 5) dejaría al Notario sin poder verificar ninguna afirmación sobre el tramo crítico. Se
    * reporta como pendiente de la etapa 5, no se decide acá. */
   const _inv = Array.isArray(f.skuInventario) ? f.skuInventario : [];
-  const J = jerarquiaInventario(_inv);
+  /* ETAPA 6 (owner 2026-09-29, §7.3·35): `consulta` = los umbrales PLANTEADOS EN LA CONSULTA (`{ frenadoDiasSinVenta }`,
+   * de `criterio.referencia{umbral_frenado}` del encargo), o null. Es la MISMA vía que ya usa la tool `inventoryStatus`
+   * (`umbralesDeInventario(consulta)`, `umbral()` con origen «consulta»): la carpeta y el Notario ven entonces el
+   * veredicto «frenado» con ese umbral y su procedencia, y solo para ESTA carpeta (la clave del memo la incluye). Sin
+   * consulta, nada cambia. */
+  const J = jerarquiaInventario(_inv, consulta ? { umbrales: umbralesDeInventario(consulta) } : undefined);
   const _sumaK = (arr) => arr.reduce((a, s) => a + (Number(s.stockUSD) || 0), 0);
   const _fInmov = J.porSku.filter((s) => s.inmovilizado), _fFren = J.porSku.filter((s) => s.critico);
   for (const s of _fInmov) estados.push({ entidad: s.sku, estado: "inmovilizado", bodega: s.bodega });
@@ -480,9 +485,9 @@ function _construir(scenario) {
     K("Umbral de venta frenada", _dias(_fren.umbral.valor), "days", _fren.umbral.valor);
     if (_fren.n) {
       K(`Venta frenada · subtotal · ${_fren.n} SKU`, _money(_fren.usd), "money", _fren.usd);
-      L.push(`- Venta frenada (días sin venta ≥ ${_fren.umbral.valor}d, ${ETIQUETA_ORIGEN[_fren.umbral.origen]}): ${F(_money(_fren.usd), [...NEG, "inventario", "frenado", "venta"], "inventario")} en ${_fren.n} SKU.`);
+      L.push(`- Venta frenada (días sin venta sobre ${_fren.umbral.valor}d, ${ETIQUETA_ORIGEN[_fren.umbral.origen]}): ${F(_money(_fren.usd), [...NEG, "inventario", "frenado", "venta"], "inventario")} en ${_fren.n} SKU.`);
     } else {
-      L.push(`- Venta frenada (días sin venta ≥ ${_fren.umbral.valor}d, ${ETIQUETA_ORIGEN[_fren.umbral.origen]}): ningún SKU la cumple.`);
+      L.push(`- Venta frenada (días sin venta sobre ${_fren.umbral.valor}d, ${ETIQUETA_ORIGEN[_fren.umbral.origen]}): ningún SKU la cumple.`);
     }
   }
   // «La REFERENCIA la declara el negocio», no «la vara» (medido 2026-08-14, examen 1 · turno 3): la carpeta es lo
@@ -819,9 +824,12 @@ function _construir(scenario) {
 /* LA VARA ES PARTE DE LA CLAVE (Notario semántico, fase 2): el criterio del usuario («mi margen mínimo es 25%») muta el benchmark en runtime y
  * con él los conjuntos de la proyección (quiénes están bajo el benchmark, la contribución no capturada). Un memo solo por tenant+escenario
  * servía la proyección de la vara ANTERIOR después de «olvida mi margen mínimo» (medido: el verificador daba «universo-incompleto»). */
-function _cacheado(scenario) {
-  const key = `${getTenantId()}::${scenario}::b${getBenchmarkOverride() != null ? getBenchmarkOverride() : POLICY.benchmark}`;
-  if (!_memo.has(key)) _memo.set(key, _construir(scenario));
+function _cacheado(scenario, consulta = null) {
+  /* el umbral planteado en la consulta también es parte de la clave (etapa 6): la carpeta de una consulta con «90 días»
+   * no puede servirse a la siguiente, que no lo planteó. */
+  const kc = consulta && typeof consulta.frenadoDiasSinVenta === "number" && isFinite(consulta.frenadoDiasSinVenta) ? `::c${consulta.frenadoDiasSinVenta}` : "";
+  const key = `${getTenantId()}::${scenario}::b${getBenchmarkOverride() != null ? getBenchmarkOverride() : POLICY.benchmark}${kc}`;
+  if (!_memo.has(key)) _memo.set(key, _construir(scenario, kc ? consulta : null));
   return _memo.get(key);
 }
 
@@ -838,8 +846,8 @@ export function proyectarDatoNegocio(scenario = ESCENARIO_INICIAL) {
 
 /** cifrasDelDato(scenario) → { figs: [{canon, value, duenos}], counts: [n...] } — la QUINTA fuente de guardC:
  * cada cifra de la proyección con los tokens dueños que la validan por cercanía. MISMO recorrido que el texto. */
-export function cifrasDelDato(scenario = ESCENARIO_INICIAL) {
-  const c = _cacheado(String(scenario || ESCENARIO_INICIAL));
+export function cifrasDelDato(scenario = ESCENARIO_INICIAL, consulta = null) {
+  const c = _cacheado(String(scenario || ESCENARIO_INICIAL), consulta);
   return { figs: c.figs, counts: c.counts, estados: c.estados, rankings: c.rankings, dias: c.dias, kpis: c.kpisFigs, conjuntos: c.conjuntos || {} };   // `kpis`: los KPIs del negocio con su rótulo · `conjuntos`: los conjuntos oficiales (Notario semántico)
 }
 

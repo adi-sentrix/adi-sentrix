@@ -291,7 +291,7 @@ export const contradiccionDeMetricas = {
       .filter((x) => x.n && Number.isFinite(x.v)).sort((a, b) => b.v - a.v);
     if (!dias.length) return null;
     const top = dias.slice(0, 3);
-    const tFrenado = frenado ? `En dinero el capital frenado pesa ${_val(frenado)}.` : "";
+    const tFrenado = frenado ? `En dinero el capital inmovilizado crítico pesa ${_val(frenado)}.` : "";
     const tDias = `En tiempo pesa mucho más: ${top.map((x) => `${x.n} ${x.fmt}`).join(" · ")}${dias.length > 3 ? ", y siguen otros" : ""}.`;
     p.push(`Las dos son ciertas, y miden cosas distintas.${frenado ? ` ${tFrenado}` : ""} ${tDias}`);
     if (frenado) D.deFig(frenado, tFrenado, { universo: "total" });

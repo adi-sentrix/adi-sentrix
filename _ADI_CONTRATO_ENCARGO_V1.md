@@ -282,6 +282,7 @@ y es lo que el catálogo de desarrollo espera:
 | dias_sin_venta | sku | `skuInventario.diasSinVenta` | |
 | margen_inventario | sku | `skuInventario.margenPct` | |
 | piso_rotacion · techo_cobertura | negocio (referencias) | POLICY | |
+| umbral_frenado (días) | negocio (referencia) | perfil de la empresa · o `criterio.referencia` del encargo, con origen «planteado en la consulta» (vale solo para esa consulta, nunca es criterio de la empresa; §7.3·35, `_REFERENCIA_FAMILIAS`) | «se cita, no se ordena»: ninguna parte lo pide como cifra |
 | venta_credito · saldo_vencido · saldo_pendiente · saldo_por_vencer · abonado · recuperado · dias_vencido | cliente · negocio | `mesaFlujo` (`flujoComercial`) | **solo cliente**: marca/familia/sku/canal/bodega ⇒ `concepto_sin_productor` |
 
 ### 3.4 · Cierres por tema (lo que hoy tiene ruta)
@@ -622,6 +623,15 @@ venta a crédito, ley del owner).
     (e) [supervisor, dentro de «perfil conversando»] La empresa declara su umbral de frenado conversando (camino B del
     perfil); eso cuenta como «declarado por la empresa». Un parámetro en la plantilla queda para después (plantilla
     congelada: decisión del owner).
+35. [2026-09-29 · DECISIÓN DEL OWNER: «Apruebo A. La garantía "histórico, no pronóstico" queda en lo que ADI entrega
+    antes del LLM. No abras B.»] Precisa la 34(d): la garantía NO es un veredicto sobre la prosa del modelo (ningún
+    policía después del LLM). Vive en lo que ADI ENTREGA: los días sin venta, las unidades del período y la última venta
+    viajan como hechos tipados «históricos», con su período y sus fechas (o los días hasta la fecha de corte), y el límite
+    «describe lo que pasó; no es un pronóstico» va DENTRO del dato. Nada de lo que ADI entrega autoriza un pronóstico
+    sin una simulación con supuestos. Las pruebas verifican ESO sobre la Entrega y la boleta, no sobre el texto del
+    modelo. Un tipo de afirmación «proyección» en el Notario (la opción B) NO se abre.
+    La referencia `umbral_frenado` (días) entra por `criterio.referencia` del encargo, con origen «planteado en la
+    consulta» (§7.3·12 y ·19), y vale solo para esa consulta.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

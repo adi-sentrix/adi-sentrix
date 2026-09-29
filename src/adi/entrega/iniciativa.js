@@ -207,7 +207,7 @@ function _participacionFrenado(figs, D) {
   if (idShare == null) return null;
   return {
     catalogo: "participacion-frenado", tema: "inventario", hechos: [idTop, idTotal, idShare],
-    render: (R) => `${conRaw[0].entidad} concentra el ${R(idShare)} del capital frenado total (${R(idTotal)}).`,
+    render: (R) => `${conRaw[0].entidad} concentra el ${R(idShare)} del capital inmovilizado crítico total (${R(idTotal)}).`,
   };
 }
 

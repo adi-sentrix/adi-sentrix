@@ -112,7 +112,7 @@ const _TEMAS = [
     glosa: "Ordena las cuentas grandes por venta, margen y brecha.",
     q: "Dime cuáles son los clientes que venden mucho pero están bajo el benchmark de margen. Ordénalos por mayor venta y dame un resumen ejecutivo." },
   { tema: "Inventario", titulo: "¿Dónde tengo capital inmovilizado o frenado?",
-    glosa: "Separa capital inmovilizado de SKU frenados y muestra los principales casos.",
+    glosa: "Separa el capital inmovilizado del inmovilizado crítico y muestra los principales casos.",
     q: "Identifica los SKU con capital inmovilizado o frenado. Dame cantidad de SKU, monto total y principales casos." },
   { tema: "Períodos", titulo: "¿Cómo va el año contra el anterior?",
     glosa: "Compara ventas y margen, y declara si falta algún dato.",

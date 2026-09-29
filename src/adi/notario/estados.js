@@ -52,7 +52,7 @@ export const ESTADOS_DE_LA_CASA = [
    * verificable — nunca verdadera ni falsa por un umbral inventado (CLAUDE.md §2, «nada hardcodeado»; owner:
    * «nunca 60 días como verdad de ADI»). El umbral se publica como KPI «Umbral de venta frenada» (datoProyectado.js,
    * SOLO si `J.frenado.evaluado`) y los días sin venta ya vienen en `I.dias[ent].sinVenta` (estado «sin venta», arriba). */
-  { canon: "frenado", eje: "sku", re: /frenad/, prosa: /frenad[oa]s?/, definicion: "SKU con la venta interrumpida: días sin venta ≥ el umbral declarado (empresa o consulta) — sin umbral declarado, no verificable", fuente: "días de la proyección y el umbral declarado",
+  { canon: "frenado", eje: "sku", re: /frenad/, prosa: /frenad[oa]s?/, definicion: "SKU con la venta interrumpida: días sin venta sobre el umbral declarado (empresa o consulta) — sin umbral declarado, no verificable", fuente: "días de la proyección y el umbral declarado",
     verificar: (I, ent) => {
       const d = I && I.dias && I.dias[ent];
       /* BUG REAL (encontrado 2026-09-29, cerrando la etapa 5 — no es la clase A del contrato, es un typo de
@@ -65,7 +65,12 @@ export const ESTADOS_DE_LA_CASA = [
        * el hueco era puramente el `case` del patrón, no el dato ni el mecanismo de publicación). */
       const umbral = _kpi(I, /^umbral de venta frenada$/);
       if (!d || !Number.isFinite(d.sinVenta) || !Number.isFinite(umbral)) return null;
-      return { ok: d.sinVenta >= umbral, verdad: `${ent}: ${d.sinVenta} días sin venta · Umbral de venta frenada = ${umbral}`, evidencia: ["días de la proyección", "Umbral de venta frenada"] };
+      /* ETAPA 6 (2026-09-29): «sobre el umbral» = ESTRICTO (`>`), la MISMA frontera que `jerarquiaInventario`
+       * (`diasSinVenta > umbral`), el glosario («superan el umbral») y la Entrega («más de N días»). Antes este
+       * verificador usaba `>=`: un SKU con exactamente N días salía «frenado» para el Notario y «con venta» para
+       * la pantalla — dos verdades para el mismo SKU. El umbral puede venir de la empresa o de la consulta
+       * (`I.figs` lo publica con su origen, `datoProyectado.js`). */
+      return { ok: d.sinVenta > umbral, verdad: `${ent}: ${d.sinVenta} días sin venta · Umbral de venta frenada = ${umbral} días`, evidencia: ["días de la proyección", "Umbral de venta frenada"] };
     } },
   { canon: "sobrestock", eje: "sku", re: /sobrestock|sobre\s*stock|exceso\s+de\s+stock|sobreinventari/, prosa: /sobrestock|sobre\s+stock|sobreinventariad[oa]s?|exceso\s+de\s+stock/, definicion: "SKU en sobrestock según la Mesa Capital", fuente: "estados de la proyección" },
   { canon: "riesgo de quiebre", eje: "sku", re: /riesgo\s+de\s+quiebre|(?:al\s+borde|cerca|a\s+punto)\s+(?:del?\s+)?(?:quiebre|quebrar)|pr[oó]xim[oa]s?\s+a\s+(?:quebrar|quiebre|agotarse)|por\s+quebrar|se\s+(?:le\s+)?(?:acaba|agota)|quiebre\s+pr[oó]ximo/, prosa: /riesgo\s+de\s+quiebre|al\s+borde\s+del\s+quiebre|a\s+punto\s+de\s+quebrar|pr[oó]xim[oa]s?\s+a\s+(?:quebrar|agotarse)|quiebre\s+pr[oó]ximo/, definicion: "SKU en riesgo de quiebre según la Mesa Capital (cobertura bajo el mínimo)", fuente: "estados de la proyección" },

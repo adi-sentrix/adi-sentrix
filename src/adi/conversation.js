@@ -265,7 +265,7 @@ export function composeExplain(last, ctx = null, state = {}) {
   if (!last) return _entWhy() || _needLast();
   // CONTINUIDAD (D · owner 2026-07-06): el "por qué" sigue el ÚLTIMO foco. Si el foco era CAPITAL inmovilizado, explica
   // capital (rotación/DOH), NO margen. Reusa la evidencia de inventario · cita solo el total (en boleta) · honesto sobre
-  // la causa raíz (el dato dice DÓNDE está frenado, no todavía por qué dejó de venderse).
+  // la causa raíz (el dato dice DÓNDE está inmovilizado, no todavía por qué dejó de venderse).
   if (last.inventory && Array.isArray(last.inventory.bySku) && last.inventory.bySku.length) {
     const inv = last.inventory, _m = (v) => (v >= 1e6 ? `${simboloMoneda()}${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${simboloMoneda()}${Math.round(v / 1e3)}K` : `${simboloMoneda()}${Math.round(v)}`);
     const top = inv.bySku.slice(0, 2).map((s) => s.sku).join(" y ");

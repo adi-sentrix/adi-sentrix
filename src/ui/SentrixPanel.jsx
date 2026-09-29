@@ -1228,7 +1228,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
   const cpColor = cmap[cp && cp.color] || C.red;
   // el fallback replica el `title` de composeSpecInventory (specRetrieval.js) — se corrige en los DOS lados a la
   // vez o la pantalla dice una cosa distinta según haya evidencia o no. Registro: «inmovilizado», no «detenido».
-  const titleParts = String(inv.title || "Capital frenado · dónde está frenado tu capital").split(" · ");   // R5: el fallback dice lo que el bloque ES (el foco frenado)
+  const titleParts = String(inv.title || "Capital inmovilizado crítico · dónde está tu capital inmovilizado crítico").split(" · ");   // R5: el fallback dice lo que el bloque ES (el foco crítico) — mismo `title` que specRetrieval.js; «frenado» queda solo para la venta interrumpida con umbral (etapa 6, §7.3·34)
   const isStale = inv.focus === "stale";
   const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}${simboloMoneda()}${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}${simboloMoneda()}${Math.round(a / 1e3)}K`; return `${s}${simboloMoneda()}${Math.round(a)}`; };
   const maxB = Math.max(1, ...byBodega.map((b) => b.usd));
@@ -1958,7 +1958,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           <div style={{ display:"flex", alignItems:"center", gap:0, border:`1px solid ${C.border}`, borderRadius:7, overflow:"hidden", flexShrink:0 }}>
             {[["comercial", "Comercial"], ["capital", "Capital"], ["resultado", "Resultado"], ["flujo", "Flujo comercial"], ["ficha", "Perfil Ejecutivo"]].map(([k, lbl]) => (
               <button key={k} onClick={() => setCara(k)}
-                title={k === "comercial" ? "La cara comercial: ventas, márgenes y contribución" : k === "capital" ? "La cara Capital: tu inventario — qué trabaja, qué se frena, qué reponer" : k === "resultado" ? "La cara Resultado: tu P&L comercial — la cascada hasta el resultado después de gastos" : "El Perfil Ejecutivo de un cliente: su perfil, brecha, evolución, composición y posición en la cartera"}
+                title={k === "comercial" ? "La cara comercial: ventas, márgenes y contribución" : k === "capital" ? "La cara Capital: tu inventario — qué trabaja, qué capital está inmovilizado, qué reponer" : k === "resultado" ? "La cara Resultado: tu P&L comercial — la cascada hasta el resultado después de gastos" : "El Perfil Ejecutivo de un cliente: su perfil, brecha, evolución, composición y posición en la cartera"}
                 style={{ padding:"4px 12px", fontSize:14, fontWeight: cara === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
                   background: cara === k ? "rgba(255,255,255,0.1)" : "transparent", border:"none",
                   color: cara === k ? C.text : C.textMuted, transition:"all 0.15s" }}>{lbl}</button>

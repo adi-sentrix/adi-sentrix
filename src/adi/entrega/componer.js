@@ -18,7 +18,7 @@
  * dados. Sin red, sin estado global nuevo. Detrás de la bandera `ADI_ENTREGA` (APAGADA en todos los perfiles):
  * este módulo no se importa desde ningún camino de producción todavía — lo ejercita solo el gate. */
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
-import { benchmarkOf, ETIQUETA_ORIGEN } from "../../config/businessPolicy.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
+import { benchmarkOf, ETIQUETA_ORIGEN, umbral } from "../../config/businessPolicy.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
 import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "../agente/herramientasAgente.js";
@@ -34,7 +34,7 @@ import { cifrasDelDato } from "../oracle/datoProyectado.js";
 import { axisEntityNames } from "../oracle/entityIndex.js";
 import { indiceDeEvidencia } from "../notario/evidencia.js";
 import { libroDeHechos, asignarIds, renderDe, procedenciaDe, NOMBRE_DE_PROCEDENCIA, PROCEDENCIAS, validarUniverso, nombrarUniverso, dominioDeEstado, formatoDeLaCasa } from "../notario/hechos.js";
-import { periodoDeFiguras, reconcilian, UNIVERSOS, PERIODO_TXT } from "../../config/contract/figureType.js";
+import { periodoDeFiguras, reconcilian, UNIVERSOS, PERIODO_TXT, historiaDeFiguras } from "../../config/contract/figureType.js";
 // CORTE 3c (owner 2026-09-25, piezas 1 y 3 del encargo) — `conjuntoDeUniverso` es LA MISMA primitiva que ya
 // evalúa un universo tipado (estados/filtros) para el Notario v3 (`notario/hechos.js:_conteoTipado` la llama
 // igual): se reusa acá para el mismo fin, nunca un motor de estados nuevo. `estadoCanon` (estados.js) traduce el
@@ -332,8 +332,34 @@ function _correrPlaybook(playbook, { scenario, pregunta }) {
   );
   return { pasos, rp, figs: asignarIds((rp.ledger && rp.ledger.figs) || []) };
 }
-function _indiceDelTenant(figs, scenario) {
-  const datoProyectado = cifrasDelDato(scenario);
+/* EL UMBRAL DE VENTA FRENADA PLANTEADO EN LA CONSULTA (owner 2026-09-29, etapa 6, §7.3·35): `criterio.referencia` con
+ * `concepto:"umbral_frenado"` (días) lo trae el encargo TIPADO — nunca un regex sobre la pregunta. Devuelve los umbrales
+ * de la consulta en la forma que `umbral()` entiende (`{ frenadoDiasSinVenta }`) o null. Mismo patrón de §7.3·12/·19:
+ * la referencia de la EMPRESA manda — si la empresa ya declaró su umbral, el de la consulta NO reemplaza el veredicto
+ * oficial (queda declarado aparte por `_REFERENCIA_FAMILIAS`); solo cuando la empresa no lo declaró, el de la consulta
+ * es el que sostiene el veredicto «frenado» de ESTA respuesta, con origen «planteado en la consulta». */
+function _consultaDeFrenado(resolucion) {
+  const r = resolucion && resolucion.criterio && resolucion.criterio.referencia;
+  if (!r || r.concepto !== "umbral_frenado" || !Number.isFinite(r.valor) || r.valor < 0) return null;
+  if (r.unidad !== unidadDeClave("umbral_frenado")) return null;   // días, no otra magnitud: la unidad la fija el léxico
+  if (umbral("frenadoDiasSinVenta").valor != null) return null;    // la empresa ya lo declaró: manda la oficial
+  return { frenadoDiasSinVenta: r.valor };
+}
+/* la frase del Marco para lo histórico (etapa 6, §7.3·35), armada SOLO de los campos tipados de `marco.historicos`
+ * (etiqueta · ventana · límite): «Días sin venta: días transcurridos entre la última venta y la fecha de corte del
+ * inventario; describe lo que pasó; no es un pronóstico.» — una por clase de hecho. */
+const _textoDeHistoricos = (h) => (h && Array.isArray(h.hechos) ? h.hechos.map((x) => `${x.etiqueta.charAt(0).toUpperCase()}${x.etiqueta.slice(1)}: ${x.ventana}; ${h.limite}.`).join(" ") : "");
+/* el rótulo con que se NOMBRA el criterio de una decisión cuando no trae `lente`: la lente si la hay; si solo trae una
+ * referencia (p. ej. el umbral de la consulta), su nombre de la casa — nunca la clave técnica («umbral_frenado»). */
+const _lenteDelCriterio = (criterio) => {
+  if (criterio.lente) { const m = metricaPorClave(criterio.lente); return m ? m.nombre.toLowerCase() : criterio.lente; }
+  const c = criterio.referencia && criterio.referencia.concepto;
+  if (!c) return c;
+  const m = metricaPorClave(c);
+  return m ? m.nombre.toLowerCase() : c;
+};
+function _indiceDelTenant(figs, scenario, consulta = null) {
+  const datoProyectado = cifrasDelDato(scenario, consulta);
   const ejesDelTenant = {};
   for (const eje of _EJES) { try { const n = axisEntityNames(eje); if (n && n.length) ejesDelTenant[eje] = n; } catch { /* eje sin índice en este tenant */ } }
   return { I: indiceDeEvidencia({ figs, datoProyectado, ejesDelTenant }), ejesDelTenant };
@@ -1685,7 +1711,7 @@ function _ofertasConcretas(planes, R) {
     } else if (plan.kind === "grupo" || plan.kind === "grupoUniverso") {
       if (plan.tema === "comercial") _push("Ranking completo por contribución no capturada");
       else if (plan.tema === "cobranza") _push("Ranking completo por saldo vencido");
-      else if (plan.tema === "inventario") _push("Capital frenado por bodega");
+      else if (plan.tema === "inventario") _push("Capital inmovilizado crítico por bodega");
     } else if (plan.kind === "multitema") {
       for (const d of plan.temas) {
         if (d === "inventario") _push("El cruce por SKU entre venta e inventario");
@@ -2771,7 +2797,8 @@ export function componerEntrega(resolucion) {
   const _figsDeParte = (parteId) => { const ids = _callIdsDePartes([parteId]); if (!ids.size) return figs; return figs.filter((f) => f.origin && ids.has(f.origin.callId)); };
   const _figsDePartes = (parteIds) => { const ids = _callIdsDePartes(parteIds); if (!ids.size) return figs; return figs.filter((f) => f.origin && ids.has(f.origin.callId)); };
 
-  const { I, ejesDelTenant } = _indiceDelTenant(figs, scenario);
+  const consultaDeFrenado = _consultaDeFrenado(resolucion);   // etapa 6: el umbral que planteó quien consulta (o null)
+  const { I, ejesDelTenant } = _indiceDelTenant(figs, scenario, consultaDeFrenado);
   const hechos = [];
   const contador = { n: 0 };
   const figsUsadas = [];
@@ -3286,7 +3313,11 @@ export function componerEntrega(resolucion) {
   // declaran los temas de las partes ÚTILES (resuelta/parcial) directamente — nunca inventa un tema que el
   // encargo no pidió, y no cambia nada cuando SÍ hay planes (ese caso ya declara su tema en el loop de abajo).
   if (!planes.length) for (const p of partesUtiles) if (p.tema) temasCubiertos.add(p.tema);
-  const _fila = (entidad, tema, etiqueta, id) => { const procedencia = _procedenciaDeFila(libro, [id]); return { valores: { "Entidad / grupo": entidad, "Tema": _DOM_NOMBRE[tema] || tema, "Métrica": etiqueta, "Valor": R(id), "Tipo": _textoDeTipo(procedencia) }, hechos: [id], procedencia }; };
+  // ETAPA 6 (owner 2026-09-29, §7.3·35): una fila cuya cifra es un HECHO HISTÓRICO (días sin venta, unidades del período,
+  // última venta) lo declara en la propia fila — naturaleza + ventana + límite, leídos del `tipo` de la fig que el hecho
+  // referencia (nunca de un texto). Las demás filas no traen esos campos.
+  const _histDeHecho = (id) => { const h = hechos.find((x) => x.id === id); const g = h && h.tipo === "ref" ? figs.find((f) => f.id === h.de) : null; const t = g && g.tipo; return t && t.naturaleza === "historico" ? { naturaleza: t.naturaleza, ventana: t.ventana, limite: t.limite } : null; };
+  const _fila = (entidad, tema, etiqueta, id) => { const procedencia = _procedenciaDeFila(libro, [id]); return { valores: { "Entidad / grupo": entidad, "Tema": _DOM_NOMBRE[tema] || tema, "Métrica": etiqueta, "Valor": R(id), "Tipo": _textoDeTipo(procedencia) }, hechos: [id], procedencia, ...(_histDeHecho(id) || {}) }; };
 
   // ═══ CORTE 3c · PIEZA 3 (owner 2026-09-25) — VEREDICTO DE PREMISAS ═══════════════════════════════════════════
   // `resolucion.premisas` ya pasó `validarHecho` (validar.js): son hechos bien FORMADOS, no verificados. Se
@@ -3410,7 +3441,7 @@ export function componerEntrega(resolucion) {
       // por `_planMultiTema`. La cifra que sostiene «el primero» es la MISMA que ya ordenó el grupo (`claveOrden`,
       // ya declarada y renderizada arriba — nunca una segunda referencia).
       if (plan.cierre === "decision" && resolucion.criterio && plan.orden.length) {
-        const lenteTxt = resolucion.criterio.lente ? (metricaPorClave(resolucion.criterio.lente) ? metricaPorClave(resolucion.criterio.lente).nombre.toLowerCase() : resolucion.criterio.lente) : (resolucion.criterio.referencia && resolucion.criterio.referencia.concepto);
+        const lenteTxt = _lenteDelCriterio(resolucion.criterio);
         const idPrimero = plan.claveOrden ? _mapaDe(plan.porEntidad, plan.orden[0]).get(plan.claveOrden) : null;
         if (lenteTxt && idPrimero != null) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${plan.orden[0]}, con ${R(idPrimero)} en ${(plan.claveOrden ? _labelDeClave(plan.claveOrden) : lenteTxt).toLowerCase()}.`, hechos: [idPrimero] });
         // §7.3 (SUPERVISOR, residual del diagnóstico v10 — X03.p3/X12.p1/X23.p3) — «la oración de prioridad
@@ -3638,7 +3669,7 @@ export function componerEntrega(resolucion) {
       // una premisa del usuario) decide quién abre la fila; la cifra que sostiene «el primero» es la MISMA que
       // ya ordenó el grupo (`claveOrden`, ya declarada y renderizada arriba — nunca una segunda referencia).
       if (plan.cierre === "decision" && resolucion.criterio && plan.miembros.length) {
-        const lenteTxt = resolucion.criterio.lente ? (metricaPorClave(resolucion.criterio.lente) ? metricaPorClave(resolucion.criterio.lente).nombre.toLowerCase() : resolucion.criterio.lente) : (resolucion.criterio.referencia && resolucion.criterio.referencia.concepto);
+        const lenteTxt = _lenteDelCriterio(resolucion.criterio);
         const idPrimero = plan.claveOrden ? _mapaDe(plan.porEntidad, plan.miembros[0]).get(plan.claveOrden) : null;
         if (lenteTxt && idPrimero != null) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${plan.miembros[0]}, con ${R(idPrimero)} en ${(plan.claveOrden ? _labelDeClave(plan.claveOrden) : lenteTxt).toLowerCase()}.`, hechos: [plan.idConteo, idPrimero] });
         else if (lenteTxt) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${plan.miembros[0]} (${kTxt} de ${mTxt} en ${uTxt}).`, hechos: [plan.idConteo] });
@@ -3774,6 +3805,10 @@ export function componerEntrega(resolucion) {
   };
   if (nClientes != null) cifrasImpresas.push(`${nClientes} clientes`);
   if (periodo && periodo.texto) cifrasImpresas.push(periodo.texto);
+  // ETAPA 6 (§7.3·35) — lo histórico que esta Entrega sirve viaja TIPADO en el Marco: naturaleza, ventana (el período o
+  // los días hasta la fecha de corte) y el límite «describe lo que pasó; no es un pronóstico», del `tipo` de las figs
+  // servidas (`historiaDeFiguras`). Se imprime siempre (`_textoDeHistoricos`), no depende de la profundidad.
+  { const historia = historiaDeFiguras(figsUsadas); if (historia) entrega.marco.historicos = historia; }
   if (idBenchComercialGlobal && !entrega.marco.referenciaDeclarada) {
     // CORTE 3e (owner 2026-09-26) — «declarado por usted» → «declarado por la empresa».
     entrega.marco.referenciaDeclarada = { texto: `Benchmark de margen: ${R(idBenchComercialGlobal)}, declarado por la empresa.`, hechoId: idBenchComercialGlobal };
@@ -3865,6 +3900,13 @@ export function componerEntrega(resolucion) {
     // por `base` (un conjunto de `conjuntosDeLaCasa.js`): `estado` en vez de `base` en cada dirección se lee más
     // abajo con el MISMO valor (ambos son solo la clave que `basesEnJuego` tiene que contener).
     piso_rotacion: { eje: "sku", metrica: "rotacion", nombreDeLaEmpresa: "el piso de rotación declarado", direcciones: { bajo: { estado: "rota lento", op: "<" }, sobre: { estado: "rota bien", op: ">=" } } },
+    // ETAPA 6 (owner 2026-09-29, §7.3·35) — el umbral de venta frenada (días sin venta) planteado en la consulta: la CUARTA
+    // referencia que define un conjunto de la casa («frenado», notario/estados.js). Mismo patrón de §7.3·12/·19: si la
+    // EMPRESA declaró su umbral, el veredicto oficial es el suyo y aquí se declara AL LADO cuántos SKU serían con el de la
+    // consulta (`op:">"`, el mismo «sobre el umbral» de `jerarquiaInventario`). Si la empresa NO lo declaró
+    // (`operativaSinOficial`), no hay oficial que contrastar: el de la consulta sostiene el veredicto de ESTA respuesta —
+    // `componerEntrega` lo pasó al índice (`_consultaDeFrenado`) — y se declara en el Marco como criterio de quien consulta.
+    umbral_frenado: { eje: "sku", metrica: "dias_sin_venta", nombreDeLaEmpresa: "el umbral de venta frenada declarado", direcciones: { sobre: { estado: "frenado", op: ">" } }, operativaSinOficial: true },
   };
   {
     const refUsuario = resolucion.criterio && resolucion.criterio.referencia;
@@ -3878,9 +3920,28 @@ export function componerEntrega(resolucion) {
       const basesEnJuego = new Set();
       for (const p of partesUtiles) { const b = _baseCasa(p.universo); if (b) basesEnJuego.add(normalizar(b)); for (const e of _estadosCasa(p.universo)) basesEnJuego.add(normalizar(e)); }
       for (const pr of resolucion.premisas || []) { const uu = pr.universo != null ? pr.universo : pr.de; const b = _baseCasa(uu); if (b) basesEnJuego.add(normalizar(b)); for (const e of _estadosCasa(uu)) basesEnJuego.add(normalizar(e)); }
+      // una PREMISA de estado («¿LG está frenado?») también pone en juego el estado de la familia con `operativaSinOficial`:
+      // sin esto, el umbral que planteó quien consulta se ignoraría en silencio cuando solo aparece en una premisa.
+      if (familiaRef.operativaSinOficial) for (const pr of resolucion.premisas || []) { const e = typeof pr.estado === "string" ? estadoDeclarado(pr.estado) : null; if (e) basesEnJuego.add(normalizar(e)); }
       const valFmt = formatoDeLaCasa(refUsuario.valor, refUsuario.unidad || "pct");
       const _nombreDeLasEntidades = (set) => [...set].map((k) => (I.entidades && I.entidades.get ? (I.entidades.get(k) || { nombre: k }).nombre : k));
-      for (const [dir, { base, estado, op }] of Object.entries(familiaRef.direcciones)) {
+      // ETAPA 6 (§7.3·35) — la referencia de la consulta es la OPERATIVA (la empresa no declaró la suya): no hay oficial
+      // contra el cual declarar «serían N»; el veredicto de ESTA respuesta ya se calculó con ella (índice) y lo que
+      // falta es DECLARAR su procedencia, en el Marco, como criterio de quien consulta. Solo si «frenado» está en juego
+      // (una parte, un universo de premisa o una premisa de estado lo nombran), como en las demás familias.
+      const operativaDeLaConsulta = !!(familiaRef.operativaSinOficial && consultaDeFrenado);
+      if (operativaDeLaConsulta) {
+        const claveOp = Object.values(familiaRef.direcciones).map((d) => d.base || d.estado);
+        if (claveOp.some((c) => basesEnJuego.has(normalizar(c)))) {
+          const m = metricaPorClave(refUsuario.concepto);
+          cifrasImpresas.push(valFmt);
+          const txt = `${m ? m.nombre : refUsuario.concepto}: ${valFmt} sin venta, ${ETIQUETA_ORIGEN.consulta}; vale solo para esta respuesta y no es un criterio de la empresa.`;
+          entrega.marco.referenciaDeclarada = entrega.marco.referenciaDeclarada
+            ? { ...entrega.marco.referenciaDeclarada, texto: `${entrega.marco.referenciaDeclarada.texto} ${txt}` }
+            : { texto: txt, hechoId: null };
+        }
+      }
+      for (const [dir, { base, estado, op }] of Object.entries(operativaDeLaConsulta ? {} : familiaRef.direcciones)) {
         const claveDireccion = base || estado;
         if (!basesEnJuego.has(normalizar(claveDireccion))) continue;
         try {
@@ -4071,7 +4132,7 @@ function _textoDeLaEntrega(entrega, titulo = "¿Dónde la empresa deja de ganar?
   const _cabezaConPunto = cabezaMarco ? (cabezaMarco + (/[.!?]\s*$/.test(cabezaMarco) ? "" : ".")) : "";
   // sin espacios dobles cuando `defTxt` queda vacío (breve, con más de una explicación retirada): se arma por
   // PARTES no vacías, nunca por concatenación de plantilla con huecos.
-  L.push(`**Marco.** ${[_cabezaConPunto, defTxt, m.referenciaDeclarada ? m.referenciaDeclarada.texto : ""].filter(Boolean).join(" ")}`.trim());
+  L.push(`**Marco.** ${[_cabezaConPunto, defTxt, m.referenciaDeclarada ? m.referenciaDeclarada.texto : "", _textoDeHistoricos(m.historicos)].filter(Boolean).join(" ")}`.trim());
   L.push("");
   L.push("**Respuesta.**");
   // CORTE 3d.1 (owner 2026-09-25) — la iniciativa de CFO se distingue de lo pedido en TRES capas (§A.5): la

@@ -471,8 +471,58 @@ export const CLASES_VERIFICABILIDAD = {
   derivada_no_reconciliada: "indicado", declarada_no_verificable: "indicado", no_calculable: "abierto",
 };
 
+// ── LOS HECHOS HISTÓRICOS (owner 2026-09-29, etapa 6 del rediseño de inventario, §7.3·35: «Apruebo A. La garantía
+// "histórico, no pronóstico" queda en lo que ADI entrega antes del LLM») ──────────────────────────────────────────
+// Los días sin venta, las unidades vendidas del período y la última venta describen LO QUE PASÓ. La garantía no es un
+// veredicto sobre la prosa del modelo (ningún policía después del LLM): vive EN EL DATO. Toda cifra de estas tres
+// clases sale con su NATURALEZA («historico»), su VENTANA (el período o los días hasta la fecha de corte) y el LÍMITE
+// dentro del tipo — no en una nota suelta. Nada de lo que ADI entrega con ellas autoriza un pronóstico: una proyección
+// exige una simulación con supuestos (encargo `supuestos`), y sus cifras salen con OTRO tipo (`source` ≠ «actual» /
+// `escenario`), nunca con `naturaleza: "historico"`. La clasificación es por la ETIQUETA que ADI misma emite (la
+// convención «Entidad · Concepto» de esta casa), nunca sobre texto de un usuario ni de un modelo.
+export const LIMITE_HISTORICO = "describe lo que pasó; no es un pronóstico";
+export const HECHOS_HISTORICOS = {
+  dias_sin_venta: {
+    etiqueta: "días sin venta", unidad: "days", re: /\bd[ií]as\s+sin\s+venta\b/i, fuente: "skuInventario.diasSinVenta",
+    ventana: "días transcurridos entre la última venta y la fecha de corte del inventario",
+  },
+  unidades_periodo: {
+    etiqueta: "unidades vendidas en el período", unidad: "count", re: /\b(?:unidades\s+vendidas\s+en\s+el\s+mes|vendido\s+en\s+el\s+mes)\b/i, fuente: "skuInventario.vendidoMes",
+    ventana: "unidades vendidas en el mes que cubre el dato de inventario, hasta la fecha de corte",
+  },
+  ultima_venta: {
+    etiqueta: "última venta", unidad: "days", re: /\b[uú]ltima\s+venta\b/i, fuente: "skuInventario.diasSinVenta",
+    ventana: "días transcurridos entre la última venta y la fecha de corte del inventario; el dato no declara la fecha calendaria de esa venta",
+  },
+};
+// historicoDe(label, unit) → { clave, etiqueta, ventana, ... } | null · ¿es esta cifra un hecho histórico de la casa?
+export function historicoDe(label, unit) {
+  const s = String(label == null ? "" : label), u = String(unit || "");
+  for (const [clave, h] of Object.entries(HECHOS_HISTORICOS)) if (h.unidad === u && h.re.test(s)) return { clave, etiqueta: h.etiqueta, unidad: h.unidad, ventana: h.ventana, fuente: h.fuente };
+  return null;
+}
+// historiaDeFiguras(figs) → null | { naturaleza, limite, hechos: [{ clave, etiqueta, unidad, ventana, fuente, proyeccion }] } · el
+// bloque TIPADO con lo histórico que viaja en una lectura (una entrada por clase, en orden de aparición). `proyeccion:
+// false` es la declaración estructural de que ninguno de estos hechos autoriza un pronóstico.
+export function historiaDeFiguras(figs) {
+  const vistos = new Map();
+  for (const f of Array.isArray(figs) ? figs : []) {
+    if (!f || !f.tipo || f.tipo.naturaleza !== "historico") continue;
+    const h = historicoDe(f.label, f.unit);
+    if (h && !vistos.has(h.clave)) vistos.set(h.clave, { ...h, proyeccion: false });
+  }
+  return vistos.size ? { naturaleza: "historico", limite: LIMITE_HISTORICO, hechos: [...vistos.values()] } : null;
+}
+
 // POR MÉTRICA (independiente del eje) · cada regla con su evidencia MEDIDA sobre el tenant demo.
 export const VERIFICABILIDAD_POR_METRICA = [
+  {
+    // «días sin venta» tiene SU razón (etapa 6): antes caía en la regla de abajo y explicaba «días de inventario» (`doh`),
+    // un campo distinto. Misma clase: declarado por la fuente, el dato disponible no lo reconstruye.
+    re: /\bd[ií]as\s+sin\s+venta\b/i,
+    clase: "declarada_no_verificable",
+    razon: "«días sin venta» es un campo DECLARADO por la fuente (skuInventario.diasSinVenta: fecha de corte − fecha de la última venta): describe lo ya ocurrido y no se reconstruye desde ningún otro campo del dato",
+  },
   {
     re: /\b(d[ií]as de inventario|d[ií]as de cobertura|cobertura|DOH|d[ií]as sin venta)\b/i,
     clase: "declarada_no_verificable",
@@ -644,7 +694,11 @@ export function deriveFigureType({
   const U = UNIVERSOS[uni];
   const v = verificabilidadDe(label, unit, { formula, source, reconcilia, declarada });
   const selloFinal = SELLOS.includes(sello) ? sello : selloDe(v.clase);
+  // etapa 6 (§7.3·35): lo histórico viaja TIPADO — naturaleza + ventana (período / días hasta el corte) + límite. Solo
+  // una cifra de la lectura directa del dato (`source: "actual"`): una cifra simulada nunca es «histórica».
+  const hist = source === "actual" && !formula ? historicoDe(label, unit) : null;
   return {
+    ...(hist ? { naturaleza: "historico", ventana: hist.ventana, limite: LIMITE_HISTORICO } : {}),
     unidad: unit,
     moneda: moneda !== undefined ? moneda : U.moneda,
     escala: escala !== undefined ? escala : U.escala,
