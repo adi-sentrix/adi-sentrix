@@ -154,3 +154,14 @@ export function umbralesDeBases(bases) {
   for (const b of bases || []) for (const k of UMBRALES_DE_BASE[_norm(b)] || []) out.add(k);
   return [...out];
 }
+/* Los CONCEPTOS del encargo cuya cifra la decide un umbral (decisión del supervisor 2026-09-29, §7.3·36b, A5): «carga_alta» es la cifra de «carga comercial alta» —el mismo detector, el mismo
+ * piso de materialidad—, así que pedirla pone en juego el mismo umbral que nombrar el conjunto por su `base`. */
+export const UMBRALES_DE_CONCEPTO = Object.freeze({
+  carga_alta: UMBRALES_DE_BASE[NOMBRE_CARGA_ALTA],
+});
+/** umbralesDeConceptos(conceptos) → las llaves de POLICY (sin repetir) de los umbrales que sostienen esos conceptos */
+export function umbralesDeConceptos(conceptos) {
+  const out = new Set();
+  for (const c of conceptos || []) for (const k of UMBRALES_DE_CONCEPTO[c] || []) out.add(k);
+  return [...out];
+}

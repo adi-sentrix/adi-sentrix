@@ -169,7 +169,8 @@ export const FORMA_DE_ESTADO = {
   "riesgo de quiebre": { singular: "en riesgo de quiebre", plural: "en riesgo de quiebre", negado: "que no están en riesgo de quiebre", grupo: "los que están en riesgo de quiebre" },
   "en quiebre": { singular: "en quiebre", plural: "en quiebre", negado: "que no están en quiebre", grupo: "los que están en quiebre" },
   "capital sano": { singular: "con capital sano", plural: "con capital sano", negado: "que no tienen capital sano", grupo: "los que tienen capital sano" },
-  critico: { singular: "crítico", plural: "críticos" },
+  /* decisión del owner 2026-09-28, §7.3·34a: «crítico» a secas es la alerta del archivo y en superficie se dice «con alerta en el archivo» (la palabra «crítico» es del tramo «inmovilizado crítico»: una palabra, un significado) */
+  critico: { singular: "con alerta en el archivo", plural: "con alerta en el archivo", negado: "que no tienen alerta en el archivo", grupo: "los que tienen alerta en el archivo" },
   "sin venta": { singular: "sin venta", plural: "sin venta", negado: "con venta", grupo: "los que no tienen venta" },
   "rota bien": { singular: "que rota bien", plural: "que rotan bien", negado: "que no rotan bien", grupo: "los que rotan bien" },
   "rota lento": { singular: "que rota lento", plural: "que rotan lento", negado: "que no rotan lento", grupo: "los que rotan lento" },
@@ -214,9 +215,7 @@ export const METRICA_DE_ESTADO = {
  * a menor gravedad (el primero que la proyección le declara es su estado propio); para cliente, su estado de cobranza. `familia` = los estados que, al fallar, piden
  * decir el estado propio (los demás —rota lento, frenado, sin venta— se explican con su cifra). */
 export const ESTADOS_PROPIOS = {
-  /* `etiquetas`: cómo se DICE en la oración del estado propio lo que no es un estado de la Mesa Capital (decisión 34a: la alerta del archivo NO es «crítico» en superficie —esa palabra es del
-   * tramo «inmovilizado crítico»—; «una palabra, un significado»). Datos de la casa; `FORMA_DE_ESTADO` (las palabras de un GRUPO) no cambia. */
-  sku: { orden: ["inmovilizado critico", "sobrestock", "riesgo de quiebre", "capital sano"], familia: ["inmovilizado critico", "inmovilizado", "sobrestock", "riesgo de quiebre", "capital sano", "critico"], etiquetas: { critico: "con alerta en el archivo" } },
+  sku: { orden: ["inmovilizado critico", "sobrestock", "riesgo de quiebre", "capital sano"], familia: ["inmovilizado critico", "inmovilizado", "sobrestock", "riesgo de quiebre", "capital sano", "critico"] },
   cliente: { orden: ["en mora", "al dia"], familia: ["en mora", "al dia"] },
 };
 /* Los conceptos del encargo que sirven el CAPITAL de un estado de inventario (los productores de `lecturasDe.js`:

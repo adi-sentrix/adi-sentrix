@@ -18,8 +18,8 @@
  * dados. Sin red, sin estado global nuevo. Detrás de la bandera `ADI_ENTREGA` (APAGADA en todos los perfiles):
  * este módulo no se importa desde ningún camino de producción todavía — lo ejercita solo el gate. */
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
-import { benchmarkOf, ETIQUETA_ORIGEN, umbral, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, NOMBRE_DE_UMBRAL, UNIDAD_DE_UMBRAL, procedenciaDeMaterialidad } from "../../config/businessPolicy.js";
-import { umbralesDeBases } from "../notario/conjuntosDeLaCasa.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
+import { benchmarkOf, ETIQUETA_ORIGEN, umbral, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, NOMBRE_DE_UMBRAL, valorDeUmbralEnTexto, procedenciaDeMaterialidad } from "../../config/businessPolicy.js";
+import { umbralesDeBases, umbralesDeConceptos } from "../notario/conjuntosDeLaCasa.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
 import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "../agente/herramientasAgente.js";
@@ -2004,6 +2004,17 @@ function _parteDePremisa(p, partesUtiles) {
  * deja el veredicto sin texto). */
 const _VERBO_DIRECCION_PREMISA = { sube: "creció", baja: "cayó" };
 function _rotuloDeLaCasaDeH(H) {
+  const r = _rotuloDeLaCasaLegado(H);
+  if (r) return r;
+  // la pertenencia de un grupo VERDADERO (decisión del supervisor 2026-09-29, v13): «<entidades> pertenece(n) a <universo en palabras de la casa>», más la referencia que el universo cita si el texto aún no la dice
+  const pt = H && H.render && H.render.pertenencia;
+  if (pt && pt.entidades && pt.entidades.length && pt.universo) {
+    const refP = H.render.referencia && !pt.universo.includes(H.render.referencia) ? `, ${H.render.referencia}` : "";
+    return `${pt.entidades.join(", ")} ${pt.entidades.length > 1 ? "pertenecen" : "pertenece"} a ${pt.universo}${refP}`;
+  }
+  return null;
+}
+function _rotuloDeLaCasaLegado(H) {
   // R-ROTULO-CONTEO-FILTRO (supervisor 2026-09-26, MATERIAL) — un `conteo` (con o sin sujeto) no tiene una fig
   // «Entidad · Concepto» propia: su `H.evidencia[0]` es un DESCRIPTOR de universo/filtro concatenado con «·»
   // (`_filtroTipado`/`_setDeEstado`, notario/verificar.js — p. ej. «en mora (saldo vencido > 0) · margen <
@@ -2101,10 +2112,9 @@ function _umbralesDeLaPremisa(H, consulta = null, textoYaDicho = "") {
   const yaDicho = [textoYaDicho, H.verdad, H.render && H.render.referencia].filter(Boolean).join(" ");
   const pares = [];
   for (const k of Object.keys(NOMBRE_DE_UMBRAL)) {
-    if (!claves.includes(k) || !UNIDAD_DE_UMBRAL[k]) continue;
-    const v = umbral(k, consulta);
-    if (v.valor == null) continue;
-    const txt = formatoDeLaCasa(v.valor, UNIDAD_DE_UMBRAL[k]);
+    if (!claves.includes(k)) continue;
+    const txt = valorDeUmbralEnTexto(k, consulta);
+    if (!txt) continue;
     const numero = (txt.match(/\d+(?:[.,]\d+)?/) || [])[0];
     if (numero && (yaDicho.match(/\d+(?:[.,]\d+)?/g) || []).includes(numero)) continue;
     pares.push(`${NOMBRE_DE_UMBRAL[k]} ${txt}`);
@@ -3922,16 +3932,21 @@ export function componerEntrega(resolucion) {
       const e = estadoDeLaPremisa(pr.estado);
       if (e) estadosEnJuego.add(e);
     }
-    const procedencia = procedenciaDeUmbrales(umbralesDeEstados([...estadosEnJuego]), consultaDeFrenado);
+    const llavesDeEstados = umbralesDeEstados([...estadosEnJuego]);
+    const procedencia = procedenciaDeUmbrales(llavesDeEstados, consultaDeFrenado);
     if (procedencia.length) entrega.marco.definiciones = [...entrega.marco.definiciones, ...procedencia];
+    // decisión del supervisor 2026-09-29, §7.3·37b: el VALOR de cada umbral que la cláusula imprime queda registrado en `cifrasImpresas` (regla 1, cero cifras desnudas)
+    for (const k of llavesDeEstados) { const val = valorDeUmbralEnTexto(k, consultaDeFrenado); if (val) cifrasImpresas.push(val); }
     // RAÍZ A5 (supervisor 2026-09-29, diagnóstico v13; §7.3·36b «el piso de materialidad»): un conjunto de la casa que DEPENDE de un umbral (`UMBRALES_DE_BASE`: «carga comercial alta» lo
     // decide el piso de materialidad) declara su origen igual que un estado de inventario — mismo helper (`umbral().origen`), en su propia oración. Los conjuntos en juego salen del
     // campo tipado `base` de cada universo (partes y premisas, también en las ramas de una unión), nunca de una frase.
     const basesEnJuegoDeLaCasa = new Set();
     for (const p of partesUtiles) _basesDeUniverso(p.universo, basesEnJuegoDeLaCasa);
     for (const pr of resolucion.premisas || []) _basesDeUniverso(pr.universo != null ? pr.universo : pr.de, basesEnJuegoDeLaCasa);
-    const procedenciaDeBase = procedenciaDeMaterialidad(umbralesDeBases([...basesEnJuegoDeLaCasa]), consultaDeFrenado);
+    const llavesDeBases = [...new Set([...umbralesDeBases([...basesEnJuegoDeLaCasa]), ...umbralesDeConceptos(partesUtiles.flatMap((p) => p.conceptos || []))])];
+    const procedenciaDeBase = procedenciaDeMaterialidad(llavesDeBases, consultaDeFrenado);
     if (procedenciaDeBase.length) entrega.marco.definiciones = [...entrega.marco.definiciones, ...procedenciaDeBase];
+    for (const k of llavesDeBases) { const val = valorDeUmbralEnTexto(k, consultaDeFrenado); if (val) cifrasImpresas.push(val); }
   }
   // ETAPA 6 (§7.3·35) — lo histórico que esta Entrega sirve viaja TIPADO en el Marco: naturaleza, ventana (el período o
   // los días hasta la fecha de corte) y el límite «describe lo que pasó; no es un pronóstico», del `tipo` de las figs

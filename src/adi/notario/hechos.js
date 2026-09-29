@@ -395,7 +395,11 @@ export function nombrarUniverso(u, I = null) {
     for (const t of _lista(ex.top)) if (_es(t)) fuera.push(`${art} ${t.k} de ${normalizar(t.direccion || "mayor") === "menor" ? "menor" : "mayor"} ${metricaDeClave(t.metrica).toLowerCase()}`);
     texto += ` fuera de ${fuera.join(" y ")}`;
   }
-  if (Array.isArray(u.union) && u.union.length) texto += ` y ${u.union.map((v) => nombrarUniverso(v, I)).join(" y ")}`;
+  if (Array.isArray(u.union) && u.union.length) {
+    /* una unión SIN restricción propia («los SKU» + sus ramas) no lleva la cabeza vacía delante: «los SKU inmovilizados críticos y los SKU en riesgo de quiebre», no «los SKU y los SKU…» */
+    const soloUnion = !partes.length && !u.top && !(u.excluir && typeof u.excluir === "object");
+    texto = soloUnion ? u.union.map((v) => nombrarUniverso(v, I)).join(" y ") : `${texto} y ${u.union.map((v) => nombrarUniverso(v, I)).join(" y ")}`;
+  }
   return texto;
 }
 
@@ -703,7 +707,13 @@ function _conteoTipado(H, h, I) {
   const eje = normalizar(u.eje || "cliente");
   const total = I.tamanoDelEje(eje);
   const set = U.set || new Set([...I.entidades].filter(([, e]) => e.eje === eje).map(([k]) => k));
-  const mBase = u.base && !/^todos?|todas$/i.test(String(u.base)) ? (conjuntoDeUniverso({ eje, base: u.base }, I, eje, "").set || new Set()).size : (total || set.size);
+  /* el «de M» es el tamaño del universo REALMENTE contado (decisión del supervisor 2026-09-29, colateral 3 de v13, Z40): el eje, la base, y la BODEGA cuando el universo la nombra
+   * (`bodega` o `excluir.bodega`) — «3 de 4 en los SKU sin venta de Valparaíso», no «3 de 13» (los 13 son del eje entero, no de la bodega contada) */
+  const _alcance = { eje };
+  if (u.base && !/^todos?|todas$/i.test(String(u.base))) _alcance.base = u.base;
+  if (u.bodega) _alcance.bodega = u.bodega;
+  if (_es(u.excluir) && u.excluir.bodega) _alcance.excluir = { bodega: u.excluir.bodega };
+  const mBase = Object.keys(_alcance).length > 1 ? ((() => { try { return conjuntoDeUniverso(_alcance, I, eje, "").set; } catch { return null; } })() || new Set()).size : (total || set.size);
   /* los «de M» admisibles: el eje entero, la base, el conjunto por estados y la base con estados (la cadena antes de filtros, top y exclusiones) */
   const mAdmisibles = new Set([mBase, total].filter((x) => Number.isFinite(x) && x > 0));
   { const tam = (uu) => { try { const S = conjuntoDeUniverso(uu, I, eje, ""); return S && S.set ? S.set.size : null; } catch { return null; } };
@@ -967,7 +977,7 @@ function _estadosPropiosDePremisa(H, I) {
   if (!def || typeof def.verificar === "function") return null;   // los estados con definición propia traen su cifra y su dueño en `H.verdad`
   const propios = I.estadosDe(ent.nombre).filter((x) => ESTADOS_PROPIOS.sku.familia.includes(estadoCanon(x.estado)));
   if (!propios.length) return null;
-  return { entidad: ent.nombre, estados: propios.map((x) => { const c = estadoCanon(x.estado); return { canon: c, texto: ESTADOS_PROPIOS.sku.etiquetas[c] || formaDeEstado(c).singular, bodega: x.bodega || null }; }) };
+  return { entidad: ent.nombre, estados: propios.map((x) => { const c = estadoCanon(x.estado); return { canon: c, texto: formaDeEstado(c).singular, bodega: x.bodega || null }; }) };
 }
 
 /** libroDeHechos(hechos, ctx) → { hechos: [H], porId: Map, errores, resumen, texto } · ctx = { indice } | { figs, datoProyectado, ejesDelTenant } */
@@ -1279,6 +1289,11 @@ export function libroDeHechos(hechos, ctx = {}) {
     /* decisión 37a (diagnóstico v13): la verdad PROPIA de la entidad de una premisa de grupo falsa, y los estados propios de una premisa de estado de la Mesa Capital */
     try {
       if (H.tipo === "grupo" && H.veredicto === "falsa") { const vp = _verdadPropiaDeGrupo(h, H, I); if (vp) H.render.verdadPropia = vp; }
+      // decisión del supervisor 2026-09-29 (v13, misma raíz que A2): una premisa de grupo VERDADERA nombra a sus entidades y dice el universo con las palabras de la casa (`FORMA_DE_ESTADO`), nunca la traza `estados «…»`
+      if (H.tipo === "grupo" && H.veredicto === "verdadera" && _es(h.universo) && H.roles.sujetos.length && !H.roles.sujetos.includes("negocio")) {
+        const nombres = H.roles.sujetos.map((s) => { const r = I.resolverEntidad(s); return r ? r.nombre : s; });
+        H.render.pertenencia = { entidades: nombres, universo: nombrarUniverso(h.universo, I) };
+      }
       if (H.tipo === "estado" && (H.veredicto === "verdadera" || H.veredicto === "falsa")) { const ep = _estadosPropiosDePremisa(H, I); if (ep) H.render.estadosPropios = ep; }
     } catch { /* sin verdad propia el veredicto cae al texto de siempre */ }
     libro.hechos.push(H); libro.porId.set(H.id, H);

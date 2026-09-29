@@ -332,7 +332,19 @@ export const NOMBRE_DE_UMBRAL = Object.freeze({
 export const UNIDAD_DE_UMBRAL = Object.freeze({
   rotacionMin: "ratio", quiebreRotMin: "ratio",
   dohMax: "days", sobrestockDohMin: "days", quiebreDohMax: "days", frenadoDiasSinVenta: "days",
+  materialidadFocoPctVenta: "pct_venta",
 });
+/** valorDeUmbralEnTexto(key, consulta?) → el VALOR con que se juzga un umbral, dicho como la casa («2.0x», «120 días», «0.05 % de la venta»), del MISMO `umbral(key).valor` que da su origen;
+ *  null si no hay valor declarado (nadie lo declaró: nunca se inventa) o el umbral no tiene unidad declarada. Una sola redacción para la oración de una premisa y para `marco.definiciones`. */
+export function valorDeUmbralEnTexto(key, consulta = null) {
+  const u = UNIDAD_DE_UMBRAL[key];
+  const v = umbral(key, consulta).valor;
+  if (!u || v == null || !Number.isFinite(v)) return null;
+  if (u === "ratio") return `${v.toFixed(1)}x`;
+  if (u === "days") return `${Math.round(v)} días`;
+  if (u === "pct_venta") return `${+v.toFixed(2)} % de la venta`;
+  return null;
+}
 
 /** Las DOS familias de umbral que la Entrega declara, cada una con su propia oración (una cláusula por umbral dentro de ella) y su
  *  prefijo. «Venta frenada» va aparte de los criterios de inventario: es otra magnitud (días sin venta, no rotación ni cobertura) y su
@@ -358,11 +370,12 @@ export function procedenciaDeUmbral(key, consulta = null) {
   return ETIQUETA_ORIGEN[umbral(key, consulta).origen] || null;
 }
 
-/** clausulasDeProcedencia(claves, consulta?) → ["piso de rotación: declarado por la empresa", …] — una por umbral, sin
- *  repetir, en el orden de `NOMBRE_DE_UMBRAL`; una clave desconocida no produce cláusula. */
+/** clausulasDeProcedencia(claves, consulta?) → ["techo de días de inventario: 120 días, declarado por la empresa", …] — una por umbral, sin repetir, en el orden de `NOMBRE_DE_UMBRAL`; una
+ *  clave desconocida no produce cláusula. Decisión del supervisor 2026-09-29, §7.3·37b: cada cláusula lleva su VALOR (`valorDeUmbralEnTexto`) junto a su origen; sin valor declarado
+ *  («sin umbral declarado») queda «nombre: origen». */
 export function clausulasDeProcedencia(claves, consulta = null) {
   const pedidas = new Set(claves || []);
-  return Object.keys(NOMBRE_DE_UMBRAL).filter((k) => pedidas.has(k)).map((k) => `${NOMBRE_DE_UMBRAL[k]}: ${procedenciaDeUmbral(k, consulta)}`);
+  return Object.keys(NOMBRE_DE_UMBRAL).filter((k) => pedidas.has(k)).map((k) => { const val = valorDeUmbralEnTexto(k, consulta); return `${NOMBRE_DE_UMBRAL[k]}: ${val ? `${val}, ` : ""}${procedenciaDeUmbral(k, consulta)}`; });
 }
 
 /** procedenciaDeMaterialidad(claves, consulta?) → [«Criterio de materialidad — umbral de materialidad: <origen>.»] si alguna clave es el piso de materialidad; [] si no. */

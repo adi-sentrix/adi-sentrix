@@ -50,7 +50,10 @@ const definiciones = (E) => (E.entrega && E.entrega.marco && E.entrega.marco.def
 const procedencias = (E) => definiciones(E).filter(esProcedenciaDeCriterio);
 /* el ORÁCULO de la etiqueta de un umbral: `umbral().origen` + `ETIQUETA_ORIGEN`, sin pasar por el helper que se prueba */
 const etiquetaDe = (key, consulta = null) => ETIQUETA_ORIGEN[umbral(key, consulta).origen];
-const claveNombre = (k) => `${NOMBRE_DE_UMBRAL[k]}: ${etiquetaDe(k)}`;
+/* decisión del supervisor 2026-09-29, §7.3·37b: cada cláusula lleva además el VALOR con que se juzga el umbral (oráculo: `umbral().valor`, dicho «2.0x» / «120 días», sin pasar por el helper que se prueba) */
+const _EN_RATIO = new Set(["rotacionMin", "quiebreRotMin"]);
+const valorDe = (k, consulta = null) => { const v = umbral(k, consulta).valor; if (v == null) return null; return _EN_RATIO.has(k) ? `${v.toFixed(1)}x` : `${Math.round(v)} días`; };
+const claveNombre = (k, consulta = null) => `${NOMBRE_DE_UMBRAL[k]}: ${valorDe(k, consulta) ? `${valorDe(k, consulta)}, ` : ""}${etiquetaDe(k, consulta)}`;
 const indiceDe = (consulta = null) => indiceDeEvidencia({ figs: [], datoProyectado: cifrasDelDato(ESCENARIO_INICIAL, consulta), ejesDelTenant: ejes });
 const veredicto = (I, h) => libroDeHechos([{ id: "h1", ...h }], { indice: I }).hechos[0].veredicto;
 const TENANT_PERFIL = (perfil) => ({ ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil, ...perfil } });
@@ -65,7 +68,8 @@ H("A1 · el helper único y la tabla estado→umbrales (datos)");
   const enFamilias = FAMILIAS_DE_PROCEDENCIA.flatMap((f) => f.umbrales);
   ok(pedidos.every((k) => enFamilias.includes(k)), "todo umbral de la tabla pertenece a una familia de procedencia (la Entrega puede declararlo)");
   const todas = procedenciaDeUmbrales(pedidos);
-  ok(todas.length === FAMILIAS_DE_PROCEDENCIA.length && todas.every((t) => !/\d/.test(t)), "las oraciones de procedencia no llevan dígitos (definición del criterio, no cifra)");
+  /* decisión del supervisor 2026-09-29, §7.3·37b: las oraciones de procedencia llevan el VALOR de cada umbral y ningún otro dígito */
+  ok(todas.length === FAMILIAS_DE_PROCEDENCIA.length && FAMILIAS_DE_PROCEDENCIA.every((f, i) => { const esperados = f.umbrales.filter((k) => pedidos.includes(k)).map((k) => valorDe(k)).filter(Boolean).map((v) => v.match(/\d+(?:\.\d+)?/)[0]); const reales = todas[i].match(/\d+(?:\.\d+)?/g) || []; return esperados.join() === reales.join(); }), "las oraciones de procedencia llevan el valor de cada umbral (oráculo: umbral().valor) y ningún otro dígito", JSON.stringify(todas));
   ok(clausulasDeProcedencia(["dohMax", "rotacionMin", "rotacionMin"]).join("|") === [claveNombre("rotacionMin"), claveNombre("dohMax")].join("|"), "una cláusula por umbral, sin repetir y en el orden de la casa, cada una «nombre: origen»", JSON.stringify(clausulasDeProcedencia(["dohMax", "rotacionMin", "rotacionMin"])));
   ok(procedenciaDeUmbral("no_existe") === null && clausulasDeProcedencia(["no_existe"]).length === 0, "una llave desconocida no inventa un origen");
   ok(umbralesDeEstados(["inmovilizado critico"]).join() === "rotacionMin,dohMax" && !umbralesDeEstados(["en quiebre", "sin venta", "critico"]).length, "un estado sin umbral no declara umbral (en quiebre · sin venta · crítico)");
@@ -114,7 +118,7 @@ H("A1 · «frenado»: su origen en su propia oración («planteado en la consult
   const enc = { partes: [INV({ universo: { eje: "sku", estados: ["frenado"] }, conceptos: ["dias_sin_venta"] })], criterio: { referencia: { concepto: "umbral_frenado", valor: 45, unidad: "days" } } };
   const { E } = entregaDe(enc);
   const p = procedencias(E);
-  ok(p.length === 1 && p[0] === `${FAMILIAS_DE_PROCEDENCIA[1].prefijo}${NOMBRE_DE_UMBRAL.frenadoDiasSinVenta}: ${ETIQUETA_ORIGEN.consulta}.`, "con el umbral de la CONSULTA → «umbral de frenado: planteado en la consulta»", JSON.stringify(p));
+  ok(p.length === 1 && p[0] === `${FAMILIAS_DE_PROCEDENCIA[1].prefijo}${claveNombre("frenadoDiasSinVenta", { frenadoDiasSinVenta: 45 })}.`, "con el umbral de la CONSULTA → «umbral de frenado: planteado en la consulta»", JSON.stringify(p));
   ok(!p.some((t) => /declarado por la empresa|criterio general de ADI/.test(t)), "el umbral de la consulta nunca se atribuye a la empresa ni a ADI");
 }
 {
@@ -124,7 +128,7 @@ H("A1 · «frenado»: su origen en su propia oración («planteado en la consult
 {
   initTenant(TENANT_PERFIL({ frenadoDiasSinVenta: 75 }));
   const { E } = entregaDe({ partes: [INV({ universo: { eje: "sku", estados: ["frenado"] }, conceptos: ["dias_sin_venta"] })] });
-  ok(procedencias(E).join(" ").includes(`${NOMBRE_DE_UMBRAL.frenadoDiasSinVenta}: ${ETIQUETA_ORIGEN.empresa}`), "con el umbral en el PERFIL de la empresa → «declarado por la empresa»", procedencias(E).join(" "));
+  ok(procedencias(E).join(" ").includes(claveNombre("frenadoDiasSinVenta")), "con el umbral en el PERFIL de la empresa → «declarado por la empresa»", procedencias(E).join(" "));
   initTenant(TENANT_DEMO);
 }
 
@@ -132,9 +136,10 @@ H("A1 · CARNADA · el origen SIGUE al perfil (no está escrito a mano): si la e
 {
   const enc = { partes: [INV({ universo: { eje: "sku", estados: ["inmovilizado"] } })] };
   const antes = procedencias(entregaDe(enc).E).join(" ");
+  const cAntes = claveNombre("sobrestockDohMin");
   initTenant(TENANT_PERFIL({ sobrestockDohMin: 45 }));
   const despues = procedencias(entregaDe(enc).E).join(" ");
-  ok(antes.includes(`${NOMBRE_DE_UMBRAL.sobrestockDohMin}: ${ETIQUETA_ORIGEN.adi}`) && despues.includes(`${NOMBRE_DE_UMBRAL.sobrestockDohMin}: ${ETIQUETA_ORIGEN.empresa}`), "sobrestock: criterio de ADI en el demo → declarado por la empresa cuando su perfil lo declara", `${antes} || ${despues}`);
+  ok(antes.includes(cAntes) && cAntes.endsWith(ETIQUETA_ORIGEN.adi) && despues.includes(claveNombre("sobrestockDohMin")) && claveNombre("sobrestockDohMin").includes("45 días") && claveNombre("sobrestockDohMin").endsWith(ETIQUETA_ORIGEN.empresa), "sobrestock: criterio de ADI en el demo → declarado por la empresa cuando su perfil lo declara", `${antes} || ${despues}`);
   ok(antes !== despues, "la Entrega cambia con el perfil");
   initTenant(TENANT_DEMO);
 }

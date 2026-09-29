@@ -363,7 +363,8 @@ H("(a4) · nombrarUniverso: el estado concuerda con el grupo — «los SKU frena
   ok(n({ eje: "sku", estados: ["frenado"] }) === "los SKU frenados", "los SKU frenados (antes: «los SKU frenado»)", n({ eje: "sku", estados: ["frenado"] }));
   ok(n({ eje: "sku", estados: ["inmovilizado critico"] }) === "los SKU inmovilizados críticos", "los SKU inmovilizados críticos (antes: «los SKU inmovilizado critico»)", n({ eje: "sku", estados: ["inmovilizado critico"] }));
   ok(n({ eje: "sku", estados: ["inmovilizado"] }) === "los SKU inmovilizados", "los SKU inmovilizados");
-  ok(n({ eje: "sku", estados: ["critico"] }) === "los SKU críticos", "los SKU críticos (la alerta del archivo, con tilde)");
+  /* decisión del owner 2026-09-28, §7.3·34a: la alerta del archivo se dice «con alerta en el archivo», no «crítico» */
+  ok(n({ eje: "sku", estados: ["critico"] }) === "los SKU con alerta en el archivo", "los SKU con alerta en el archivo (la alerta del archivo; «crítico» es del tramo inmovilizado crítico)");
   ok(n({ eje: "sku", no_estados: ["frenado"] }) === "los SKU no frenados", "el contrario: los SKU no frenados");
   ok(n({ eje: "sku", no_estados: ["sobrestock"] }) === "los SKU que no están en sobrestock", "el contrario de una forma con preposición no se arma con un «no» pegado");
   ok(n({ eje: "sku", base: "con capital inmovilizado critico" }) === "los SKU con capital inmovilizado crítico", "un conjunto de la casa con nombre visible propio se imprime con su tilde");
