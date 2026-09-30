@@ -19,7 +19,7 @@
  * este módulo no se importa desde ningún camino de producción todavía — lo ejercita solo el gate. */
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
 import { benchmarkOf, ETIQUETA_ORIGEN, umbral, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, NOMBRE_DE_UMBRAL, valorDeUmbralEnTexto, procedenciaDeMaterialidad } from "../../config/businessPolicy.js";
-import { umbralesDeBases, umbralesDeConceptos, NOMBRE_CARGA_ALTA, referenciaDeBase } from "../notario/conjuntosDeLaCasa.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
+import { umbralesDeBases, umbralesDeConceptos, NOMBRE_CARGA_ALTA, referenciaDeBase, formaDeConjunto, conjuntoDeFormaEnEje } from "../notario/conjuntosDeLaCasa.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
 import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "../agente/herramientasAgente.js";
@@ -95,6 +95,7 @@ import { alcanceDeParte, figsEnAlcance, recortarATop } from "./alcance.js";
 // desaparece»). `PROFUNDIDAD_VALORES`/`CAMPOS_RAIZ` son la MISMA fuente que ya valida `encargo/validar.js` —
 // nunca una segunda lista de profundidades válidas ni un segundo orden de campos del encargo.
 import { gobernarTamano } from "./tamano.js";
+import { FILAS_BREVE_MAX, FILAS_COMPLETA_MAX } from "./verificar.js";
 import { PROFUNDIDAD_VALORES, CAMPOS_RAIZ, productorDe, sujetoDeTema, universoTieneRestriccionPropia } from "../encargo/esquema.js";
 import { dominioPorId } from "../../config/contract/dominios.js";
 import { createHash } from "node:crypto";
@@ -1654,7 +1655,7 @@ const _sinSufijoDolar = (etiqueta) => String(etiqueta || "").replace(/\s+en\s*\$
  *       Las figs que la conclusión necesita SIEMPRE quedan también en `filas` (Cifras) — nunca un id que solo
  *       vive en la Respuesta (regla 3 de verificar.js, doble colocación). `cifra` (no lectura/decision) sigue
  *       con el listado — es lo que ese cierre pide por contrato (§1.1: una cifra puntual). */
-function _planCifraEntidad(parte, figs, ref, I, declararDerivada = null, sinCifraOut = null) {
+function _planCifraEntidad(parte, figs, ref, I, declararDerivada = null, sinCifraOut = null, criterio = null) {
   const filasPorEntidad = [];
   const esLecturaODecision = parte.cierre === "lectura" || parte.cierre === "decision";
   for (const e of parte.entidades) {
@@ -1688,7 +1689,7 @@ function _planCifraEntidad(parte, figs, ref, I, declararDerivada = null, sinCifr
     // acá: dos claves distintas (ej. "variacion" % y "variacion_usd" $) pueden compartir casi el mismo nombre, y
     // recortar "en $" las volvería INDISTINGUIBLES en la tabla ("un rótulo no puede nombrar dos campos",
     // CLAUDE.md §4). El recorte de "en $" es SOLO para la ORACIÓN (ver el volcado en la fase 2, más abajo).
-    const filas = candidatas.map((c) => ({ clave: c.clave, etiqueta: c.etiqueta || _labelDeClave(c.clave) || c.clave, id: ref(c.fig) })).filter((f) => f.id);
+    const filas = candidatas.map((c) => ({ clave: c.clave, etiqueta: c.etiqueta || _labelDeClave(c.clave) || c.clave, id: ref(c.fig), _fig: c.fig })).filter((f) => f.id);
     // RAÍZ A1 (supervisor 2026-09-29, diagnóstico v13, Z78) — una entidad nombrada que quedó SIN ninguna cifra ya no se
     // descarta en silencio: el llamador la declara como límite («nunca omite en silencio», §7.3·29-30).
     if (!filas.length) { if (Array.isArray(sinCifraOut)) sinCifraOut.push(e.nombre); continue; }
@@ -1709,10 +1710,26 @@ function _planCifraEntidad(parte, figs, ref, I, declararDerivada = null, sinCifr
       const figA = _filaDe(figs, pA.entidad, claveComun), figB = _filaDe(figs, pB.entidad, claveComun);
       const idA = pA.filas.find((f) => f.clave === claveComun).id, idB = pB.filas.find((f) => f.clave === claveComun).id;
       const idDiffEntidad = declararDerivada(figA, idA, figB, idB);
-      if (idDiffEntidad) return { kind: "entidad", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, filasPorEntidad, idDiffEntidad };
+      if (idDiffEntidad) return _conPrioridadEntrePedidas({ kind: "entidad", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, filasPorEntidad, idDiffEntidad });
     }
   }
-  return { kind: "entidad", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, filasPorEntidad };
+  return _conPrioridadEntrePedidas({ kind: "entidad", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, filasPorEntidad });
+  /* §7.3·49(b): una `decision` con entidades nombradas DECIDE entre ellas. Cuando la prioridad no sale del plan de señales de riesgo (los ejes sin señales —marca, familia, bodega, canal— o un grupo sin señal), el grupo de las pedidas se ordena como cualquier grupo de una decisión: por la lente pedida si aplica a su dominio (con su medida; si no distingue a nadie se declara, sin coronar a la primera) o por la medida propia del grupo, NOMBRADA; una lente que no lo ordena se declara (46d · 47a · 47d). Las cifras son las de las filas de cada entidad: ninguna cifra nueva salvo la medida de la lente cuando no era un concepto pedido. */
+  function _conPrioridadEntrePedidas(out) {
+    if (parte.cierre !== "decision" || filasPorEntidad.length < 2) return out;
+    const figDe = (x, c) => { const f = x.filas.find((y) => y.clave === c); return f ? f._fig : null; };
+    const conceptos = parte.conceptos && parte.conceptos.length ? parte.conceptos : [...new Set(filasPorEntidad.flatMap((x) => x.filas.map((y) => y.clave).filter(Boolean)))];
+    const claveOrden = conceptos.find((c) => filasPorEntidad.every((x) => figDe(x, c))) || conceptos.find((c) => filasPorEntidad.some((x) => figDe(x, c))) || null;
+    if (!claveOrden) return out;
+    const dirMenor = false;   /* «quien más pesa»: de MAYOR a menor siempre —con una métrica donde más es peor (días, saldo vencido) es lo que pide atención primero; nunca el mejor primero—. */
+    const val = (x) => { const f = figDe(x, claveOrden); return f && Number.isFinite(f.raw) ? f.raw : NaN; };
+    const ordenados = [...filasPorEntidad].sort((a, b) => { const va = val(a), vb = val(b); if (!Number.isFinite(va) || !Number.isFinite(vb)) return Number.isFinite(va) === Number.isFinite(vb) ? 0 : (Number.isFinite(va) ? -1 : 1); return dirMenor ? va - vb : vb - va; });
+    const nombres = ordenados.map((x) => x.entidad);
+    const porEntidadFig = new Map(ordenados.map((x) => [x.entidad, new Map(x.filas.filter((y) => y.clave).map((y) => [y.clave, y._fig]))]));
+    const lenteGrupo = _lenteDelGrupo(criterio, parte.tema, "decision", nombres, figs, porEntidadFig, claveOrden);
+    const porEntidadId = new Map(ordenados.map((x) => [x.entidad, new Map(x.filas.filter((y) => y.clave).map((y) => [y.clave, y.id]))]));
+    return { ...out, prioridadEntre: { orden: nombres, claveOrden, lenteGrupo, porEntidadId } };
+  }
 }
 
 /* «abre con la CONCLUSIÓN del procedimiento para esa entidad» (supervisor, revisión de calidad 2026-09-25) —
@@ -2280,7 +2297,11 @@ function _rotuloDeLaCasaLegado(H) {
   // RAÍZ A3 (supervisor 2026-09-29, diagnóstico v13): «ninguna cifra impresa con un rótulo distinto de su clave» — el número propio lleva su clave (`H.numeros[i].clave`, la que
   // el libro usó para leerlo) y el rótulo sale de ELLA, nunca de la primera clave del conjunto (`capital 12 días`: el 12 era de `dias_sin_venta`, no de `capital`).
   const _numeroPropio = (H.numeros || []).find(esCifraPropia);
-  const clave = (_numeroPropio && _numeroPropio.clave && H.tipo !== "variacion" ? _numeroPropio.clave : null) || (fig ? _claveDeFig({ label: fig }) : ([...H.claves].find((c) => c !== "variacion" && c !== "vs_presupuesto") || null));
+  /* §7.3·49(f): una cifra conserva el rótulo de SU concepto. La fig que respalda la premisa puede ser de una clave HERMANA que la casa acepta como sinónimo y que coincide en valor («Lider · Venta (flujo)» = `venta_credito` respalda «ventas»): el rótulo es el del concepto que la premisa pide (la única clave que declara), nunca el de la fig que casualmente coincide — ventas no se rotula «venta a crédito» */
+  const _clavesPedidas = [...H.claves].filter((c) => c !== "variacion" && c !== "vs_presupuesto");
+  const _claveDeLaFig = fig ? _claveDeFig({ label: fig }) : null;
+  const _clavePedidaUnica = H.tipo !== "variacion" && _clavesPedidas.length === 1 && _claveDeLaFig && _claveDeLaFig !== _clavesPedidas[0] && metricaPorClave(_clavesPedidas[0]) ? _clavesPedidas[0] : null;
+  const clave = (_numeroPropio && _numeroPropio.clave && H.tipo !== "variacion" ? _numeroPropio.clave : null) || _clavePedidaUnica || (fig ? _claveDeLaFig : ([...H.claves].find((c) => c !== "variacion" && c !== "vs_presupuesto") || null));
   const conceptoTxt = clave ? _labelDeClave(clave).toLowerCase() : null;
   // EL DUEÑO DE UNA CIFRA (owner 2026-09-26, diagnóstico v4 §5, MATERIAL) — el valor SOLO sale de `H.numeros`
   // (la estructura del hecho: `notario/hechos.js` ya resuelve, para el sujeto único de un `orden` sin fig propia,
@@ -2348,7 +2369,8 @@ function _umbralesDeLaPremisa(H, consulta = null, textoYaDicho = "") {
    * de la casa, no un estado) imprime el umbral con que se juzgó (`umbralesDeBases`, la MISMA función y el MISMO formateador que el Marco, `valorDeUmbralEnTexto`).
    * «Sobrestock» y «riesgo de quiebre» declaran solo sus propios umbrales (lectura de v12 intacta: `umbralesDeEstados`). */
   const claves = [...new Set([...umbralesDeEstados([...estados]), ...umbralesDeBases([..._basesDeUniverso(H.universoTipado)])])];
-  const yaDicho = [textoYaDicho, H.verdad, H.render && H.render.referencia].filter(Boolean).join(" ");
+  /* §7.3·49: un umbral se da por dicho solo si su valor está en lo que la oración IMPRIME (su rótulo y la referencia del libro); el número que solo vive en la traza interna `H.verdad` no cuenta — el «techo de quiebre 20 días» faltaba en la oración de una premisa de grupo cuyo rótulo no lo decía */
+  const yaDicho = [textoYaDicho, H.render && H.render.referencia].filter(Boolean).join(" ");
   const pares = [];
   for (const k of Object.keys(NOMBRE_DE_UMBRAL)) {
     if (!claves.includes(k)) continue;
@@ -2477,7 +2499,7 @@ function _entidadesDelTopVerificado(entidadesDeLaToolCruda, figsAcotadas, top, e
   }
   return { entidades: nombres, figsExtra, resuelto: true, ...(R.empateEnElFilo ? { empateFilo: R.empateEnElFilo } : {}) };
 }
-function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direccionSinTop = null, deMayorAMenor = false, soloEntidades = null, criterio = null } = {}) {
+function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direccionSinTop = null, deMayorAMenor = false, soloEntidades = null, criterio = null, foto = false } = {}) {
   if (_universoNoSoportado(parte.universo)) return null;
   const alcance = alcanceDeParte(parte);
   // BODEGA (diagnóstico v4 §3, MATERIAL) — `indice` es el mismo índice de `notario/evidencia.js` que ya arma
@@ -2621,6 +2643,13 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
   /* v21 (§7.3·44c): la FOTO de una `lectura`/`decision` sin universo son las cuentas que el PRODUCTOR publica (`soloEntidades`, las de su mesa), no todo lo que otra parte del mismo turno haya ensanchado en la boleta compartida */
   if (soloEntidades && soloEntidades.size) { const _solo = new Set([...soloEntidades].map(normalizar)); entidadesEnJuego = entidadesEnJuego.filter((e) => _solo.has(normalizar(e))); }
   if (!entidadesEnJuego.length && !universoResuelto) return errorUniverso ? { error: errorUniverso } : null;
+  /* §7.3·49(c) LA FOTO: una `lectura`/`decision` sin universo ni entidades sirve el EJE ENTERO que sus conceptos sostienen (comercial e inventario; cobranza sirve las cuentas de su mesa y declara la cola). Un productor que publica menos que el eje (el capital frenado solo de los SKU con capital crítico, la brecha solo de las cuentas bajo el benchmark) NO recorta la foto: cada miembro del eje sin cifra del productor lleva su cero (`AUSENTE_VALE_CERO`) o el valor del ranking que la proyección publica, y lo que ningún productor trae se DECLARA (`_declararCifraFaltanteDeFoto`). \`entidadesConFig\` son las que trajeron cifra (la clave de orden se elige sobre ellas, como siempre) */
+  const entidadesConFig = entidadesEnJuego.slice();
+  const fotoCompletada = [];
+  if (foto && !top && !soloEntidades && indice && universoResuelto === false) {
+    const miembros = ejesDelTenant && Array.isArray(ejesDelTenant[eje]) ? ejesDelTenant[eje] : null;
+    if (miembros && entidadesEnJuego.length) { const ya = new Set(entidadesEnJuego.map(normalizar)); for (const n of miembros) if (!ya.has(normalizar(n))) { entidadesEnJuego.push(n); fotoCompletada.push(n); } }
+  }
 
   const porEntidad = new Map();   // nombre → Map(clave → fig)
   for (const c of conceptos) for (const { entidad, fig } of _todasLasFilasDeConcepto(figsAcotadas, c)) {
@@ -2645,8 +2674,15 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
   /* v20 (U06): en una `lectura`/`decision` (que no exigen orden exhibido: la 43(f) habla de la `cifra`, cuyo orden es el del PRIMER concepto pedido) se prefiere, entre los conceptos declarados que el eje sostiene, el PRIMERO que trae fig para TODAS las entidades en juego: «capital inmovilizado crítico» por bodega solo trae las dos bodegas con crítico y la línea de orden quedaba
    * «Antofagasta ($8K), Valparaíso ($25K), Santiago» (Santiago sin cifra pegada al nombre, Concepción fuera), mientras el concepto siguiente («capital») las trae a las cuatro. Sin un concepto completo, el criterio de siempre. */
   const claveOrden = conceptoTop
-    || (parte.cierre === "cifra" ? null : conceptos.find((c) => entidadesEnJuego.length > 1 && entidadesEnJuego.every((e) => porEntidad.has(e) && porEntidad.get(e).has(c))))
-    || conceptos.find((c) => entidadesEnJuego.some((e) => porEntidad.has(e) && porEntidad.get(e).has(c))) || conceptos[0];
+    || (parte.cierre === "cifra" ? null : conceptos.find((c) => entidadesConFig.length > 1 && entidadesConFig.every((e) => porEntidad.has(e) && porEntidad.get(e).has(c))))
+    || conceptos.find((c) => entidadesConFig.some((e) => porEntidad.has(e) && porEntidad.get(e).has(c))) || conceptos[0];
+  /* §7.3·49(c): cada miembro del eje que ningún productor trajo lleva, por concepto pedido, la cifra que la proyección publica o su cero por ausencia (la misma función que ya sirve el «empatado en cero» del top); sin ninguna de las dos, el concepto queda sin fila y se declara aparte */
+  for (const e of fotoCompletada) for (const c of conceptos) {
+    const f = _figDeRankingOCero(indice, e, c);
+    if (!f) continue;
+    if (!porEntidad.has(e)) porEntidad.set(e, new Map());
+    porEntidad.get(e).set(c, f);
+  }
   // RAÍZ ordenServido (supervisor 2026-09-27, diagnóstico v9) — `top.direccion` acepta CUATRO valores (contrato
   // §2, `hechos.js:_ENUM.direccion`: mayor · menor · peor · mejor), pero acá solo se leía «menor» — «peor»/
   // «mejor» caían al `else` como si fueran «mayor» sin mirar la POLARIDAD de la métrica: para «recuperado»,
@@ -2677,7 +2713,7 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
   /* v21 (T36, §7.3·43b/43f): en una métrica de `AUSENTE_VALE_CERO` («capital inmovilizado», «saldo vencido») la entidad SIN fig vale 0 —un hecho, no un hueco—: ordena y empata como cero (un comparador con NaN dejaba el orden sin definir y los 9 SKU en $0 sin puesto compartido) */
   const _ceroPorAusencia = !!(claveOrden && AUSENTE_VALE_CERO.includes(claveOrden));
   const _valorDeOrden = (e) => { const f = porEntidad.get(e) && porEntidad.get(e).get(claveOrden); const v = _num(f); return Number.isFinite(v) ? v : (_ceroPorAusencia && !f ? 0 : NaN); };
-  let orden = [...entidadesEnJuego].sort((a, b) => { const va = _valorDeOrden(a), vb = _valorDeOrden(b); if (!Number.isFinite(va) || !Number.isFinite(vb)) return 0; return dirMenor ? va - vb : vb - va; });
+  let orden = [...entidadesEnJuego].sort((a, b) => { const va = _valorDeOrden(a), vb = _valorDeOrden(b); if (!Number.isFinite(va) || !Number.isFinite(vb)) { if (fotoCompletada.length && Number.isFinite(va) !== Number.isFinite(vb)) return Number.isFinite(va) ? -1 : 1; return 0; } return dirMenor ? va - vb : vb - va; });   /* §7.3·49(c): en la foto completada, la entidad sin la cifra que ordena va al final (nunca revuelta entre las que sí la traen) */
   // RC-D — el recorte por `top.k`, AHORA GARANTIZADO sea cual sea la tool subyacente (idempotente: si `orden` ya
   // trae `top.k` filas, no cambia nada). `cola` viaja en el plan por si un compositor futuro quiere declararla
   // aparte — hoy la oración/tabla siguen usando solo `orden` (ya acotado) y el prefijo «El top K de M» que ya
@@ -2715,7 +2751,7 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
     for (const g of grupos) if (g.entidades.length > 1) empates.push(g);
   }
   const lenteGrupo = _lenteDelGrupo(criterio, parte.tema, parte.cierre, orden, figsAcotadas, porEntidad, claveOrden);   /* v23: la lente que aplica al dominio ordena la prioridad del grupo */
-  return { kind: "grupo", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, eje, conceptos, porEntidad, orden, cola, empates, ...(lenteGrupo ? { lenteGrupo } : {}), ...(empateFilo && orden.length === empateFilo.servidos ? { empateFilo } : {}), claveOrden, universoDecl: { top: top || null, base: alcance.base || null, estados: alcance.estados || null, no_estados: alcance.no_estados || null, filtros: alcance.filtros || null, bodega: alcance.bodega || null, union: alcance.union || null, excluir: alcance.excluirCompleto || null, entidades: orden } };
+  return { kind: "grupo", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, eje, conceptos, porEntidad, orden, cola, empates, ...(lenteGrupo ? { lenteGrupo } : {}), ...(empateFilo && orden.length === empateFilo.servidos ? { empateFilo } : {}), ...(fotoCompletada.length ? { fotoCompletada } : {}), claveOrden, universoDecl: { top: top || null, base: alcance.base || null, estados: alcance.estados || null, no_estados: alcance.no_estados || null, filtros: alcance.filtros || null, bodega: alcance.bodega || null, union: alcance.union || null, excluir: alcance.excluirCompleto || null, entidades: orden } };
 }
 
 /* ── PLAN «multitema» (cierre `lectura`/`decision` SIN entidades, 1..N temas: reusa `prioridadIntegrada`, LA
@@ -2988,7 +3024,8 @@ function _planDefinicion(parte, facts) {
  * GENERAL la MISMA solución que ya usa `componerEntregaCobranza` (la ruta fija) — nunca `periodoDeFiguras` sobre
  * figs de cobranza, siempre `facts.fechaCorte` de la propia tool `cobranza`, la fuente MÁS verificable que ya
  * usa la pestaña Flujo Comercial. Comercial/inventario siguen exactamente igual (`_periodoDelMarco`, sin tocar). */
-const _esFigDeCobranza = (fig) => { const clave = claveDeMetrica(_conceptoDeLabel(_lab(fig))); return !!clave && dominioDeClave(clave) === "cobranza"; };
+/* §7.3·49: el agregado de cobranza («Saldo vencido · total») lleva su concepto ANTES del «·» (no hay entidad delante): se mira cada segmento del rótulo, no solo lo que sigue al primero — sin esto el total de cobranza se leía como una fig de OTRO dominio y el Marco de una Entrega solo de cobranza decía «dos marcos… foto de inventario a hoy» */
+const _esFigDeCobranza = (fig) => { const partes = String(_lab(fig) || "").split("·").map((x) => x.trim()).filter(Boolean); const conceptos = [_conceptoDeLabel(_lab(fig)), ...partes]; return conceptos.some((c) => { const clave = claveDeMetrica(c); return !!clave && dominioDeClave(clave) === "cobranza"; }); };
 function _fechaCorteDeCobranza(rp, plan) {
   const idx = plan && Array.isArray(plan.calls) ? plan.calls.findIndex((c) => c && c.tool === "cobranza") : -1;
   if (idx < 0) return null;
@@ -3370,7 +3407,7 @@ export function componerEntrega(resolucion) {
     /* v23 (R18, §7.3·46e): un concepto que la parte DECLARA y que la lectura del turno no publicó para alguna cuenta de la foto no se omite en silencio, sea cual sea el eje de la foto (el del tema o uno explícito): se declara qué cuentas quedan sin esa cifra (nunca se rellena con otra). Una sola definición para los dos caminos. */
     const _declararCifraFaltanteDeFoto = (p, planF, ejeDeProductor) => {
       for (const c of (p.conceptos || [])) {
-        if (c === planF.claveOrden || !productorDe(c, ejeDeProductor)) continue;
+        if ((c === planF.claveOrden && !(planF.fotoCompletada && planF.fotoCompletada.length)) || !productorDe(c, ejeDeProductor)) continue;   /* §7.3·49(c): en la foto completada la clave de orden también puede faltar en alguna cuenta del eje */
         const conFila = planF.orden.filter((e) => _mapaDe(planF.porEntidad, e).has(c));
         const sin = planF.orden.filter((e) => !_mapaDe(planF.porEntidad, e).has(c));
         if (conFila.length && sin.length) { numerosDeLimitesGap.push(String(sin.length), String(planF.orden.length)); limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), la foto no trae ${String(_labelDeClave(c)).toLowerCase()} de ${_listaDeNombres(sin)} (${sin.length} de ${conteoDeEje(planF.eje, planF.orden.length).texto})`, motivo: "La lectura de este turno no publicó esa cifra para esas cuentas; no se rellena con otra." }); }
@@ -3399,7 +3436,7 @@ export function componerEntrega(resolucion) {
           if (!conceptosConProductor.length) continue;
           pParaGrupo = { ...p, conceptos: conceptosConProductor };
         }
-        const planG = _planCifraGrupo(pParaGrupo, _figsDeParte(p.id), { ejesDelTenant, indice: I, criterio: resolucion.criterio });
+        const planG = _planCifraGrupo(pParaGrupo, _figsDeParte(p.id), { ejesDelTenant, indice: I, criterio: resolucion.criterio, foto: true });
         // RAÍZ A (supervisor 2026-09-29) — `plan.error` (universo declarado no-resoluble) se trata igual que
         // `null` en este fallback: mismo comportamiento de siempre (la parte no entra a este camino, cae más
         // abajo a su propio «no se pudo componer»), solo que ahora nunca se le pasa un objeto `{error}` a código
@@ -3428,7 +3465,7 @@ export function componerEntrega(resolucion) {
         if (p.eje && p.eje !== sujetoDeTema(p.tema)) continue;
         /* la foto se sirve con los conceptos que la parte DECLARA; una parte sin conceptos (el «lo que el procedimiento del tema sirva» del contrato §1) sirve la prioridad del procedimiento, el plan del tema de arriba: listar cada cuenta con todas las métricas del dominio no es lo pedido y pasaba el tope de tamaño (`_iniciativa_gate`: lo pedido byte-idéntico con la iniciativa encendida o apagada) */
         if (!(p.conceptos && p.conceptos.length)) continue;
-        const planF = _planCifraGrupo(p, _figsDeParte(p.id), { ejesDelTenant, indice: I, deMayorAMenor: true, soloEntidades: _fotoDelProductor(p) });
+        const planF = _planCifraGrupo(p, _figsDeParte(p.id), { ejesDelTenant, indice: I, deMayorAMenor: true, soloEntidades: _fotoDelProductor(p), foto: true });
         if (!planF || planF.error || !planF.orden.length) continue;
         const figA0F = planF.orden.length > 1 ? _mapaDe(planF.porEntidad, planF.orden[0]).get(planF.claveOrden) : null;
         const figB0F = planF.orden.length > 1 ? _mapaDe(planF.porEntidad, planF.orden[1]).get(planF.claveOrden) : null;
@@ -3531,8 +3568,18 @@ export function componerEntrega(resolucion) {
     if (p.cierre === "cifra" || ((p.cierre === "lectura" || p.cierre === "decision") && p.entidades && p.entidades.length)) {
       if (p.entidades && p.entidades.length) {
         const sinCifra = [];
-        const plan = _planCifraEntidad(p, figsDeP, ref, I, declararDerivadaOpcional, sinCifra);
+        const plan = _planCifraEntidad(p, figsDeP, ref, I, declararDerivadaOpcional, sinCifra, resolucion.criterio);
         if (plan) planes.push(plan);
+        /* §7.3·49(b): una `decision` con entidades NOMBRADAS decide entre ellas. Además de la conclusión de cada una, la Entrega da la prioridad del grupo de las pedidas —por la lente que el usuario pidió (si aplica a su dominio) o, sin lente, por la de ADI, nombrada—: el mismo plan de prioridad que sirve una decisión sin entidades, pero sobre las figs de ESTAS entidades (nunca sobre la cartera). Una lente que no las ordena se declara (47a · 47d), como en cualquier grupo */
+        if (plan && p.cierre === "decision" && plan.filasPorEntidad && plan.filasPorEntidad.length >= 2) {
+          const _nombradas = new Set(plan.filasPorEntidad.map((x) => normalizar(x.entidad)));
+          const _figsNombradas = figsDeP.filter((f) => { const en = _entidadDe(_lab(f)); return !en || _nombradas.has(normalizar(en)); });
+          const mp = _planMultiTema([p.tema], _figsNombradas, ref, declararRazon, declararDerivadaOpcional, { conDecision: true, lente: _lenteIdDelCriterio(resolucion.criterio) });
+          /* una lente que aplica pero cuya medida no distingue a nadie entre las pedidas (todo en cero o empatadas) se declara en el grupo de las pedidas (47a): el plan de señales no corona a la primera de la lista */
+          const _noDistingue = !!(plan.prioridadEntre && plan.prioridadEntre.lenteGrupo && plan.prioridadEntre.lenteGrupo.modo === "sin-discrimina");
+          if (mp && !_noDistingue && !mp.sinSenal && (mp.top || mp.porLente || Object.keys(mp.lideres || {}).length)) { mp.partesIds = [p.id]; mp._entreNombradas = true; plan._prioridadPorSenales = true; planes.push(mp); }
+          if (!plan._prioridadPorSenales && plan.prioridadEntre) _declararLenteDelGrupo(plan.prioridadEntre.lenteGrupo, ref, plan.prioridadEntre.porEntidadId);   /* la medida de la lente se declara solo si la prioridad se sirve por este camino */
+        }
         for (const nombre of sinCifra) limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), no se pudo servir la cifra de ${nombre}`, motivo: `La lectura de este turno no trajo ninguna cifra de ${nombre} para lo pedido: se declara en vez de omitirla. No se sustituye por otra cuenta.` });
       }
       else if (p.cierre === "cifra") {
@@ -3824,6 +3871,22 @@ export function componerEntrega(resolucion) {
     }
   }
 
+  /* §7.3·49(g): las entidades que la cabeza de un grupo cita tienen su fila protegida en Cifras (doble colocación) y el corte NUNCA parte una entidad: todas sus filas van con ella. El tope de filas de la profundidad se reparte entre los grupos (tema y eje; dos partes del mismo tema y eje son una misma entidad: sus filas se suman): cada grupo cita al menos una entidad ENTERA y, con lo que sobra, más (máximo tres), de a una por grupo. Con tres o más grupos en «breve» son una (la regla de la v24) */
+  let _cuotasDeCabeza = null;
+  const _nCabezaDe = (plan) => {
+    if (!_cuotasDeCabeza) {
+      const grupos = planes.filter((pl) => pl.kind === "grupo");
+      const claveG = (pl) => `${pl.tema}:${pl.eje}`;
+      const filasPor = new Map();
+      for (const pl of grupos) filasPor.set(claveG(pl), (filasPor.get(claveG(pl)) || 0) + Math.max(1, (pl.conceptos || []).length));
+      const tope = _profundidadDe(resolucion) === "breve" ? FILAS_BREVE_MAX : FILAS_COMPLETA_MAX;
+      const n = new Map([...filasPor.keys()].map((k) => [k, 1]));
+      let usadas = [...filasPor.values()].reduce((a, b) => a + b, 0);
+      for (let cambio = true; cambio;) { cambio = false; for (const [k, r] of filasPor) if (n.get(k) < 3 && usadas + r <= tope) { n.set(k, n.get(k) + 1); usadas += r; cambio = true; } }
+      _cuotasDeCabeza = { n, claveG };
+    }
+    return _cuotasDeCabeza.n.get(_cuotasDeCabeza.claveG(plan)) || 1;
+  };
   for (const plan of planes) {
     if (plan.kind === "entidad") {
       // (a) CORRECCIÓN DEL SUPERVISOR (2026-09-25) — «una lectura/decision sobre una entidad abre con la
@@ -3853,6 +3916,20 @@ export function componerEntrega(resolucion) {
         // contra `entrega.universos[x].entidades.length`.
         if (conclusion && conclusion.universoEntidades && conclusion.universoEntidades.length) {
           _declararUniverso(entrega, I, { id: `${plan.parteId}_${entidad}_ranking`, eje: conclusion.universoEje || "cliente", entidades: conclusion.universoEntidades, criterio: conclusion.universoCriterio, soloRanking: true });
+        }
+      }
+      /* §7.3·49(b): la prioridad entre las entidades pedidas cuando no la sirve el plan de señales de riesgo (ver `_planCifraEntidad`): la misma oración de prioridad de un grupo, con la lente que de verdad ordenó, la medida propia nombrada, o la declaración de que la lente pedida no las ordena */
+      if (plan.prioridadEntre && !plan._prioridadPorSenales) {
+        const pe = plan.prioridadEntre, lg = pe.lenteGrupo;
+        const idDe = (e, c) => (pe.porEntidadId.get(e) || new Map()).get(c);
+        temasCubiertos.add(plan.tema);
+        if (lg) for (const x of lg.filasExtra || []) entrega.cifras.filas.push(_fila(x.entidad, plan.tema, x.concepto, x.id));
+        if (lg && lg.modo === "primero") entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lg.nombreVisible}: ${lg.primero}, con ${R(lg.idFig)} en ${lg.concepto}.`, hechos: [lg.idFig] });
+        else if (lg) entrega.respuesta.push({ ..._oracionLenteSinPrimero(lg, R, _listaDeNombres, ""), hechos: [...(lg.motivo === "sin-medida" ? pe.orden.map((e) => idDe(e, pe.claveOrden)).filter((x) => x != null) : [lg.idCero, lg.idEmpate].filter((x) => x != null))] });
+        else {
+          const lenteTxt = resolucion.criterio ? _lenteDeLaLista(resolucion.criterio, plan.tema, pe.claveOrden) : (_labelDeClave(pe.claveOrden) || "").toLowerCase();
+          const idPrimero = idDe(pe.orden[0], pe.claveOrden);
+          if (lenteTxt && idPrimero != null) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${pe.orden[0]}, con ${R(idPrimero)} en ${(_labelDeClave(pe.claveOrden) || "").toLowerCase()}.`, hechos: [idPrimero] });
         }
       }
     } else if (plan.kind === "grupo") {
@@ -3891,7 +3968,8 @@ export function componerEntrega(resolucion) {
         for (const [clave, id] of m) { if (id == null) continue; entrega.cifras.filas.push(_fila(entidad, plan.tema, _labelDeClave(clave) || clave, id)); }
       }
       /* v24 (barrido familia iii · composer ↔ verificador): en «breve» con TRES o más partes de grupo la cabeza de cada una cita UNA cifra (no tres): las cifras que las oraciones citan son filas protegidas de la tabla y el tope de filas de «breve» (8) las desbordaba (`verificarEntrega`: «filas-sobre-el-tope»). Con menos partes o en «completa» la cabeza es la de siempre. */
-      const _nCabeza = _profundidadDe(resolucion) === "breve" && planes.filter((pl) => pl.kind === "grupo").length >= 3 ? 1 : 3;
+      /* §7.3·49(g): las entidades que la cabeza cita tienen su fila protegida en Cifras (doble colocación) y el corte NUNCA parte una entidad: todas sus filas van con ella. Con el tope de filas de la profundidad repartido entre las partes de grupo, la cabeza cita las entidades cuyas filas ENTERAS caben en la cuota de su parte (máximo tres; al menos una). Con tres o más partes en «breve» son una (la regla de la v24); una sola parte de dos conceptos cita tres */
+      const _nCabeza = _nCabezaDe(plan);
       const cabeza = plan.orden.slice(0, _nCabeza).map((e) => { const id = _mapaDe(plan.porEntidad, e).get(plan.claveOrden); return id != null ? `${e} (${R(id)})` : e; }).join(", ");
       const idsCabeza = plan.orden.flatMap((e) => [..._mapaDe(plan.porEntidad, e).values()]).filter((v) => v != null);
       // «un top-N declara su cola» (ley del owner): con `universo.top`, el tamaño TOTAL del eje sale del mismo
@@ -4395,7 +4473,7 @@ export function componerEntrega(resolucion) {
     if (refCitada) {
       const r = valorDeReferencia(refCitada, I);
       const m = metricaPorClave(refCitada);
-      if (r && Number.isFinite(r.raw) && m) entrega.marco.referenciaDeclarada = { texto: `${m.nombre}: ${formatoDeReferencia(r.raw, r.unidad || m.unidad)}, declarado por la empresa.`, hechoId: null };
+      if (r && Number.isFinite(r.raw) && m) { const fmtRef = formatoDeReferencia(r.raw, r.unidad || m.unidad); cifrasImpresas.push(fmtRef); /* §7.3·49(d): el valor que el Marco declara es una cifra DECLARADA aunque la premisa que cita la referencia no se pueda juzgar (su oración no lo imprime) */ entrega.marco.referenciaDeclarada = { texto: `${m.nombre}: ${fmtRef}, declarado por la empresa.`, hechoId: null }; }
     }
   }
   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6, MEDIA) — un `universo.base` que NOMBRA una cohorte derivada
@@ -4433,7 +4511,9 @@ export function componerEntrega(resolucion) {
      * casualmente viajaba en la boleta del turno (`idBenchComercialGlobal`: la publica `entityRecord`/`rolesCartera`, no `queryMetric`): la misma parte comercial declaraba el benchmark según QUÉ herramienta la sirvió. La regla es del tema, no de la
      * herramienta: toda parte COMERCIAL servida (resuelta o parcial) que no es una definición (§1.1: sin cifras) lo pone en juego, con el mismo valor que juzga el margen (`benchmarkOf`, la fuente de la cohorte «bajo el benchmark»). */
     const parteComercialServida = partesUtiles.some((p) => p.tema === "comercial" && p.cierre !== "definicion");
-    if (partesConBaseBenchmark || premisaConBaseBenchmark || parteComercialServida) {
+    /* §7.3·49(d): una premisa sobre la BRECHA al benchmark (su métrica es la brecha) pone en juego el benchmark igual que un `base`: la oración del veredicto habla de la brecha y el Marco declara su referencia (composer y verificador no se contradicen, 48d) */
+    const premisaConBrecha = !!libroPremisas && [...libroPremisas.porId.values()].some((H) => H && H.claves && [...H.claves].some((c) => c === "brecha"));
+    if (partesConBaseBenchmark || premisaConBaseBenchmark || premisaConBrecha || parteComercialServida) {
       const benchRaw = benchmarkOf();
       if (Number.isFinite(benchRaw)) {
         const benchFmt = formatoDeReferencia(benchRaw, "pct");   /* §7.3·40(d): el benchmark es un valor DECLARADO — exacto */
@@ -4467,7 +4547,8 @@ export function componerEntrega(resolucion) {
         const fmt = formatoDeReferencia(r.raw, r.unidad || m.unidad);
         const txt = `${m.nombre}: ${fmt}, declarado por la empresa.`;
         const ya = entrega.marco.referenciaDeclarada;
-        if (!ya || !ya.texto.includes(txt)) { cifrasImpresas.push(fmt); entrega.marco.referenciaDeclarada = ya ? { ...ya, texto: `${ya.texto} ${txt}` } : { texto: txt, hechoId: null }; }
+        cifrasImpresas.push(fmt);   /* §7.3·49(d): declarada aunque otro bloque ya escribiera la cláusula en el Marco */
+        if (!ya || !ya.texto.includes(txt)) { entrega.marco.referenciaDeclarada = ya ? { ...ya, texto: `${ya.texto} ${txt}` } : { texto: txt, hechoId: null }; }
       }
     }
   }
@@ -4531,7 +4612,7 @@ export function componerEntrega(resolucion) {
       const basesEnJuego = new Set();
       /* v23 (R40 · R45, §7.3·19 + ley del universo): la referencia de la consulta se declara en el EJE del universo que la pone en juego (una parte por familia cuenta familias, por marca cuenta marcas), nunca en el eje fijo de la familia de referencia (clientes). `ejesDeClave` recuerda, por clave en juego (base · estado · ref), el eje de cada universo que la cita; sin eje propio, el de la familia de referencia (lo de siempre). */
       const ejesDeClave = new Map();
-      const _ponerEnJuego = (u) => { if (!u || typeof u !== "object") return; const ejeU = (typeof u.eje === "string" && u.eje.trim()) || familiaRef.eje; const claves = [..._basesDeUniverso(u), _baseCasa(u), ..._estadosCasa(u), ..._refsCasa(u)]; for (const c of claves) { if (!c) continue; const k = normalizar(c); basesEnJuego.add(k); if (!ejesDeClave.has(k)) ejesDeClave.set(k, new Set()); ejesDeClave.get(k).add(ejeU); } };
+      const _ponerEnJuego = (u) => { if (!u || typeof u !== "object") return; const ejeU = (typeof u.eje === "string" && u.eje.trim()) || familiaRef.eje; const claves = [..._basesDeUniverso(u), ...[..._basesDeUniverso(u)].map(formaDeConjunto), _baseCasa(u), ..._estadosCasa(u), ..._refsCasa(u)]; for (const c of claves) { if (!c) continue; const k = normalizar(c); basesEnJuego.add(k); if (!ejesDeClave.has(k)) ejesDeClave.set(k, new Set()); ejesDeClave.get(k).add(ejeU); } };
       for (const p of partesUtiles) _ponerEnJuego(p.universo);
       for (const pr of resolucion.premisas || []) _ponerEnJuego(pr.universo != null ? pr.universo : pr.de);
       // una PREMISA de estado («¿LG está frenado?») también pone en juego el estado de la familia con `operativaSinOficial`:
@@ -4575,7 +4656,7 @@ export function componerEntrega(resolucion) {
         for (const ejeDeLaParte of ejesEnJuego) {
         try {
           // el conjunto OFICIAL: el de la `base` de la casa, el del estado, o el del filtro que cita la referencia oficial (`ref`)
-          const universoOficial = base ? { eje: ejeDeLaParte, base } : estado ? { eje: ejeDeLaParte, estados: [estado] } : { eje: ejeDeLaParte, filtros: [{ metrica: familiaRef.metrica, op, ref: refCasa }] };
+          const universoOficial = base ? { eje: ejeDeLaParte, base: conjuntoDeFormaEnEje(base, ejeDeLaParte) || base } : estado ? { eje: ejeDeLaParte, estados: [estado] } : { eje: ejeDeLaParte, filtros: [{ metrica: familiaRef.metrica, op, ref: refCasa }] };
           const oficial = conjuntoDeUniverso(universoOficial, I, ejeDeLaParte, "");
           const conReferencia = conjuntoDeUniverso({ eje: ejeDeLaParte, filtros: [{ metrica: familiaRef.metrica, op, valor: refUsuario.valor }] }, I, ejeDeLaParte, "");
           if (oficial && oficial.set && conReferencia && conReferencia.set) {

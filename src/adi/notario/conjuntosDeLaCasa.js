@@ -51,8 +51,9 @@ const _BENCHMARK = [
   { nombre: "sobre el benchmark", eje: "cliente", familia: "benchmark", negado: "que no están sobre el benchmark" },
   { nombre: "margen supuesto sobre el benchmark", eje: "cliente", familia: "benchmark" },
   { nombre: "margen supuesto bajo el benchmark", eje: "cliente", familia: "benchmark" },
-  { nombre: "SKU bajo el benchmark", eje: "sku", familia: "benchmark", negado: "que no están bajo el benchmark" },
-  { nombre: "SKU sobre el benchmark", eje: "sku", familia: "benchmark", negado: "que no están sobre el benchmark" },
+  /* §7.3·49(a) `forma`: la DIRECCIÓN que el conjunto comparte con su gemelo de otro eje («SKU bajo el benchmark» es «bajo el benchmark» sobre los SKU): dos partes de ejes distintos que usan el mismo conjunto ponen en juego la misma referencia, cada una en SU eje. Dato de la casa, nunca una regex de nombres */
+  { nombre: "SKU bajo el benchmark", eje: "sku", familia: "benchmark", forma: "bajo el benchmark", negado: "que no están bajo el benchmark" },
+  { nombre: "SKU sobre el benchmark", eje: "sku", familia: "benchmark", forma: "sobre el benchmark", negado: "que no están sobre el benchmark" },
 ];
 
 /* la familia ESTADO: el mismo registro que ya usa `notario/estados.js` — nunca una segunda tabla */
@@ -89,6 +90,17 @@ const _porNombre = new Map(CONJUNTOS_DE_LA_CASA.map((c) => [_norm(c.nombre), c])
  *  su membresía este turno, que sigue siendo pregunta de `_conjuntosConocidos`. */
 export function conjuntoConocido(nombre) {
   return _porNombre.get(_norm(nombre)) || null;
+}
+/** formaDeConjunto(nombre) → la dirección compartida de un conjunto de la casa («SKU bajo el benchmark» → «bajo el benchmark»); un conjunto sin `forma` propia es su propio nombre. Sin conjunto conocido, el nombre tal cual (§7.3·49a). */
+export function formaDeConjunto(nombre) {
+  const c = conjuntoConocido(nombre);
+  return c && c.forma ? c.forma : String(nombre == null ? "" : nombre).trim();
+}
+/** conjuntoDeFormaEnEje(forma, eje) → el nombre del conjunto de la casa que es esa `forma` sobre ese `eje` («bajo el benchmark» · sku → «SKU bajo el benchmark»), o null si la casa no define esa forma para ese eje (§7.3·49a). */
+export function conjuntoDeFormaEnEje(forma, eje) {
+  const f = _norm(forma);
+  const c = CONJUNTOS_DE_LA_CASA.find((x) => x.eje === eje && _norm(x.forma || x.nombre) === f);
+  return c ? c.nombre : null;
 }
 /** estadoDeConjunto(nombre) → el estado canónico que un conjunto de la casa ES («con capital inmovilizado critico» → «inmovilizado critico»), o null si el conjunto no es un estado con otro nombre. */
 export function estadoDeConjunto(nombre) {

@@ -47,9 +47,13 @@
  *
  *   A22 · diagnóstico v24 (§7.3·48): el empate en el filo por TODOS los productores (cobranza · inventario SKU y bodega) con sus ceros, lo declarado ES lo servido (Q05 Q08) · la lente × el dominio: el riesgo pedido se declara, «ventas» ordena cuentas, la medida de la lente que aplica se lee (Q44 Q45 Q70) ·
  *         el «de M» de un conteo en todas las formas de universo (Q63) · la oración «ninguna cuenta queda primera» pasa el verificador (Q100) · una definición sola no cita benchmark (Q09) · la cola de la foto en «breve» (Q13) · el barrido por combinación como aserciones.
+ *
+ *   A23 · diagnóstico v25 y v26 (§7.3·49): la referencia de la consulta en CADA parte que usa el conjunto, en su eje (P48) · una decision con entidades nombradas decide entre ellas (P60 P61 N63-N65) · la foto es el eje entero (N19 N23) ·
+ *         una premisa carga su evidencia y el Marco no declara una cifra sin hecho (N26) · «ventas» aplica en cliente, marca, familia y SKU (N25 N32 N38 N73) · el rótulo de su concepto (N78) · el corte Cifras/Detalle no parte una entidad (P74) ·
+ *         el «techo de quiebre» en el criterio aplicado (N39) · el Marco de cobranza sin «inventario» · el barrido por combinación como aserciones, con su carnada.
  * Solo por `npm run gates:offline` (o con el candado: node --import ./scripts/offline-guard.mjs _v12_correcciones_gate.mjs). Cero red. */
 import { initTenant } from "./src/data/tenantStore.js";
-import { TENANT_DEMO, skuInventario, clientesMargen, clientesVentas, skusMargen, marcasMargen } from "./src/data/tenants/demo.js";
+import { TENANT_DEMO, skuInventario, clientesMargen, clientesVentas, skusMargen, marcasMargen, sfamiliasMargen } from "./src/data/tenants/demo.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
@@ -1383,10 +1387,10 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     { const E = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido"] }, { id: "p2", tema: "comercial", cierre: "decision", conceptos: ["contribucion"] }], criterio: { lente: "credito" } }).E, p = prio(E);
       ok(E.ok && /^Prioridad del procedimiento, por exposición de crédito: /.test(p) && p.includes(lider(E, "cobranza")), "dos temas con lente crédito: la prioridad es la de cobranza («por exposición de crédito»), con su cifra", p); }
     { const E = com({ criterio: { lente: "contribucion" } });
-      const foto = universoDe(E, "p1"), conContrib = new Set((E.entrega.cifras.filas || []).map((f) => f.valores).filter((v) => /^Contribución$/.test(v["Métrica"])).map((v) => v["Entidad / grupo"]));
+      const foto = universoDe(E, "p1"), conContrib = new Set(((E.entrega.cifras.filas || []).concat((E.entrega.detalle && E.entrega.detalle.filas) || [])).map((f) => f.valores).filter((v) => /^Contribución$/.test(v["Métrica"])).map((v) => v["Entidad / grupo"]));   /* 49c: la foto es el eje entero: las filas de la cola van al Detalle */
       const limite = (E.entrega.limites || []).map((l) => `${l.titulo} ${l.motivo || ""}`).join(" ");
       const sin = foto.filter((n) => !conContrib.has(n));
-      ok(foto.length >= 2 && foto.length < clientes.length && sin.length >= 1, "oráculo · la foto es una parte del eje y hay cuentas de la foto sin fila de Contribución", JSON.stringify({ foto, sin }));
+      ok(foto.length === clientes.length && sin.length >= 1, "oráculo · la foto es el eje ENTERO (49c) y hay cuentas de la foto sin fila de Contribución (el productor no la publica para ellas)", JSON.stringify({ foto, sin }));
       ok(sin.every((n) => limite.includes(n)) && /la foto no trae contribución/.test(limite), "cada cuenta de la foto sin la cifra de un concepto pedido se NOMBRA en un límite (nunca se omite en silencio)", limite); }
     { const E = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido", "dias_vencido"] }] }).E;
       ok(E.ok && !(E.entrega.limites || []).some((l) => /la foto no trae/.test(`${l.titulo}`)), "CONTROL NEGATIVO · una foto que sí trae todos sus conceptos (cobranza) no declara ninguna cuenta sin cifra", JSON.stringify((E.entrega.limites || []).map((l) => l.titulo))); }
@@ -1805,6 +1809,242 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     const bod = (b, conTop) => { const todos = skuInventario.filter((s) => s.bodega === b); const top = todos.slice().sort((x, y) => y.stockUSD - x.stockUSD).slice(0, 2).map((s) => s.sku); const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital"], eje: "sku", entidades: [{ nombre: todos[0].sku, eje: "sku" }] }], premisas: [{ id: "q1", tipo: "conteo", conteo: { n: conTop ? 2 : todos.length, m: conTop ? 7 : 4 }, de: { eje: "sku", bodega: b, ...(conTop ? { top: { metrica: "capital", k: 2 } } : {}) } }] }); return { t: premisaTxt(E, "q1"), todos: todos.length, top }; };
     const bv = bod("Valparaíso", true);
     ok(/no es así — 2 de 4 en /.test(bv.t) && bv.todos === 4, "bodega + top: «2 de 7 en los 2 de mayor capital de Valparaíso» es falsa solo por el M e imprime el eslabón de la bodega (4 SKU), no el eje (13)", bv.t); }
+}
+
+/* ═══ A23 · DIAGNÓSTICO v25 y v26 (mediciones ciegas v25 y v26; §7.3·49) ═══════════════════════════════════════════════════════════════════════════════════════
+ * Las raíces que dejaron las dos mediciones y las FAMILIAS que las contienen (barrido por combinación, construido a mano: no son los casos de los catálogos). Oráculos INDEPENDIENTES del código que se corrige: el dato del tenant
+ * (`clientesMargen`, `marcasMargen`, `sfamiliasMargen`, `skusMargen`, `skuInventario`), la mesa de flujo (`buildMesaFlujo`) y la política (`benchmarkOf`, `umbral`); nunca la Entrega ni el Notario. Cada familia trae su CARNADA (el defecto, reconstruido, cae).
+ *   (a) LA REFERENCIA DE LA CONSULTA en cada parte que usa el conjunto, en el eje de esa parte (P48): referencia × eje × base o filtro × dirección × una o dos partes × la referencia solo en una premisa.
+ *   (b) UNA DECISION CON ENTIDADES NOMBRADAS DECIDE (P60 P61 N63 N64 N65): lente × dominio/eje × 2 a 4 entidades.
+ *   (c) LA FOTO (N19 N23): el eje entero con fila o cero; lo que el productor no trae se declara.
+ *   (d) UNA PREMISA CARGA SU EVIDENCIA (N26): tipo de premisa × concepto × eje; el Marco no declara una cifra sin hecho.
+ *   (e) LA LENTE «VENTAS» en cliente, marca, familia y SKU (N25 N32 N38 N73). (f) EL RÓTULO de su concepto (N78). (g) EL CORTE Cifras/Detalle no parte una entidad (P74).
+ *   + el «techo de quiebre» en el criterio aplicado (N39) y el Marco de una Entrega solo de cobranza. */
+{
+  const Mflujo = buildMesaFlujo(ESCENARIO_INICIAL).filas;
+  const filasCifras = (E) => ((E.entrega && E.entrega.cifras && E.entrega.cifras.filas) || []);
+  const filasDetalle = (E) => ((E.entrega && E.entrega.detalle && E.entrega.detalle.filas) || []);
+  const sujetosDe = (E) => new Set([...filasCifras(E), ...filasDetalle(E)].map((f) => f.valores["Entidad / grupo"]));
+  const universoDe = (E, id) => (((E.entrega && E.entrega.universos) || []).find((u) => u.id === id && u.soloRanking !== true) || {}).entidades || [];
+  const sinTablas = (E) => String(E.texto || "").split("\n").filter((l) => !/^\|/.test(l)).join("\n");
+  const oracionesDe = (E) => [...(((E.entrega && E.entrega.respuesta) || [])), ...(((E.entrega && E.entrega.detalle && E.entrega.detalle.oraciones) || []))].filter((r) => r && typeof r.texto === "string");
+  const verifica = (E, R, prof = "completa") => { try { return verificarEntrega({ texto: E.texto, entrega: E.entrega, profundidad: prof, resolucion: R, indice: (E.entrega.procedencia && E.entrega.procedencia.libro && E.entrega.procedencia.libro.indice) || null }); } catch (x) { return { ok: false, violaciones: [{ regla: "excepcion", detalle: String(x && x.message) }] }; } };
+  const conTexto = (E, f) => ({ ...E, texto: f(String(E.texto || "")) });
+  const EJE = { cliente: clientesMargen.map((x) => ({ n: x.nombre, m: x.margen, v: x.venta })), marca: marcasMargen.map((x) => ({ n: x.nombre, m: x.margen, v: x.venta })), familia: sfamiliasMargen.map((x) => ({ n: x.nombre, m: x.margen, v: x.venta })), sku: skusMargen.map((x) => ({ n: x.nombre, m: x.margen, v: x.venta })) };
+  const UNIDAD = { cliente: ["cuenta", "cuentas"], marca: ["marca", "marcas"], familia: ["familia", "familias"], sku: ["SKU", "SKU"] };
+  const cuenta = (eje, n) => `${n} ${UNIDAD[eje][n === 1 ? 0 : 1]}`;
+  const BENCH = benchmarkOf();
+  const conjunto = (eje, dir, valor) => EJE[eje].filter((x) => (dir === "bajo" ? x.m < valor : x.m >= valor)).map((x) => x.n);
+
+  /* ─ (a) P48 · la referencia de la consulta se declara en CADA parte que usa el conjunto, en el eje de esa parte ─ */
+  H("A23 · 49a · P48 · la referencia de la consulta se declara al lado de la oficial en CADA parte que usa el conjunto, con su conteo, el oficial y sus nombres en el EJE de la parte");
+  { const BASE = { cliente: { bajo: "bajo el benchmark", sobre: "sobre el benchmark" }, sku: { bajo: "SKU bajo el benchmark", sobre: "SKU sobre el benchmark" } }, OP = { bajo: "<", sobre: ">=" };
+    const uni = (eje, forma, dir) => (forma === "base" ? { eje, base: BASE[eje][dir] } : { eje, filtros: [{ metrica: "margen", op: OP[dir], ref: "benchmark" }] });
+    const declaraciones = (E) => ((E.entrega && E.entrega.limites) || []).filter((l) => /^Con la referencia planteada en la consulta/.test(l.titulo || "")).map((l) => `${l.titulo} ${l.motivo}`);
+    /* la declaración esperada de (eje, dir): el conteo alternativo en la unidad del eje, el oficial y todos los nombres; consume UNA declaración */
+    const declara = (E, eje, dir, ref) => { const ds = declaraciones(E), alt = conjunto(eje, dir, ref), ofi = conjunto(eje, dir, BENCH); return ds.some((d) => d.includes(cuenta(eje, alt.length)) && new RegExp(`${dir} esa referencia`).test(d) && new RegExp(`contra ${ofi.length}\\b`).test(d) && alt.every((n) => d.includes(n))); };
+    let n = 0, malas = [];
+    for (const ref of [25, 35]) {
+      const criterio = { referencia: { concepto: "benchmark", valor: ref, unidad: "pct" } };
+      const items = [["cliente", "base", "bajo"], ["cliente", "filtro", "sobre"], ["sku", "base", "bajo"], ["sku", "base", "sobre"], ["sku", "filtro", "bajo"], ["marca", "filtro", "bajo"], ["familia", "filtro", "bajo"], ["familia", "filtro", "sobre"]];
+      for (const [eje, forma, dir] of items) for (const cierre of ["cifra", "lectura", "decision"]) { n++; const { R, E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre, conceptos: ["margen", "ventas"], eje, universo: uni(eje, forma, dir) }], criterio }); if (!(E.ok && declara(E, eje, dir, ref) && declaraciones(E).length === 1 && verifica(E, R).ok)) malas.push(`1p.${ref}.${cierre}.${eje}.${forma}.${dir}`); }
+      for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) { const [a, b] = [items[i], items[j]]; if (a[0] === b[0] && a[2] === b[2]) continue; n++;
+        const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "ventas"], eje: a[0], universo: uni(...a) }, { id: "p2", tema: "comercial", cierre: "lectura", conceptos: ["margen", "ventas"], eje: b[0], universo: uni(...b) }], criterio });
+        const usados = [a, b].filter((x, k, arr) => arr.findIndex((y) => y[0] === x[0] && y[2] === x[2]) === k);
+        if (!(E.ok && usados.every((u) => declara(E, u[0], u[2], ref)) && declaraciones(E).length === usados.length)) malas.push(`2p.${ref}.${a.join("/")}+${b.join("/")}`); }
+      for (const it of [["sku", "base", "bajo"], ["sku", "base", "sobre"], ["marca", "filtro", "bajo"], ["cliente", "base", "bajo"]]) { n++; const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente" }], criterio, premisas: [{ id: "q1", tipo: "conteo", conteo: { n: conjunto(it[0], it[2], BENCH).length, m: EJE[it[0]].length }, de: uni(...it) }] }); if (!(E.ok && declara(E, it[0], it[2], ref))) malas.push(`premisa.${ref}.${it.join("/")}`); }
+    }
+    ok(n >= 100 && malas.length === 0, `barrido · ${n} combinaciones (referencia × eje × base o filtro × dirección × 1-2 partes × premisa): la referencia se declara en el eje de cada parte`, JSON.stringify(malas.slice(0, 6)));
+    /* la carnada: el defecto reconstruido (la declaración del eje SKU desaparece, queda la de familias) cae */
+    const { E: E0 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "ventas"], eje: "familia", universo: uni("familia", "filtro", "bajo") }, { id: "p2", tema: "comercial", cierre: "lectura", conceptos: ["margen", "ventas"], eje: "sku", universo: uni("sku", "base", "bajo") }], criterio: { referencia: { concepto: "benchmark", valor: 25, unidad: "pct" } } });
+    const sinSku = { ...E0, entrega: { ...E0.entrega, limites: (E0.entrega.limites || []).filter((l) => !/SKU bajo esa referencia/.test(`${l.motivo}`)) } };
+    ok(declara(E0, "familia", "bajo", 25) && declara(E0, "sku", "bajo", 25) && !declara(sinSku, "sku", "bajo", 25), "CARNADA · el defecto reconstruido (la declaración de la parte por SKU falta: solo queda la de las familias) cae"); }
+
+  /* ─ (b) P60 P61 N63 N64 N65 · una decision con entidades nombradas decide entre ellas ─ */
+  H("A23 · 49b · P60 P61 N63 N64 N65 · una `decision` con entidades nombradas DECIDE: da la prioridad entre ellas por la lente pedida (nombrada) o la de ADI; una lente que no las ordena se declara; la que no distingue no corona");
+  { const cap = (n) => { const s = skuInventario.find((x) => x.sku === n); return s.rotacion < 2.0 ? s.stockUSD : 0; };
+    const DOMS = [
+      { k: "cobranza·cliente", tema: "cobranza", eje: "cliente", ents: ["Lider", "Tottus", "Sodimac", "Easy", "Paris", "Jumbo", "Mercado Libre"], conj: ["saldo_vencido", "dias_vencido"], aplica: { credito: (x) => { const f = Mflujo.find((y) => y.nombre === x); return f.vencidoK * 1e6 + f.diasVencido; }, ventas: (x) => Mflujo.find((y) => y.nombre === x).ventaK } },
+      { k: "comercial·marca", tema: "comercial", eje: "marca", ents: ["Samsung", "LG", "Philips", "Bosch", "Makita"], conj: ["ventas", "margen"], aplica: { ventas: (x) => marcasMargen.find((y) => y.nombre === x).venta } },
+      { k: "inventario·sku", tema: "inventario", eje: "sku", ents: ["LG-DRYER8KG", "MAK-COMP-AIR", "BOS-SANDER", "SAM-REF500L", "PHI-IRON-PRO", "LG-WASH11KG"], conj: ["capital_frenado", "dias_sin_venta"], aplica: { capital: cap } },
+    ];
+    const VIS = { credito: "exposición de crédito", capital: "capital", contribucion: "contribución", ventas: "ventas", crecimiento: "crecimiento" };
+    const RE_DEC = /^(?:Prioridad del procedimiento|En (?:comercial|cobranza|inventario), quien más pesa|Quien más pesa en el conjunto)/;
+    let n = 0, malas = [], ejemplo = null;
+    for (const D of DOMS) for (const lente of [null, "riesgo", "credito", "capital", "contribucion", "ventas", "crecimiento"]) for (const k of [2, 3, 4]) for (const sel of ["primeras", "ultimas"]) {
+      const nombres = sel === "primeras" ? D.ents.slice(0, k) : D.ents.slice(-k);
+      const { R, E } = entregaDe({ partes: [{ id: "p1", tema: D.tema, cierre: "decision", conceptos: D.conj, eje: D.eje, entidades: nombres.map((x) => ({ nombre: x, ...(D.eje !== "cliente" ? { eje: D.eje } : {}) })) }], ...(lente ? { criterio: { lente } } : {}) });
+      n++; const etq = `${D.k}.${lente || "sinlente"}.${k}.${sel}`;
+      if (!E.ok) { malas.push(`${etq}:no-ok`); continue; }
+      const dec = oracionesDe(E).filter((r) => !r._premisa && RE_DEC.test(r.texto)).map((r) => r.texto), txt = dec.join(" | ");
+      const fuera = D.ents.filter((x) => !nombres.includes(x) && !nombres.some((y) => y.includes(x) || x.includes(y)));
+      let bien = verifica(E, R).ok && dec.length > 0 && nombres.some((x) => txt.includes(x)) && !fuera.some((x) => new RegExp(`(?<![\\wÁ-ú-])${x}(?![\\wÁ-ú-])`).test(txt));
+      const lu = lente && lente !== "riesgo" ? lente : null;
+      if (lu) {
+        const f = D.aplica[lu];
+        if (f) { const vals = nombres.map((x) => ({ x, v: f(x) })), mx = Math.max(...vals.map((y) => y.v)), cima = vals.filter((y) => y.v === mx);
+          const m = /Prioridad del procedimiento(?: dentro de este grupo)?, por ([^:(]+?)(?: \([^)]*\))?: ([^,.(]+?)(?:,| \(|\.)/.exec(txt);
+          const nombra = !!m && new RegExp(VIS[lu], "i").test(m[1]);
+          bien = bien && (nombra || /ninguna cuenta queda primera|criterio pedido|no ordena|no trae/i.test(txt));
+          if (nombra && mx > 0 && cima.length === 1) bien = bien && m[2].trim() === cima[0].x;
+          if (mx === 0 || cima.length > 1) bien = bien && !(nombra && m && nombres.includes(m[2].trim()) && !/ninguna cuenta queda primera|no ordena|criterio pedido/i.test(txt)); }
+        else bien = bien && new RegExp(VIS[lu], "i").test(txt);
+      }
+      if (!bien) malas.push(etq); else if (!ejemplo && D.k === "cobranza·cliente" && lente === "credito" && sel === "primeras" && k === 2) ejemplo = { E, nombres, dec };
+    }
+    ok(n >= 120 && malas.length === 0, `barrido · ${n} combinaciones (lente × dominio/eje × 2-4 entidades × dos selecciones): decide entre las pedidas, nombra la lente o la declara, el primero es el de su medida y nunca coronado en cero`, JSON.stringify(malas.slice(0, 6)));
+    /* P60 exacto: Lider antes que Tottus por exposición de crédito, con su cifra */
+    const { R: R60, E: E60 } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido", "dias_vencido"], entidades: [{ nombre: "Lider" }, { nombre: "Tottus" }] }], criterio: { lente: "credito" } });
+    ok(E60.ok && oracionesDe(E60).some((r) => /^Prioridad del procedimiento, por exposición de crédito: Lider, con \$4\.6M en saldo vencido\.$/.test(r.texto)) && verifica(E60, R60).ok, "P60 · «Prioridad del procedimiento, por exposición de crédito: Lider, con $4.6M en saldo vencido» (nombre visible de la lente, el primero y su cifra)", oracionesDe(E60).map((r) => r.texto).join(" | "));
+    /* la carnada: sin las oraciones de prioridad la decisión no decide */
+    const sinPrio = { ...E60, entrega: { ...E60.entrega, respuesta: (E60.entrega.respuesta || []).filter((r) => !RE_DEC.test(r.texto) && !/ va antes que /.test(r.texto)) } };
+    ok(oracionesDe(E60).some((r) => RE_DEC.test(r.texto)) && !oracionesDe(sinPrio).some((r) => RE_DEC.test(r.texto)), "CARNADA · el defecto reconstruido (la Entrega sirve a cada entidad pero ninguna oración decide entre ellas) cae"); }
+
+  /* ─ (c) N19 N23 · la foto es el eje entero: cada miembro con fila (o su cero) y lo que el productor no trae se declara ─ */
+  H("A23 · 49c · N19 N23 · la foto sirve el EJE ENTERO (comercial e inventario): cada miembro con su fila (su cero por ausencia o el valor que la proyección publica) y lo que el productor no trae se nombra en un límite");
+  { const PRODS = [
+      { k: "comercial·cliente", tema: "comercial", eje: "cliente", miembros: clientesMargen.map((x) => x.nombre), conj: [["contribucion", "brecha"], ["ventas", "margen"]] },
+      { k: "comercial·familia", tema: "comercial", eje: "familia", explicito: true, miembros: sfamiliasMargen.map((x) => x.nombre), conj: [["margen", "unidades"]] },
+      { k: "inventario·sku", tema: "inventario", eje: "sku", miembros: skuInventario.map((x) => x.sku), conj: [["capital_frenado", "rotacion"], ["capital", "dias_inventario"]] },
+    ];
+    let n = 0, malas = [], real = null;
+    for (const P of PRODS) for (const conj of P.conj) for (const cierre of ["lectura", "decision"]) for (const prof of ["completa", "breve"]) {
+      const { R, E } = entregaDe({ partes: [{ id: "p1", tema: P.tema, cierre, conceptos: conj, ...(P.explicito ? { eje: P.eje } : {}) }], profundidad: prof, ...(cierre === "decision" ? { criterio: { lente: P.tema === "inventario" ? "capital" : "contribucion" } } : {}) });
+      n++; const etq = `${P.k}.${conj.join("+")}.${cierre}.${prof}`;
+      if (!E.ok) { malas.push(`${etq}:no-ok`); continue; }
+      const sv = universoDe(E, "p1"), tablas = sujetosDe(E);
+      const limites = ((E.entrega && E.entrega.limites) || []).map((l) => `${l.titulo} ${l.motivo}`).join(" ");
+      const filaDe = (m, c) => [...filasCifras(E), ...filasDetalle(E)].some((f) => f.valores["Entidad / grupo"] === m && new RegExp(`^${({ capital_frenado: "Capital inmovilizado crítico", rotacion: "Rotación", capital: "Capital", dias_inventario: "Días de inventario", contribucion: "Contribución", brecha: "Brecha al benchmark", ventas: "Venta", margen: "Margen", unidades: "Unidades vendidas" })[c]}`, "i").test(f.valores["Métrica"]));
+      const etiq = { capital_frenado: "capital inmovilizado crítico", rotacion: "rotación", capital: "capital", dias_inventario: "días de inventario", contribucion: "contribución", brecha: "brecha", ventas: "venta", margen: "margen", unidades: "unidades vendidas" };
+      const faltantes = conj.flatMap((c) => P.miembros.filter((m) => !filaDe(m, c) && !(new RegExp(m.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(limites) && limites.toLowerCase().includes(etiq[c]))).map((m) => `${m}:${c}`));
+      const bien = verifica(E, R, prof).ok && P.miembros.every((m) => sv.includes(m) && tablas.has(m)) && sv.length === P.miembros.length && faltantes.length === 0;
+      if (!real && P.k === "inventario·sku" && conj[0] === "capital_frenado" && cierre === "lectura" && prof === "completa") real = { E, P };
+      if (!bien) malas.push(`${etq}:${faltantes.length}`);
+    }
+    ok(n === 20 && malas.length === 0, `barrido · ${n} combinaciones (productor × conceptos × cierre × profundidad): la foto es el eje entero, cada miembro con fila de cada concepto o nombrado en el límite`, JSON.stringify(malas.slice(0, 6)));
+    const tab = sujetosDe(real.E);
+    ok(real.P.miembros.length === 13 && real.P.miembros.every((m) => tab.has(m)) && filasCifras(real.E).concat(filasDetalle(real.E)).filter((f) => /Capital inmovilizado crítico/.test(f.valores["Métrica"]) && f.valores["Valor"] === "$0").length >= 10, "N19 · los 13 SKU tienen fila y los 10 sin capital inmovilizado crítico llevan su «$0» (la foto ya no son solo los 3 críticos)");
+    /* la carnada: a la foto se le quitan las filas de las cuentas sin cifra del productor */
+    const sanos = new Set(filasCifras(real.E).concat(filasDetalle(real.E)).filter((f) => /Capital inmovilizado crítico/.test(f.valores["Métrica"]) && f.valores["Valor"] === "$0").map((f) => f.valores["Entidad / grupo"]));
+    const sinSanos = { ...real.E, entrega: { ...real.E.entrega, cifras: { ...real.E.entrega.cifras, filas: filasCifras(real.E).filter((f) => !sanos.has(f.valores["Entidad / grupo"])) }, detalle: { ...(real.E.entrega.detalle || {}), filas: filasDetalle(real.E).filter((f) => !sanos.has(f.valores["Entidad / grupo"])) } } };
+    ok(real.P.miembros.every((m) => sujetosDe(real.E).has(m)) && !real.P.miembros.every((m) => sujetosDe(sinSanos).has(m)), "CARNADA · el defecto reconstruido (la foto solo trae los SKU con cifra del productor: los sanos sin fila) cae"); }
+
+  /* ─ (d) N26 · una premisa carga su evidencia aunque ninguna parte pida su concepto; el Marco no declara una cifra sin hecho ─ */
+  H("A23 · 49d · N26 · una premisa carga su evidencia aunque ninguna parte pida su concepto: tipo × concepto × eje; y el Marco nunca declara el «3.5 %» sin que su cifra esté declarada");
+  { const VALOR = { money: "$1.0M", pct: "10%", days: "10 días", ratio: "1.0x", count: "10" };
+    const ENTS = { cliente: clientesMargen.map((x) => x.nombre), marca: marcasMargen.map((x) => x.nombre), familia: sfamiliasMargen.map((x) => x.nombre), sku: skusMargen.map((x) => x.nombre) };
+    const PARES = [["carga", "pct", "cliente"], ["carga", "pct", "marca"], ["carga", "pct", "familia"], ["margen", "pct", "familia"], ["margen", "pct", "sku"], ["contribucion", "money", "marca"], ["unidades", "count", "familia"], ["brecha", "pp", "cliente"]];
+    const parteAjena = { id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_pendiente"], entidades: [{ nombre: "Lider" }] };
+    const hecho = (E) => E.entrega.procedencia.libroPremisas.porId.get("q1");
+    let n = 0, malas = [];
+    for (const [c, u, eje] of PARES) {
+      const e1 = ENTS[eje][0], e2 = ENTS[eje][1], val = VALOR[u] || "1pp";
+      const premisas = [
+        { id: "q1", tipo: "cifra", sujeto: e1, metrica: c, valor: val },
+        { id: "q1", tipo: "orden", sujeto: e1, metrica: c, orden: { forma: "max" }, universo: { eje } },
+        { id: "q1", tipo: "grupo", miembros: [e1], universo: { eje, top: { metrica: c, k: 3 } } },
+        { id: "q1", tipo: "conteo", conteo: { n: 1, m: 3 }, de: { eje, top: { metrica: c, k: 3 } } },
+        { id: "q1", tipo: "conteo", conteo: { n: 1, m: ENTS[eje].length }, de: { eje, filtros: [{ metrica: c, op: ">", valor: 1 }] } },
+        { id: "q1", tipo: "relacion", sujeto: e1, metrica: c, relacion: { forma: "mayor", vs: { sujeto: e2 } } },
+      ];
+      for (const premisa of premisas) { n++; const { R, E } = entregaDe({ partes: [parteAjena], premisas: [premisa] }); const H1 = E.ok ? hecho(E) : null; if (!(E.ok && H1 && (H1.veredicto === "verdadera" || H1.veredicto === "falsa") && verifica(E, R).ok)) malas.push(`${premisa.tipo}.${c}.${eje}`); }
+    }
+    for (const [ref, metrica, op, ejes] of [["nivel_carga", "carga", ">", ["cliente", "marca", "familia"]], ["benchmark", "margen", "<", ["cliente", "marca", "familia", "sku"]]]) for (const eje of ejes) for (const tipo of ["conteo", "grupo"]) { n++;
+      const U = { eje, filtros: [{ metrica, op, ref }] };
+      const premisa = tipo === "conteo" ? { id: "q1", tipo, conteo: { n: 1, m: ENTS[eje].length }, de: U } : { id: "q1", tipo, miembros: [ENTS[eje][0]], universo: U };
+      const { R, E } = entregaDe({ partes: [parteAjena], premisas: [premisa] }); const H1 = E.ok ? hecho(E) : null;
+      if (!(E.ok && H1 && (H1.veredicto === "verdadera" || H1.veredicto === "falsa") && verifica(E, R).ok)) malas.push(`ref.${ref}.${eje}.${tipo}`); }
+    for (const base of ["bajo el benchmark", "SKU bajo el benchmark"]) { n++; const eje = /^SKU/.test(base) ? "sku" : "cliente"; const { R, E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente" }], criterio: { referencia: { concepto: "benchmark", valor: 25, unidad: "pct" } }, premisas: [{ id: "q1", tipo: "conteo", conteo: { n: 1, m: ENTS[eje].length }, de: { eje, base } }] });
+      if (!(E.ok && /(?:\d+ )(?:SKU|cuentas)[^.]*esa referencia/.test((E.entrega.limites || []).map((l) => l.motivo).join(" ")) && verifica(E, R).ok)) malas.push(`base.${base}`); }
+    ok(n >= 50 && malas.length === 0, `barrido · ${n} combinaciones (tipo de premisa × concepto × eje, el filtro con \`ref\` y el \`base\` de la casa): ninguna queda «no verificable» por una evidencia que el Core sabe calcular y todas pasan verificarEntrega`, JSON.stringify(malas.slice(0, 6)));
+    const { R: R26, E: E26 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["margen", "unidades"], eje: "familia" }], criterio: { lente: "riesgo" }, premisas: [{ id: "q2", tipo: "conteo", conteo: { n: 2, m: 4 }, de: { eje: "familia", filtros: [{ metrica: "carga", op: ">", ref: "nivel_carga" }] } }] });
+    const H26 = E26.entrega.procedencia.libroPremisas.porId.get("q2");
+    ok(E26.ok && H26.veredicto === "verdadera" && /2 de 4/.test(sinTablas(E26)) && verifica(E26, R26).ok, "N26 · «2 de 4» familias sobre el nivel de carga: la premisa carga la carga por familia aunque la parte pida margen y unidades", sinTablas(E26).split("\n").filter((l) => /premisa/.test(l)).join(" | "));
+    /* el Marco declara «3.5%» sin que su cifra esté declarada: la Entrega de N26 sin su cifra impresa es rechazada (el rechazo de verificarEntrega que la 49d cierra) */
+    const sinCifra = { ...E26, entrega: { ...E26.entrega, procedencia: { ...E26.entrega.procedencia, cifrasImpresas: (E26.entrega.procedencia.cifrasImpresas || []).filter((c) => !/3\.5/.test(c)) } } };
+    ok(/Nivel de carga declarado: 3\.5%/.test(E26.texto) && verifica(E26, R26).ok && !verifica(sinCifra, R26).ok, "CARNADA · el defecto reconstruido (el Marco dice «3.5%» sin que esa cifra esté declarada) cae en verificarEntrega"); }
+
+  /* ─ (e) N25 N32 N38 N73 · la lente «ventas» aplica en cliente, marca, familia y SKU ─ */
+  H("A23 · 49e · N25 N32 N38 N73 · la lente «ventas» APLICA donde el dato publica venta (cliente · marca · familia · SKU): la oración de prioridad la nombra y su primero es el de mayor venta del grupo; en inventario (sin venta) se declara");
+  { const PRIO = /^Prioridad del procedimiento(?: dentro de este grupo)?, por ([^:(]+?)(?: \(([^)]*)\))?: ([^,]+?), con /;
+    let n = 0, malas = [];
+    for (const [eje, uni] of [["cliente", null], ["cliente", { top: { metrica: "margen", k: 3 } }], ["marca", null], ["marca", { top: { metrica: "margen", k: 3 } }], ["familia", null], ["familia", { top: { metrica: "margen", k: 2 } }], ["sku", null], ["sku", { top: { metrica: "margen", k: 4 } }], ["sku", { base: "SKU bajo el benchmark" }]]) for (const conj of [["margen", "unidades"], ["ventas", "margen"]]) {
+      const { R, E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: conj, eje, ...(uni ? { universo: { eje, ...uni } } : {}) }], criterio: { lente: "ventas" } }); n++;
+      const m = oracionesDe(E).map((r) => PRIO.exec(r.texto)).filter(Boolean)[0], grupo = universoDe(E, "p1");
+      const esp = grupo.map((g) => EJE[eje].find((x) => x.n === g)).filter(Boolean).sort((a, b) => b.v - a.v)[0];
+      if (!(E.ok && m && /^ventas$/i.test(m[1].trim()) && esp && esp.n === m[3].trim() && verifica(E, R).ok)) malas.push(`${eje}.${uni ? Object.keys(uni)[0] : "sin"}.${conj.join("+")}`);
+    }
+    ok(n === 18 && malas.length === 0, `barrido · ${n} combinaciones (eje × universo × conceptos): «por ventas» y el primero de mayor venta del grupo`, JSON.stringify(malas.slice(0, 6)));
+    const { E: EI } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital", "dias_inventario"], eje: "sku" }], criterio: { lente: "ventas" } });
+    ok(EI.ok && !oracionesDe(EI).some((r) => /por ventas:/.test(r.texto)) && /ventas/.test(oracionesDe(EI).map((r) => r.texto).join(" ")), "inventario por SKU (sin venta): la lente ventas no ordena y se declara, nunca se sirve «por ventas»"); }
+
+  /* ─ (f) N78 · una cifra conserva el rótulo de su concepto aunque otra clave comparta su valor ─ */
+  H("A23 · 49f · N78 · ventas no se rotula «venta a crédito» aunque coincidan en valor (todas las claves que comparten valor: ventas · venta a crédito, saldo pendiente · saldo por vencer)");
+  { let n = 0, malas = [];
+    for (const cl of clientesMargen.slice(0, 13)) {
+      const f = Mflujo.find((x) => x.nombre === cl.nombre); if (!f) continue;
+      for (const [metrica, valor, rotulo] of [["ventas", f.ventaFmt, "venta"], ["venta_credito", f.ventaFmt, "venta a crédito"], ["saldo_pendiente", f.saldoFmt, "saldo pendiente"]]) {
+        n++;   /* el valor es el que la mesa de flujo imprime (oráculo independiente) */
+        const { R, E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "margen"], entidades: [{ nombre: cl.nombre }] }, { id: "p2", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido", "saldo_pendiente", "venta_credito"], entidades: [{ nombre: cl.nombre }] }], premisas: [{ id: "q1", tipo: "cifra", sujeto: cl.nombre, metrica, valor }] });
+        const o = E.ok ? (E.entrega.respuesta || []).filter((r) => r._premisa === true).map((r) => r.texto).join(" | ") : "";
+        const mm = new RegExp(`${cl.nombre.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: (.+?) ${valor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i").exec(o);
+        if (!(E.ok && mm && mm[1].trim().toLowerCase() === rotulo && verifica(E, R).ok)) malas.push(`${cl.nombre}.${metrica}:${mm && mm[1]}`);
+      }
+    }
+    ok(n >= 35 && malas.length === 0, `barrido · ${n} premisas de cifra (cuentas × ventas · venta a crédito · saldo pendiente): el rótulo es el del concepto pedido`, JSON.stringify(malas.slice(0, 6)));
+    const { E: E78 } = entregaDe({ partes: [{ id: "p2", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "margen"], entidades: [{ nombre: "Lider" }] }, { id: "p3", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido", "dias_vencido"], entidades: [{ nombre: "Sodimac" }] }], premisas: [{ id: "q1", tipo: "cifra", sujeto: "Lider", metrica: "ventas", valor: "$17.8M" }] });
+    const l78 = (E78.entrega.respuesta || []).filter((r) => r._premisa === true).map((r) => r.texto)[0] || "";
+    ok(/es correcto — Lider: venta \$17\.8M\.$/.test(l78), "N78 · «Lider: venta $17.8M», no «venta a crédito»", l78);
+    ok(!/es correcto — Lider: venta \$17\.8M\.$/.test(l78.replace("Lider: venta $", "Lider: venta a crédito $")), "CARNADA · el defecto reconstruido («Lider: venta a crédito $17.8M» para una premisa de ventas) cae"); }
+
+  /* ─ (g) P74 · el corte entre Cifras y Detalle nunca parte una entidad ─ */
+  H("A23 · 49g · P74 · el corte entre Cifras y Detalle nunca parte una entidad: sus filas van juntas (y un hecho cuyo valor es parte de otro número no protege su fila)");
+  { const clave = (f) => { const v = f.valores || {}; return `${v["Entidad / grupo"]}::${v.Tema}`; };
+    const partidas = (E) => { const c = new Set(filasCifras(E).map(clave)), d = new Set(filasDetalle(E).map(clave)); return [...c].filter((k) => d.has(k)); };
+    const P = { sku2: { tema: "comercial", eje: "sku", conceptos: ["ventas", "unidades"] }, cli2: { tema: "comercial", eje: "cliente", conceptos: ["ventas", "margen"] }, marca3: { tema: "comercial", eje: "marca", conceptos: ["ventas", "margen", "unidades"] }, cob2: { tema: "cobranza", conceptos: ["saldo_pendiente", "recuperado"] }, cob3: { tema: "cobranza", conceptos: ["saldo_vencido", "dias_vencido", "abonado"] }, inv2: { tema: "inventario", eje: "sku", conceptos: ["capital", "dias_inventario"] } };
+    let n = 0, malas = [];
+    for (const ks of [["sku2"], ["cli2"], ["marca3"], ["cob2"], ["sku2", "cob2"], ["sku2", "cli2"], ["cli2", "cob2"], ["sku2", "cob3"], ["marca3", "cob2"], ["cli2", "inv2"], ["sku2", "cli2", "cob2"], ["sku2", "cob2", "inv2"]]) for (const prof of ["completa", "breve"]) {
+      const tope = prof === "breve" ? 8 : 24; const porGrupo = new Map(); for (const k of ks) { const g = `${P[k].tema}:${P[k].eje || ""}`; porGrupo.set(g, (porGrupo.get(g) || 0) + P[k].conceptos.length); }
+      if ([...porGrupo.values()].reduce((a, b) => a + b, 0) > tope) continue;   /* el tope de filas no alcanza ni para una entidad entera por grupo: el corte es forzado */
+      n++; const { R, E } = entregaDe({ partes: ks.map((k, i) => ({ id: `p${i + 1}`, tema: P[k].tema, cierre: "cifra", conceptos: P[k].conceptos, ...(P[k].eje ? { eje: P[k].eje } : {}) })), profundidad: prof });
+      if (!(E.ok && partidas(E).length === 0 && verifica(E, R, prof).ok)) malas.push(`${ks.join("+")}.${prof}:${partidas(E).slice(0, 2)}`);
+    }
+    ok(n >= 18 && malas.length === 0, `barrido · ${n} combinaciones (1-3 partes de eje completo × profundidad): ninguna entidad queda en Cifras y en Detalle a la vez`, JSON.stringify(malas.slice(0, 6)));
+    const { R: R74, E: E74 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "unidades"], eje: "sku" }, { id: "p2", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_pendiente", "recuperado"] }], premisas: [{ id: "q1", tipo: "orden", sujeto: "SAM-TV55", metrica: "ventas", orden: { forma: "max" }, universo: { eje: "sku" } }, { id: "q2", tipo: "orden", sujeto: "Lider", metrica: "saldo_pendiente", orden: { forma: "max" }, universo: { eje: "cliente" } }] });
+    const ordenSku = filasCifras(E74).concat(filasDetalle(E74)).filter((f) => f.valores.Tema === "comercial" && /^Venta$/.test(f.valores["Métrica"])).map((f) => f.valores["Entidad / grupo"]);
+    const esperado = skusMargen.slice().sort((a, b) => b.venta - a.venta).map((x) => x.nombre);
+    ok(E74.ok && partidas(E74).length === 0 && JSON.stringify(ordenSku) === JSON.stringify(esperado) && verifica(E74, R74).ok, "P74 · 13 SKU por venta + 13 cuentas: ninguna entidad partida y el orden exhibido de los SKU es el de la venta (MAK-COMP-AIR no se cuela antes por un «4» de otro número)", JSON.stringify({ partidas: partidas(E74), ordenSku }));
+    /* la carnada: se parte una entidad a mano (su segunda fila al Detalle) */
+    const f0 = filasCifras(E74)[0]; const k0 = clave(f0);
+    const partida = { ...E74, entrega: { ...E74.entrega, cifras: { ...E74.entrega.cifras, filas: filasCifras(E74).filter((f, i) => !(clave(f) === k0 && i === 1)) }, detalle: { ...(E74.entrega.detalle || {}), filas: [filasCifras(E74)[1], ...filasDetalle(E74)] } } };
+    ok(partidas(E74).length === 0 && partidas(partida).length === 1, "CARNADA · el defecto reconstruido (la segunda fila de una entidad va al Detalle y la primera queda en Cifras) cae"); }
+
+  /* ─ el «techo de quiebre» (N39) y el Marco de una Entrega solo de cobranza ─ */
+  H("A23 · 49 · N39 · el criterio aplicado de una premisa dice TODOS los umbrales de su estado (también «techo de quiebre 20 días»); y el Marco de una Entrega solo de cobranza no habla de inventario");
+  { let n = 0, malas = [];
+    const num = (v) => String(v).replace(/\.0+$/, "");
+    for (const estado of ["riesgo de quiebre", "sobrestock", "inmovilizado critico", "capital sano"]) for (const tipo of ["grupo", "conteo"]) for (const top of [false, true]) {
+      const U = { eje: "sku", estados: [estado], ...(top ? { top: { metrica: "ventas", k: 3 } } : {}) };
+      const premisa = tipo === "grupo" ? { id: "q1", tipo, miembros: ["PHI-IRON-PRO"], universo: U } : { id: "q1", tipo, conteo: { n: 2, m: 8 }, de: U };
+      const { R, E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "sku" }], premisas: [premisa] }); n++;
+      const H1 = E.ok ? E.entrega.procedencia.libroPremisas.porId.get("q1") : null; const o = E.ok ? (E.entrega.respuesta || []).filter((r) => r._premisa === true).map((r) => r.texto).join(" | ") : "";
+      const faltan = H1 && (H1.veredicto === "verdadera" || H1.veredicto === "falsa") ? (UMBRALES_DE_ESTADO[estado] || []).filter((k) => { const v = umbral(k).valor; return Number.isFinite(v) && !new RegExp(`(?<![\\d.,])${num(v)}(?![\\d])`).test(o); }) : [];
+      if (!(E.ok && faltan.length === 0 && verifica(E, R).ok)) malas.push(`${estado}.${tipo}.${top ? "top" : "sin"}:${faltan}`);
+    }
+    ok(n === 16 && malas.length === 0, `barrido · ${n} premisas (estado × tipo × top): cada umbral del estado se dice en la oración`, JSON.stringify(malas.slice(0, 4)));
+    const { E: E39 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "sku" }], premisas: [{ id: "q5", tipo: "grupo", miembros: ["PHI-IRON-PRO"], universo: { eje: "sku", estados: ["sin venta"], no_estados: ["riesgo de quiebre"], filtros: [{ metrica: "dias_inventario", op: ">", valor: 20 }], top: { metrica: "ventas", k: 3 } } }] });
+    const l39 = (E39.entrega.respuesta || []).filter((r) => r._premisa === true).map((r) => r.texto).join(" | ");
+    ok(/criterio aplicado: piso de quiebre 6\.0x; techo de quiebre 20 días/.test(l39), "N39 · «criterio aplicado: piso de quiebre 6.0x; techo de quiebre 20 días» (el otro umbral del conjunto no queda solo en el Marco)", l39);
+    let nc = 0, malasC = [];
+    for (const conc of [["saldo_vencido", "dias_vencido"], ["abonado", "recuperado"]]) for (const cierre of ["cifra", "lectura", "decision"]) for (const uni of [null, { top: { metrica: "saldo_vencido", k: 5 } }, { estados: ["en mora"] }]) for (const prof of ["completa", "breve"]) {
+      nc++; const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre, conceptos: conc, ...(uni ? { universo: { eje: "cliente", ...uni } } : {}) }], profundidad: prof });
+      const marco = (/\*\*Marco\.\*\*[^\n]*/.exec(E.texto || "") || [""])[0];
+      if (!(E.ok && !/inventario|dos marcos|tres marcos/i.test(marco))) malasC.push(`${conc.join("+")}.${cierre}.${uni ? Object.keys(uni)[0] : "sin"}.${prof}`);
+    }
+    ok(nc === 36 && malasC.length === 0, `barrido · ${nc} Entregas solo de cobranza (conceptos × cierre × universo × profundidad): el Marco es «foto de cobranza al …», sin «dos marcos» ni «foto de inventario»`, JSON.stringify(malasC.slice(0, 4)));
+    const { E: EC } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "lectura", conceptos: ["saldo_vencido", "dias_vencido"] }] });
+    const marcoC = (/\*\*Marco\.\*\*[^\n]*/.exec(EC.texto || "") || [""])[0];
+    ok(/foto de cobranza al /.test(marcoC) && !/inventario/.test(marcoC) && /inventario/.test(marcoC.replace("foto de cobranza", "foto de inventario")), "CARNADA · el defecto reconstruido («dos marcos… foto de inventario a hoy» en una Entrega solo de cobranza) cae"); }
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");

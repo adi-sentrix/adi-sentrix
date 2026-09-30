@@ -38,6 +38,16 @@
 import { renderDe } from "../notario/hechos.js";
 import { contarPalabras, TOPE_BREVE, TOPE_COMPLETA, FILAS_BREVE_MAX, FILAS_COMPLETA_MAX } from "./verificar.js";
 
+/** §7.3·49(g): las veces que un valor renderizado APARECE como valor en el texto — no como un trozo de otro número («4» no está en «$12.4M» ni en «14») ni de una palabra. Un hecho «esencial» lo es porque el texto dice SU valor; con la coincidencia por subcadena, el «4» de una cuenta de 4 unidades protegía su fila (y la partía de la entidad) solo porque otra cifra traía un 4. */
+function _apariciones(texto, v) {
+  const t = String(texto || ""), x = String(v);
+  if (!x) return 0;
+  const antes = /^[\p{L}\p{N}]/u.test(x) ? "(?<![\\p{L}\\p{N}.,])" : "";
+  const despues = /\p{N}$/u.test(x) ? "(?![\\p{N}]|[.,]\\p{N})" : "(?![\\p{L}\\p{N}])";
+  const re = new RegExp(antes + x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + despues, "gu");
+  return (t.match(re) || []).length;
+}
+
 const _MARCADOR_CONCLUSION = /^Prioridad del procedimiento|^Quien m[aá]s pesa en el conjunto/;
 
 /** hechosEsencialesDeOracion(r, libro) → { esenciales:[id,...], apoyo:[id,...] } — puro, sin efectos. Las
@@ -55,13 +65,13 @@ function hechosEsencialesDeOracion(r, libro) {
   const candidatos = [];   // hechos cuyo valor renderizado aparece literal en el texto, con ese valor
   for (const id of hechos) {
     const v = libro.porId && libro.porId.has(id) ? renderDe(libro, id) : null;
-    if (v != null && texto.includes(v)) candidatos.push({ id, v }); else apoyo.push(id);
+    if (v != null && _apariciones(texto, v) > 0) candidatos.push({ id, v }); else apoyo.push(id);
   }
   /* v24 (barrido familia iii): varios hechos pueden RENDERIZAR el mismo valor («$0» de cuatro bodegas o cuentas, «8d» de tres cuentas) y el texto decirlo UNA vez pegado a SU dueño: solo tantos hechos como veces aparece el valor en el texto son esenciales (los del dueño nombrado más temprano); los demás son apoyo. Antes, el «$0» de una cuenta protegía la fila de TODAS las empatadas en cero y la tabla superaba el tope de filas. */
   const porValor = new Map();
   for (const c of candidatos) { if (!porValor.has(c.v)) porValor.set(c.v, []); porValor.get(c.v).push(c); }
   for (const [v, grupo] of porValor) {
-    const veces = texto.split(v).length - 1;
+    const veces = _apariciones(texto, v);
     if (grupo.length <= veces) { for (const c of grupo) esenciales.push(c.id); continue; }
     const posDueno = (c) => { const h = libro.porId.get(c.id); const d = h && h.roles && h.roles.sujetos && h.roles.sujetos[0]; const p = d && d !== "negocio" ? texto.indexOf(String(d)) : -1; return p < 0 ? Infinity : p; };
     const ordenado = [...grupo].sort((a, b) => posDueno(a) - posDueno(b));
@@ -123,6 +133,10 @@ export function gobernarTamano(entrega, profundidad, renderTexto, titulo) {
   const oracionesServidasIdx = new Set(respuestaOriginal.map((_, idx) => idx));
   const filasServidasIdx = new Set();   // se decide DESPUÉS de fijar qué oraciones sobreviven (protección cruzada)
 
+  /* §7.3·49(g): el corte entre Cifras y Detalle NUNCA parte una entidad — las filas de una misma entidad (en un mismo tema) viajan juntas. La clave es el dueño de la fila y su tema; una fila sin dueño no forma grupo */
+  const _claveDeEntidad = (f) => { const v = f && f.valores ? f.valores : null; if (!v) return null; const e = v["Entidad / grupo"] != null ? v["Entidad / grupo"] : v.Entidad; return e == null ? null : `${e}::${v.Tema != null ? v.Tema : ""}`; };
+  const _gruposDeEntidad = new Map();   // clave → [idx de fila, ...] en el orden de aparición
+  filasOriginal.forEach((f, idx) => { const k = _claveDeEntidad(f); if (k == null) return; if (!_gruposDeEntidad.has(k)) _gruposDeEntidad.set(k, []); _gruposDeEntidad.get(k).push(idx); });
   const _hechosEsencialesServidos = () => { const s = new Set(); for (const idx of oracionesServidasIdx) for (const id of esencialesPorOracion[idx].esenciales) s.add(id); return s; };
   const _filaTieneHechoServido = (fila, hechosServidos) => (fila.hechos || []).some((id) => hechosServidos.has(id));
 
@@ -135,9 +149,15 @@ export function gobernarTamano(entrega, profundidad, renderTexto, titulo) {
   const _llenarFilasInicial = () => {
     const hechosServidos = _hechosEsencialesServidos();
     filasOriginal.forEach((f, idx) => { if (_filaTieneHechoServido(f, hechosServidos)) filasServidasIdx.add(idx); });
+    /* §7.3·49(g): el relleno va por ENTIDADES ENTERAS en el orden de la prioridad (las filas de una entidad van juntas): las de una entidad protegida se completan, y después entra la siguiente entidad entera mientras quepa; la primera que no cabe corta el relleno (no se salta a una más chica de más abajo: el orden exhibido no se rompe) */
+    for (const g of _gruposDeEntidad.values()) if (g.some((j) => filasServidasIdx.has(j))) for (const j of g) filasServidasIdx.add(j);
     for (const { idx } of ordenFilas) {
       if (filasServidasIdx.size >= topeFilas) break;
-      filasServidasIdx.add(idx);
+      if (filasServidasIdx.has(idx)) continue;
+      const kI = _claveDeEntidad(filasOriginal[idx]);
+      const faltan = (kI == null ? [idx] : _gruposDeEntidad.get(kI)).filter((j) => !filasServidasIdx.has(j));
+      if (filasServidasIdx.size + faltan.length > topeFilas) break;
+      for (const j of faltan) filasServidasIdx.add(j);
     }
   };
   _llenarFilasInicial();
@@ -187,8 +207,20 @@ export function gobernarTamano(entrega, profundidad, renderTexto, titulo) {
   // BÚSQUEDA ITERATIVA (§B.2): mientras el render exceda el tope de palabras o de filas, se retira el ítem de
   // MENOR prioridad servido (el «más recortable» primero) — nunca el de aparición más tardía porque sí: es el
   // de prioridad más baja, EN EL ORDEN en que `ordenOraciones`/`ordenFilas` ya lo declaran.
+  /* §7.3·49(g): ninguna entidad queda partida entre Cifras y Detalle. Una entidad servida a medias SIN fila protegida por una oración servida sale ENTERA al Detalle; con una fila protegida (su hecho lo cita una oración) se le agregan las filas que faltan (el bucle retira después entidades ENTERAS de menor prioridad si el tope de filas lo exige). Solo cuando no queda ninguna entidad entera que retirar se acepta partir una (`splitForzado`): el tope de tamaño manda, como siempre. */
+  let splitForzado = false;
+  const _alinearEntidades = (permiteAgregar) => {
+    const hechosServidos = _hechosEsencialesServidos();
+    for (const g of _gruposDeEntidad.values()) {
+      const servidas = g.filter((j) => filasServidasIdx.has(j));
+      if (!servidas.length || servidas.length === g.length) continue;
+      if (servidas.some((j) => _filaTieneHechoServido(filasOriginal[j], hechosServidos))) { if (permiteAgregar) for (const j of g) filasServidasIdx.add(j); }
+      else for (const j of servidas) filasServidasIdx.delete(j);
+    }
+  };
   let guard = respuestaOriginal.length + filasOriginal.length + 2;   // cota dura: nunca más iteraciones que ítems
   while (guard-- > 0) {
+    _alinearEntidades(!splitForzado);
     const candidata = _construirCandidata();
     const texto = renderTexto(candidata, titulo, profundidad);
     const palabras = contarPalabras(texto);
@@ -209,10 +241,26 @@ export function gobernarTamano(entrega, profundidad, renderTexto, titulo) {
     // encoger el conjunto de hechos esenciales servidos).
     let retirado = false;
     const hechosServidos = _hechosEsencialesServidos();
-    const filaRetirable = ordenFilas.slice().reverse().find(({ idx }) => filasServidasIdx.has(idx) && !_filaTieneHechoServido(filasOriginal[idx], hechosServidos));
+    const _grupoSinProtegidas = (idx) => { const k = _claveDeEntidad(filasOriginal[idx]); const g = k == null ? [idx] : _gruposDeEntidad.get(k); return g.every((j) => !filasServidasIdx.has(j) || !_filaTieneHechoServido(filasOriginal[j], hechosServidos)); };
+    /* §7.3·49(g): se retira una entidad ENTERA (todas sus filas servidas), la de MENOR importancia: la que tiene su mejor fila más abajo en la prioridad (nunca una entidad importante porque una de sus filas sea la última de la tabla). Sin fila protegida en el grupo. */
+    const _prioDeFila = new Map(ordenFilas.map(({ idx, prioridad }) => [idx, prioridad]));
+    let _grupoRetirable = null;
+    for (const [kG, g] of _gruposDeEntidad) {
+      const servidas = g.filter((j) => filasServidasIdx.has(j));
+      if (!servidas.length || servidas.some((j) => _filaTieneHechoServido(filasOriginal[j], hechosServidos))) continue;
+      const mejor = Math.min(...servidas.map((j) => _prioDeFila.get(j)));
+      if (!_grupoRetirable || mejor >= _grupoRetirable.mejor) _grupoRetirable = { k: kG, g, mejor };
+    }
+    const _filaEnteraRetirable = _grupoRetirable ? { idx: _grupoRetirable.g.filter((j) => filasServidasIdx.has(j))[0], grupo: _grupoRetirable.g } : ordenFilas.slice().reverse().find(({ idx }) => filasServidasIdx.has(idx) && _claveDeEntidad(filasOriginal[idx]) == null && !_filaTieneHechoServido(filasOriginal[idx], hechosServidos));
+    /* una fila suelta de una entidad protegida se retira solo cuando no queda ninguna entidad entera que retirar (lo de siempre: antes de retirar una oración) */
+    const filaRetirable = _filaEnteraRetirable || ordenFilas.slice().reverse().find(({ idx }) => filasServidasIdx.has(idx) && !_filaTieneHechoServido(filasOriginal[idx], hechosServidos));
+    if (filaRetirable && !_filaEnteraRetirable) splitForzado = true;
     const oracionRetirable = ordenOraciones.slice().reverse().find(({ idx, prioridad }) => oracionesServidasIdx.has(idx) && prioridad > 0);
 
-    if (filaRetirable) { filasServidasIdx.delete(filaRetirable.idx); retirado = true; }
+    if (filaRetirable) {
+      if (filaRetirable.grupo) { for (const j of filaRetirable.grupo) filasServidasIdx.delete(j); } else filasServidasIdx.delete(filaRetirable.idx);
+      retirado = true;
+    }
     else if (oracionRetirable) {
       // ATOMICIDAD DE BLOQUE (owner 2026-09-26, hallazgo real al gobernar D27 en "breve": el encabezado de un
       // bloque de simulación sobrevivía solo, sin su cuerpo — un encabezado sin resultado no dice nada). Una
@@ -228,6 +276,7 @@ export function gobernarTamano(entrega, profundidad, renderTexto, titulo) {
     if (!retirado) break;   // no queda nada recortable (todo lo servido es prioridad 0 / doble-colocación) — mejor esfuerzo
   }
 
+  _alinearEntidades(!splitForzado);
   let entregaGobernada = _construirCandidata();
   // en el orden ORIGINAL de aparición — ya lo están, porque `_construirCandidata` filtra sobre el array original
   // sin reordenar (candado §B.2: "devuelve al orden original de aparición lo que quedó").

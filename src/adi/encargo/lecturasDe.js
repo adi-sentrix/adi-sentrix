@@ -62,6 +62,7 @@ import { dominioDeClave, polaridadDeClave, unidadDeClave } from "../notario/lexi
 import { resolveEntityRef } from "../oracle/entityIndex.js";
 import { umbral } from "../../config/businessPolicy.js";
 import { estadoDeclarado } from "../notario/estados.js";
+import { referenciaDeBase, conjuntoConocido } from "../notario/conjuntosDeLaCasa.js";
 
 /* LA CAJA EXTENDIDA (owner 2026-08-30, F2 · ADI Agente): `cobranza` y `rolesCartera` —las dos que
  * `pasosDelContratoComercial`/`pasosDeDominios` ya citan por nombre— viven en `cajaDelAgente`, no en `TOOLS` del
@@ -610,23 +611,34 @@ function _ejeDeSujetoPremisa(sujeto) {
  *  en `metrica`): `top.metrica`, `filtros[].metrica` (sin `ref`: un filtro por referencia lo resuelve su propio
  *  detector), `excluir.top[].metrica` y, recursivo, cada miembro de `union` (hereda el eje del universo que lo
  *  contiene). Una premisa de grupo/conteo sin `metrica` propia necesita esa evidencia para juzgarse. */
-function _conceptosDeUniverso(u, add, ejeHeredado = null) {
+/** §7.3·49(d): la métrica cuya evidencia necesita un conjunto de la casa que define una referencia numérica («bajo el benchmark» → margen; «SKU bajo el benchmark» → margen por SKU; «sobre el nivel declarado de carga» → carga). Dato de la casa (`referenciaDeBase`), nunca una lista aparte. */
+function _metricaDeConjunto(nombre) {
+  const r = referenciaDeBase(nombre);
+  if (!r || !r.metrica) return null;
+  return r.metrica === "margen_venta" ? "margen" : r.metrica;
+}
+const _EJE_NATIVO_DE_REFERENCIA = { benchmark: "cliente", nivel_carga: "cliente", piso_rotacion: "sku", techo_cobertura: "sku" };
+function _conceptosDeUniverso(u, add, ejeHeredado = null, conBase = false) {
   if (!u || typeof u !== "object" || Array.isArray(u)) return;
   const eje = u.eje || ejeHeredado;
+  /* §7.3·49(d): el conjunto de la casa que el universo nombra (`base` o excluido) trae la evidencia de SU métrica en el eje del conjunto, aunque ninguna parte la pida */
+  if (conBase) { const bases = [...(typeof u.base === "string" && u.base.trim() ? [u.base] : []), ...(u.excluir && typeof u.excluir === "object" && Array.isArray(u.excluir.conjuntos) ? u.excluir.conjuntos.filter((n) => typeof n === "string") : [])];
+    for (const b of bases) { const m = _metricaDeConjunto(b); const c = conjuntoConocido(b); if (m) add(m, eje || (c && c.eje) || null); } }
   if (u.top && u.top.metrica) add(u.top.metrica, eje);
-  for (const f of Array.isArray(u.filtros) ? u.filtros : []) if (f && f.metrica && f.ref == null) add(f.metrica, eje);
+  /* §7.3·49(d): el filtro que cita una referencia de la casa (`ref`) necesita la evidencia de su métrica en los ejes donde la proyección NO resuelve el conjunto (la proyección lo resuelve en el eje nativo de la referencia: benchmark y nivel de carga por cuenta, piso de rotación y techo de cobertura por SKU); en marca, familia o el otro eje la premisa la carga aunque ninguna parte pida el concepto */
+  for (const f of Array.isArray(u.filtros) ? u.filtros : []) if (f && f.metrica && (f.ref == null || _EJE_NATIVO_DE_REFERENCIA[String(f.ref).trim()] !== eje)) add(f.metrica, eje);
   if (u.excluir && typeof u.excluir === "object") {
     const tops = Array.isArray(u.excluir.top) ? u.excluir.top : (u.excluir.top ? [u.excluir.top] : []);
     for (const t of tops) if (t && t.metrica) add(t.metrica, eje);
   }
-  for (const v of Array.isArray(u.union) ? u.union : []) _conceptosDeUniverso(v, add, eje);
+  for (const v of Array.isArray(u.union) ? u.union : []) _conceptosDeUniverso(v, add, eje, conBase);
 }
-function _conceptosYEjesDePremisa(p) {
+function _conceptosYEjesDePremisa(p, conBase = false) {
   if (!p || typeof p !== "object") return [];
   const out = [];
   const add = (concepto, eje) => { if (concepto && eje) out.push({ concepto: String(concepto), eje }); };
-  _conceptosDeUniverso(p.universo, add);
-  _conceptosDeUniverso(p.de, add);
+  _conceptosDeUniverso(p.universo, add, null, conBase);
+  _conceptosDeUniverso(p.de, add, null, conBase);
   const ejeDeUniverso = (u) => (u && typeof u === "object" ? u.eje : null);
   const tipo = p.tipo;
   if (tipo === "cifra") {
@@ -650,10 +662,12 @@ function _conceptosYEjesDePremisa(p) {
 }
 /** callsDePremisas(premisas) → las llamadas ➕ que las PREMISAS del encargo necesitan para poder juzgarse, más
  *  allá de lo que la Parte ya pidió — SOLO para `libroPremisas`, ver la nota de arriba. */
-function _callsDePremisas(premisas) {
+function _callsDePremisas(premisas, criterio = null) {
+  /* §7.3·49(d): el conjunto de la casa que una premisa nombra por `base` trae la evidencia de su métrica SOLO cuando la consulta plantea su propia referencia (hay un conjunto alternativo que contar en el eje de la premisa); sin ella el veredicto sale de la proyección, como siempre */
+  const conBase = !!(criterio && criterio.referencia);
   const out = [];
   for (const p of Array.isArray(premisas) ? premisas : []) {
-    for (const { concepto, eje } of _conceptosYEjesDePremisa(p)) {
+    for (const { concepto, eje } of _conceptosYEjesDePremisa(p, conBase)) {
       if (!productorDe(concepto, eje)) continue;   // sin productor: nada que agendar, la premisa sigue sin-evidencia
       out.push(..._callsDeConceptoEje(dominioDeClave(concepto) || "", concepto, eje));
     }
@@ -719,7 +733,7 @@ export function lecturasDe(resolucion) {
 
   // R-EVIDENCIA-PREMISA: se agregan DESPUÉS de fijar `porParte` (arriba) — nunca entran a esa traza, así que
   // ninguna parte las hereda como "lo servido" (ver la nota de `_callsDePremisas`).
-  const premisaCalls = _callsDePremisas(resolucion.premisas);
+  const premisaCalls = _callsDePremisas(resolucion.premisas, resolucion.criterio);
 
   const todas = _dedupeCalls([...lecturaCalls, ...sueltas, ...premisaCalls]);
   return {

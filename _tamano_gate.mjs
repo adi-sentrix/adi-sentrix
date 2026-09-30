@@ -287,7 +287,9 @@ H('8 · CARNADA · un multitema NO delegado — la conclusión integrada (priori
     if (Rbreve.ok) {
       const textoConclusion = Rcompleta.entrega.respuesta[idxConclusion].texto;
       ok(Rbreve.entrega.respuesta.some((r) => r.texto === textoConclusion), 'CARNADA: la conclusión integrada SOBREVIVE en "breve"', JSON.stringify(Rbreve.entrega.respuesta.map((r) => r.texto.slice(0, 60))));
-      ok(!Rbreve.entrega.respuesta.some((r) => r.texto === Rcompleta.entrega.respuesta[0].texto) || Rcompleta.entrega.respuesta[0].texto === textoConclusion, 'la PRIMERA oración escrita («En comercial…») NO tiene por qué sobrevivir solo por ser la primera — si sobrevive, es porque su propia prioridad alcanzó, no por su posición');
+      /* §7.3·49: el Marco de una Entrega con cobranza ya no arrastra «foto de inventario» (la fila «Saldo vencido · total» se leía como de otro dominio): el presupuesto de «breve» alcanza para la primera oración. Lo que el candado protege es la LEY —se retira por prioridad explícita, nunca por posición—: si la primera sobrevive, ninguna oración retirada tiene mejor prioridad que ella. */
+      { const primera = Rcompleta.entrega.respuesta[0]; const sobrevive = Rbreve.entrega.respuesta.some((r) => r.texto === primera.texto); const retiradas = Rcompleta.entrega.respuesta.filter((r) => !Rbreve.entrega.respuesta.some((x) => x.texto === r.texto));
+        ok(!sobrevive || primera.texto === textoConclusion || (typeof primera.prioridad === "number" && retiradas.every((r) => (typeof r.prioridad === "number" ? r.prioridad : Rcompleta.entrega.respuesta.indexOf(r)) >= primera.prioridad)), 'la PRIMERA oración escrita («En comercial…») NO tiene por qué sobrevivir solo por ser la primera — si sobrevive, es porque su propia prioridad alcanzó (ninguna oración retirada tiene mejor prioridad que ella; sin prioridad explícita cuenta su lugar de aparición, como en `gobernarTamano`), no por su posición', JSON.stringify({ primera: primera.prioridad, retiradas: retiradas.map((r) => r.prioridad) })); }
     }
   }
 }
