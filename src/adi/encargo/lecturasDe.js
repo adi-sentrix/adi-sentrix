@@ -323,6 +323,9 @@ function _pasosCifra(p) {
       ? [{ tool: "salesRead", args: { focus: "vs_anterior", dimension: ejeUniverso, figsPct: true }, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top, salesRead vs_anterior)` }]
       : _FAM_DIAS_SIN_VENTA.has(metrica)
       ? [_CALL_DIAS_SIN_VENTA(`el top ${k} de ${ejeUniverso} por ${metrica} (universo.top): el ranking COMPLETO de días sin venta, el orden lo aplica la Entrega`)]
+      /* v24 (Q05 · barrido familia i): el capital inmovilizado (crítico) tiene SU productor (`inventoryStatus`, el foco de la familia); `queryMetric` no publica esa métrica por SKU (ni por bodega), así que un top por ella servía entidades SIN la cifra que las ordena («ordenado por Capital inmovilizado crítico: LG-DRYER8KG, BOS-SANDER» sin valores) */
+      : (_FAM_CAPITAL_FRENADO.has(metrica) || _FAM_CAPITAL_INMOVILIZADO.has(metrica) || _FAM_DIAGNOSE.has(metrica) || _FAM_MARKUP.has(metrica) || _FAM_VS_PRESUPUESTO.has(metrica))
+      ? _callsDeConceptoEje(p.tema, metrica, ejeUniverso)
       : [{ tool: "queryMetric", args: argsQueryMetric, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top${necesitaEjeCompleto ? ", eje completo — universo combinado" : ""})` }];
     // los OTROS conceptos de la parte, por el mismo eje SIN recorte: la Entrega selecciona de ahí las filas del
     // top ya fijado arriba — dos rankings por separado, nunca una segunda decisión de universo.
@@ -660,6 +663,15 @@ function _callsDePremisas(premisas) {
 
 /** lecturasDe(resolucion) → { plan, porParte }. Puro frente al encargo (nunca lee `preguntaOriginal`); hereda de
  *  `pasosDeDominios` la dependencia del TENANT activo (no de la red, no del LLM) — ver cabecera. */
+/* v24: la MEDIDA de cada lente que aplica a un dominio (`entrega/componer.js:_MEDIDA_DE_LENTE`/`_MEDIDA_SIN_DOMINIO`): el concepto cuyo productor la trae. «ventas» solo se pide a una parte COMERCIAL (la cobranza ya publica la venta de cada cuenta y el inventario no tiene venta). */
+const _CONCEPTO_DE_LA_MEDIDA = { credito: { tema: "cobranza", concepto: "saldo_vencido" }, capital: { tema: "inventario", concepto: "capital_frenado" }, contribucion: { tema: "comercial", concepto: "no_capturada" }, ventas: { tema: "comercial", concepto: "ventas" } };
+function _callsDeMedidaDeLente(criterio, p) {
+  const m = criterio && criterio.origen === "usuario" && criterio.lente ? _CONCEPTO_DE_LA_MEDIDA[criterio.lente] : null;
+  if (!m || p.cierre !== "decision" || p.tema !== m.tema) return [];
+  const eje = (p.universo && p.universo.eje) || p.eje || sujetoDeTema(p.tema);
+  if (m.tema === "cobranza") return [];   // la mesa de cobranza publica el saldo vencido de cada cuenta
+  return _callsDeConceptoEje(p.tema, m.concepto, eje);
+}
 export function lecturasDe(resolucion) {
   if (!resolucion || !Array.isArray(resolucion.partes)) return { plan: { intent: "encargo", calls: [] }, porParte: {} };
 
@@ -695,6 +707,9 @@ export function lecturasDe(resolucion) {
     const dd = _diasParaFrenado(p);
     if (dd.length) lecturaCalls.push(...dd);
     porParte[p.id] = lecturaCalls.filter((c) => _temaDeCall(c) === p.tema);
+    /* v24 (barrido familia ii · «el criterio del usuario manda», §7.3·46d + 47a): una `decision` cuya lente pedida APLICA a su dominio lee la MEDIDA de esa lente (saldo vencido · capital inmovilizado crítico · contribución no capturada · venta comercial) con el productor de su familia, aunque los conceptos pedidos no la incluyan: sin ella la prioridad del grupo decía «ninguna cuenta queda primera porque el grupo no trae …» con el dato disponible. La lectura no cambia el universo ni las filas pedidas (solo trae figs). */
+    const extra = _callsDeMedidaDeLente(resolucion.criterio, p);
+    if (extra.length) { lecturaCalls.push(...extra); porParte[p.id] = [...porParte[p.id], ...extra]; }
   }
   for (const p of resolucion.partes) {
     if (!p || p.estado === "no_resuelta" || p.cierre === "lectura" || p.cierre === "decision") continue;

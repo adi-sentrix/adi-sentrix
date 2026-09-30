@@ -43,7 +43,7 @@ import { periodoDeFiguras, reconcilian, UNIVERSOS, PERIODO_TXT, historiaDeFigura
 // estado de una premisa a su canon para saber a qué dominio pertenece (pieza 3). `valorDeReferencia`
 // (supervisor 2026-09-26, segunda vuelta) resuelve la cifra de una referencia (benchmark, nivel de carga, techo)
 // citada por una premisa, para declararla en el Marco sin excepción al guardrail «comparables juntas».
-import { conjuntoDeUniverso, valorDeReferencia } from "../notario/verificar.js";
+import { conjuntoDeUniverso, valorDeReferencia, valorDeRanking } from "../notario/verificar.js";
 import { estadoCanon, estadoDeclarado, formaDeEstado, estadoDeLaPremisa, umbralesDeEstados, ESTADO_DE_CONCEPTO, UMBRALES_DE_ESTADO } from "../notario/estados.js";
 // R-SORT-DIRECCION-IGNORADA, defensa en profundidad (supervisor 2026-09-26) — la MISMA normalización de nombres
 // que ya usa el Notario, para comparar el conjunto que `conjuntoDeUniverso` resuelve contra lo que una tool sirvió.
@@ -258,7 +258,30 @@ function _declararUniverso(entrega, I, { id, eje, top = null, base = null, filtr
 /* ── el libro de hechos de este turno: declara SOLO `ref` (cita literal de una fig), `razon` y `derivada`
  * (las tentaciones precalculadas, mecanismo 6 del plan) — los tres tipos que `notario/hechos.js` verifica sin
  * necesitar un universo tipado complejo. Cada `ref` es la MISMA fig que el playbook ya prueba en producción. ── */
+/* v24: la cifra de una entidad SERVIDA por un top que la boleta no publica para ella: su valor del ranking de la proyección (la misma fuente que eligió al conjunto, `valorDeRanking`) o, en una métrica de `AUSENTE_VALE_CERO` que la proyección no publica para ella, su cero por ausencia. null si ninguna de las dos cosas se puede demostrar (nunca inventa una cifra). */
+function _figDeRankingOCero(I, entidad, clave) {
+  const f = _figDeRankingOCeroSinComprobar(I, entidad, clave);
+  if (!f) return null;
+  /* falla CERRADO: solo se agrega la fila si el MISMO libro que verifica la Entrega comprueba la cifra; una cifra que no verifica tumbaría la Entrega entera (`rotos`), y sin la fila queda lo de siempre */
+  try { const H = libroDeHechos([{ id: "z1", tipo: "cifra", sujeto: f._sujeto, metrica: f._clave, valor: f.value }], { indice: I }).hechos[0]; return H && H.ok && H.veredicto === "verdadera" ? f : null; } catch { return null; }
+}
+function _figDeRankingOCeroSinComprobar(I, entidad, clave) {
+  let rk = null;
+  const nombreDeMetrica = (metricaPorClave(clave) || {}).nombre || clave;   /* el ranking de la proyección se busca por el NOMBRE de la métrica (`rankingDe`), no por su clave con guion bajo */
+  try { rk = valorDeRanking({ sujeto: entidad, metrica: nombreDeMetrica }, I); } catch { rk = null; }
+  if (rk && Number.isFinite(rk.raw) && rk.texto) return { _ceroPorAusencia: true, _sujeto: entidad, _clave: clave, label: `${entidad} · ${_labelDeClave(clave)}`, value: rk.texto, raw: rk.raw, unit: rk.unidad, source: "actual" };
+  if (AUSENTE_VALE_CERO.includes(clave)) {
+    const ent = I.resolverEntidad ? I.resolverEntidad(entidad) : null;
+    const rkc = ent && I.rankingDe ? I.rankingDe(ent.eje, nombreDeMetrica) : null;
+    const unidad = unidadDeClave(clave);
+    /* el cero por ausencia solo vale sobre un ranking que la proyección PUBLICA (la misma regla del Notario: nunca un cero sobre lo que no se publica) y que no trae a la entidad */
+    if (rkc && unidad && Array.isArray(rkc.r.filas) && rkc.r.filas.length && !rkc.r.filas.some((x) => normalizar(x.entidad) === normalizar(ent.nombre))) return { _ceroPorAusencia: true, _sujeto: entidad, _clave: clave, label: `${entidad} · ${_labelDeClave(clave)}`, value: formatoDeLaCasa(0, unidad), raw: 0, unit: unidad, source: "actual" };
+  }
+  return null;
+}
 function _declararRef(hechos, contador, fig) {
+  /* v24 (§7.3·44a · «cada servido tiene fila»): el CERO POR AUSENCIA de una métrica de `AUSENTE_VALE_CERO` (la entidad no pertenece al conjunto que la métrica define: «no tiene capital inmovilizado crítico») no tiene fig en la boleta; se declara como una `cifra` tipada que el MISMO libro verifica contra la evidencia (el cero por ausencia que ya juzga una premisa): nunca un número que el libro no compruebe */
+  if (fig && fig._ceroPorAusencia === true) { const id = `e${++contador.n}`; hechos.push({ id, tipo: "cifra", sujeto: fig._sujeto, metrica: fig._clave, valor: fig.value }); return id; }
   if (!fig || fig.id == null) return null;
   const id = `e${++contador.n}`;
   hechos.push({ id, tipo: "ref", de: fig.id });
@@ -405,7 +428,8 @@ const _lenteOrdenaLaClave = (id, claveOrden) => {
   const L = CRITERIOS[id];
   if (!L || !claveOrden) return false;
   const lab = _planoDeLente(_labelDeClave(claveOrden));
-  if (_planoDeLente(L.nombre).startsWith(lab)) return true;   // «contribución» ↔ Contribución · «capital» ↔ Capital · «ventas» ↔ Venta
+  /* v24 (barrido familia ii · §7.3·47a): el atajo por el NOMBRE («ventas» ↔ Venta) vale solo para una lente SIN dominio: la medida de una lente con dominio es la que declara `LENTES` (crédito = saldo vencido · capital = capital inmovilizado crítico · contribución = contribución no capturada), no el «Capital» (stock) ni la «Contribución» (la medida) que solo se le parecen en el nombre */
+  if (!L.dominio && _planoDeLente(L.nombre).startsWith(lab)) return true;   // «ventas» ↔ Venta
   const spec = L.dominio && L.lente && LENTES[L.dominio] && LENTES[L.dominio][L.lente];   // la señal propia de la lente: el «Saldo vencido» de la exposición de crédito
   return !!(spec && spec.re.test(`· ${lab}`));
 };
@@ -413,12 +437,14 @@ const _lenteOrdenaLaClave = (id, claveOrden) => {
  * su primero es el de la MEDIDA de la lente (`LENTES[dominio][lente]`: el «Saldo vencido» de la exposición de crédito, con desempate por los días de atraso; el «Capital frenado/inmovilizado crítico» del capital), no el de la clave con que se listó el grupo (abonado, días sin venta…). Si esa medida no distingue a nadie
  * (vale cero en todas, está empatada en el primer puesto o el grupo no la trae) NO se corona a la primera de la lista: se DECLARA que la lente no discrimina ahí. Una lente de OTRO dominio sigue por el camino de siempre (`_lenteDeLaLista`: se declara que no ordena el grupo). Devuelve null cuando el camino de siempre basta
  * (lente que no aplica al dominio, lente que ya ordenó la lista con valores distintos de cero). Una sola definición para los dos planes de grupo (`grupo` y `grupoUniverso`). */
-const _MEDIDA_DE_LENTE = { credito: "saldo vencido", capital: "capital inmovilizado crítico", contribucion: "contribución no capturada" };
+const _MEDIDA_DE_LENTE = { credito: "saldo vencido", capital: "capital inmovilizado crítico", contribucion: "contribución no capturada", ventas: "venta" };
+/* v24 (Q70, §7.3·47a + 46d): «ventas» no tiene dominio propio —es la venta del período de la cuenta, la misma de `ordenPorCriterio`— y aplica a todo grupo de cuentas que TRAE su venta: ordena con esa medida (con su cifra); si el grupo no la trae (un inventario por SKU) se declara que no ordena. «crecimiento» no fija dirección (el contrato): sigue declarándose. */
+const _MEDIDA_SIN_DOMINIO = { ventas: { re: /· Ventas?(?: \(flujo\)| a crédito)?$/i, nombre: "venta", peor: "mayor" } };
 function _lenteDelGrupo(criterio, tema, cierre, entidades, figs, porEntidad, claveOrden) {
   const id = criterio && criterio.lente && CRITERIOS[criterio.lente] ? criterio.lente : null;
   if (!id || cierre !== "decision" || !Array.isArray(entidades) || !entidades.length) return null;
   const C = CRITERIOS[id];
-  const spec = C.dominio === tema && C.lente && LENTES[C.dominio] ? LENTES[C.dominio][C.lente] : null;
+  const spec = C.dominio === tema && C.lente && LENTES[C.dominio] ? LENTES[C.dominio][C.lente] : (!C.dominio && (tema === "comercial" || tema === "cobranza") ? (_MEDIDA_SIN_DOMINIO[id] || null) : null);   /* la venta comercial y el inventario son universos que no reconcilian: «ventas» no ordena un grupo de SKU de inventario, se declara */
   if (!spec) return null;
   const des = C.desempate && LENTES[C.dominio][C.desempate] ? LENTES[C.dominio][C.desempate] : null;
   const medida = _MEDIDA_DE_LENTE[id] || spec.nombre;
@@ -439,7 +465,7 @@ function _lenteDelGrupo(criterio, tema, cierre, entidades, figs, porEntidad, cla
   const propias = (re) => { const m = new Map(); for (const f of Array.isArray(figs) ? figs : []) { const l = _lab(f); if (!re.test(l) || !Number.isFinite(f.raw)) continue; const e = _entidadDe(l); if (e && !m.has(normalizar(e))) m.set(normalizar(e), f); } return m; };
   const deLente = propias(spec.re), deDesempate = des ? propias(des.re) : new Map();
   const filas = entidades.map((e) => ({ e, f: deLente.get(normalizar(e)) || null, d: deDesempate.get(normalizar(e)) || null })).filter((x) => x.f);
-  if (!filas.length) return { ...base, modo: "sin-discrimina", motivo: "sin-medida", concepto: medida };
+  if (!filas.length || (!C.dominio && filas.length !== entidades.length)) return { ...base, modo: "sin-discrimina", motivo: "sin-medida", concepto: medida };   /* una lente sin dominio solo corona si el grupo TRAE su medida en todas las cuentas */
   const mayor = spec.peor !== "menor";
   const vd = (x) => (mayor ? x.f.raw : -x.f.raw);
   filas.sort((a, b) => (vd(b) - vd(a)) || ((b.d ? b.d.raw : -Infinity) - (a.d ? a.d.raw : -Infinity)));
@@ -469,15 +495,17 @@ function _oracionLenteSinPrimero(lg, R, listaDe, cola = "") {
   const cab = `Prioridad del procedimiento dentro de este grupo, por ${lg.nombreVisible}: ninguna cuenta queda primera, porque `;
   const nombres = lg.entidades || [];
   const grupo = `el grupo (${nombres.slice(0, 8).join(", ")}${nombres.length > 8 ? " y otros" : ""})`;
-  if (lg.motivo === "cero") { const id = lg.idCero; return { texto: `${cab}${grupo} ${dichoElCero(lg.concepto, R(id))}.`, hechos: [id] }; }
-  if (lg.motivo === "empate") { const id = lg.idEmpate; return { texto: `${cab}${listaDe(lg.empatadas)} empatan en ${lg.concepto} (${R(id)}).`, hechos: [id] }; }
-  return { texto: `${cab}${grupo} no trae ${lg.concepto}${cola}.`, hechos: [] };
+  if (lg.motivo === "cero") { const id = lg.idCero; return { texto: `${cab}${grupo} ${dichoElCero(lg.concepto, R(id))}.`, hechos: [id], _sinPrimero: true }; }
+  if (lg.motivo === "empate") { const id = lg.idEmpate; return { texto: `${cab}${listaDe(lg.empatadas)} empatan en ${lg.concepto} (${R(id)}).`, hechos: [id], _sinPrimero: true }; }
+  return { texto: `${cab}${grupo} no trae ${lg.concepto}${cola}.`, hechos: [], _sinPrimero: true };
 }
 const _lenteDeLaLista = (criterio, tema, claveOrden) => {
   const id = criterio && criterio.lente && CRITERIOS[criterio.lente] ? criterio.lente : null;
   if (!id || !claveOrden) return _lenteDelCriterio(criterio);   // una referencia (no es lente) o sin clave de orden: lo de siempre
   const clave = _labelDeClave(claveOrden).toLowerCase();
   const L = CRITERIOS[id];
+  /* v24 (Q44, §7.3·47e + 46d «una oración nombra SIEMPRE la lente que de verdad ordenó»): el «riesgo integrado» que el USUARIO pidió es el criterio ENTRE dominios: dentro de un grupo de una parte no ordena, y eso se DECLARA (antes la lista se ordenaba «por rotación» sin decir que la lente pedida no la ordenó: un cambio silencioso de criterio) */
+  if (id === "riesgo" && criterio.origen === "usuario" && !_lenteOrdenaLaClave(id, claveOrden)) return `${clave} (el criterio pedido, ${_nombreVisibleDeLente(id)}, es el criterio entre dominios y no ordena este grupo)`;   /* se dice «riesgo» (el nombre visible de la lente: `_nombreVisibleDeLente`), no «riesgo integrado»: esa expresión es la de la oración de prioridad CRUZADA y un grupo de una parte no la cruza */
   if (id !== "riesgo" && L.dominio !== tema && !_lenteOrdenaLaClave(id, claveOrden)) {   // la lente pedida no ordena este grupo: se declara y se dice por cuál se ordena
     return `${clave} (el criterio pedido, ${_nombreVisibleDeLente(id)}, ${L.dominio && _DOM_NOMBRE[L.dominio] ? `es de ${_DOM_NOMBRE[L.dominio]} y ` : ""}no ordena este grupo)`;
   }
@@ -2662,6 +2690,17 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
   // universo REAL de una parte `lectura`/`decision` sin entidades (no solo su `top`), y para que el invariante de
   // `entrega/verificar.js` pueda recomponer el MISMO conjunto de forma independiente.
   /* §7.3·43(b) (v19, Y02): los EMPATES del orden servido —igualdad del crudo de la cifra que ordena, la misma regla que `_ordenar` del Notario—; el puesto es el del primero del grupo dentro del orden servido (los empatados comparten el puesto). Se calcula acá, con las figs, antes de que el compositor las cambie por ids. */
+  /* v24 (Q05 · Q08, §7.3·44a «sirve a TODOS los empatados» + «cada servido tiene fila»): en un TOP cuya métrica es de `AUSENTE_VALE_CERO` el cero por ausencia es un servido más: cada entidad del top que la boleta no publica (los empatados en cero del filo: «no tienen capital inmovilizado crítico») lleva su fila de esa métrica, con su $0, declarada como una cifra que el libro verifica (`_declararRef`). Sin top (una foto del eje) no se agrega nada: el comportamiento de siempre. */
+  if (top && claveOrden && indice) {
+    for (const e of orden) {
+      let m = porEntidad.get(e);
+      if (m && m.has(claveOrden)) continue;
+      const f = _figDeRankingOCero(indice, e, claveOrden);
+      if (!f) continue;
+      if (!m) { m = new Map(); porEntidad.set(e, m); }
+      m.set(claveOrden, f);
+    }
+  }
   const empates = [];
   if (claveOrden) {
     const grupos = [];
@@ -2772,7 +2811,7 @@ function _planMultiTema(temas, figs, ref, declararRazon, declararDerivada, { con
   }
   const idBenchComercial = temas.includes("comercial") ? ref(_find(figs, /^Benchmark de margen$/i)) : null;
   const { porLente, lenteNoAplica } = conDecision ? _prioridadPorLenteDelUsuario(temas, figs, ref, lente) : { porLente: null, lenteNoAplica: null };
-  return { kind: "multitema", temas, conDecision, lideres, top, idsIntegrada, idsVersus, idShare, versusLider, idBenchComercial, ...(porLente ? { porLente } : {}), ...(lenteNoAplica ? { lenteNoAplica } : {}) };
+  return { kind: "multitema", temas, conDecision, lideres, top, idsIntegrada, idsVersus, idShare, versusLider, idBenchComercial, ...(porLente ? { porLente } : {}), ...(lenteNoAplica ? { lenteNoAplica } : {}), ...(lente === "riesgo" ? { lenteRiesgoPedida: true } : {}) };
 }
 
 /* ── PLAN «comparacion» (2 entidades, mismo eje — `compareEntities`) ─────────────────────────────────────────── */
@@ -3580,7 +3619,8 @@ export function componerEntrega(resolucion) {
   // en su prosa (carga alta, brecha al benchmark, contribución no capturada…) — el Marco declara la referencia
   // UNA vez, ANTES de saber si el texto la va a necesitar (se declara igual, sin costo: `ref()` de un hecho que
   // no se imprime no rompe nada). Mismo patrón que ya usan las 4 rutas fijas y la ruta multidominio de arriba.
-  const idBenchComercialGlobal = planes.some((pl) => pl.tema === "comercial" || (pl.kind === "multitema" && pl.temas.includes("comercial"))) ? ref(_find(figs, /^Benchmark de margen$/i)) : null;
+  /* v24 (Q09, §7.3·44b): una DEFINICIÓN comercial sola no es un Marco comercial (§1.1: sin cifras): su plan no pone en juego el benchmark ni el período del año cerrado */
+  const idBenchComercialGlobal = planes.some((pl) => (pl.tema === "comercial" && pl.kind !== "definicion") || (pl.kind === "multitema" && pl.temas.includes("comercial"))) ? ref(_find(figs, /^Benchmark de margen$/i)) : null;
   // CORTE 3c · pieza 1 — un `grupoUniverso` comercial puede nombrar «benchmark»/«nivel de carga» en el texto de su
   // universo (`nombrarUniverso`, vía `_fmtUmbral`): declararlo acá, ANTES de imprimir, es el mismo patrón que la
   // línea de arriba — un `ref()` de un hecho que el texto termina no usando no rompe nada.
@@ -3850,7 +3890,9 @@ export function componerEntrega(resolucion) {
         const m = _mapaDe(plan.porEntidad, entidad);
         for (const [clave, id] of m) { if (id == null) continue; entrega.cifras.filas.push(_fila(entidad, plan.tema, _labelDeClave(clave) || clave, id)); }
       }
-      const cabeza = plan.orden.slice(0, 3).map((e) => { const id = _mapaDe(plan.porEntidad, e).get(plan.claveOrden); return id != null ? `${e} (${R(id)})` : e; }).join(", ");
+      /* v24 (barrido familia iii · composer ↔ verificador): en «breve» con TRES o más partes de grupo la cabeza de cada una cita UNA cifra (no tres): las cifras que las oraciones citan son filas protegidas de la tabla y el tope de filas de «breve» (8) las desbordaba (`verificarEntrega`: «filas-sobre-el-tope»). Con menos partes o en «completa» la cabeza es la de siempre. */
+      const _nCabeza = _profundidadDe(resolucion) === "breve" && planes.filter((pl) => pl.kind === "grupo").length >= 3 ? 1 : 3;
+      const cabeza = plan.orden.slice(0, _nCabeza).map((e) => { const id = _mapaDe(plan.porEntidad, e).get(plan.claveOrden); return id != null ? `${e} (${R(id)})` : e; }).join(", ");
       const idsCabeza = plan.orden.flatMap((e) => [..._mapaDe(plan.porEntidad, e).values()]).filter((v) => v != null);
       // «un top-N declara su cola» (ley del owner): con `universo.top`, el tamaño TOTAL del eje sale del mismo
       // índice que ya usan las 4 rutas fijas (`ejesDelTenant`) — nunca un número a mano; sin `top`, el listado YA
@@ -3876,7 +3918,7 @@ export function componerEntrega(resolucion) {
         ? ` Empate en el orden servido: ${_empatesPorDecir.map((g) => { cifrasImpresas.push(String(g.n)); return `puesto ${g.n} compartido por ${_listaDe(g.entidades)}`; }).join("; ")}.`
         : "";
       /* v21 (T100, §7.3·43b/44a): la oración que DECLARA un empate —el del filo («sirve 6 por el empate…») o el del orden servido («puesto 4 compartido por…»)— es un negativo obligatorio como una premisa: el tope de tamaño no la retira (`prioridad: 0`); antes, en un encargo de tres partes, iba al Detalle y el orden servido quedaba con el empate sin decir. La FOTO (sin universo propio) conserva la prioridad de siempre: el empate de sus ceros no desplaza a las lecturas por dominio */
-      entrega.respuesta.push({ texto: `${prefijo}, ordenado por ${_labelDeClave(plan.claveOrden) || plan.claveOrden}: ${cabeza}.${empateTxt}`, hechos: idsCabeza, ...((_declaraEmpF || (empateTxt && !plan.esFoto)) ? { prioridad: 0 } : {}) });
+      entrega.respuesta.push({ texto: `${prefijo}, ordenado por ${_labelDeClave(plan.claveOrden) || plan.claveOrden}: ${cabeza}.${empateTxt}`, hechos: idsCabeza, ...((_declaraEmpF || (empateTxt && !plan.esFoto) || _fotoConCola) ? { prioridad: 0 } : {}) });   /* v24 (Q13, §7.3·45a): la cola de la foto («8 de 13 cuentas») se declara también en «breve»: el tope de tamaño no la retira */
       // §7.3·17 (supervisor 2026-09-27, diagnóstico v8) — una `decision` sobre un universo propio calcula la
       // prioridad del procedimiento DENTRO de ese universo (nunca fuera, nunca con la lente de negocio del
       // dominio entero): el MISMO texto que ya usa el plan `grupoUniverso` unas líneas más abajo, aplicado acá
@@ -4175,6 +4217,7 @@ export function componerEntrega(resolucion) {
       // quien más pesa es…» duplicaría lo que esas partes ya sirvieron con su propio universo — se omite SOLO
       // acá; la prioridad cruzada («Prioridad del procedimiento, por riesgo integrado…», más abajo) y el límite
       // «sin señal» SÍ se agregan siempre, sea `_soloAgregado` o no.
+      let _ultimaLineaDeDominio = null;
       if (!plan._soloAgregado) for (const [di, d] of plan.temas.entries()) {
         temasCubiertos.add(d);
         const L = plan.lideres[d];
@@ -4185,11 +4228,29 @@ export function componerEntrega(resolucion) {
         const vs = plan.versusLider && plan.versusLider.dominio === d ? plan.versusLider : null;
         const claveVs = vs ? [vs.idDiff] : [];
         const clausulaVs = vs ? ` — ${R(vs.idDiff)} más que ${vs.segundo}` : "";
-        entrega.respuesta.push({ texto: `En ${_DOM_NOMBRE[d]}, quien más pesa es ${L.x.entidad}: ${partesFrase.join(", ")}${clausulaVs}.`, hechos: [...Object.values(L.ids).filter(Boolean), ...claveVs], prioridad: di + 1 });
+        const _itemDominio = { texto: `En ${_DOM_NOMBRE[d]}, quien más pesa es ${L.x.entidad}: ${partesFrase.join(", ")}${clausulaVs}.`, hechos: [...Object.values(L.ids).filter(Boolean), ...claveVs], prioridad: di + 1 };
+        entrega.respuesta.push(_itemDominio);
+        _ultimaLineaDeDominio = _itemDominio;
         for (const [lente, id] of Object.entries(L.ids)) if (id != null) _filaDedup(L.x.entidad, d, LENTES[d][lente].nombre, id);
         if (vs) _filaDedup(`${vs.entidad} − ${vs.segundo}`, d, "Diferencia · materialidad", vs.idDiff);
       }
       if (plan._soloAgregado) for (const d of plan.temas) temasCubiertos.add(d);
+      /* v24 (barrido familia ii · §7.3·46d + 47): un conjunto SIN prioridad cruzada (un solo dominio de SKU: «los SKU van aparte», `plan.top` nulo) también respeta el criterio del usuario: la lente que APLICA al dominio se nombra con su cifra («por capital: …»); la que no lo ordena se DECLARA (nunca se ignora en silencio) — la misma declaración de la prioridad cruzada */
+      if (!plan.top && plan.conDecision) {
+        const _nomLente0 = (id) => _nombreVisibleDeLente(id) || id;
+        if (plan.porLente) {
+          const PL = plan.porLente;
+          entrega.respuesta.push({ texto: `Prioridad del procedimiento, por ${_nomLente0(PL.lente)}: ${PL.entidad}, con ${R(PL.id)} en ${String(PL.metrica).toLowerCase()}.`, hechos: [PL.id], prioridad: 0 });
+          _filaDedup(PL.entidad, PL.dominio, PL.metrica, PL.id);
+        } else if (plan.lenteNoAplica && _ultimaLineaDeDominio) {
+          _ultimaLineaDeDominio.texto = `${_ultimaLineaDeDominio.texto} El criterio pedido (${_nomLente0(plan.lenteNoAplica)}) no ordena este conjunto con la evidencia disponible: esta es la lectura de riesgo integrado del procedimiento.`;
+        } else if (plan.lenteRiesgoPedida && plan.temas.length === 1 && plan.lideres[plan.temas[0]]) {
+          /* el «riesgo integrado» que el usuario pidió sobre UN dominio (sin prioridad cruzada) se dice como tal, con las mismas cifras del líder del dominio */
+          const d0 = plan.temas[0], L0 = plan.lideres[d0];
+          const partes0 = ["materialidad", "severidad", "urgencia"].map((l) => frase(d0, l, L0.ids)).filter(Boolean);
+          if (partes0.length) entrega.respuesta.push({ texto: `Prioridad del procedimiento, por riesgo integrado: ${L0.x.entidad} (${_DOM_NOMBRE[d0]}: ${partes0.join("; ")}).`, hechos: Object.values(L0.ids).filter(Boolean), prioridad: 0 });
+        }
+      }
       if (plan.top && plan.idsIntegrada) {
         const partesTop = [];
         for (const d of Object.keys(plan.idsIntegrada)) for (const l of ["materialidad", "severidad", "urgencia"]) { const t = frase(d, l, plan.idsIntegrada[d]); if (t) partesTop.push(`${_DOM_NOMBRE[d]}: ${t}`); for (const [ll, id] of Object.entries(plan.idsIntegrada[d])) if (id != null) _filaDedup(plan.top.entidad, d, LENTES[d][ll].nombre, id); }

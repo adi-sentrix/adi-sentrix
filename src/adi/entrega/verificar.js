@@ -178,7 +178,8 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
   (entrega.respuesta || []).forEach((r, i) => {
     if (r._definicion || r._marcaIniciativa) return;
     if (!Array.isArray(r.hechos) || !r.hechos.length) v("oracion-hecho", `respuesta[${i}] no declara los hechos que la sostienen: «${(r.texto || "").slice(0, 80)}»`);
-    if (!r._premisa && !_cifrasEnTexto(r.texto).length) v("oracion-hecho", `respuesta[${i}] no trae ninguna cifra: «${(r.texto || "").slice(0, 80)}»`);
+    /* v24 (Q100, §7.3·47a): la oración que DECLARA que ninguna cuenta queda primera por la lente pedida (`_sinPrimero`) es una declaración negativa: dice qué medida no trae el grupo, no una cifra (mismo espíritu que la excepción de `_premisa`); SÍ exige sus hechos */
+    if (!r._premisa && !r._sinPrimero && !_cifrasEnTexto(r.texto).length) v("oracion-hecho", `respuesta[${i}] no trae ninguna cifra: «${(r.texto || "").slice(0, 80)}»`);
   });
 
   // 3 · doble colocación — todo hecho citado en Respuesta aparece también en Cifras (tabla) o en la lista de hechos
@@ -551,6 +552,7 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
       const _valoresDeH = (h) => { const s = new Set(); for (const n of h.numeros || []) if (n && n.texto) s.add(String(n.texto).trim()); if (h.render && h.render.valor) s.add(String(h.render.valor).trim()); return s; };
       const _escaparRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const _cifraEspecifica = (c) => /[$%]|pp\b|x$/i.test(c) || /\d{2,}/.test(c);
+      const _nombresDelIndice = (() => { const out = new Map(); for (const L of _librosDisponibles) { const ent = L && L.indice && L.indice.entidades; if (ent && typeof ent.forEach === "function") ent.forEach((e) => { if (e && typeof e.nombre === "string" && e.nombre.length >= 2) out.set(normalizar(e.nombre), e.nombre); }); } return [...out.values()]; })();   /* v24: los nombres de las entidades del eje (índice de evidencia del libro) */
       const _CIFRA_G = () => new RegExp(_RE_CIFRA.source, "g");
       // EL CONVENIO «métrica (valorA contra valorB)» (`entrega/componer.js`: los comparativos de "X va antes que
       // Y" — prioridad integrada y simulación) empareja el PRIMER valor con el dueño mencionado PRIMERO en la
@@ -626,10 +628,16 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
             const idxOtro = resto.search(new RegExp(_escaparRegex(otro), "i"));
             if (idxOtro >= 0 && idxOtro < corte) corte = idxOtro;
           }
+          /* v24 (§7.3·47 · coherencia composer↔verificador): una cifra PEGADA a otra entidad del eje (aunque esa entidad no sea dueña de ningún hecho citado por la oración) no es de este dueño: «MAK-COMP-AIR (4) · MAK-SAW18V (15)» (la traza de un ranking) no le atribuye el 15 a MAK-COMP-AIR porque su propio «(4)» es un conteo pelado que no cuenta como cifra específica. La ventana termina en el siguiente nombre de CUALQUIER entidad conocida del índice. */
+          for (const otro of _nombresDelIndice) {
+            if (normalizar(otro) === kA) continue;
+            const m2 = new RegExp(`(?<![\\p{L}\\p{N}])${_escaparRegex(otro)}(?![\\p{L}\\p{N}])`, "iu").exec(resto);
+            if (m2 && m2.index < corte) corte = m2.index;
+          }
           const ventana = resto.slice(0, corte);
           // la PRIMERA cifra ESPECÍFICA de la ventana — un ordinal/conteo pelado antes («1° de 5») no cuenta (a).
           let cifra = null, posCifra = -1;
-          for (const m of ventana.matchAll(_CIFRA_G())) { const c = m[0].trim().replace(/\.$/, ""); if (_cifraEspecifica(c)) { cifra = c; posCifra = m.index; break; } }
+          for (const m of ventana.matchAll(_CIFRA_G())) { const c = m[0].trim().replace(/\.$/, ""); if (/\bpuesto\s+$/i.test(ventana.slice(0, m.index))) continue; /* v24: «en el puesto 12» es una posición, no la cifra de nadie (la declaración del empate del filo dice el puesto compartido) */ if (_cifraEspecifica(c)) { cifra = c; posCifra = m.index; break; } }
           if (cifra == null) continue;   // ninguna cifra específica pegada a este nombre antes del siguiente dueño: nada que verificar
           if (_dentroDeContraste(inicioResto + posCifra)) continue;   // ya lo resolvió el convenio "(A contra B)" de arriba
           if (_respaldada(cifra, [...valoresA])) continue;   // es una de SUS propias cifras: correcto

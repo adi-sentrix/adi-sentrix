@@ -763,6 +763,11 @@ function _conteoTipado(H, h, I) {
     const masRestriccion = (Array.isArray(u.filtros) && u.filtros.length) || u.top || u.bodega || u.excluir;   // el «de M» por estados vale solo si algo más restringe: «6 de 6 en mora» es vacuo
     if (tieneEst && masRestriccion) { const s1 = tam({ eje, estados: u.estados, no_estados: u.no_estados }); if (s1) mAdmisibles.add(s1); if (u.base) { const s2 = tam({ eje, base: u.base, estados: u.estados, no_estados: u.no_estados }); if (s2) mAdmisibles.add(s2); } }
     if (u.bodega) { const s3 = tam({ eje, bodega: u.bodega }); if (s3) mAdmisibles.add(s3); }
+    /* v24 (Q63, §7.3·46c «el de M admisible de un conteo es cualquier eslabón de la cadena del universo de la premisa»): la cadena sigue base/bodega → estados → filtros → top → excluir; el universo ANTES de la exclusión («los 5 de más venta» = 5 → «sin SAM-TV55» = 4) y el anterior al top (el de los filtros) son eslabones de la cadena, no solo el eje, la base y los estados */
+    { const _sin = (omitir) => { const v = { ...u }; for (const c of omitir) delete v[c]; return v; };
+      const _tieneExcluir = _es(u.excluir) && Object.values(u.excluir).some((x) => (Array.isArray(x) ? x.length : x != null && x !== ""));
+      if (_tieneExcluir) { const s5 = tam(_sin(["excluir"])); if (s5) mAdmisibles.add(s5); }
+      if (Array.isArray(u.filtros) && u.filtros.length && (u.top || _tieneExcluir)) { const s4 = tam(_sin(["top", "excluir"])); if (s4) mAdmisibles.add(s4); } }
     // §7.3·10 del contrato (decisión del supervisor, 2026-09-26): con `top.sobre:"eje"` el top se toma SOBRE EL EJE
     // ENTERO, ANTES que estados/filtros («de los 5 de menor venta [global], cuántos en mora») — ese top-k es
     // entonces la restricción PREVIA de la cadena, exactamente el mismo rol que ya cumple `base` arriba, así que
@@ -1007,7 +1012,9 @@ function _empateFiloDeOrden(h, I) {
   if (!po || !Array.isArray(po.empatadoCon) || !po.empatadoCon.length) return null;
   const k = +o.k;
   if (!(po.n <= k && po.n + po.empatadoCon.length > k)) return null;
-  return { n: po.n, sujetos: [ent.nombre], entidades: [ent.nombre, ...po.empatadoCon] };
+  /* v24 (Q05, §7.3·44a + 46f): la pertenencia del empatado lleva SU cifra propia de la métrica del top (o su cero, en palabras de negocio y con su cifra, medido o por ausencia) aunque la boleta no publique una fig para él: sin ella el rótulo caía a la traza del ranking («Valparaíso ($25K) · Antofagasta ($8K) · Santiago (0)») sin decir el empate */
+  const mp = _metricaPropia(I, ent.nombre, _claveDeMetricaDeUniverso(h.metrica));
+  return { n: po.n, sujetos: [ent.nombre], entidades: [ent.nombre, ...po.empatadoCon], ...(mp ? { propia: { nombre: mp.nombre, texto: mp.texto, raw: mp.raw, unidad: mp.unidad, ...(mp.ausente ? { ausente: true } : {}) } } : {}), ...(mp && mp.raw === 0 ? { cero: { nombre: mp.nombre, texto: mp.texto } } : {}) };
 }
 function _empateFiloDeGrupo(h, I, nombres) {
   const u = _es(h.universo) ? h.universo : null;
@@ -1328,6 +1335,11 @@ export function libroDeHechos(hechos, ctx = {}) {
           H.procedencia = peorProcedencia(...figsEv.map(_procedenciaDeFig));   // campo LEGADO: se sobreescribe abajo con la tabla fija, mismo resultado
           _aplicarComposicion(H, figsEv.map((f) => ({ origen: _origenDeFigStruct(f), naturaleza: _naturalezaDeFig(f), id: _idDeOperando(f), rol: f.concepto || f.label || "evidencia", crudo: f.crudo !== false })));
         }
+        /* v24: una `cifra` que el libro comprobó contra el RANKING de la proyección (sin fig en la boleta) es un valor MEDIDO del dato; su cero por ausencia («ausente = 0», el conjunto que la métrica define no la trae) es DERIVADO. Sin esto la fila de la tabla decía «sin procedencia declarada» */
+        else if (tipo === "cifra" && v.veredicto === "verdadera" && H.evidencia.some((l) => /^ranking /i.test(String(l)))) {
+          const ause = /\(ausente = 0\)/.test(H.evidencia.join(" "));
+          _aplicarComposicion(H, [{ origen: "medido", naturaleza: ause ? "derivado" : "directo", id: null, rol: "valor", crudo: true }]);
+        }
       }
       /* roles, claves, números y render desde el hecho identificado (no desde ninguna prosa) */
       const sujetos = Array.isArray(a2.sujeto) ? a2.sujeto : (a2.sujeto != null ? [a2.sujeto] : []);
@@ -1605,7 +1617,7 @@ export function libroDeHechos(hechos, ctx = {}) {
         H.render.pertenencia = { entidades: nombres, universo: nombrarUniverso(h.universo, I) };
         { const ef = _empateFiloDeGrupo(h, I, nombres); if (ef) H.render.empateFilo = ef; }   // §7.3·44a
       }
-      if (H.tipo === "orden" && H.veredicto === "verdadera") { const ef = _empateFiloDeOrden(h, I); if (ef) H.render.empateFilo = ef; }   // §7.3·44a
+      if (H.tipo === "orden" && H.veredicto === "verdadera") { const ef = _empateFiloDeOrden(h, I); if (ef) { H.render.empateFilo = ef; /* v24: la cifra PROPIA del empatado (o su cero por ausencia) es un número del hecho: sin ella el rótulo caía a la traza del ranking y el verificador atribuía su «$0» a otro empatado */ if (ef.propia && !(H.numeros || []).some(esCifraPropia)) H.numeros.push({ raw: ef.propia.raw, unidad: ef.propia.unidad, texto: ef.propia.texto, clave: _claveDeMetricaDeUniverso(h.metrica) }); } }   // §7.3·44a
       if (H.tipo === "estado" && (H.veredicto === "verdadera" || H.veredicto === "falsa")) { const ep = _estadosPropiosDePremisa(H, I); if (ep) H.render.estadosPropios = ep; }
     } catch { /* sin verdad propia el veredicto cae al texto de siempre */ }
     libro.hechos.push(H); libro.porId.set(H.id, H);
@@ -1691,7 +1703,12 @@ export function renderDe(libro, id, campo = "valor") {
   const H = libro && libro.porId ? libro.porId.get(String(id)) : null;
   if (!H || !H.ok) return null;
   const c = campo || "valor";
-  if (c === "valor") return H.render.valor != null ? H.render.valor : (H.render.estado || H.render.n || null);
+  if (c === "valor") {
+    if (H.render.valor != null) return H.render.valor;
+    /* v24: una `cifra` verificada contra el ranking de la proyección (o por su cero por ausencia) no trae fig: su valor impreso es la cifra propia que el libro comprobó (`H.numeros`) */
+    if (H.tipo === "cifra" && H.veredicto === "verdadera" && !H.render.estado && !H.render.n) { const n0 = (H.numeros || []).find((x) => esCifraPropia(x) && x.texto); if (n0) return n0.texto; }
+    return H.render.estado || H.render.n || null;
+  }
   return H.render[c] != null ? H.render[c] : null;
 }
 

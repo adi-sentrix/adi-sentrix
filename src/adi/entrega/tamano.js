@@ -51,10 +51,24 @@ function hechosEsencialesDeOracion(r, libro) {
   const hechos = Array.isArray(r.hechos) ? r.hechos : [];
   if (r._premisa || r._definicion || r._marcaIniciativa || r._iniciativa || !libro) return { esenciales: hechos.slice(), apoyo: [] };
   const esenciales = [], apoyo = [];
+  const texto = String(r.texto || "");
+  const candidatos = [];   // hechos cuyo valor renderizado aparece literal en el texto, con ese valor
   for (const id of hechos) {
     const v = libro.porId && libro.porId.has(id) ? renderDe(libro, id) : null;
-    if (v != null && String(r.texto || "").includes(v)) esenciales.push(id); else apoyo.push(id);
+    if (v != null && texto.includes(v)) candidatos.push({ id, v }); else apoyo.push(id);
   }
+  /* v24 (barrido familia iii): varios hechos pueden RENDERIZAR el mismo valor («$0» de cuatro bodegas o cuentas, «8d» de tres cuentas) y el texto decirlo UNA vez pegado a SU dueño: solo tantos hechos como veces aparece el valor en el texto son esenciales (los del dueño nombrado más temprano); los demás son apoyo. Antes, el «$0» de una cuenta protegía la fila de TODAS las empatadas en cero y la tabla superaba el tope de filas. */
+  const porValor = new Map();
+  for (const c of candidatos) { if (!porValor.has(c.v)) porValor.set(c.v, []); porValor.get(c.v).push(c); }
+  for (const [v, grupo] of porValor) {
+    const veces = texto.split(v).length - 1;
+    if (grupo.length <= veces) { for (const c of grupo) esenciales.push(c.id); continue; }
+    const posDueno = (c) => { const h = libro.porId.get(c.id); const d = h && h.roles && h.roles.sujetos && h.roles.sujetos[0]; const p = d && d !== "negocio" ? texto.indexOf(String(d)) : -1; return p < 0 ? Infinity : p; };
+    const ordenado = [...grupo].sort((a, b) => posDueno(a) - posDueno(b));
+    ordenado.forEach((c, i) => { if (i < veces) esenciales.push(c.id); else apoyo.push(c.id); });
+  }
+  /* el orden original de los hechos se conserva (la salida no depende del agrupado) */
+  { const orden = new Map(hechos.map((id, i) => [id, i])); esenciales.sort((a, b) => orden.get(a) - orden.get(b)); apoyo.sort((a, b) => orden.get(a) - orden.get(b)); }
   // defensivo: si NINGÚN hecho calificó como esencial (ej. un render que no calzó por redondeo), se conserva el
   // primero como esencial — una oración nunca queda con doble colocación imposible de satisfacer por un desajuste de formato.
   if (!esenciales.length && hechos.length) { esenciales.push(hechos[0]); apoyo.splice(apoyo.indexOf(hechos[0]), 1); }
