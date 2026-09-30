@@ -773,6 +773,17 @@ venta a crédito, ley del owner).
     imprime el eslabón más ajustado.
     (d) Toda oración que compone la Entrega pasa `verificarEntrega`; composer y verificador no se contradicen.
     (e) Una definición sola no cita benchmark (44b) y la cola de la foto se declara también en profundidad breve.
+49. [2026-09-30, supervisor; mediciones v25 y v26]
+    (a) La referencia de la consulta se declara al lado de la oficial en CADA parte que usa ese conjunto, con su conteo y
+    sus entidades en el eje de esa parte (12, 19); nunca solo en una de ellas.
+    (b) Una `decision` con entidades nombradas DECIDE: da la prioridad entre ellas por la lente pedida o, sin lente, por la
+    de ADI, nombrada. Si la lente no distingue, se declara (47a).
+    (c) LA FOTO (45a): toda entidad de su universo tiene fila o se nombra con su cero; en comercial la foto es el eje entero.
+    Si un productor publica menos que el universo, lo que falta se declara.
+    (d) Una premisa carga su evidencia aunque ninguna parte pida su concepto; nunca queda no verificable por eso.
+    (e) La lente «ventas» APLICA a todo eje donde el dato publica venta (cliente, marca, familia, SKU): ordena por ventas.
+    (f) Una cifra conserva el rótulo de su concepto: ventas nunca se rotula «venta a crédito», aunque coincidan en valor.
+    (g) El corte entre Cifras y Detalle nunca parte una entidad: sus filas van juntas.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
