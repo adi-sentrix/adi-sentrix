@@ -753,6 +753,17 @@ venta a crédito, ley del owner).
     ordenó su lista; nunca nombra una lente que no la ordenó.
     (e) La foto declara las cuentas que no traen la cifra de un concepto pedido.
     (f) El empate en el filo en cero dice su cifra (39c).
+47. [2026-09-30, supervisor; diagnóstico v23]
+    (a) Una lente que APLICA al dominio de la parte ordena con SU medida: exposición de crédito en cobranza = saldo
+    vencido, con desempate por días; capital en inventario = capital inmovilizado crítico; contribución en comercial =
+    contribución no capturada. Si esa medida no distingue a nadie (todo en cero, empate total o sin dato), se declara
+    que ninguna cuenta queda primera por esa lente; nunca se corona a la primera de la lista ni se cambia de criterio en
+    silencio. Un total en cero no tumba la Entrega.
+    (b) La 45(d) se mantiene: la verdad propia PUEDE llevar la cifra del estado; no está obligada.
+    (c) En una simulación con más supuestos que el tope, el campo del motivo `cierre_incompleto` es «cierre».
+    (d) Una lente de OTRO dominio se declara y el grupo se ordena por su propia medida, que se nombra (46d).
+    (e) Pendiente del OWNER: la lente «contribución» sobre un grupo sin brecha al benchmark. Hoy: «ninguna cuenta queda
+    primera», declarado. Alternativa: caer a la contribución medida, declarándolo.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
