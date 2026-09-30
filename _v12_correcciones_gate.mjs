@@ -41,9 +41,13 @@
  *         nombra su bodega (S67) · una cifra de dos ejes se sirve con el productor de cada uno y la «Venta diaria» no pisa a «Ventas» (S84) · la lente pedida gobierna la prioridad de una decision sin universo y la foto declara lo que no trae
  *         (S31 S16) · el empate en cero de la pertenencia dice su cifra (S03 S04) · la falsa por M dice el M más ajustado de la cadena (S17 S18 S21).
  *
+ *   A21 · diagnóstico v23 (§7.3·47): un top con empate en el filo sirve una fila por cada empatado (R01) · la foto de un eje explícito declara la cuenta que no trae la cifra pedida, con su «N de M» (R18) ·
+ *         la referencia de la consulta se declara en el EJE del universo (marca · familia), no en clientes (R40 R45) · la lente pedida que aplica al dominio ordena la prioridad con SU medida: el saldo vencido · el capital inmovilizado crítico (R48 R100) ·
+ *         si esa medida no distingue a nadie se declara sin coronar a la primera de la lista y un grupo en cero no tumba la Entrega (R72 R65).
+ *
  * Solo por `npm run gates:offline` (o con el candado: node --import ./scripts/offline-guard.mjs _v12_correcciones_gate.mjs). Cero red. */
 import { initTenant } from "./src/data/tenantStore.js";
-import { TENANT_DEMO, skuInventario, clientesMargen, clientesVentas, skusMargen } from "./src/data/tenants/demo.js";
+import { TENANT_DEMO, skuInventario, clientesMargen, clientesVentas, skusMargen, marcasMargen } from "./src/data/tenants/demo.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
@@ -1306,7 +1310,9 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     ok(frenados68.length >= 2 && skuInventario.find((s) => s.sku === "BOS-SANDER").diasSinVenta === 68, "oráculo · hay ≥ 2 SKU con más de 68 días sin venta y BOS-SANDER tiene exactamente 68 (el filo: «sobre el umbral» es estricto)", JSON.stringify(frenados68));
     ok(R.criterio && R.criterio.lente === "capital" && R.criterio.origen === "usuario" && R.criterio.referencia && R.criterio.referencia.valor === 68 && R.criterio.referencia.concepto === "umbral_frenado", "el criterio resuelto trae la LENTE y la REFERENCIA (antes: solo la lente)", JSON.stringify(R.criterio));
     ok(E.ok && mismos(universoDe(E, "p1"), frenados68), `el universo de frenados con el umbral 68 son los ${frenados68.length} SKU sobre 68 días (no vacío)`, JSON.stringify(universoDe(E, "p1")));
-    ok(/por días sin venta:/.test(textoDe(E)) && !/por capital:/.test(textoDe(E)) && !/sin umbral declarado/.test(textoDe(E)), "la oración del grupo nombra lo que ordena la lista («por días sin venta», el primer concepto pedido; 46(d): la lente capital no la ordenó) y el Marco no dice «sin umbral declarado»",textoDe(E).split("\n").filter((l) => /Prioridad|umbral/i.test(l)).join(" | "));
+    /* §7.3·47(a) (v23 · R48): la lente capital APLICA al inventario: ordena la prioridad con SU medida (el capital inmovilizado crítico), no con los días sin venta con que se listó el grupo */
+    { const capFr = frenados68.map((n) => skuInventario.find((s) => s.sku === n)).sort((a, b) => b.stockUSD - a.stockUSD)[0];
+      ok(/dentro de este grupo, por capital: [^,]+, con .* en capital inmovilizado crítico\./.test(textoDe(E)) && textoDe(E).includes(`por capital: ${capFr.sku}, con `) && !/por días sin venta:/.test(textoDe(E)) && !/sin umbral declarado/.test(textoDe(E)), "la oración del grupo nombra la lente capital y su primero es el de MAYOR capital inmovilizado crítico entre los frenados (oráculo: stockUSD del dato; 47(a): la lente que aplica al dominio ordena), y el Marco no dice «sin umbral declarado»", textoDe(E).split("\n").filter((l) => /Prioridad|umbral/i.test(l)).join(" | ")); }
     ok(/es correcto — .*\b2 de 13\b/.test(lineaCon(E, /de 13/)) || lineaCon(E, /de 13/).includes(`${frenados68.length} de ${skus.length}`), "la premisa «son N de 13» se juzga (verdadera) con el umbral de la consulta", lineaCon(E, /de 13/));
     ok(/no es así/.test(lineaCon(E, "BOS-SANDER")) && /68/.test(lineaCon(E, "BOS-SANDER")), "«BOS-SANDER está frenado» es FALSA con el umbral 68 (tiene exactamente 68)", lineaCon(E, "BOS-SANDER"));
     { const { R: R2, E: E2 } = entregaDe({ partes: [parte], criterio: { referencia: ref } });
@@ -1461,18 +1467,19 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
         n++;
         const nombrada = por === nom;
         if (nombrada) nombradas++;
-        if (nombrada !== DUENA[lente].includes(m)) malas.push(`${lente}/${tema}:${m} → «${por}»`);   /* nombrada ⇔ la clave es la suya */
+        const aplica = dom === tema;   /* §7.3·47(a): la lente que APLICA al dominio del grupo lo ordena con su medida: se nombra aunque el grupo se haya listado por otra clave */
+        if (nombrada !== (aplica || DUENA[lente].includes(m))) malas.push(`${lente}/${tema}:${m} → «${por}»`);   /* nombrada ⇔ la lente aplica al dominio o la clave es la suya */
         if (!nombrada) {
           const esperado = `${ROTULO[m]} (el criterio pedido, ${nom}, ${dom && dom !== tema ? `es de ${dom} y ` : ""}no ordena este grupo)`;
           const declara = dom === tema ? por === ROTULO[m] : por === esperado;   /* mismo dominio con otra clave: solo la clave; otro dominio o sin dominio: la clave y la declaración */
           if (!declara) malas.push(`${lente}/${tema}:${m} declara mal → «${por}»`);
         }
-        if (colaDe(E) !== base) colaDistinta.push(`${lente}/${tema}:${m}`);
+        if (!aplica && colaDe(E) !== base) colaDistinta.push(`${lente}/${tema}:${m}`);   /* la lente que NO aplica no cambia el primero; la que aplica lo decide con su medida (A21) */
       }
     }
-    ok(n === 28 && malas.length === 0, `la lente se nombra ⇔ la clave del grupo es la suya, en ${n} combinaciones lente × grupo (crédito, contribución, capital, ventas × 7 grupos de 3 dominios); si no, dice la clave y declara el criterio pedido`, malas.join(" | "));
-    ok(nombradas === 4, "oráculo · de las 28 combinaciones, solo 4 son la lente sobre su propia clave (crédito/saldo vencido · contribución · capital · ventas)", String(nombradas));
-    ok(colaDistinta.length === 0, "CONTROL NEGATIVO · el primero del grupo y su cifra no dependen de la lente: la cola de la oración es idéntica con cualquier lente y sin ella", colaDistinta.join(" | "));
+    ok(n === 28 && malas.length === 0, `la lente se nombra ⇔ aplica al dominio del grupo (o la clave del grupo es la suya), en ${n} combinaciones lente × grupo (crédito, contribución, capital, ventas × 7 grupos de 3 dominios); si no, dice la clave y declara el criterio pedido`, malas.join(" | "));
+    ok(nombradas === 8, "oráculo · de las 28 combinaciones, 8 nombran la lente: las 7 donde la lente aplica a su dominio (crédito × 2 grupos de cobranza · contribución × 3 de comercial · capital × 2 de inventario) y ventas sobre su propia clave", String(nombradas));
+    ok(colaDistinta.length === 0, "CONTROL NEGATIVO · el primero del grupo y su cifra no dependen de una lente que NO aplica a su dominio: la cola de la oración es idéntica con esa lente y sin ella", colaDistinta.join(" | "));
     const defecto = [];
     for (const [tema, eje, m] of GRUPOS) for (const lente of [undefined, "riesgo"]) { const por = porDe(grupo(tema, eje, m, lente)); if (por !== ROTULO[m]) defecto.push(`${lente}/${tema}:${m} → «${por}»`); }
     ok(defecto.length === 0, "CONTROL NEGATIVO · sin lente pedida (o con «riesgo»): el grupo nombra la clave que lo ordenó, nunca «riesgo» (la lente ENTRE dominios no ordena dentro de un grupo)", defecto.join(" | ")); }
@@ -1480,6 +1487,113 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
   H("A20 · 46(d) · una referencia (umbral, piso) no es una lente: conserva su nombre de la casa; sin clave de orden, nada cambia");
   { const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["dias_sin_venta", "capital"], eje: "sku", universo: { eje: "sku", estados: ["frenado"] } }], criterio: { referencia: { concepto: "umbral_frenado", valor: 45, unidad: "days" } } });
     ok(E.ok && /dentro de este grupo, por umbral de venta frenada: /.test(prioGrupo(E)), "CONTROL NEGATIVO · un criterio que es una REFERENCIA conserva su nombre de la casa («por umbral de venta frenada»)", prioGrupo(E)); }
+}
+
+/* ═══ A21 · DIAGNÓSTICO v23 (medición ciega v23, catálogo sellado v23; §7.3·47) ═══════════════════════════════════════════════════════════════════════════════════
+ * Seis raíces de ADI, cada una con su oráculo INDEPENDIENTE del código que corrige (la mesa de flujo, el dato del tenant, la tabla de Cifras ya servida) y su CARNADA (el defecto reconstruido a mano tiene que caer):
+ *   (a) R01 · un top cuyo filo cae dentro de un empate sirve a TODOS los empatados CON FILA: lo declarado es lo servido (no «sirve 6» con filas de 3).
+ *   (b) R18 · la foto de un eje explícito (marca) declara la cuenta que no trae la cifra pedida, como ya lo hacían cliente y sku (46e) — y con su «N de M».
+ *   (c) R40 · R45 · la referencia de la consulta se declara en el EJE del universo que la pone en juego (familia · marca), no en clientes.
+ *   (d) R48 · R72 · R100 · la lente pedida que APLICA al dominio del grupo lo ordena con SU medida (la exposición de crédito = el saldo vencido; el capital = el capital inmovilizado crítico), no con la clave con que se listó.
+ *   (e) R72.p1 · R65 · si esa medida no distingue a nadie (vale cero o el grupo no la trae) se DECLARA, sin coronar a la primera de la lista; y un grupo en cero no tumba la Entrega (R65: «e16 = $0 es cero»).
+ * Oráculo: `buildMesaFlujo` (el flujo de cobranza), `skuInventario`/`marcasMargen`/`clientesMargen` (el dato del tenant) y las filas de la tabla de Cifras; nunca el código que se corrige. */
+{
+  const Mflujo = buildMesaFlujo(ESCENARIO_INICIAL).filas;
+  const filasCifras = (E) => ((E.entrega && E.entrega.cifras && E.entrega.cifras.filas) || []);
+  const enTabla = (E) => [...new Set(filasCifras(E).map((f) => f.valores["Entidad / grupo"]))];
+  const prioGrupo2 = (E) => String(E.texto || "").split("\n").filter((l) => /Prioridad del procedimiento dentro de este grupo/.test(l)).map((l) => l.replace(/^▸ /, ""));
+  const limitesTxt = (E) => ((E.entrega && E.entrega.limites) || []).map((l) => `${l.titulo || ""} ${l.motivo || ""}`);
+  const mismosNombres = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+  const conTexto = (E, f) => ({ ...E, texto: f(String(E.texto || "")), entrega: { ...E.entrega, limites: ((E.entrega && E.entrega.limites) || []).map((l) => ({ ...l, titulo: f(l.titulo || ""), motivo: f(l.motivo || "") })) } });
+
+  H("A21 · 44a · R01 · un top con EMPATE en el filo sirve una fila (cifras) por cada empatado: lo declarado ES lo servido");
+  { const enc = (k) => ({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["recuperado", "abonado"], universo: { eje: "cliente", top: { metrica: "recuperado", k } } }] });
+    const vs = Mflujo.map((f) => f.recuperadoPct).sort((a, b) => b - a), vFilo = vs[2];
+    const esperados = Mflujo.filter((f) => f.recuperadoPct >= vFilo).map((f) => f.nombre);
+    const { E } = entregaDe(enc(3));
+    ok(esperados.length === 6 && vs[1] > vFilo, "oráculo · el puesto 3 por recuperado es un empate de 4 (71.4%): el top 3 sirve 6 (la mesa de flujo)", JSON.stringify(esperados));
+    ok(E.ok && mismosNombres(enTabla(E), esperados), "la tabla de Cifras trae una fila por CADA uno de los 6 (Hites, ABC y Unimarc incluidos)", JSON.stringify(enTabla(E)));
+    ok(/sirve 6 por el empate del filo/.test(E.texto || "") && filasCifras(E).filter((f) => f.valores["Métrica"] === "Abonado").length === 6, "lo declarado («sirve 6») es lo servido: seis filas de Abonado, tantas como empatados + los del top", String(E.texto).split("\n").find((l) => /empate del filo/.test(l)) || "");
+    const E2 = entregaDe(enc(2)).E;
+    ok(E2.ok && mismosNombres(enTabla(E2), ["Mercado Libre", "Ripley"]) && !/empate del filo/.test(E2.texto || ""), "CONTROL NEGATIVO · con k=2 el filo (77.8%) no parte ningún empate: se sirven 2, sin declarar empate del filo", JSON.stringify(enTabla(E2)));
+    const sirve = (EE) => mismosNombres(enTabla(EE), esperados);
+    const carnada = { ...E, entrega: { ...E.entrega, cifras: { ...E.entrega.cifras, filas: filasCifras(E).filter((f) => ["Mercado Libre", "Ripley", "La Polar"].includes(f.valores["Entidad / grupo"])) } } };
+    ok(sirve(E) && !sirve(carnada), "CARNADA · el defecto reconstruido (filas solo de 3 con «sirve 6») cae", JSON.stringify(enTabla(carnada))); }
+
+  H("A21 · 46e · R18 · la foto de un eje explícito (marca) declara la cuenta que no trae la cifra pedida, con su «N de M»");
+  { const enc = (conceptos) => ({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos, eje: "marca" }], criterio: { lente: "ventas" } });
+    const { E } = entregaDe(enc(["variacion", "ventas"]));
+    const filas = filasCifras(E), marcas = enTabla(E);
+    const sinVar = marcas.filter((m) => !filas.some((f) => f.valores["Entidad / grupo"] === m && /Variaci[oó]n/.test(f.valores["Métrica"])));
+    const dec = limitesTxt(E).filter((t) => /la foto no trae variaci[oó]n/i.test(t));
+    ok(E.ok && marcas.length === 5 && sinVar.length >= 1, "oráculo · la foto por marca trae 5 marcas y al menos una sin la fila de variación (la tabla ya servida)", JSON.stringify({ marcas, sinVar }));
+    ok(dec.length === 1 && sinVar.every((m) => dec[0].includes(m)) && marcas.filter((m) => !sinVar.includes(m)).every((m) => !dec[0].includes(m)), "la declaración nombra EXACTAMENTE las marcas que no traen la variación (ni una más, ni una menos)", dec.join(" | "));
+    ok(dec.length === 1 && dec[0].includes(`(${sinVar.length} de 5 marcas)`), "y dice cuántas son de cuántas: «(N de 5 marcas)»", dec.join(" | "));
+    const E2 = entregaDe(enc(["ventas"])).E;
+    ok(E2.ok && limitesTxt(E2).filter((t) => /la foto no trae/i.test(t)).length === 0, "CONTROL NEGATIVO · una foto por marca con la cifra de TODAS las cuentas no declara ninguna falta", limitesTxt(E2).join(" | "));
+    const carnada = conTexto(E, (t) => t.replace(/la foto no trae/g, "la foto sí trae"));
+    const declara = (EE) => limitesTxt(EE).some((t) => /la foto no trae variaci[oó]n/i.test(t));
+    ok(declara(E) && !declara(carnada), "CARNADA · el defecto reconstruido (la tabla omite la fila y ningún límite lo dice) cae", ""); }
+
+  H("A21 · 19 · R40 · R45 · la referencia de la consulta se declara en el EJE del universo que la pone en juego (marca · familia), no en clientes");
+  { const refEn = (eje, metrica, ref, valor, unidad = "pct") => ({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: [metrica === "margen" ? "margen" : "carga", "ventas"], eje, universo: { eje, filtros: [{ metrica, op: metrica === "margen" ? ">" : ">=", ref }] } }], criterio: { referencia: { concepto: ref, valor, unidad } } });
+    const dec = (E) => limitesTxt(E).filter((t) => /Con la referencia planteada en la consulta/.test(t)).join(" | ");
+    const marcasSobre = marcasMargen.filter((m) => m.margen > 26.3).map((m) => m.nombre);
+    const clientesSobre = clientesMargen.filter((c) => c.margen > 26.3).map((c) => c.nombre);
+    const M = entregaDe(refEn("marca", "margen", "benchmark", 26.3)).E, C = entregaDe(refEn("cliente", "margen", "benchmark", 26.3)).E;
+    ok(M.ok && marcasSobre.length === 2 && new RegExp(`Serían ${marcasSobre.length} marcas sobre esa referencia`).test(dec(M)) && marcasSobre.every((n) => dec(M).includes(n)), "una parte por MARCA cuenta MARCAS con la referencia de la consulta (26.3%): las que el dato deja sobre ese margen", dec(M));
+    ok(!clientesMargen.some((c) => dec(M).includes(c.nombre)), "y no nombra ni un cliente (el eje de la parte es marca)", dec(M));
+    ok(C.ok && clientesSobre.length >= 5 && new RegExp(`Serían ${clientesSobre.length} cuentas sobre esa referencia`).test(dec(C)) && clientesSobre.every((n) => dec(C).includes(n)), "CONTROL NEGATIVO · una parte por CLIENTE sigue contando cuentas con los nombres de clientes (el eje de la parte ES cliente)", dec(C));
+    const F = entregaDe(refEn("familia", "carga", "nivel_carga", 4)).E;
+    ok(F.ok && /Serían 2 familias sobre esa referencia \(contra 3 con el nivel declarado de carga\)/.test(dec(F)) && !/cuentas/.test(dec(F)), "una parte por FAMILIA (nivel de carga 4%) cuenta familias: 2 contra las 3 del nivel declarado", dec(F));
+    const carnada = conTexto(M, (t) => t.replace(/Serían 2 marcas/g, "Serían 8 cuentas").replace(/Philips, Makita/, "Tottus, Paris, Easy"));
+    ok(!/Serían 2 marcas/.test(dec(carnada)) && clientesMargen.some((c) => dec(carnada).includes(c.nombre)), "CARNADA · el defecto reconstruido (clientes en una parte por marca) es lo que el predicado de arriba rechaza", dec(carnada)); }
+
+  H("A21 · 46(d) + ley del owner · R100 · R48 · la lente pedida que APLICA al dominio ordena la prioridad del grupo con SU medida (saldo vencido · capital inmovilizado crítico)");
+  { const cob = (lente, estados, top) => entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["abonado", "saldo_vencido"], universo: { eje: "cliente", estados, top } }], ...(lente ? { criterio: { lente } } : {}) }).E;
+    const mora = Mflujo.filter((f) => f.vencidoK > 0), top3 = mora.slice().sort((a, b) => b.abonadoK - a.abonadoK).slice(0, 3);
+    const primero = top3.slice().sort((a, b) => b.vencidoK - a.vencidoK)[0];
+    const E = cob("credito", ["en mora"], { metrica: "abonado", k: 3 });
+    const L = prioGrupo2(E)[0] || "";
+    ok(E.ok && top3.length === 3 && primero.nombre !== top3[0].nombre, "oráculo · el top 3 por abonado de los en mora es Falabella, Lider y Tottus; el de mayor saldo vencido (la exposición de crédito) NO es el primero por abonado", JSON.stringify(top3.map((f) => [f.nombre, f.abonadoK, f.vencidoK])));
+    ok(L.startsWith(`Prioridad del procedimiento dentro de este grupo, por exposición de crédito: ${primero.nombre}, con `) && L.endsWith(" en saldo vencido."), "con la lente de crédito la prioridad del grupo es la del SALDO VENCIDO (el primero es el de mayor vencido del grupo, con su cifra y su nombre)", L);
+    const E0 = cob(null, ["en mora"], { metrica: "abonado", k: 3 }), L0 = prioGrupo2(E0)[0] || "";
+    ok(L0.startsWith(`Prioridad del procedimiento dentro de este grupo, por abonado: ${top3[0].nombre}, con `), "CONTROL NEGATIVO · sin lente pedida el grupo nombra la clave que lo ordenó (abonado) y su primero es el de siempre", L0);
+    const Ec = cob("capital", ["en mora"], { metrica: "abonado", k: 3 }), Lc = prioGrupo2(Ec)[0] || "";
+    ok(/por abonado \(el criterio pedido, capital, es de inventario y no ordena este grupo\): /.test(Lc) && !/ninguna cuenta queda primera/.test(Lc), "CONTROL NEGATIVO · una lente de OTRO dominio (capital sobre cobranza) sigue declarándose «no ordena este grupo» (46d)", Lc);
+    const carnada = prioGrupo2(conTexto(E, (t) => t.replace(/por exposición de crédito: [^,]+,/, `por exposición de crédito: ${top3[0].nombre},`)))[0] || "";
+    const ordenaPorLente = (l) => l.startsWith(`Prioridad del procedimiento dentro de este grupo, por exposición de crédito: ${primero.nombre}, con `);
+    ok(ordenaPorLente(L) && !ordenaPorLente(carnada), "CARNADA · el defecto reconstruido (la lente nombrada pero coronando al primero por abonado) cae", carnada); }
+  { const inv = (lente) => entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["dias_sin_venta", "capital_frenado"], eje: "sku", universo: { eje: "sku", estados: ["frenado"] } }], criterio: { ...(lente ? { lente } : {}), referencia: { concepto: "umbral_frenado", valor: 94, unidad: "days" } } }).E;
+    const frenados = skuInventario.filter((s) => s.diasSinVenta > 94), cab = frenados.slice().sort((a, b) => b.stockUSD - a.stockUSD)[0];
+    const E = inv("capital"), L = prioGrupo2(E)[0] || "";
+    ok(E.ok && frenados.length === 1 && cab.sku === "MAK-COMP-AIR", "oráculo · con el umbral de 94 días solo MAK-COMP-AIR (112 días) es frenado; LG-DRYER8KG (94 exactos) queda fuera", JSON.stringify(frenados.map((s) => [s.sku, s.diasSinVenta, s.stockUSD])));
+    ok(L.startsWith(`Prioridad del procedimiento dentro de este grupo, por capital: ${cab.sku}, con `) && /en capital inmovilizado crítico\.$/.test(L) && !/por días sin venta/.test(L), "con la lente de capital la prioridad es la del CAPITAL inmovilizado crítico (la medida de la lente), no la de los días sin venta con que se listó el grupo", L);
+    const Lr = prioGrupo2(inv(null))[0] || "";
+    ok(/por umbral de venta frenada: /.test(Lr) || /por días sin venta: /.test(Lr), "CONTROL NEGATIVO · sin lente (solo la referencia) el grupo conserva la clave que lo ordenó o el nombre de la referencia", Lr);
+    const Lx = prioGrupo2(inv("credito"))[0] || "";
+    ok(/el criterio pedido, exposición de crédito, es de cobranza y no ordena este grupo/.test(Lx), "CONTROL NEGATIVO · la lente de crédito sobre inventario sigue declarándose «no ordena este grupo»", Lx); }
+
+  H("A21 · 46(d) · R72.p1 · R65 · si la medida de la lente no distingue a nadie se DECLARA, sin coronar a la primera de la lista; un grupo en cero compone igual");
+  { const E = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido", "recuperado"], universo: { eje: "cliente", estados: ["al dia"] } }], criterio: { lente: "credito" } }).E;
+    const alDia = Mflujo.filter((f) => f.vencidoK === 0).map((f) => f.nombre), L = prioGrupo2(E)[0] || "";
+    ok(alDia.length === 7, "oráculo · 7 cuentas al día: todas con saldo vencido en cero (la mesa de flujo)", JSON.stringify(alDia));
+    ok(E.ok === true, "la Entrega COMPONE (antes «sin-evidencia: e16 = $0 es cero» tumbaba la Entrega entera: el usuario no recibía nada)", String(E.motivo));
+    ok(/^Prioridad del procedimiento dentro de este grupo, por exposición de crédito: ninguna cuenta queda primera, porque el grupo \(.*\) no tiene saldo vencido \(\$0\)\.$/.test(L) && alDia.every((n) => L.includes(n)), "la prioridad DECLARA que la lente no distingue a nadie (todas en $0), nombra a las cuentas del grupo y no corona a ninguna", L);
+    ok(!/exposición de crédito: [^n][^,]*, con /.test(L), "no dice «por exposición de crédito: <cuenta>, con $0»: ninguna cuenta es primera", L);
+    const enMora = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido", "recuperado"], universo: { eje: "cliente", estados: ["en mora"] } }], criterio: { lente: "credito" } }).E, Lm = prioGrupo2(enMora)[0] || "";
+    const cabMora = Mflujo.filter((f) => f.vencidoK > 0).sort((a, b) => b.vencidoK - a.vencidoK)[0];
+    ok(enMora.ok && Lm.startsWith(`Prioridad del procedimiento dentro de este grupo, por exposición de crédito: ${cabMora.nombre}, con `), "CONTROL NEGATIVO · el mismo encargo sobre las cuentas EN MORA sí corona a la de mayor saldo vencido (Lider)", Lm);
+    const carnada = `Prioridad del procedimiento dentro de este grupo, por exposición de crédito: ${alDia[0]}, con $0 en saldo vencido.`;
+    const declaraSinPrimero = (l) => /ninguna cuenta queda primera/.test(l);
+    ok(declaraSinPrimero(L) && !declaraSinPrimero(carnada), "CARNADA · el defecto reconstruido (coronar a Jumbo con $0) cae", carnada); }
+  { const E = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["dias_inventario", "capital"], eje: "sku", universo: { eje: "sku", estados: ["riesgo de quiebre"] } }], criterio: { lente: "capital" } }).E;
+    const L = prioGrupo2(E)[0] || "", skus = ((E.entrega.universos || []).find((u) => u.id === "p1") || {}).entidades || [];
+    ok(E.ok && skus.length === 3 && skus.every((s) => (skuInventario.find((x) => x.sku === s) || {}).alerta !== "crit"), "oráculo · los 3 SKU en riesgo de quiebre no son inmovilizados críticos (el dato: ninguno en alerta crítica)", JSON.stringify(skus));
+    ok(/^Prioridad del procedimiento dentro de este grupo, por capital: ninguna cuenta queda primera, porque el grupo \(.*\) no trae capital inmovilizado crítico/.test(L) && skus.every((s) => L.includes(s)), "la lente de capital, cuya medida (capital inmovilizado crítico) no trae ningún SKU del grupo, se declara sin primero (antes: «por días de inventario: PHI-HAIR-PRO» sin avisar)", L);
+    ok(!/por días de inventario/.test(String(E.texto || "").split("\n").filter((l) => /Prioridad del procedimiento dentro de este grupo/.test(l)).join(" ")), "la oración de prioridad del grupo ya no cambia de criterio en silencio (no nombra los días de inventario como la que ordena)", L);
+    const carnada = "Prioridad del procedimiento dentro de este grupo, por días de inventario: PHI-HAIR-PRO, con 19 días en días de inventario.";
+    ok(/ninguna cuenta queda primera/.test(L) && !/ninguna cuenta queda primera/.test(carnada), "CARNADA · el defecto reconstruido (corona por otra clave sin avisar) cae", carnada); }
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");

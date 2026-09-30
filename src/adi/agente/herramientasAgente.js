@@ -447,7 +447,8 @@ const _CAMPO_DE_CLAVE_COBRANZA = { ventas: "ventaK", venta_credito: "ventaK", sa
     const conValor = M.filas.filter((f) => Number.isFinite(f[campo]));
     /* «peor»/«mejor» dependen de la polaridad de la métrica (la resuelve el compositor y el Notario): acá se traen los DOS extremos, el compositor recorta al que es */
     const dirTxt = String(top.direccion || "mayor");
-    const ext = (asc) => [...conValor].sort((a, b) => (asc ? a[campo] - b[campo] : b[campo] - a[campo])).slice(0, +top.k).map((f) => f.nombre);
+    /* v23 (R01, §7.3·44a «sirve a TODOS los empatados»): el empate en el FILO del top también se trae: las cuentas que valen lo mismo que la k-ésima entran con su fila; sin ellas el compositor declaraba servir N y solo tenía cifra de k. */
+    const ext = (asc) => { const ord = [...conValor].sort((a, b) => (asc ? a[campo] - b[campo] : b[campo] - a[campo])); if (!ord.length) return []; const k = Math.min(+top.k, ord.length); const vFilo = ord[k - 1][campo]; return ord.filter((f, i) => i < k || f[campo] === vFilo).map((f) => f.nombre); };
     if (dirTxt === "peor" || dirTxt === "mejor") return [...new Set([...ext(true), ...ext(false)])];
     return ext(dirTxt === "menor");
   })();
