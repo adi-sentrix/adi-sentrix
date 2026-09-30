@@ -1090,7 +1090,21 @@ function _verdadPropiaDeMiembro(u, nombre, I) {
   const metrica = cifra ? { clave, nombre: (m ? m.nombre : (nombreDeMetricaDeReferencia(clave) || metricaDeClave(clave))).toLowerCase(), raw: cifra.raw, unidad: cifra.unidad, texto: cifra.texto } : null;
   // (4) su PUESTO en el ranking que el top ordena, en la dirección del top (solo si es miembro de ese ranking; nunca el `k`)
   let puesto = null;
-  if (metrica && (u.top || exTop)) { const rk = rankingDeTop(u, I, eje); if (rk && rk.clave === clave) { const i = rk.orden.indexOf(key); if (i >= 0) puesto = { n: i + 1, de: rk.orden.length, dir: rk.dir }; } }
+  /* v18 (X46 · X83): los EMPATES comparten el puesto (la misma regla que `_ordenar` para el orden: el puesto de un empatado es el del primero de su grupo) y se DICEN: «puesto 4 de 6 …, empatado con Falabella y Paris». Antes, la posición dentro de la lista ordenada
+   * (un desempate que el usuario no puede ver) decía «puesto 5 de 6» para una cuenta empatada en 4-6. El valor de cada fila es el de `_topTipado` (la misma cuenta que eligió al conjunto). */
+  if (metrica && (u.top || exTop)) {
+    const rk = rankingDeTop(u, I, eje);
+    if (rk && rk.clave === clave) {
+      const i = rk.orden.indexOf(key);
+      if (i >= 0) {
+        puesto = { n: i + 1, de: rk.orden.length, dir: rk.dir };
+        const filas = Array.isArray(rk.filas) ? rk.filas : [];
+        const propia = filas.find((x) => x && x.entidad === key);
+        const iguales = propia && Number.isFinite(propia.raw) ? filas.filter((x) => x && x.raw === propia.raw) : [];
+        if (iguales.length > 1) puesto = { n: filas.indexOf(iguales[0]) + 1, de: rk.orden.length, dir: rk.dir, empatadoCon: iguales.filter((x) => x.entidad !== key).map((x) => x.nombre || x.entidad) };
+      }
+    }
+  }
   if (!metrica && !estado) return null;
   return { entidad: ent.nombre, eje, estado, metrica, puesto };
 }

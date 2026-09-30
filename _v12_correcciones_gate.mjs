@@ -18,6 +18,8 @@
  *   A8 · la frase de ausencias del umbral de materialidad dice su origen REAL (del mismo helper), no «que la empresa declaró».
  *   A10 · diagnóstico v17: verdad propia de un miembro (V-A) · par de días de una comparación en cobranza (V-B) · referencia de la consulta sobre un universo solo-excluir (V-C) ·
  *         piso de materialidad de la consulta (W27) · universos declarados (P-A) · comparación parcial (P-B) · el cero en palabras en la comparación (P-C).
+ *   A11 · diagnóstico v18: la cartera de cobranza sirve los N clientes (C-A) · el filtro con `ref` pone en juego la referencia de la consulta (C-B) · el Marco declara el nivel de carga oficial (C-C) ·
+ *         el puesto empatado dice con quién empata (C-D) · `verificarEntrega` no acusa por sustring (C-E).
  *
  * Solo por `npm run gates:offline` (o con el candado: node --import ./scripts/offline-guard.mjs _v12_correcciones_gate.mjs). Cero red. */
 import { initTenant } from "./src/data/tenantStore.js";
@@ -539,6 +541,113 @@ H("A10 · P-C · un lado de una comparación que vale 0 se dice en palabras junt
   ok(/Unimarc no tiene saldo vencido \(\$0\)/.test(l(E2)), "el mismo criterio para el dinero: «no tiene saldo vencido ($0)»", l(E2));
   const E3 = cmp("Falabella", "Lider", ["saldo_pendiente", "dias_vencido"]);
   ok(!/no tiene/.test(l(E3)), "CONTROL NEGATIVO · dos cuentas con cifra distinta de cero: ningún «no tiene»", l(E3));
+}
+
+/* ═══ A11 · DIAGNÓSTICO v18 (medición ciega v18, catálogo sellado v18) ══════════════════════════════════════════════════════════════════
+ * Cinco raíces de ADI, cada una con su carnada en POSITIVO (la corrección dice lo verdadero) y en NEGATIVO (el control que NO debe cambiar):
+ *   C-A · una `cifra` de cobranza que sirve «la cartera» (sin entidades y sin restricción propia) sirve el eje ENTERO, no el top 8 fijo de `cobranza()` (§7.3·21: nunca se recorta el conjunto): opt-in `mesaCompleta`.
+ *   C-B · un FILTRO que cita la referencia de la casa (`filtros[].ref`) pone en juego la referencia de la consulta igual que una `base` (§7.3·12/·19): se declara al lado, nunca se pierde en silencio.
+ *   C-C · el Marco declara el nivel de carga OFICIAL cuando un conjunto de la casa lo define (`sobre el nivel declarado de carga`), aunque otra referencia ocupe `referenciaDeclarada`.
+ *   C-D · la verdad propia de una entidad EMPATADA en el ranking del top comparte el puesto y dice con quién empata (nunca un «puesto 5» que es un desempate invisible).
+ *   C-E · `verificarEntrega` no acusa a un dueño de una cifra ajena por sustring («3%» ⊂ «0.3%» · «$14K» ⊃ «4»); una cifra ajena de verdad sigue acusada.
+ * Oráculos: los rankings de la proyección (`cifrasDelDato`), el índice del eje (`axisEntityNames`) y el umbral declarado (`umbral()`); nunca el código que se corrige. */
+const _tiene = (E, nombre, tema) => {
+  const filas = [...((E.entrega.cifras && E.entrega.cifras.filas) || []), ...((E.entrega.detalle && E.entrega.detalle.filas) || [])];
+  return filas.some((f) => f.valores["Entidad / grupo"] === nombre && (!tema || f.valores["Tema"] === tema));
+};
+
+H("A11 · C-A · una `cifra` de cobranza que sirve «la cartera» sirve los 13 clientes (Cifras + Detalle), con o sin `{eje}`; una restricción propia sigue sirviendo solo su conjunto");
+{
+  const todos = ejes.cliente || [];
+  for (const universo of [{ eje: "cliente" }, undefined]) {
+    const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_pendiente", "recuperado"], ...(universo ? { universo } : {}) }] });
+    const u = E.entrega.universos.find((x) => x.id === "p1");
+    ok(todos.length === 13 && !!u && u.entidades.length === 13 && todos.every((n) => u.entidades.includes(n)), `«${universo ? "{eje:cliente}" : "sin universo"}»: el universo declarado son los 13 clientes (antes: el top 8 fijo)`, u && JSON.stringify(u.entidades));
+    ok(todos.every((n) => _tiene(E, n, "cobranza")), `«${universo ? "{eje:cliente}" : "sin universo"}»: cada uno de los 13 tiene su fila (en Cifras o en Detalle): ninguna cuenta declarada queda sin servir`, todos.filter((n) => !_tiene(E, n, "cobranza")).join(", "));
+  }
+  const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["dias_vencido", "saldo_vencido"], universo: { eje: "cliente" } }] });
+  const filasR = [...E2.entrega.cifras.filas, ...((E2.entrega.detalle && E2.entrega.detalle.filas) || [])].filter((f) => f.valores["Entidad / grupo"] === "Ripley").map((f) => `${f.valores["Métrica"]}=${f.valores["Valor"]}`);
+  ok(filasR.includes("Días vencido=0d") && filasR.includes("Saldo vencido=$0"), "una cuenta al día (Ripley) trae su 0 días y su saldo vencido $0: ausente = cero, un hecho", filasR.join(" | "));
+  const { E: E3 } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_pendiente"], universo: { eje: "cliente", top: { metrica: "saldo_pendiente", k: 3 } } }] });
+  const u3 = E3.entrega.universos.find((x) => x.id === "p1");
+  ok(!!u3 && u3.entidades.length === 3, "CONTROL NEGATIVO · un universo con `top` k=3 sigue sirviendo 3 (la mesa completa no ensancha lo que el encargo restringe)", u3 && JSON.stringify(u3.entidades));
+  const { E: E4 } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_pendiente"], entidades: [{ nombre: "Unimarc" }] }] });
+  const u4 = E4.entrega.universos.find((x) => /p1/.test(x.id));
+  ok(!!u4 && u4.entidades.length === 1 && u4.entidades[0] === "Unimarc", "CONTROL NEGATIVO · una cuenta puntual sigue sirviendo solo esa cuenta", u4 && JSON.stringify(u4.entidades));
+  const caja = cajaDelAgente(TOOLS);
+  const nombres = (args) => new Set(((caja.cobranza({ scenario: ESCENARIO_INICIAL, ...args }).boleta) || []).map((x) => String(x.label).split(" · ")[0]));
+  const sin = nombres({}), con = nombres({ mesaCompleta: true });
+  ok(!sin.has("Unimarc") && !sin.has("Ripley") && todos.every((n) => con.has(n)), "CANDADO · `mesaCompleta` es opt-in del Encargo: la boleta del agente (sin él) sigue con el top 8 fijo; con él trae los 13", `sin=${[...sin].length} con=${[...con].length}`);
+}
+
+H("A11 · C-B · un FILTRO con `ref` pone en juego la referencia de la consulta: se declara al lado de la oficial (parte o premisa), sin repetirse");
+{
+  const cargaMayor = (v) => RK.cliente.carga.filas.filter((f) => f.valor > v).length;
+  const filtro = { eje: "cliente", filtros: [{ metrica: "carga", op: ">", ref: "nivel_carga" }] };
+  const encC = (extra = {}) => ({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["carga", "ventas"], universo: filtro }], criterio: { referencia: { concepto: "nivel_carga", valor: 4, unidad: "pct" } }, ...extra });
+  const { E } = entregaDe(encC());
+  const lims = E.entrega.limites.filter((l) => /referencia planteada en la consulta/i.test(l.titulo));
+  ok(lims.length === 1 && lims[0].titulo.includes("(4%)") && new RegExp(`Serían ${cargaMayor(4)} cuentas`).test(lims[0].motivo) && /no reemplaza la referencia oficial/.test(lims[0].motivo), `nivel de carga 4 % planteado sobre un filtro con \`ref\`: UN límite «(4%)» con las ${cargaMayor(4)} cuentas que daría (oráculo: el ranking de carga) y «no reemplaza la referencia oficial»`, lims.map((l) => `${l.titulo} | ${l.motivo}`).join(" || "));
+  ok(/Nivel de carga declarado: 3\.5%/.test((E.entrega.marco.referenciaDeclarada || {}).texto || ""), "el Marco sigue con el nivel OFICIAL (3.5%), nunca el de la consulta");
+  const { E: EP } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], universo: { eje: "cliente" } }], premisas: [{ id: "q1", tipo: "conteo", conteo: { n: 9, m: 13 }, de: filtro }], criterio: { referencia: { concepto: "nivel_carga", valor: 4, unidad: "pct" } } });
+  ok(EP.entrega.limites.some((l) => /referencia planteada en la consulta/i.test(l.titulo) && l.titulo.includes("(4%)")), "el mismo filtro con `ref` solo en el universo de una PREMISA también declara la referencia de la consulta");
+  const { E: EB } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "ventas"], universo: { eje: "cliente", filtros: [{ metrica: "margen", op: "<", ref: "benchmark" }] } }], criterio: { referencia: { concepto: "benchmark", valor: 33, unidad: "pct" } } });
+  const limB = EB.entrega.limites.find((l) => /referencia planteada en la consulta/i.test(l.titulo));
+  const bajo33 = RK.cliente.margen.filas.filter((f) => f.valor < 33).length;
+  ok(!!limB && limB.titulo.includes("(33%)") && new RegExp(`Serían ${bajo33} cuentas`).test(limB.motivo), `la misma ley con el benchmark (33 %, «<» sobre \`ref:"benchmark"\`): «Serían ${bajo33} cuentas» (oráculo: el ranking de margen)`, limB && limB.motivo);
+  const { E: E0 } = entregaDe(encC({ criterio: undefined }));
+  ok(!E0.entrega.limites.some((l) => /referencia planteada en la consulta/i.test(l.titulo)), "CONTROL NEGATIVO · sin `criterio.referencia` no se declara ninguna");
+  const { E: EV } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["carga", "ventas"], universo: { eje: "cliente", filtros: [{ metrica: "carga", op: ">", valor: 4 }] } }], criterio: { referencia: { concepto: "nivel_carga", valor: 4, unidad: "pct" } } });
+  ok(!EV.entrega.limites.some((l) => /referencia planteada en la consulta/i.test(l.titulo)), "CONTROL NEGATIVO · un filtro con `valor` propio (no cita la referencia de la casa) no pone en juego la referencia: nada que declarar al lado");
+  const { E: EO } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["carga", "ventas"], universo: filtro }], criterio: { referencia: { concepto: "benchmark", valor: 33, unidad: "pct" } } });
+  ok(!EO.entrega.limites.some((l) => /referencia planteada en la consulta/i.test(l.titulo)), "CONTROL NEGATIVO · una referencia de OTRA familia (benchmark) sobre un filtro que cita el nivel de carga no se declara");
+}
+
+H("A11 · C-C · el Marco declara el nivel de carga OFICIAL cuando un conjunto de la casa lo define, aunque otra referencia ocupe el campo");
+{
+  const nivel = umbral("targetCarga").valor;
+  const base = (b) => ({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["carga", "no_capturada", "contribucion"], universo: { eje: "cliente", base: b } }] });
+  const { E } = entregaDe(base("sobre el nivel declarado de carga"));
+  const ref = (E.entrega.marco.referenciaDeclarada || {}).texto || "";
+  ok(new RegExp(`Nivel de carga declarado: ${nivel}%, declarado por la empresa\\.`).test(ref), `base «sobre el nivel declarado de carga»: el Marco dice «Nivel de carga declarado: ${nivel}%, declarado por la empresa» (oráculo: umbral().valor)`, ref);
+  ok(ref.split("Nivel de carga declarado").length === 2, "…una sola vez (no se duplica si otra ruta ya lo había declarado)", ref);
+  ok(/Benchmark de margen: 30\.1%/.test(ref) ? /Nivel de carga declarado/.test(ref) : true, "si el benchmark de las observaciones de controller ocupó el campo, el nivel se AGREGA (no queda sin declarar)", ref);
+  const { E: E1 } = entregaDe(base("carga comercial alta"));
+  ok(!/Nivel de carga declarado/.test((E1.entrega.marco.referenciaDeclarada || {}).texto || ""), "CONTROL NEGATIVO · el detector «carga comercial alta» se define por su piso de materialidad, no por el nivel: el Marco no lo agrega");
+  const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "margen"], universo: { eje: "cliente" } }] });
+  ok(!/Nivel de carga declarado/.test((E2.entrega.marco.referenciaDeclarada || {}).texto || ""), "CONTROL NEGATIVO · un encargo que no usa el nivel de carga no lo declara en el Marco");
+}
+
+H("A11 · C-D · la verdad propia de una entidad EMPATADA en el ranking del top comparte el puesto y dice con quién empata");
+{
+  const dias = Object.fromEntries(RK.cliente.dias_vencido.filas.map((f) => [f.entidad, f.valor]));
+  const enMora = Object.keys(dias).filter((n) => dias[n] > 0).sort((a, b) => dias[b] - dias[a]);
+  const universo = { eje: "cliente", estados: ["en mora"], top: { metrica: "dias_vencido", k: 3 } };
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["dias_vencido"], universo }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Tottus"], universo }] });
+  const t = oracionDe(E, "Tottus");
+  const iguales = enMora.filter((n) => dias[n] === dias.Tottus && n !== "Tottus");
+  const primero = enMora.findIndex((n) => dias[n] === dias.Tottus) + 1;
+  ok(iguales.length === 2 && new RegExp(`puesto ${primero} de ${enMora.length} `).test(t) && iguales.every((n) => t.includes(n)) && /empatado con/.test(t), `Tottus (8 días) empata con ${iguales.join(" y ")}: «puesto ${primero} de ${enMora.length}» (el del primero del empate, no una posición de desempate) y nombra a los empatados`, t);
+  ok(!/puesto 5 de/.test(t), "nunca el «puesto 5» que solo era la posición dentro de la lista ordenada", t);
+  const univS = { eje: "cliente", top: { metrica: "saldo_pendiente", k: 3 } };
+  const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_pendiente"], universo: univS }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Jumbo"], universo: univS }] });
+  const t2 = oracionDe(E2, "Jumbo");
+  ok(/puesto \d+ de 13/.test(t2) && !/empat/.test(t2), "CONTROL NEGATIVO · una entidad con cifra única (Jumbo, saldo pendiente) dice su puesto sin «empatado»", t2);
+}
+
+H("A11 · C-E · `verificarEntrega` no acusa por sustring («3%» ⊂ «0.3%», «$14K» ⊃ «4»); una cifra que SÍ es de otro dueño sigue acusada");
+{
+  const enc = { version: "encargo/v1", partes: [
+    { id: "p1", tema: "comercial", cierre: "simulacion", conceptos: ["ventas", "contribucion"], eje: "marca", entidades: [{ nombre: "Bosch", eje: "marca" }], supuestos: ["s1"] },
+    { id: "p2", tema: "comercial", cierre: "simulacion", conceptos: ["ventas", "contribucion"], entidades: [{ nombre: "Ripley" }], supuestos: ["s2"] }],
+    supuestos: [{ id: "s1", tipo: "growth", valor: 3, unidad: "pct", alcance: { eje: "marca", nombre: "Bosch" }, origen: "supuesto" }, { id: "s2", tipo: "growth", valor: 14157, unidad: "money", alcance: { eje: "cliente", nombre: "Ripley" }, origen: "supuesto" }],
+    premisas: [{ id: "q1", tipo: "orden", sujeto: "Bosch", metrica: "ventas", orden: { forma: "puesto", k: 4 }, universo: { eje: "marca" } }] };
+  const R = validarEncargo(enc, {}); const E = componerEntrega(R);
+  const audita = (Ent, texto) => verificarEntrega({ texto, entrega: Ent, profundidad: "completa", resolucion: R, indice: (Ent.procedencia && Ent.procedencia.libro && Ent.procedencia.libro.indice) || null }).violaciones.filter((v) => v.regla === "dueno-de-cifra-equivocado");
+  ok(E.ok && audita(E.entrega, E.texto).length === 0, "Bosch «el volumen sube 3%» (su supuesto) y Ripley «$14K … 0.3%»: ningún dueño equivocado (el «3%» no es el «0.3%» de Ripley ni el «$14K» un «4»)", JSON.stringify(audita(E.entrega, E.texto)));
+  const mut = { ...E.entrega, respuesta: E.entrega.respuesta.map((r) => (/^Bosch — simulación/.test(r.texto) ? { ...r, texto: "Bosch — simulación: el volumen sube 0.3%." } : r)) };
+  const vs = audita(mut, E.texto.replace(/Bosch — simulación: el volumen sube 3%\./, "Bosch — simulación: el volumen sube 0.3%."));
+  ok(vs.some((v) => /atribuye a "Bosch" la cifra "0\.3%"/.test(v.detalle) && /Ripley/.test(v.detalle)), "CARNADA · la cifra EXACTA de otra cuenta (Ripley 0.3 %) dicha como de Bosch SÍ se acusa: «dueno-de-cifra-equivocado»", JSON.stringify(vs));
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");

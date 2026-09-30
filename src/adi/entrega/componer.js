@@ -19,7 +19,7 @@
  * este módulo no se importa desde ningún camino de producción todavía — lo ejercita solo el gate. */
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
 import { benchmarkOf, ETIQUETA_ORIGEN, umbral, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, NOMBRE_DE_UMBRAL, valorDeUmbralEnTexto, procedenciaDeMaterialidad } from "../../config/businessPolicy.js";
-import { umbralesDeBases, umbralesDeConceptos, NOMBRE_CARGA_ALTA } from "../notario/conjuntosDeLaCasa.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
+import { umbralesDeBases, umbralesDeConceptos, NOMBRE_CARGA_ALTA, referenciaDeBase } from "../notario/conjuntosDeLaCasa.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
 import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "../agente/herramientasAgente.js";
@@ -2041,13 +2041,15 @@ function _rotuloDeLaCasaLegado(H) {
   // se dice «no tiene …», nunca «(ausente = 0)».
   // 39(c) (diagnóstico v15): UN criterio para toda métrica —un cero, medido o por ausencia del conjunto, se dice «no tiene …» junto a su cifra (`dichoElCero`, la forma de la casa en el léxico)—.
   const _dice = (m) => (m ? (m.ausente || esCero(m.raw, m.unidad) ? dichoElCero(m.nombre, m.texto) : `${m.nombre} ${m.texto}`) : "");
+  /* v18: un puesto EMPATADO dice con quién comparte el puesto (X46 · X83) */
+  const _textoDelPuesto = (p, nombreM) => `puesto ${p.n} de ${p.de} al ordenar de ${p.dir === "menor" ? "menor a mayor" : "mayor a menor"} por ${nombreM}${Array.isArray(p.empatadoCon) && p.empatadoCon.length ? `, empatado con ${p.empatadoCon.length > 1 ? `${p.empatadoCon.slice(0, -1).join(", ")} y ${p.empatadoCon[p.empatadoCon.length - 1]}` : p.empatadoCon[0]}` : ""}`;
   const _fraseDeVP = (vp) => {
     if (vp.excluidaPorLaConsulta) return `${vp.entidad}: fuera del universo por exclusión de la consulta`;
     const nombreM = vp.metrica ? vp.metrica.nombre : null;
     const partes = [];
     if (vp.estado) partes.push(`está ${vp.estado.texto}`);
     if (vp.metrica) partes.push(_dice(vp.metrica));
-    if (vp.puesto) partes.push(`puesto ${vp.puesto.n} de ${vp.puesto.de} al ordenar de ${vp.puesto.dir === "menor" ? "menor a mayor" : "mayor a menor"} por ${nombreM}`);
+    if (vp.puesto) partes.push(_textoDelPuesto(vp.puesto, nombreM));
     return `${vp.entidad}: ${partes.join(", ")}`;
   };
   /* §7.3·37a (v17): una premisa de VARIOS miembros dice la verdad de CADA uno que el universo deja fuera, con su dueño */
@@ -2064,7 +2066,7 @@ function _rotuloDeLaCasaLegado(H) {
     const partes = [];
     if (vp.estado) partes.push(`está ${vp.estado.texto}`);
     if (vp.metrica) partes.push(_dice(vp.metrica));
-    if (vp.puesto) partes.push(`puesto ${vp.puesto.n} de ${vp.puesto.de} al ordenar de ${vp.puesto.dir === "menor" ? "menor a mayor" : "mayor a menor"} por ${nombreM}`);
+    if (vp.puesto) partes.push(_textoDelPuesto(vp.puesto, nombreM));
     if (vp.contra && vp.contra.metrica) partes.push(`frente a ${vp.contra.entidad}: ${_dice(vp.contra.metrica)}`);
     if (Array.isArray(vp.ocupantes) && vp.ocupantes.length) partes.push(`${vp.ocupantes.length > 1 ? "los puestos afirmados los ocupan" : "el puesto afirmado lo ocupa"} ${vp.ocupantes.map((o) => (o.metrica ? `${o.entidad}: ${_dice(o.metrica)}` : o.entidad)).join(" · ")}`);
     const refP = H.render.referencia && !partes.some((x) => x.includes(H.render.referencia)) ? `, ${H.render.referencia}` : "";
@@ -4070,6 +4072,29 @@ export function componerEntrega(resolucion) {
     }
   }
 
+  // v18 (X12, §7.3·41b): el Marco lleva la referencia OFICIAL de cada conjunto de la casa que DEFINE una referencia numérica y que la Entrega usa: un `base` como «sobre el nivel declarado de carga» (el detector «carga comercial alta» se define
+  // por su piso de materialidad, no por el nivel) o un filtro que la CITA (`filtros[].ref`), en partes, premisas y `excluir`. `referenciaDeclarada` es UN solo campo: si otra referencia (el benchmark de las observaciones de controller) lo ocupó
+  // primero, el nivel se agrega a su texto en vez de quedar sin declarar. Se resuelve con la misma función que imprime el veredicto (`valorDeReferencia`); nunca una cifra a mano.
+  {
+    const nivelEnJuego = (u) => {
+      if (!u || typeof u !== "object") return false;
+      if (Array.isArray(u.union) && u.union.some(nivelEnJuego)) return true;
+      if ((Array.isArray(u.filtros) ? u.filtros : []).some((x) => x && typeof x.ref === "string" && x.ref.trim() === "nivel_carga")) return true;
+      return [..._basesDeUniverso(u)].some((b) => { const fam = referenciaDeBase(b); return !!(fam && fam.concepto === "nivel_carga" && normalizar(b) !== normalizar(NOMBRE_CARGA_ALTA)); });
+    };
+    const enJuego = partesUtiles.some((p) => nivelEnJuego(p.universo)) || (resolucion.premisas || []).some((pr) => nivelEnJuego(pr.universo != null ? pr.universo : pr.de));
+    if (enJuego && I) {
+      const r = valorDeReferencia("nivel_carga", I);
+      const m = metricaPorClave("nivel_carga");
+      if (r && Number.isFinite(r.raw) && m) {
+        const fmt = formatoDeReferencia(r.raw, r.unidad || m.unidad);
+        const txt = `${m.nombre}: ${fmt}, declarado por la empresa.`;
+        const ya = entrega.marco.referenciaDeclarada;
+        if (!ya || !ya.texto.includes(txt)) { cifrasImpresas.push(fmt); entrega.marco.referenciaDeclarada = ya ? { ...ya, texto: `${ya.texto} ${txt}` } : { texto: txt, hechoId: null }; }
+      }
+    }
+  }
+
   // §7.3·12/·19 (decisión del owner 2026-09-27, «con el benchmark de la empresa, como recomiendas»; generalizada
   // por el supervisor el mismo día, diagnóstico v8, raíz A5) — una referencia declarada por el USUARIO
   // (`resolucion.criterio.referencia`, §7.1·6) NUNCA recalcula un conjunto de la casa que la Entrega ya usa: la
@@ -4150,7 +4175,18 @@ export function componerEntrega(resolucion) {
             : { texto: txt, hechoId: null };
         }
       }
-      for (const [dir, { base, estado, ref: refCasa, op }] of Object.entries(operativaDeLaConsulta ? {} : familiaRef.direcciones)) {
+      // v18 (X33, §7.3·12/·19): un FILTRO que CITA la referencia de la casa (`filtros[].ref === concepto`, en una parte o en una premisa, también en las ramas de una unión) pone en juego esa referencia igual que una `base`: la
+      // dirección sale del `op` del filtro. Antes solo se disparaba por `base`/estado/`ref` propio de la tabla, y una consulta que planteaba SU referencia sobre un filtro con `ref` se perdía en silencio. Un `op` que la tabla ya
+      // cubre con su propia `ref` (techo_cobertura) no se repite; sin `metrica` (el piso de materialidad, que va por su detector) no hay filtro que citar.
+      const _opsDeRefCitada = (u, acc) => { if (!u || typeof u !== "object") return acc; for (const x of Array.isArray(u.filtros) ? u.filtros : []) if (x && typeof x.ref === "string" && x.ref.trim() === refUsuario.concepto && typeof x.op === "string") acc.add(x.op.trim()); for (const v of Array.isArray(u.union) ? u.union : []) _opsDeRefCitada(v, acc); return acc; };
+      const opsCitadas = new Set();
+      if (familiaRef.metrica) { for (const p of partesUtiles) _opsDeRefCitada(p.universo, opsCitadas); for (const pr of resolucion.premisas || []) _opsDeRefCitada(pr.universo != null ? pr.universo : pr.de, opsCitadas); }
+      const _direccionesDeLaReferencia = operativaDeLaConsulta ? [] : [
+        ...Object.entries(familiaRef.direcciones),
+        ...[...opsCitadas].filter((o) => !Object.values(familiaRef.direcciones).some((d) => d.ref === refUsuario.concepto && d.op === o)).map((o) => [/^>/.test(o) ? "sobre" : "bajo", { ref: refUsuario.concepto, op: o }]),
+      ];
+      const _pushLimiteUnico = (l) => { if (!entrega.limites.some((x) => x.titulo === l.titulo && x.motivo === l.motivo)) entrega.limites.push(l); };   // una `base` y un filtro con `ref` pueden decir lo mismo: una sola declaración
+      for (const [dir, { base, estado, ref: refCasa, op }] of _direccionesDeLaReferencia) {
         const claveDireccion = base || estado || refCasa;
         if (!basesEnJuego.has(normalizar(claveDireccion))) continue;
         try {
@@ -4161,7 +4197,7 @@ export function componerEntrega(resolucion) {
           if (oficial && oficial.set && conReferencia && conReferencia.set) {
             const nombresAlt = _nombreDeLasEntidades(conReferencia.set);
             cifrasImpresas.push(valFmt, String(conReferencia.set.size), String(oficial.set.size));
-            entrega.limites.push({
+            _pushLimiteUnico({
               titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez ${conPreposicion("de", familiaRef.nombreDeLaEmpresa)}`,
               motivo: `${conteoDeEje(familiaRef.eje, conReferencia.set.size).condicional} ${conteoDeEje(familiaRef.eje, conReferencia.set.size).texto} ${dir} esa referencia (contra ${oficial.set.size} con ${sintagmaDe(familiaRef.nombreDeLaEmpresa)}): ${nombresAlt.join(", ")} — calculado con la misma cuenta; no reemplaza la referencia oficial ni es un objetivo de la empresa.`,
             });

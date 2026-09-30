@@ -736,7 +736,8 @@ export function rankingDeTop(u, I, eje0 = null) {
   const dentro = u.top ? (normalizar(u.top.sobre) === "eje" ? todos : (pre || todos)) : todos;
   const S = _topTipado(t, I, eje, dentro);
   if (!S || S.error || !Array.isArray(S.orden)) return null;
-  return { orden: S.orden, dir: S.dir, clave: _claveDe(t.metrica), k: Number.isFinite(+t.k) ? +t.k : null, de: u.top ? "top" : "excluir" };
+  /* `filas` (v18, X46/X83; aditivo): el MISMO ranking con el valor de cada entidad (`{ entidad (normalizada), nombre, raw }`), para que el libro pueda decir un EMPATE con la cuenta de `_topTipado`, nunca una segunda ordenación */
+  return { orden: S.orden, dir: S.dir, clave: _claveDe(t.metrica), k: Number.isFinite(+t.k) ? +t.k : null, de: u.top ? "top" : "excluir", filas: Array.isArray(S.filasOrden) ? S.filasOrden : [] };
 }
 /* _conjuntoDeUniverso(u, I, eje, metrica) → { set|null (entero), fuente } o { error } */
 function _conjuntoDeUniverso(u, I, eje, metrica = "") {

@@ -234,6 +234,9 @@ function _pasosCifra(p) {
     // entra ahí): sin su fig, `entrega/componer.js:_planCifraEntidad` no tenía qué servir y la parte se perdía. Se pasa
     // por el mismo opt-in del Encargo que `universoRequerido` (el turno libre del agente nunca lo manda: su boleta no cambia).
     const out = [_callDeCobranzaDeParte(p, universoRequerido, quien)];
+    // v18 (X51 · X84, §7.3·21 «nunca se recorta el CONJUNTO»): una `cifra` de cobranza sin entidades y SIN restricción propia de universo («la cartera», con o sin `{eje}`) declara «los N clientes» —el eje entero—; el top 8 fijo de
+    // `cobranza()` servía 6 u 8 y el resto quedaba sin fila, ni en Cifras ni en Detalle. Pide la mesa completa (opt-in del Encargo, como `universoRequerido`: la boleta del agente vivo no lo manda y no cambia).
+    if (!p.entidades.length && !_tieneUniversoPropio(p.universo)) out[0] = { ...out[0], args: { ...out[0].args, mesaCompleta: true } };
     // §7.3·13 (diagnóstico v7) — `universo.top` puede ordenar por una métrica AJENA a cobranza («ventas», para
     // «los clientes de menor venta que están en mora»): `mesaFlujo` solo publica `venta_credito` («Venta
     // (flujo)», la venta A CRÉDITO — `adi-caja-no-es-cobranza` — nunca la venta total), así que no basta con

@@ -301,7 +301,10 @@ export function cobranza(_args = {}, ctx = {}) {
   // COMPLETA: «los clientes fuera de los 8 de mayor venta a crédito» excluye del eje ENTERO, y con el recorte de 8 el
   // conjunto salía sin las cuentas de la cola. Mismo opt-in del Encargo (`universoRequerido`): el agente vivo no lo manda.
   const _CAMPOS_UNIVERSO_SIN_TOP = ["base", "bodega", "union", "estados", "no_estados", "filtros", "excluir"];
-  const _necesitaMesaCompleta = !!(_universoReq && _CAMPOS_UNIVERSO_SIN_TOP.some((c) => { const v = _universoReq[c]; return Array.isArray(v) ? v.length : !!v; }));
+  // v18 (X51 · X84, §7.3·21): `mesaCompleta` lo pide SOLO la lectura del Encargo para una `cifra` de cobranza que sirve «la cartera» (el eje entero, sin restricción ni entidades): el conjunto declarado son TODOS los clientes de la mesa, no el top 8.
+  // Mismo opt-in que `universoRequerido` (`cajaDelAgente` nunca lo pasa: la boleta del agente vivo queda byte-idéntica).
+  const _pideMesaCompleta = !!(_args && _args.mesaCompleta === true);
+  const _necesitaMesaCompleta = _pideMesaCompleta || !!(_universoReq && _CAMPOS_UNIVERSO_SIN_TOP.some((c) => { const v = _universoReq[c]; return Array.isArray(v) ? v.length : !!v; }));
   let M = null;
   try { M = buildMesaFlujo(scenario); } catch { M = null; }
   if (!M || !Array.isArray(M.filas) || !M.filas.length) {

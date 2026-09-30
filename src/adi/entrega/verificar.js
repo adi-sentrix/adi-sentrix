@@ -75,6 +75,22 @@ function _respaldada(cifra, cifrasImpresas) {
   return cifrasImpresas.some((c) => c === cifra || c.includes(cifra) || cifra.includes(c));
 }
 
+/* «¿esta cifra ES la de OTRO dueño?» (v18, X58) — `_respaldada` es sustring a propósito (una cifra puede imprimirse con contexto pegado), pero para ATRIBUIRLE una cifra a otro dueño la sustring miente: «3%» (el supuesto del usuario) es sustring de «0.3%» (la
+ * conversión de otra cuenta) y «$14K» contiene el «4» de un puesto. Acá una cifra contiene a otra solo si el borde no parte un número: nunca pegada a un dígito ni a un decimal (`0.3%`, `13%`, `$14K` ⊅ `4`). Es solo la acusación; la regla 1 sigue leyendo `_respaldada`. */
+function _contieneSinPartirUnNumero(grande, chico) {
+  if (!chico) return false;
+  for (let i = grande.indexOf(chico); i >= 0; i = grande.indexOf(chico, i + 1)) {
+    const antes = i > 0 ? grande[i - 1] : "", despues = grande[i + chico.length] || "", despues2 = grande[i + chico.length + 1] || "";
+    const antesOk = !/[0-9.,]/.test(antes) || !/[0-9]/.test(chico[0] || "");
+    const despuesOk = !/[0-9]/.test(despues) && !(/[.,]/.test(despues) && /[0-9]/.test(despues2));
+    if (antesOk && despuesOk) return true;
+  }
+  return false;
+}
+function _esCifraDeOtro(cifra, cifrasDelOtro) {
+  return cifrasDelOtro.some((c) => c === cifra || _contieneSinPartirUnNumero(c, cifra) || _contieneSinPartirUnNumero(cifra, c));
+}
+
 /* adjetivos evaluativos de la casa (regla 7) — vetados cuando CALIFICAN una cifra propia, no cuando son parte
  * del NOMBRE de un concepto de la casa («carga comercial alta» es el nombre del detector, no un juicio). */
 const _ADJETIVOS = /\b(preocupante|alarmante|excesiv[oa]|grave|gravísim[oa]|inaceptable|pésim[oa]|dram[aá]tic[oa])\b/i;
@@ -571,7 +587,7 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
               if (ids.includes(hid) || !h.ok) continue;
               const dueno = _duenoDeH(h);
               if (!dueno || normalizar(dueno) === duenoActualNorm) continue;
-              if (_respaldada(cifra, [..._valoresDeH(h)])) return { nombre: dueno, hid };
+              if (_esCifraDeOtro(cifra, [..._valoresDeH(h)])) return { nombre: dueno, hid };
             }
           }
           return null;
@@ -589,8 +605,8 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
           resueltasPorContraste.push([m.index, m.index + m[0].length]);
           if (!primero || !segundo) continue;
           const v1 = m[1].trim().replace(/\.$/, ""), v2 = m[2].trim().replace(/\.$/, "");
-          if (_cifraEspecifica(v1) && !_respaldada(v1, [...primero.valores]) && _respaldada(v1, [...segundo.valores])) v("dueno-de-cifra-equivocado", `respuesta[${i}] el contraste imprime "${v1}" en el lugar del sujeto ("${primero.nombre}"), pero esa cifra en el libro pertenece a "${segundo.nombre}": «${(r.texto || "").slice(0, 120)}»`);
-          if (_cifraEspecifica(v2) && !_respaldada(v2, [...segundo.valores]) && _respaldada(v2, [...primero.valores])) v("dueno-de-cifra-equivocado", `respuesta[${i}] el contraste imprime "${v2}" en el lugar del rival ("${segundo.nombre}"), pero esa cifra en el libro pertenece a "${primero.nombre}": «${(r.texto || "").slice(0, 120)}»`);
+          if (_cifraEspecifica(v1) && !_respaldada(v1, [...primero.valores]) && _esCifraDeOtro(v1, [...segundo.valores])) v("dueno-de-cifra-equivocado", `respuesta[${i}] el contraste imprime "${v1}" en el lugar del sujeto ("${primero.nombre}"), pero esa cifra en el libro pertenece a "${segundo.nombre}": «${(r.texto || "").slice(0, 120)}»`);
+          if (_cifraEspecifica(v2) && !_respaldada(v2, [...segundo.valores]) && _esCifraDeOtro(v2, [...primero.valores])) v("dueno-de-cifra-equivocado", `respuesta[${i}] el contraste imprime "${v2}" en el lugar del rival ("${segundo.nombre}"), pero esa cifra en el libro pertenece a "${primero.nombre}": «${(r.texto || "").slice(0, 120)}»`);
         }
         const _dentroDeContraste = (idx) => resueltasPorContraste.some(([a, b]) => idx >= a && idx < b);
 
@@ -617,7 +633,7 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
           if (cifra == null) continue;   // ninguna cifra específica pegada a este nombre antes del siguiente dueño: nada que verificar
           if (_dentroDeContraste(inicioResto + posCifra)) continue;   // ya lo resolvió el convenio "(A contra B)" de arriba
           if (_respaldada(cifra, [...valoresA])) continue;   // es una de SUS propias cifras: correcto
-          const deOtroCitado = [...porDueno.entries()].find(([kB, d]) => kB !== kA && _respaldada(cifra, [...d.valores]));
+          const deOtroCitado = [...porDueno.entries()].find(([kB, d]) => kB !== kA && _esCifraDeOtro(cifra, [...d.valores]));
           if (deOtroCitado) { v("dueno-de-cifra-equivocado", `respuesta[${i}] atribuye a "${nombreA}" la cifra "${cifra}", que en el libro pertenece a "${deOtroCitado[1].nombre}": «${(r.texto || "").slice(0, 120)}»`); continue; }
           const otroNoCitado = _perteneceANoCitado(cifra, kA);
           if (otroNoCitado) v("dueno-de-cifra-equivocado", `respuesta[${i}] atribuye a "${nombreA}" la cifra "${cifra}", que en el libro pertenece a "${otroNoCitado.nombre}" (hecho "${otroNoCitado.hid}", no citado por esta oración): «${(r.texto || "").slice(0, 120)}»`);
