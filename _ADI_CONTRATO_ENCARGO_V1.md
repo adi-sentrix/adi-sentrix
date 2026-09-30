@@ -741,6 +741,18 @@ venta a crédito, ley del owner).
     umbral de frenado: «los frenados de Valparaíso» sirve los SKU de Valparaíso, nunca los de todas las bodegas.
     (d) Una verdad propia puede llevar, además del estado propio, la cifra que lo define («está en mora, saldo vencido $2.5M»).
     (e) Una lente se nombra con su nombre visible («por exposición de crédito»), nunca con su id interno.
+46. [2026-09-30, supervisor; diagnóstico v22]
+    (a) Un `criterio` puede traer lente y referencia a la vez; conviven. Una referencia inválida junto a una lente válida
+    se declara y conserva la lente.
+    (b) `ejes_mezclados` rige solo la comparación. Una `cifra` con entidades de dos ejes se sirve con el productor de cada
+    una, y cada cifra conserva su unidad (una venta en unidades nunca se imprime como venta en dinero).
+    (c) El «de M» admisible de un conteo es cualquier eslabón de la cadena del universo de la premisa. La verdad de un conteo
+    falso por su M imprime el más ajustado.
+    (d) EL CRITERIO DEL USUARIO MANDA (ley del owner): la lente pedida gobierna la prioridad de la parte. La prioridad
+    cruzada entre dominios sigue en riesgo integrado, dicho como tal. Una oración nombra SIEMPRE la lente que de verdad
+    ordenó su lista; nunca nombra una lente que no la ordenó.
+    (e) La foto declara las cuentas que no traen la cifra de un concepto pedido.
+    (f) El empate en el filo en cero dice su cifra (39c).
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
