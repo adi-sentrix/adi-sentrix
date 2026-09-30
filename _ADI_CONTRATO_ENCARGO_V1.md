@@ -720,6 +720,16 @@ venta a crédito, ley del owner).
     (f) Una cifra sobre un eje completo, sin orden pedido, se exhibe de mayor a menor. En una métrica donde más es peor
     (días o saldo vencido), así va primero lo que pide atención, y si el tope de tamaño manda filas al Detalle, nunca van
     las peores. En una métrica donde más es mejor (venta, margen) se conserva el orden de siempre.
+44. [2026-09-30, supervisor; diagnóstico v20]
+    (a) Un top cuyo filo cae DENTRO de un empate sirve a TODOS los empatados del filo y lo declara («top 8: 9 cuentas,
+    Paris y Tottus empatan en el puesto 8»); nunca elige a uno ni declina el top. Una premisa de pertenencia a ese top sobre
+    un empatado del filo es verdadera y declara el empate. Una premisa de PUESTO único sigue la 43(a).
+    (b) Una definición comercial sola no es un Marco comercial: no cita benchmark. Un concepto que el validador acepta pero
+    que no tiene definición curada se declara como límite, nunca queda `resuelta` sin contenido.
+    (c) La 42(c) (el eje completo) rige para la `cifra`. Una `lectura` o una `decision` sin universo sirven su foto y su
+    prioridad, no la cartera completa.
+    (d) El «de M» de un conteo es el tamaño del universo de la PREMISA, el mismo que la premisa planteó, no el de otra base.
+    (e) Cada premisa lleva UNA sola traza de su verdad; nunca se repite.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
