@@ -784,6 +784,17 @@ venta a crédito, ley del owner).
     (e) La lente «ventas» APLICA a todo eje donde el dato publica venta (cliente, marca, familia, SKU): ordena por ventas.
     (f) Una cifra conserva el rótulo de su concepto: ventas nunca se rotula «venta a crédito», aunque coincidan en valor.
     (g) El corte entre Cifras y Detalle nunca parte una entidad: sus filas van juntas.
+50. [2026-09-30, supervisor; corrección v25/v26]
+    (a) LA PRIORIDAD PIDE ATENCIÓN. Con la medida de una LENTE (saldo vencido, capital inmovilizado crítico, contribución
+    no capturada, ventas), la prioridad va de mayor a menor: quien más pesa. Cuando el grupo se ordena por su medida
+    PROPIA, porque la lente no aplica, va primero lo que pide atención según la polaridad del léxico: donde más es peor
+    (carga, días), el mayor; donde más es mejor en una TASA o RAZÓN (margen, rotación), el menor. Una MAGNITUD (dinero o
+    unidades: ventas, contribución, unidades) va de mayor a menor: quien más pesa. Una prioridad nunca corona al mejor por
+    una tasa. La 50(a) rige la ORACIÓN de prioridad; el orden de la lista de una foto es el de su productor (45a).
+    (b) La 49(e) queda firme: una lente sin dominio ordena todo eje donde el dato publica su medida; donde no la publica
+    (inventario por SKU para ventas), se declara.
+    (c) Si el tope de tamaño no alcanza para las entidades enteras que citan las oraciones de una `lectura` con varias
+    partes, la cabeza cita solo las que caben enteras y declara que hay más en el Detalle (49g).
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

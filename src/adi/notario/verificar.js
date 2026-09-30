@@ -872,12 +872,19 @@ function _ceroPorAusencia(a, I, unidad = null) {
   const ent = typeof a.sujeto === "string" && a.sujeto !== "negocio" ? I.resolverEntidad(a.sujeto) : null;
   if (!ent) return null;
   const rk = I.rankingDe(ent.eje, a.metrica);
-  if (!rk || !AUSENTE_VALE_CERO.includes(rk.clave) || !Array.isArray(rk.r.filas) || !rk.r.filas.length) return null;
-  if (rk.r.filas.some((x) => normalizar(x.entidad) === normalizar(ent.nombre))) return null;   // está publicada: su valor no es una ausencia
-  const u = _UNIDAD_DE_RANKING[rk.clave] || "money";
+  /* §7.3·50(d): en un eje donde la proyección NO publica el ranking de la métrica (el capital inmovilizado crítico por familia), el conjunto lo hace la boleta del turno: las figs de esa métrica en el eje. Una entidad del eje que no está entre ellas vale 0 en una métrica de `AUSENTE_VALE_CERO`, igual que con el ranking de la proyección. */
+  let clave = rk ? rk.clave : null, publicadas = rk && Array.isArray(rk.r.filas) ? rk.r.filas.map((x) => x.entidad) : [];
+  if (!rk) {
+    clave = _claveDeMetricaLex(a.metrica);
+    publicadas = clave && AUSENTE_VALE_CERO.includes(clave) && typeof I.figsDeMetrica === "function" ? I.figsDeMetrica(a.metrica, ent.eje).filter((f) => Number.isFinite(f.raw)).map((f) => f.entidad) : [];
+  }
+  if (!clave || !AUSENTE_VALE_CERO.includes(clave) || !publicadas.length) return null;
+  if (publicadas.some((x) => normalizar(x) === normalizar(ent.nombre))) return null;   // está publicada: su valor no es una ausencia
+  const rkClave = clave;
+  const u = _UNIDAD_DE_RANKING[rkClave] || "money";
   if (unidad && _u(u) !== _u(unidad)) return null;
   const texto = u === "money" ? "$0" : u === "days" ? "0d" : "0";
-  return { label: `ranking ${ent.eje} · ${rk.clave} · ${ent.nombre} (ausente = 0)`, texto, raw: 0, unidad: u, entidad: a.sujeto, concepto: a.metrica, conceptoNorm: normalizar(a.metrica), agregado: false, deRanking: true, ausente: true, fig: { id: null, value: texto } };
+  return { label: `ranking ${ent.eje} · ${rkClave} · ${ent.nombre} (ausente = 0)`, texto, raw: 0, unidad: u, entidad: a.sujeto, concepto: a.metrica, conceptoNorm: normalizar(a.metrica), agregado: false, deRanking: true, ausente: true, fig: { id: null, value: texto } };
 }
 const _DICE_BAJA = /\b(?:ca[ií]da|baja|bajan|bajaron|baj[oó]\b|cae|caen|cay[oó]\b|cayeron|reducci[oó]n|retroce|pierde|pierden|perdi[oó]\b|perdieron|disminu|descend|se\s+contra[ej]|menos|negativ|recorte)/i;
 /* el juicio de la base de una tasa, traducido a veredicto (null cuando la base no aplica o coincide) */
@@ -1203,7 +1210,13 @@ function _filas(a, I, eje) {
     const claveC = _claveDeMetricaLex(a.metrica);
     if (claveC && AUSENTE_VALE_CERO.includes(claveC)) { const vistos = new Set(filas.map((x) => normalizar(x.entidad))); for (const k of U.set) if (!vistos.has(k)) { const ent = I.entidades.get(k); filas.push({ entidad: ent ? ent.nombre : k, valor: 0, ausente: true }); } }
   }
-  if (!rk && !U.set && total && filas.length < total) return { error: `universo-incompleto: la boleta trae «${a.metrica}» de ${filas.length} de ${total} ${eje}s; el orden sobre el eje entero no se puede verificar` };
+  /* §7.3·50(d): sin ranking de la proyección ni conjunto declarado, una boleta que trae la métrica de menos miembros que el eje solo deja el orden «universo-incompleto» cuando la ausencia es un hueco. En una métrica de `AUSENTE_VALE_CERO` la ausencia es un hecho (el miembro no pertenece al conjunto que la métrica define: la cuenta que el detector no marca no tiene «carga comercial alta», la familia sin capital inmovilizado crítico tiene $0): vale cero, la misma regla de las líneas de arriba y de abajo. */
+  if (!rk && !U.set && total && filas.length < total) {
+    const claveA = _claveDeMetricaLex(a.metrica);
+    const todos = claveA && AUSENTE_VALE_CERO.includes(claveA) ? _todosDelEje(I, eje) : null;
+    if (todos && todos.size >= filas.length) { const vistos = new Set(filas.map((x) => normalizar(x.entidad))); for (const k of todos) if (!vistos.has(k)) { const ent = I.entidades.get(k); filas.push({ entidad: ent ? ent.nombre : k, valor: 0, ausente: true }); } }
+    else return { error: `universo-incompleto: la boleta trae «${a.metrica}» de ${filas.length} de ${total} ${eje}s; el orden sobre el eje entero no se puede verificar` };
+  }
   if (U.set && filas.length < U.set.size) return { error: `universo-incompleto: faltan cifras de «${a.metrica}» para ${U.set.size - filas.length} del conjunto declarado (${U.fuente})` };
   /* un ranking PARCIAL (trae a menos que el eje): lo ausente vale 0 solo en las métricas que lo declaran; si no, el orden queda marcado como parcial */
   let parcial = false;
