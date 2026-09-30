@@ -623,6 +623,12 @@ function _construir(scenario, consulta = null) {
      * propio en la CIFRA de golpe (peorEs "menor": abonar menos es la que preocupa, mismo criterio que
      * «recuperado» arriba). */
     rankings.cliente.abonado = _RC("menor", "mesaFlujo.filas.abonadoK", ["abonad[oa]s?", "abonos?"]);
+    /* RAÍZ A2 (supervisor 2026-09-29, diagnóstico v14, Z29/Z72) — «venta a crédito» (`venta_credito`: la venta DEL FLUJO de
+     * cobranza, nunca la venta comercial total — ley `adi-caja-no-es-cobranza`) tiene ranking propio y COMPLETO, sobre las
+     * 13 filas de `_mesaCobro`, con el mismo mecanismo que «abonado» (v11 Y20). Sin él `_filasTipadas` caía a la boleta del
+     * turno (top-8 de `cobranza()`): un `top`/`excluir.top` sobre esta métrica declinaba `ranking-parcial` y la parte
+     * salía sin las cuentas fuera del top-8. Sin lado malo (peorEs null: vender más a crédito no es «peor»). */
+    rankings.cliente.venta_credito = _RC(null, "mesaFlujo.filas.ventaK", ["venta\\s+a\\s+cr[eé]dito"]);
     /* cada fila lleva además su cifra FORMATEADA por la mesa (`texto`): una sola verdad, cero recálculo de escala en quien la verifica.
      * CRUDO_MONEY (supervisor 2026-09-27, diagnóstico v9 · W28 · §7.3·23) — Ripley con $1.048.700 de saldo pendiente
      * imprime «$1.0M» (redondeado) y un umbral («> $1.000.000») juzgado sobre ese TEXTO reparseado lo dejaba afuera:
@@ -639,6 +645,8 @@ function _construir(scenario, consulta = null) {
       if (Number.isFinite(fc.vencidoK)) rankings.cliente.saldo_vencido.filas.push({ entidad: fc.nombre, valor: fc.vencidoK, ...(fc.vencidoFmt ? { texto: fc.vencidoFmt, raw: fc.vencidoK * _fxK } : {}) });
       // RAÍZ A2 (supervisor 2026-09-28, diagnóstico v11, Y20) — «abonado» completo, misma condición que sus hermanos.
       if (Number.isFinite(fc.abonadoK)) rankings.cliente.abonado.filas.push({ entidad: fc.nombre, valor: fc.abonadoK, ...(fc.abonadoFmt ? { texto: fc.abonadoFmt, raw: fc.abonadoK * _fxK } : {}) });
+      // RAÍZ A2 (diagnóstico v14) — «venta a crédito» completa, con su crudo por el MISMO `_fxK` que sus hermanos de cobranza.
+      if (Number.isFinite(fc.ventaK)) rankings.cliente.venta_credito.filas.push({ entidad: fc.nombre, valor: fc.ventaK, ...(fc.ventaFmt ? { texto: fc.ventaFmt, raw: fc.ventaK * _fxK } : {}) });
       if (Number.isFinite(fc.recuperadoPct)) rankings.cliente.recuperado.filas.push({ entidad: fc.nombre, valor: fc.recuperadoPct, ...(fc.recuperadoFmt ? { texto: fc.recuperadoFmt } : {}) });
       if (Number.isFinite(fc.diasVencido)) rankings.cliente.dias_vencido.filas.push({ entidad: fc.nombre, valor: fc.diasVencido, ...(fc.diasVencidoFmt && fc.diasVencidoFmt !== "—" ? { texto: fc.diasVencidoFmt } : {}) });
       if (Number.isFinite(fc.saldoK)) rankings.cliente.saldo_pendiente.filas.push({ entidad: fc.nombre, valor: fc.saldoK, ...(fc.saldoFmt ? { texto: fc.saldoFmt, raw: fc.saldoK * _fxK } : {}) });

@@ -652,6 +652,18 @@ venta a crédito, ley del owner).
     (d) Los estados de la Mesa Capital (inmovilizado crítico, sobrestock, rota lento…) son conjuntos que define una
     referencia (piso de rotación, techo de días), así que la referencia del usuario sobre ellos se declara al lado (la 19 y
     la 36c).
+38. [2026-09-29, supervisor; diagnóstico v14, precisa decisiones ya aprobadas]
+    (a) La 37(a) vale para TODA premisa falsa: grupo, orden, relación y conteo. Una premisa de orden falsa dice el puesto
+    real del sujeto y quién ocupa el puesto afirmado, con sus cifras. Una relación falsa dice las dos cifras. Un conteo
+    falso dice el n real. Nunca claves internas ni notas técnicas («ausente = 0»); si una cifra vale 0 porque la entidad
+    no pertenece al conjunto, se dice en palabras de negocio.
+    (b) La 37(b) incluye la materialidad: el veredicto sobre «carga comercial alta» imprime el umbral de materialidad con
+    que se juzgó. «Sobrestock» y «riesgo de quiebre» declaran solo sus propios umbrales (se mantiene la lectura de v12).
+    (c) Un supuesto de crecimiento en DINERO en una simulación («+$500.000») se interpreta como volumen adicional a precio
+    constante sobre la venta del período cerrado de esa entidad, y la Entrega DECLARA esa conversión como supuesto
+    («equivale a X % de su venta del año cerrado, a precio constante»). Nunca se pasa un monto como porcentaje.
+    (d) Dos conceptos con clave exacta distinta nunca casan por vocabulario («Capital inmovilizado» ≠ «Capital inmovilizado
+    crítico»).
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

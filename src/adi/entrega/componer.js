@@ -2031,13 +2031,19 @@ function _rotuloDeLaCasaLegado(H) {
   // DECISIÓN 37a (supervisor 2026-09-29, diagnóstico v13 — A2 + A3): la premisa de GRUPO falsa sobre una entidad dice su verdad con dueño —la entidad, su cifra de LA
   // MÉTRICA que define el universo (nunca la de otra), su puesto real si el universo es un top y, si la excluye un estado, el estado en que SÍ está—, armada por el libro
   // (`notario/hechos.js:_verdadPropiaDeGrupo`); acá solo se escribe. Sin claves internas ni el `k` del top.
+  // DECISIÓN 38(a) (diagnóstico v14 · A3): el MISMO registro vale para el ORDEN y la RELACIÓN falsos —el libro arma `contra` (la otra entidad con su cifra: un comparativo o una relación dicen las DOS cifras),
+  // `puesto` (el real del sujeto) y `ocupantes` (quién ocupa el puesto afirmado, con su cifra)—; una cifra 0 por ausencia (`metrica.ausente`: la entidad no pertenece al conjunto que la métrica define)
+  // se dice «no tiene …», nunca «(ausente = 0)».
+  const _dice = (m) => (m ? (m.ausente ? `no tiene ${m.nombre} (${m.texto})` : `${m.nombre} ${m.texto}`) : "");
   const vp = H.render && H.render.verdadPropia;
   if (vp && vp.entidad) {
     const nombreM = vp.metrica ? vp.metrica.nombre : null;
     const partes = [];
     if (vp.estado) partes.push(`está ${vp.estado.texto}`);
-    if (vp.metrica) partes.push(`${nombreM} ${vp.metrica.texto}`);
+    if (vp.metrica) partes.push(_dice(vp.metrica));
     if (vp.puesto) partes.push(`puesto ${vp.puesto.n} de ${vp.puesto.de} al ordenar de ${vp.puesto.dir === "menor" ? "menor a mayor" : "mayor a menor"} por ${nombreM}`);
+    if (vp.contra && vp.contra.metrica) partes.push(`frente a ${vp.contra.entidad}: ${_dice(vp.contra.metrica)}`);
+    if (Array.isArray(vp.ocupantes) && vp.ocupantes.length) partes.push(`${vp.ocupantes.length > 1 ? "los puestos afirmados los ocupan" : "el puesto afirmado lo ocupa"} ${vp.ocupantes.map((o) => (o.metrica ? `${o.entidad}: ${_dice(o.metrica)}` : o.entidad)).join(" · ")}`);
     const refP = H.render.referencia && !partes.some((x) => x.includes(H.render.referencia)) ? `, ${H.render.referencia}` : "";
     return `${vp.entidad}: ${partes.join(", ")}${refP}`;
   }
@@ -2108,7 +2114,10 @@ function _umbralesDeLaPremisa(H, consulta = null, textoYaDicho = "") {
   _estadosDeUniverso(H.universoTipado, estados);
   const e = H.estado ? estadoDeLaPremisa(H.estado) : null;
   if (e) estados.add(e);
-  const claves = umbralesDeEstados([...estados]);
+  /* DECISIÓN 38(b) (supervisor 2026-09-29, diagnóstico v14): la 37(b) incluye la materialidad — el veredicto sobre «carga comercial alta» (un `base`
+   * de la casa, no un estado) imprime el umbral con que se juzgó (`umbralesDeBases`, la MISMA función y el MISMO formateador que el Marco, `valorDeUmbralEnTexto`).
+   * «Sobrestock» y «riesgo de quiebre» declaran solo sus propios umbrales (lectura de v12 intacta: `umbralesDeEstados`). */
+  const claves = [...new Set([...umbralesDeEstados([...estados]), ...umbralesDeBases([..._basesDeUniverso(H.universoTipado)])])];
   const yaDicho = [textoYaDicho, H.verdad, H.render && H.render.referencia].filter(Boolean).join(" ");
   const pares = [];
   for (const k of Object.keys(NOMBRE_DE_UMBRAL)) {
@@ -2134,7 +2143,8 @@ function _textoDePremisa(H, libroPremisas, consulta = null) {
   // de carga — ver las apariciones de esa frase más abajo, sin tocar). Para una premisa, tercera persona con el
   // dueño correcto: «la premisa planteada en la consulta».
   if (H.veredicto === "verdadera") return `Sobre la premisa planteada en la consulta: es correcto — ${verdadCasa}.`;
-  if (H.veredicto === "falsa") { const vd = _textoVerdadDerivada(H, libroPremisas); return `Sobre la premisa planteada en la consulta: no es así — ${verdadCasa}${vd ? `. La verdad: ${vd}` : ""}.`; }
+  // 38(a): con `contra` la oración ya dice las DOS cifras con su dueño; la traza de la verdad derivada («La verdad: …») repetiría lo mismo con la notación interna
+  if (H.veredicto === "falsa") { const vd = H.render && H.render.verdadPropia && H.render.verdadPropia.contra ? "" : _textoVerdadDerivada(H, libroPremisas); return `Sobre la premisa planteada en la consulta: no es así — ${verdadCasa}${vd ? `. La verdad: ${vd}` : ""}.`; }
   return `Sobre la premisa planteada en la consulta, no se pudo verificar con este dato: ${H.motivo}.`;
 }
 
@@ -2553,7 +2563,8 @@ function _fraseDeSupuesto(s) {
   const concepto = _CONCEPTO_DE_SUPUESTO[s.tipo];
   if (!concepto || !Number.isFinite(s.valor)) return null;
   const magnitud = Math.abs(s.valor);
-  const unidadTxt = s.unidad === "pp" ? (magnitud === 1 ? "1 punto" : `${magnitud} puntos`) : s.unidad === "pct" ? `${magnitud}%` : `${magnitud} ${s.unidad}`;
+  // §7.3·38(c) (diagnóstico v14): un monto se dice con el formato de la casa («$500K»), nunca con la clave interna de su unidad («500000 money»)
+  const unidadTxt = s.unidad === "pp" ? (magnitud === 1 ? "1 punto" : `${magnitud} puntos`) : s.unidad === "pct" ? `${magnitud}%` : s.unidad === "money" ? formatoDeLaCasa(magnitud, "money") : `${magnitud} ${s.unidad}`;
   const verbo = s.valor > 0 ? "sube" : s.valor < 0 ? "baja" : "se mueve";
   return `${concepto} ${verbo} ${unidadTxt}`;
 }
@@ -2639,7 +2650,11 @@ function _planSimulacion(parte, figs, supuesto, ref, declararDerivada, I) {
     const { pares, resultadoSueltos, baseSinPar } = _emparejar(grupo);
     let idDelta = null, deltaConcepto = null;
     for (const p of pares) { const id = declararDerivada(p.resultado.fig, p.resultado.id, p.base.fig, p.base.id); if (id) { idDelta = id; deltaConcepto = p.concepto; break; } }
-    bloques.push({ entidad: grupo.entidad, pares, resultadoSueltos, baseSinPar, idDelta, deltaConcepto, sinDelta: !idDelta });
+    // DECISIÓN 38(c) (diagnóstico v14, A5): un crecimiento en DINERO se simuló como volumen a precio constante; la conversión a % de la venta del período cerrado de la entidad es una cifra REAL de la
+    // simulación (el `%` de volumen que la tool calculó y publicó: «<entidad> · Volumen propuesto») y la Entrega la DECLARA como supuesto (`idConversion`), nunca la esconde como jerga del motor.
+    const esCrecimientoEnDinero = supuesto.tipo === "growth" && supuesto.unidad === "money" && supuesto.productor === "simulateGeneral";
+    const conversion = esCrecimientoEnDinero ? baseSinPar.find((b) => _normConcepto(b.concepto) === "volumen" && b.fig && b.fig.unit === "pct") : null;
+    bloques.push({ entidad: grupo.entidad, pares, resultadoSueltos, baseSinPar: conversion ? baseSinPar.filter((b) => b !== conversion) : baseSinPar, idDelta, deltaConcepto, sinDelta: !idDelta, idConversion: conversion ? conversion.id : null });
   }
   if (!bloques.length && !negocio.base.length && !negocio.resultado.length) return null;
 
@@ -3599,7 +3614,7 @@ export function componerEntrega(resolucion) {
         // CORTE 3e (owner 2026-09-26) — «declarada por usted» → «declarada por la empresa» (tercera persona).
         const simulacionTxt = `Simulación declarada por la empresa`;
         const supuestoTxt = _capitaliza(plan.fraseSupuesto);
-        const _valorSupuesto = `${Math.abs(plan.supuesto.valor)}${plan.supuesto.unidad === "pct" ? "%" : plan.supuesto.unidad === "pp" ? " puntos" : ` ${plan.supuesto.unidad}`}`;
+        const _valorSupuesto = plan.supuesto.unidad === "money" ? formatoDeLaCasa(Math.abs(plan.supuesto.valor), "money") : `${Math.abs(plan.supuesto.valor)}${plan.supuesto.unidad === "pct" ? "%" : plan.supuesto.unidad === "pp" ? " puntos" : ` ${plan.supuesto.unidad}`}`;
         cifrasImpresas.push(_valorSupuesto);
 
         // `prioridad` (opcional, default 0 — "Negocio" nunca se recorta: es el contexto compartido de TODOS los
@@ -3670,6 +3685,8 @@ export function componerEntrega(resolucion) {
             else descartadasJergaInterna++;
           }
           if (bloque.idDelta) entrega.cifras.filas.push(_filaSim(bloque.entidad, `Delta · ${_capitaliza(bloque.deltaConcepto)}`, bloque.idDelta, i));
+          // 38(c): la conversión del monto a % de la venta del período cerrado (citada en el encabezado) va también en la tabla — un hecho citado en la respuesta no puede faltar en Cifras (regla de doble colocación)
+          if (bloque.idConversion) entrega.cifras.filas.push(_filaSim(bloque.entidad, "Volumen equivalente al crecimiento en dinero, a precio constante", bloque.idConversion, i));
 
           // ENCABEZADO — cita un hecho REAL y SERVIDO (la referencia si existe; si no, el primer par o resultado
           // suelto del bloque) para que la regla «oración con cifra» (verificar.js regla 2) se cumpla sin
@@ -3688,9 +3705,11 @@ export function componerEntrega(resolucion) {
           // el encabezado nombra la pieza por lo que ES — «simulación» (owner 2026-09-26, `_colapso_eje_gate`
           // C4) — nunca «escenario declarado por usted»: «Falabella — simulación: la carga comercial baja 1
           // punto», no un mundo alterno con nombre propio, la pregunta «¿qué pasa si…?» del usuario.
+          // 38(c): la conversión del monto a % de la venta del período cerrado se declara EN el encabezado, como parte del supuesto («a precio constante»)
+          const _conversion = bloque.idConversion ? `, que equivale a ${R(bloque.idConversion)} de su venta del año cerrado, a precio constante` : "";
           entrega.respuesta.push({
-            texto: `${bloque.entidad} — simulación: ${plan.fraseSupuesto}${_citaValor}.`,
-            hechos: hechosEncabezado, _bloqueId: bloqueId, _bloqueEncabezado: true, _simulacion: true, prioridad: i,
+            texto: `${bloque.entidad} — simulación: ${plan.fraseSupuesto}${_conversion}${_citaValor}.`,
+            hechos: bloque.idConversion ? [...hechosEncabezado, bloque.idConversion] : hechosEncabezado, _bloqueId: bloqueId, _bloqueEncabezado: true, _simulacion: true, prioridad: i,
             _bloqueMeta: { entidad: bloque.entidad, escenarioId: plan.supuesto.id, supuestoId: plan.supuesto.id },
           });
 

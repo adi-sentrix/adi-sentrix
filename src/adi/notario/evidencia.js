@@ -335,6 +335,11 @@ export function indiceDeEvidencia({ figs = [], datoProyectado = null, ejesDelTen
     if (sin.length) { const otro = conceptosDe(c); if (otro.length && !otro.some((x) => sin.includes(x))) return 0; }
     /* contención: «vencido» dentro de «saldo vencido»; se prefiere el concepto más corto (ver buscarFigs) */
     if (m.length >= 4 && c.includes(m)) return 2;   // «vencido» está en «saldo vencido»; lo declarado MÁS específico que el rótulo («capital frenado» vs «capital») no casa
+    /* §7.3·38(d) (diagnóstico v14, A4) — DOS conceptos de la casa con clave EXACTA distinta nunca casan por el vocabulario del muro:
+     * «Capital inmovilizado» (`capital_inmovilizado`) y «Capital inmovilizado crítico» (`capital_frenado`) comparten las claves del muro
+     * {frenado, capital}, y sin este candado la fig de uno respondía por el otro («es correcto — Concepción: capital inmovilizado
+     * crítico $10K» siendo $0: el crítico de Concepción no existe). Solo se evalúa cuando AMBAS claves exactas son conocidas. */
+    { const kM = claveExactaDeMetrica(metrica), kF = claveExactaDeMetrica(f.conceptoNorm); if (kM && kF && kM !== kF) return 0; }
     /* último recurso: el mismo vocabulario del muro */
     const km = metricasEn(metrica);
     if (km.size && f.claves.size && [...km].every((k) => f.claves.has(k)) && [...f.claves].every((k) => km.has(k))) return 1;

@@ -297,7 +297,10 @@ export function cobranza(_args = {}, ctx = {}) {
   // `union` de dos bases, sin `top`) sí hace falta la mesa completa —eso no tiene otra fuente posible que no sea
   // cobranza— así que el backfill queda condicionado a `_necesitaMesaCompleta`, nunca a la sola presencia de
   // `universoRequerido`.
-  const _CAMPOS_UNIVERSO_SIN_TOP = ["base", "bodega", "union", "estados", "no_estados", "filtros"];
+  // RAÍZ A2 (supervisor 2026-09-29, diagnóstico v14, Z72) — `excluir` (su `top`, sus entidades) también necesita la mesa
+  // COMPLETA: «los clientes fuera de los 8 de mayor venta a crédito» excluye del eje ENTERO, y con el recorte de 8 el
+  // conjunto salía sin las cuentas de la cola. Mismo opt-in del Encargo (`universoRequerido`): el agente vivo no lo manda.
+  const _CAMPOS_UNIVERSO_SIN_TOP = ["base", "bodega", "union", "estados", "no_estados", "filtros", "excluir"];
   const _necesitaMesaCompleta = !!(_universoReq && _CAMPOS_UNIVERSO_SIN_TOP.some((c) => { const v = _universoReq[c]; return Array.isArray(v) ? v.length : !!v; }));
   let M = null;
   try { M = buildMesaFlujo(scenario); } catch { M = null; }
@@ -424,7 +427,8 @@ export function cobranza(_args = {}, ctx = {}) {
    * (ventas · saldo_pendiente · saldo_vencido · abonado); cualquier otra métrica de `top` no agrega nada acá —
    * documentado, nunca silencioso (el llamador declina con un límite si la cifra sigue faltando, ver
    * `entrega/componer.js:_planCifraGrupo`). */
-  const _CAMPO_DE_CLAVE_COBRANZA = { ventas: "ventaK", saldo_pendiente: "saldoK", saldo_vencido: "vencidoK", abonado: "abonadoK", saldo_por_vencer: "porVencerK" };
+  /* RAÍZ A2 (diagnóstico v14) — `venta_credito` (la venta del flujo de cobranza, `ventaK`) es una clave de `top` que esta tool sabe publicar. */
+  const _CAMPO_DE_CLAVE_COBRANZA = { ventas: "ventaK", venta_credito: "ventaK", saldo_pendiente: "saldoK", saldo_vencido: "vencidoK", abonado: "abonadoK", saldo_por_vencer: "porVencerK" };
   const _topRequerido = _universoReq ? _universoReq.top : null;   // `_universoReq` ya extraído al inicio de la función
   const _entidadesDelTopRequerido = (() => {
     const top = _topRequerido;

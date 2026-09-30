@@ -870,9 +870,23 @@ function _simVar(v) {
   if (!v || typeof v !== "object") return null;
   const campo = String(v.campo || "");
   const role = campo === "precioLista" ? "precio" : campo === "unidades" ? "volumen" : null;
+  /* §7.3·38(c) (diagnóstico v14, A5) — el crecimiento en DINERO (`delta_money`, contrato §3.5: growth admite pct y money) solo existe para el VOLUMEN: `money` guarda el monto y `pct`
+   * se calcula abajo, contra la venta del período cerrado de la entidad. Un monto de precio no tiene sentido (el precio se mueve en %): la variable no es válida. */
+  const money = v.delta_money != null && v.delta_money !== "" ? Number(v.delta_money) : null;
+  if (money != null) return role === "volumen" && Number.isFinite(money) ? { role, pct: null, campo, money } : null;
   const pct = Number(v.delta_pct);
   if (!role || !Number.isFinite(pct)) return null;
   return { role, pct, campo };
+}
+/* la fila cruda de la entidad de una simulación (con el eje corregido si el declarado no la trae): UN solo camino para la conversión de dinero y para la simulación misma */
+function _filaDeSimulacion(dimension, entity, scenario) {
+  let dim = dimension || "cliente";
+  let raw = rawRecordFor(dim, entity, scenario);
+  if (!raw && entity != null) {
+    const guessed = guessDimension(entity);
+    if (guessed && guessed !== dim) { dim = guessed; raw = rawRecordFor(dim, entity, scenario); }
+  }
+  return { dim, raw };
 }
 function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, scenario } = {}) {
   const a = _simVar(variableA), b = _simVar(variableB);
@@ -880,6 +894,12 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
     return { facts: null, boleta: [], coverage: { supported: false, reason: "necesito exactamente 2 variables distintas — precio (precioLista) y volumen (unidades), cada una con su % de cambio" } };
   }
   const [precioVar, volumenVar] = a.role === "precio" ? [a, b] : [b, a];
+  /* §7.3·38(c): el monto pasa a % de la venta del período cerrado de la entidad, A PRECIO CONSTANTE (volumen adicional: `monto / venta`). Sin la venta de la entidad no hay conversión que inventar: se declina. */
+  if (volumenVar.money != null) {
+    const { raw: r0 } = _filaDeSimulacion(dimension, entity, scenario);
+    if (!r0 || typeof r0.venta !== "number" || !r0.venta) return { facts: null, boleta: [], coverage: { supported: false, reason: `no encuentro '${entity}' en el eje '${dimension}'` } };
+    volumenVar.pct = +((volumenVar.money / (r0.venta * _fxT())) * 100).toFixed(2);
+  }
   if (precioVar.pct === 0 && volumenVar.pct === 0) {
     return { facts: null, boleta: [], coverage: { supported: false, reason: "0% en ambas variables no mueve nada — no hay supuesto que proyectar" } };
   }
@@ -888,12 +908,7 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
       return { facts: null, boleta: [], coverage: { supported: false, reason: `un ${v.pct > 0 ? "+" : ""}${v.pct}% de ${label} ya no es un supuesto operable — prueba un rango realista (entre ±1% y ±${_SIM_DELTA_MAX}%) y lo corro sobre el dato real` } };
     }
   }
-  let dim = dimension || "cliente";
-  let raw = rawRecordFor(dim, entity, scenario);
-  if (!raw && entity != null) {
-    const guessed = guessDimension(entity);
-    if (guessed && guessed !== dim) { dim = guessed; raw = rawRecordFor(dim, entity, scenario); }
-  }
+  const { dim, raw } = _filaDeSimulacion(dimension, entity, scenario);
   if (!raw || typeof raw.venta !== "number") {
     return { facts: null, boleta: [], coverage: { supported: false, reason: `no encuentro '${entity}' en el eje '${dimension}'` } };
   }
@@ -901,7 +916,9 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
   const factorPrecio = 1 + precioVar.pct / 100;
   const factorVolumen = 1 + volumenVar.pct / 100;
   const ventaActual = raw.venta, ventaNueva = ventaActual * factorPrecio * factorVolumen;
-  const _ctx = `supuesto: precio ${precioVar.pct > 0 ? "+" : ""}${precioVar.pct}% · volumen ${volumenVar.pct > 0 ? "+" : ""}${volumenVar.pct}% sobre ${entity} (dato real)`;
+  /* con un crecimiento en dinero, el contexto declara la conversión (el monto dicho, a precio constante, sobre la venta del período cerrado) — el supuesto de la simulación es el monto, no el % */
+  const _convDinero = volumenVar.money != null ? ` (${_moneyK(volumenVar.money / _fxT())} de crecimiento a precio constante, sobre la venta del período cerrado)` : "";
+  const _ctx = `supuesto: precio ${precioVar.pct > 0 ? "+" : ""}${precioVar.pct}% · volumen ${volumenVar.pct > 0 ? "+" : ""}${volumenVar.pct}%${_convDinero} sobre ${entity} (dato real)`;
   const _fVenta = `venta × (1${precioVar.pct >= 0 ? "+" : ""}${precioVar.pct}%) × (1${volumenVar.pct >= 0 ? "+" : ""}${volumenVar.pct}%)`;
 
   // OJO: NO uses claves que matcheen /pct/i acá (ej. "precioPct") — enrichFromFacts (ledger.js) camina `facts`
@@ -938,7 +955,10 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
     // canon "pct:8%" que parseFigures deriva de la narración real ("un 8%", nunca "un +8%"). Mismo formato que
     // TODO el resto de figs pct de este archivo (Margen actual/supuesto, más abajo) — ninguna fuerza el "+".
     fig(`${entity} · Precio propuesto`, `${precioVar.pct}%`, { unit: "pct", raw: precioVar.pct, source: "actual", context: _ctx }),
-    fig(`${entity} · Volumen propuesto`, `${volumenVar.pct}%`, { unit: "pct", raw: volumenVar.pct, source: "actual", context: _ctx }),
+    // con un crecimiento en dinero el % NO es lo que el usuario dijo: lo calculó la tool (monto ÷ venta del período cerrado, a precio constante) — se rotula derivado y con su fórmula
+    fig(`${entity} · Volumen propuesto`, `${volumenVar.pct}%`, volumenVar.money != null
+      ? { unit: "pct", raw: volumenVar.pct, source: "computed", formula: "crecimiento en dinero / venta del período cerrado × 100 (a precio constante)", context: _ctx }
+      : { unit: "pct", raw: volumenVar.pct, source: "actual", context: _ctx }),
   ];
 
   const costModel = costModelOf();

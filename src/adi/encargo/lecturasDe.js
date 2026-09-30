@@ -297,15 +297,18 @@ function _pasosCifra(p) {
     // métrica para todo el eje — la lectura tiene que TRAER el ranking COMPLETO, sin `limit`, para que el
     // compositor (`_planCifraGrupo`/`_entidadesDelTopVerificado`, `entrega/componer.js`) resuelva el conjunto
     // EXACTO contra figs reales, en vez de adivinar con solo `k` filas (esas `k` pueden no ser, ni de lejos, las
-    // que además cumplen el resto del universo). Sin ninguna otra restricción, `limit:k` sigue siendo la lectura
-    // correcta — un top simple no necesita más.
+    // que además cumplen el resto del universo).
+    // §7.3·38 (diagnóstico v14, A1) — y un top SIMPLE tampoco lleva `limit:k`: `datoProyectado` publica ranking
+    // completo solo para algunos ejes (cliente, marca, sku, bodega) y solo de algunas métricas; para el resto
+    // (familia, canal…) la boleta del turno ES la evidencia, y con `limit:k` llega PARCIAL (2 de 4 familias): el
+    // Notario declina `ranking-parcial` y la parte queda sin evidencia, o peor, un conteo sale «2 de 4» siendo 3.
+    // La lectura trae el eje completo (evidencia completa) y la selección del top la sigue haciendo la Entrega.
     const universoCombinado = !!(p.universo.base || p.universo.bodega
       || (Array.isArray(p.universo.estados) && p.universo.estados.length)
       || (Array.isArray(p.universo.no_estados) && p.universo.no_estados.length)
       || (Array.isArray(p.universo.filtros) && p.universo.filtros.length));
     const necesitaEjeCompleto = universoCombinado || String(p.universo.top.sobre || "").trim().toLowerCase() === "eje";
     const argsQueryMetric = { metric: metricaCoreDe(metrica) || metrica, dimension: ejeUniverso, sort: { dir: _direccionDeTop(direccion, metrica) } };
-    if (!necesitaEjeCompleto) argsQueryMetric.limit = k;
     const out = _FAM_VS_ANTERIOR.has(metrica)
       ? [{ tool: "salesRead", args: { focus: "vs_anterior", dimension: ejeUniverso, figsPct: true }, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top, salesRead vs_anterior)` }]
       : _FAM_DIAS_SIN_VENTA.has(metrica)
@@ -368,7 +371,11 @@ function _callDeSupuesto(s) {
     // §3.5: "price" mueve precio, "growth" mueve volumen; la variable que el supuesto NO trae viaja en 0 (el
     // usuario no declaró ese movimiento, así que su delta es cero, nunca inferido de otra cifra).
     const variableA = { campo: "precioLista", delta_pct: s.tipo === "price" ? s.valor : 0 };
-    const variableB = { campo: "unidades", delta_pct: s.tipo === "growth" ? s.valor : 0 };
+    // §7.3·38(c) (diagnóstico v14, A5) — un crecimiento en DINERO («+$500.000») NUNCA se pasa como porcentaje (`delta_pct: 500000` era «+500000 % de volumen»):
+    // viaja como `delta_money` y la tool lo convierte a % de la venta del período cerrado de la entidad, a precio constante. El % no se calcula acá: lo sabe la tool, que tiene el dato.
+    const variableB = s.tipo === "growth" && s.unidad === "money"
+      ? { campo: "unidades", delta_money: s.valor }
+      : { campo: "unidades", delta_pct: s.tipo === "growth" ? s.valor : 0 };
     return { tool: "simulateGeneral", args: { dimension: ejeAlcance, entity: nombre, variableA, variableB }, para: `simulación ${s.tipo} (${s.valor}${s.unidad}) sobre ${nombre || "el negocio"} (simulateGeneral)` };
   }
   if (s.productor === "simulateCarga") {
@@ -582,10 +589,27 @@ function _ejeDeSujetoPremisa(sujeto) {
   const r = resolveEntityRef(nombre);
   return r && r.estado === "resuelto" ? r.dimension : null;
 }
+/** §7.3·38 (diagnóstico v14, A1) — los conceptos que el UNIVERSO tipado de una premisa NOMBRA (y que la premisa no trae
+ *  en `metrica`): `top.metrica`, `filtros[].metrica` (sin `ref`: un filtro por referencia lo resuelve su propio
+ *  detector), `excluir.top[].metrica` y, recursivo, cada miembro de `union` (hereda el eje del universo que lo
+ *  contiene). Una premisa de grupo/conteo sin `metrica` propia necesita esa evidencia para juzgarse. */
+function _conceptosDeUniverso(u, add, ejeHeredado = null) {
+  if (!u || typeof u !== "object" || Array.isArray(u)) return;
+  const eje = u.eje || ejeHeredado;
+  if (u.top && u.top.metrica) add(u.top.metrica, eje);
+  for (const f of Array.isArray(u.filtros) ? u.filtros : []) if (f && f.metrica && f.ref == null) add(f.metrica, eje);
+  if (u.excluir && typeof u.excluir === "object") {
+    const tops = Array.isArray(u.excluir.top) ? u.excluir.top : (u.excluir.top ? [u.excluir.top] : []);
+    for (const t of tops) if (t && t.metrica) add(t.metrica, eje);
+  }
+  for (const v of Array.isArray(u.union) ? u.union : []) _conceptosDeUniverso(v, add, eje);
+}
 function _conceptosYEjesDePremisa(p) {
   if (!p || typeof p !== "object") return [];
   const out = [];
   const add = (concepto, eje) => { if (concepto && eje) out.push({ concepto: String(concepto), eje }); };
+  _conceptosDeUniverso(p.universo, add);
+  _conceptosDeUniverso(p.de, add);
   const ejeDeUniverso = (u) => (u && typeof u === "object" ? u.eje : null);
   const tipo = p.tipo;
   if (tipo === "cifra") {

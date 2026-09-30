@@ -14,7 +14,7 @@
  * Puro: sin I/O, sin red. */
 import { parseFigures } from "../boleta.js";
 import { tolCalculo } from "../oracle/calculoCatalogo.js";
-import { verificarAfirmaciones, conjuntoDeUniverso, valorDeRanking, valorDeReferencia, rankingDeTop } from "./verificar.js";
+import { verificarAfirmaciones, conjuntoDeUniverso, valorDeRanking, valorDeReferencia, rankingDeTop, puestoDeOrden } from "./verificar.js";
 import { indiceDeEvidencia, mismoValor, unidadCompatible } from "./evidencia.js";
 import { normalizar, menosAscii, leerValor, direccionPorDefecto } from "./afirmacion.js";
 import { parsearLineasDeBloque, MARCA_FIN } from "./declaracion.js";
@@ -924,8 +924,52 @@ function _cifraPropia(I, nombre, clave) {
   if (f && Number.isFinite(f.raw)) return { raw: f.raw, unidad: f.unidad, texto: f.unidad === "money" ? formatoDeLaCasa(f.raw, "money") : (f.texto || (f.fig && String(f.fig.value)) || formatoDeLaCasa(f.raw, f.unidad)) };
   const rk = valorDeRanking({ sujeto: nombre, metrica: clave }, I);
   if (rk && Number.isFinite(rk.raw)) return { raw: rk.raw, unidad: rk.unidad, texto: formatoDeLaCasa(rk.raw, rk.unidad) };
-  if (AUSENTE_VALE_CERO.includes(clave)) { const un = unidadDeClave(clave) || "money"; return { raw: 0, unidad: un, texto: formatoDeLaCasa(0, un) }; }
+  /* `ausente`: el cero NO es una cifra medida sobre la entidad, es que no pertenece al conjunto que la métrica define (§7.3·38a: se dice en palabras de negocio, nunca «(ausente = 0)») */
+  if (AUSENTE_VALE_CERO.includes(clave)) { const un = unidadDeClave(clave) || "money"; return { raw: 0, unidad: un, texto: formatoDeLaCasa(0, un), ausente: true }; }
   return null;
+}
+/* DECISIÓN 38(a) (supervisor 2026-09-29, diagnóstico v14 · A3): la 37(a) vale para TODA premisa falsa, en el MISMO registro que el grupo (`H.render.verdadPropia`; `componer.js` solo lo escribe).
+ * ORDEN: la entidad, su cifra propia de la métrica pedida, su PUESTO real (`puestoDeOrden`, la misma cuenta que `_orden`) y quién ocupa el puesto afirmado con su cifra; en un comparativo, las
+ * dos cifras. RELACIÓN: las dos cifras con su dueño. Una cifra 0 por ausencia lleva `ausente` (se dice «no tiene …»). Nunca claves internas ni el `k` del top como cifra. */
+function _metricaPropia(I, nombre, clave) {
+  const cifra = clave ? _cifraPropia(I, nombre, clave) : null;
+  if (!cifra) return null;
+  const m = metricaPorClave(clave);
+  return { clave, nombre: (m ? m.nombre : metricaDeClave(clave)).toLowerCase(), raw: cifra.raw, unidad: cifra.unidad, texto: cifra.texto, ...(cifra.ausente ? { ausente: true } : {}) };
+}
+const _sujetoUnico = (s) => { const x = Array.isArray(s) ? (s.length === 1 ? s[0] : null) : s; return typeof x === "string" && x !== "negocio" ? x : null; };
+function _verdadPropiaDeOrden(h, H, I) {
+  const sujeto = _sujetoUnico(h.sujeto);
+  const ent = sujeto ? I.resolverEntidad(sujeto) : null;
+  if (!ent) return null;
+  const clave = _claveDeMetricaDeUniverso(h.metrica);
+  const metrica = _metricaPropia(I, ent.nombre, clave);
+  if (!metrica) return null;
+  const o = _es(h.orden) ? h.orden : {};
+  const base = { entidad: ent.nombre, eje: normalizar(ent.eje || ""), estado: null, metrica, puesto: null };
+  if (normalizar(String(o.forma || "")) === "comparativo") {
+    const vs = _sujetoUnico(o.vs) ? I.resolverEntidad(o.vs) : null;
+    const mv = vs ? _metricaPropia(I, vs.nombre, clave) : null;
+    return mv ? { ...base, contra: { entidad: vs.nombre, metrica: mv } } : null;
+  }
+  let po = null;
+  try { po = puestoDeOrden(_aV2(h, I), I); } catch { po = null; }
+  if (!po) return base;
+  const ocupantes = po.afirmado.filter((n) => normalizar(n) !== normalizar(ent.nombre)).map((n) => ({ entidad: n, metrica: _metricaPropia(I, n, clave) }));
+  return { ...base, puesto: { n: po.n, de: po.de, dir: po.dir }, ...(ocupantes.length ? { ocupantes } : {}) };
+}
+function _verdadPropiaDeRelacion(h, H, I) {
+  const r = _es(h.relacion) ? h.relacion : {};
+  const sujeto = _sujetoUnico(h.sujeto);
+  const vsCrudo = r.vs != null ? r.vs : h.vs;   // el mismo alias que `_aV2`
+  const vsSujeto = _sujetoUnico(_es(vsCrudo) ? (vsCrudo.sujeto != null ? vsCrudo.sujeto : vsCrudo.grupo) : vsCrudo);
+  const a = sujeto ? I.resolverEntidad(sujeto) : null, b = vsSujeto ? I.resolverEntidad(vsSujeto) : null;
+  if (!a || !b) return null;
+  const clave = _claveDeMetricaDeUniverso(h.metrica);
+  const claveB = _es(vsCrudo) && vsCrudo.metrica ? _claveDeMetricaDeUniverso(vsCrudo.metrica) : clave;
+  const ma = _metricaPropia(I, a.nombre, clave), mb = _metricaPropia(I, b.nombre, claveB);
+  if (!ma || !mb) return null;
+  return { entidad: a.nombre, eje: normalizar(a.eje || ""), estado: null, metrica: ma, puesto: null, contra: { entidad: b.nombre, metrica: mb } };
 }
 function _verdadPropiaDeGrupo(h, H, I) {
   const u = h.universo;
@@ -1289,6 +1333,9 @@ export function libroDeHechos(hechos, ctx = {}) {
     /* decisión 37a (diagnóstico v13): la verdad PROPIA de la entidad de una premisa de grupo falsa, y los estados propios de una premisa de estado de la Mesa Capital */
     try {
       if (H.tipo === "grupo" && H.veredicto === "falsa") { const vp = _verdadPropiaDeGrupo(h, H, I); if (vp) H.render.verdadPropia = vp; }
+      /* decisión 38(a) (diagnóstico v14): el MISMO punto único para el orden y la relación falsos */
+      if (H.tipo === "orden" && H.veredicto === "falsa") { const vp = _verdadPropiaDeOrden(h, H, I); if (vp) H.render.verdadPropia = vp; }
+      if (H.tipo === "relacion" && H.veredicto === "falsa") { const vp = _verdadPropiaDeRelacion(h, H, I); if (vp) H.render.verdadPropia = vp; }
       // decisión del supervisor 2026-09-29 (v13, misma raíz que A2): una premisa de grupo VERDADERA nombra a sus entidades y dice el universo con las palabras de la casa (`FORMA_DE_ESTADO`), nunca la traza `estados «…»`
       if (H.tipo === "grupo" && H.veredicto === "verdadera" && _es(h.universo) && H.roles.sujetos.length && !H.roles.sujetos.includes("negocio")) {
         const nombres = H.roles.sujetos.map((s) => { const r = I.resolverEntidad(s); return r ? r.nombre : s; });

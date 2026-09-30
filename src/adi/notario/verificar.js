@@ -1191,10 +1191,12 @@ function _filas(a, I, eje) {
   }
   return { filas, universo: U.set ? `${U.fuente} (${filas.length})` : universo, peorEs, rk, conjunto: U.set || null, parcial };
 }
-function _orden(a, I) {
+/* _ordenar(a, I) → { eje, F, dir, filas, puesto } | { nv } · LA cuenta de un orden: las filas del universo (`_filas`), la dirección de la premisa («peor/mejor» por polaridad) y el puesto de cada
+ * entidad (los empates comparten el puesto). La comparten `_orden` (el veredicto) y `puestoDeOrden` (la verdad propia del sujeto en el libro de hechos): una sola ordenación, nunca una segunda. */
+function _ordenar(a, I) {
   const eje = _ejeDe(a, I);
   const F = _filas(a, I, eje);
-  if (F.error) return _nv(F.error);
+  if (F.error) return { nv: F.error };
   const o = a.orden;
   let dir = o.direccion || "mayor";
   if (dir === "peor" || dir === "mejor") {
@@ -1205,15 +1207,37 @@ function _orden(a, I) {
     // tabla de polaridad.
     const pol = polaridadDeClave(a.metrica);
     const peorEs = F.peorEs || (pol === "mayor" ? "menor" : pol === "menor" ? "mayor" : null);
-    if (!peorEs) return _nv(`polaridad-no-declarada: la boleta no dice qué es «${dir}» en «${a.metrica}»`);
+    if (!peorEs) return { nv: `polaridad-no-declarada: la boleta no dice qué es «${dir}» en «${a.metrica}»` };
     dir = dir === "peor" ? peorEs : (peorEs === "mayor" ? "menor" : "mayor");
   }
-  if (F.parcial && (dir === "menor" || o.forma === "min")) return _nv(`ranking-parcial: el ranking de «${a.metrica}» solo trae a ${F.filas.length} del eje y la casa no declara que lo ausente valga 0: el «menor» no se responde`);
-  if (false) {
-  }
+  if (F.parcial && (dir === "menor" || o.forma === "min")) return { nv: `ranking-parcial: el ranking de «${a.metrica}» solo trae a ${F.filas.length} del eje y la casa no declara que lo ausente valga 0: el «menor» no se responde` };
   const filas = [...F.filas].sort((x, y) => dir === "mayor" ? y.valor - x.valor : x.valor - y.valor);
   const puesto = new Map();
   for (let i = 0; i < filas.length; i++) { const prev = i > 0 && filas[i - 1].valor === filas[i].valor ? puesto.get(normalizar(filas[i - 1].entidad)) : i + 1; puesto.set(normalizar(filas[i].entidad), prev); }
+  return { eje, F, dir, filas, puesto };
+}
+/** puestoDeOrden(a, I) → { n, de, dir, afirmado: [nombre…] } | null · decisión 38(a) (diagnóstico v14): la verdad PROPIA de una premisa de orden falsa sobre UN sujeto —su PUESTO real y quién ocupa el puesto
+ *  afirmado (`afirmado`: el extremo de un máx/mín, el puesto k de un «puesto», los k primeros de un top-k)— con LA MISMA cuenta que `_orden` (`_ordenar`). Sin sujeto único, en un comparativo, sin
+ *  filas, con ranking parcial o con el sujeto fuera del universo: null (nunca inventa un puesto). */
+export function puestoDeOrden(a, I) {
+  if (!a || !a.orden || a.orden.forma === "comparativo") return null;
+  const sujetos = Array.isArray(a.sujeto) ? a.sujeto : [a.sujeto];
+  if (sujetos.length !== 1 || typeof sujetos[0] !== "string") return null;
+  const O = _ordenar(a, I);
+  if (O.nv) return null;
+  const r = I.resolverEntidad(sujetos[0]);
+  const n = O.puesto.get(normalizar(r ? r.nombre : sujetos[0]));
+  if (n == null) return null;
+  const o = a.orden;
+  const lugar = (x) => (o.forma === "puesto" ? x === o.k : o.forma === "topk" ? x <= o.k : x === 1);
+  const afirmado = O.filas.filter((x) => lugar(O.puesto.get(normalizar(x.entidad)))).map((x) => x.entidad);
+  return { n, de: O.filas.length, dir: O.dir, afirmado };
+}
+function _orden(a, I) {
+  const O = _ordenar(a, I);
+  if (O.nv) return _nv(O.nv);
+  const { eje, F, dir, filas, puesto } = O;
+  const o = a.orden;
   const nombre = (e) => { const r = I.resolverEntidad(e); return r ? r.nombre : e; };
   const fmtFila = (x) => { const f = I.buscarFigs(x.entidad, a.metrica)[0]; return `${x.entidad} (${f ? f.fig.value : x.valor})`; };
   const ev = F.rk ? [`ranking ${eje} · ${F.rk.clave} · ${F.universo}`] : [`cifras de «${a.metrica}» por ${eje}`];
