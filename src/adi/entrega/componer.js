@@ -3962,17 +3962,19 @@ export function componerEntrega(resolucion) {
       if (e) estadosEnJuego.add(e);
     }
     const llavesDeEstados = umbralesDeEstados([...estadosEnJuego]);
-    const procedencia = procedenciaDeUmbrales(llavesDeEstados, consultaDeFrenado);
+    // §7.3·40(a) (diagnóstico v16): un conjunto de la casa que ES un estado de inventario («con capital inmovilizado critico», `UMBRALES_DE_BASE`) pone en juego los umbrales de ESE estado, esté en `base`
+    // o en `excluir.conjuntos` (`_basesDeUniverso` suma los dos): se declaran junto a los de los estados nombrados. Las bases en juego se calculan ANTES y sus llaves se suman a las de los estados.
+    const basesEnJuegoDeLaCasa = new Set();
+    for (const p of partesUtiles) _basesDeUniverso(p.universo, basesEnJuegoDeLaCasa);
+    for (const pr of resolucion.premisas || []) _basesDeUniverso(pr.universo != null ? pr.universo : pr.de, basesEnJuegoDeLaCasa);
+    const llavesDeBases = [...new Set([...umbralesDeBases([...basesEnJuegoDeLaCasa]), ...umbralesDeConceptos(partesUtiles.flatMap((p) => p.conceptos || []))])];
+    const procedencia = procedenciaDeUmbrales([...new Set([...llavesDeEstados, ...llavesDeBases])], consultaDeFrenado);
     if (procedencia.length) entrega.marco.definiciones = [...entrega.marco.definiciones, ...procedencia];
     // decisión del supervisor 2026-09-29, §7.3·37b: el VALOR de cada umbral que la cláusula imprime queda registrado en `cifrasImpresas` (regla 1, cero cifras desnudas)
     for (const k of llavesDeEstados) { const val = valorDeUmbralEnTexto(k, consultaDeFrenado); if (val) cifrasImpresas.push(val); }
     // RAÍZ A5 (supervisor 2026-09-29, diagnóstico v13; §7.3·36b «el piso de materialidad»): un conjunto de la casa que DEPENDE de un umbral (`UMBRALES_DE_BASE`: «carga comercial alta» lo
     // decide el piso de materialidad) declara su origen igual que un estado de inventario — mismo helper (`umbral().origen`), en su propia oración. Los conjuntos en juego salen del
     // campo tipado `base` de cada universo (partes y premisas, también en las ramas de una unión), nunca de una frase.
-    const basesEnJuegoDeLaCasa = new Set();
-    for (const p of partesUtiles) _basesDeUniverso(p.universo, basesEnJuegoDeLaCasa);
-    for (const pr of resolucion.premisas || []) _basesDeUniverso(pr.universo != null ? pr.universo : pr.de, basesEnJuegoDeLaCasa);
-    const llavesDeBases = [...new Set([...umbralesDeBases([...basesEnJuegoDeLaCasa]), ...umbralesDeConceptos(partesUtiles.flatMap((p) => p.conceptos || []))])];
     const procedenciaDeBase = procedenciaDeMaterialidad(llavesDeBases, consultaDeFrenado);
     if (procedenciaDeBase.length) entrega.marco.definiciones = [...entrega.marco.definiciones, ...procedenciaDeBase];
     for (const k of llavesDeBases) { const val = valorDeUmbralEnTexto(k, consultaDeFrenado); if (val) cifrasImpresas.push(val); }
@@ -4025,6 +4027,8 @@ export function componerEntrega(resolucion) {
     const _baseNombraBenchmark = (u) => {
       if (!u || typeof u !== "object") return false;
       if (typeof u.base === "string" && _BASE_BENCHMARK_RE.test(u.base)) return true;
+      /* §7.3·39(d): un universo SOLO-EXCLUIR que nombra el benchmark en `excluir.conjuntos` («todas menos las bajo el benchmark») lo cita igual que un `base`: la referencia se declara en el Marco */
+      if (u.excluir && typeof u.excluir === "object" && (Array.isArray(u.excluir.conjuntos) ? u.excluir.conjuntos : []).some((n) => typeof n === "string" && _BASE_BENCHMARK_RE.test(n))) return true;
       if (Array.isArray(u.union)) return u.union.some((v) => _baseNombraBenchmark(v));
       return false;
     };

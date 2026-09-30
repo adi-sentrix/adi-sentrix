@@ -334,6 +334,14 @@ export const UNIDAD_DE_UMBRAL = Object.freeze({
   dohMax: "days", sobrestockDohMin: "days", quiebreDohMax: "days", frenadoDiasSinVenta: "days",
   materialidadFocoPctVenta: "pct_venta",
 });
+/** formatoPct(x) → el porcentaje con la forma de la casa: UNA sola definición (`notario/hechos.js:formatoDeLaCasa(x, "pct")` la importa; el valor de un umbral en pct la usa igual).
+ *  §7.3·40(b): conserva el SIGNIFICADO de la cifra — la forma de siempre (entero si está a menos de 0.05, si no un decimal) pierde la cifra por debajo de ~0.5 % (0.05 % → «0.1%», el doble):
+ *  cuando el error relativo de esa forma pasa del 10 %, se conservan dos decimales, como los publica el KPI («0.05%»). Del 0.5 % para arriba la forma es la de siempre, byte por byte; el signo se conserva. */
+export function formatoPct(x) {
+  const vieja = (Math.abs(x - Math.round(x)) < 0.05 ? String(Math.round(x)) : x.toFixed(1));
+  if (x !== 0 && Math.abs(parseFloat(vieja) - x) / Math.abs(x) > 0.1) { const t = +x.toFixed(2); if (t !== 0) return `${t}%`; }
+  return vieja + "%";
+}
 /** valorDeUmbralEnTexto(key, consulta?) → el VALOR con que se juzga un umbral, dicho como la casa («2.0x», «120 días», «0.05 % de la venta»), del MISMO `umbral(key).valor` que da su origen;
  *  null si no hay valor declarado (nadie lo declaró: nunca se inventa) o el umbral no tiene unidad declarada. Una sola redacción para la oración de una premisa y para `marco.definiciones`. */
 export function valorDeUmbralEnTexto(key, consulta = null) {
@@ -342,7 +350,7 @@ export function valorDeUmbralEnTexto(key, consulta = null) {
   if (!u || v == null || !Number.isFinite(v)) return null;
   if (u === "ratio") return `${v.toFixed(1)}x`;
   if (u === "days") return `${Math.round(v)} días`;
-  if (u === "pct_venta") return `${+v.toFixed(2)} % de la venta`;
+  if (u === "pct_venta") return `${formatoPct(v)} de la venta`;   // §7.3·40(b): el MISMO formateador que `formatoDeLaCasa` — «0.05% de la venta», sin espacio antes del %, como el KPI y PRI-04
   return null;
 }
 

@@ -34,7 +34,7 @@
  * el turno (el plan es un dato del pack, no siempre publicado), así que no es un conocimiento verdaderamente
  * ESTÁTICO todavía. Un `base` con ese nombre sigue sin poder declinarse en la validación — se resuelve en tiempo
  * de composición, igual que antes de esta decisión. */
-import { definicionesDeEstados } from "./estados.js";
+import { definicionesDeEstados, UMBRALES_DE_ESTADO } from "./estados.js";
 
 /* la familia CARGA: constantes, para que `oracle/datoProyectado.js` y `notario/verificar.js` usen la MISMA clave */
 export const NOMBRE_CARGA_ALTA = "carga comercial alta";
@@ -51,8 +51,8 @@ const _BENCHMARK = [
   { nombre: "sobre el benchmark", eje: "cliente", familia: "benchmark", negado: "que no están sobre el benchmark" },
   { nombre: "margen supuesto sobre el benchmark", eje: "cliente", familia: "benchmark" },
   { nombre: "margen supuesto bajo el benchmark", eje: "cliente", familia: "benchmark" },
-  { nombre: "SKU bajo el benchmark", eje: "sku", familia: "benchmark" },
-  { nombre: "SKU sobre el benchmark", eje: "sku", familia: "benchmark" },
+  { nombre: "SKU bajo el benchmark", eje: "sku", familia: "benchmark", negado: "que no están bajo el benchmark" },
+  { nombre: "SKU sobre el benchmark", eje: "sku", familia: "benchmark", negado: "que no están sobre el benchmark" },
 ];
 
 /* la familia ESTADO: el mismo registro que ya usa `notario/estados.js` — nunca una segunda tabla */
@@ -74,7 +74,8 @@ const _ESTADO_DEPENDIENTE_DE_EJE_FIJO = [
   { nombre: NOMBRE_CON_SALDO_VENCIDO, eje: "cliente", familia: "estado" },
   /* `negado` (2026-09-29, §7.3·39d): la forma NEGADA del conjunto, para el universo que lo EXCLUYE («los clientes sin carga comercial alta»); un conjunto que es un estado de la casa toma la suya de `FORMA_DE_ESTADO`. `visible` (owner 2026-09-29): cómo se IMPRIME el nombre cuando califica a un grupo («los SKU con capital inmovilizado
    * crítico»); `nombre` es el identificador sin tilde y no se imprime. Solo lo llevan los que difieren. */
-  { nombre: NOMBRE_CON_CAPITAL_INMOVILIZADO_CRITICO, eje: "sku", familia: "estado", visible: "con capital inmovilizado crítico", negado: "sin capital inmovilizado crítico" },
+  /* `estado` (§7.3·40a, diagnóstico v16): el conjunto ES el estado canónico «inmovilizado critico» (capital_frenado > 0; `estados.js`: «rotación bajo el piso o días de inventario sobre el techo») — sus umbrales y el estado en que SÍ está una entidad excluida salen de ahí, no de una lista aparte */
+  { nombre: NOMBRE_CON_CAPITAL_INMOVILIZADO_CRITICO, eje: "sku", familia: "estado", estado: "inmovilizado critico", visible: "con capital inmovilizado crítico", negado: "sin capital inmovilizado crítico" },
 ];
 
 /** CONJUNTOS_DE_LA_CASA → [{nombre, eje, familia}] · el catálogo ESTÁTICO completo (nombre + eje), sin membresía. */
@@ -88,6 +89,11 @@ const _porNombre = new Map(CONJUNTOS_DE_LA_CASA.map((c) => [_norm(c.nombre), c])
  *  su membresía este turno, que sigue siendo pregunta de `_conjuntosConocidos`. */
 export function conjuntoConocido(nombre) {
   return _porNombre.get(_norm(nombre)) || null;
+}
+/** estadoDeConjunto(nombre) → el estado canónico que un conjunto de la casa ES («con capital inmovilizado critico» → «inmovilizado critico»), o null si el conjunto no es un estado con otro nombre. */
+export function estadoDeConjunto(nombre) {
+  const c = conjuntoConocido(nombre);
+  return c && c.estado ? c.estado : null;
 }
 
 /* §7.3 (supervisor 2026-09-27, diagnóstico v8, tarea 4 del cierre — RAÍZ A4) — la tabla base→(concepto de
@@ -103,8 +109,9 @@ const _REFERENCIA_DE_BASE = [
   { re: /^bajo\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen" },
   { re: /^sobre\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen" },
   // «SKU bajo/sobre el benchmark» (raíz A3, §7.3·13): mismo concepto de referencia, métrica de margen de venta del SKU.
-  { re: /^SKU\s+bajo\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen_venta" },
-  { re: /^SKU\s+sobre\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen_venta" },
+  // `nombreMetrica`: cómo se DICE esa métrica en el veredicto cuando no está en el léxico (el SKU tiene dos márgenes y la casa exige la etiqueta completa: «margen de venta», nunca la clave interna)
+  { re: /^SKU\s+bajo\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen_venta", nombreMetrica: "margen de venta" },
+  { re: /^SKU\s+sobre\s+el\s+benchmark$/i, concepto: "benchmark", metrica: "margen_venta", nombreMetrica: "margen de venta" },
   { re: /^sobre\s+el\s+nivel\s+declarado\s+de\s+carga$/i, concepto: "nivel_carga", metrica: "carga" },
   { re: /^carga\s+comercial\s+alta$/i, concepto: "nivel_carga", metrica: "carga" },
 ];
@@ -115,6 +122,11 @@ export function referenciaDeBase(nombre) {
   const s = String(nombre || "").trim();
   if (!s) return null;
   return _REFERENCIA_DE_BASE.find((f) => f.re.test(s)) || null;
+}
+/** nombreDeMetricaDeReferencia(clave) → el nombre de negocio de una métrica que solo existe como referencia de un conjunto («margen_venta» → «margen de venta»), o null si el léxico ya la nombra. Datos de la tabla, no un mapa aparte. */
+export function nombreDeMetricaDeReferencia(clave) {
+  const f = _REFERENCIA_DE_BASE.find((x) => x.metrica === clave && x.nombreMetrica);
+  return f ? f.nombreMetrica : null;
 }
 
 /* §7.3, tarea 4 (supervisor 2026-09-27, diagnóstico v9, RAÍZ A4) — la MISMA idea de `_REFERENCIA_DE_BASE`, pero
@@ -147,6 +159,8 @@ export function referenciaDeEstado(canon) {
  * conjunto que no aparece acá no depende de un umbral de POLICY (los de benchmark y nivel de carga son referencias que ya imprimen su valor). */
 export const UMBRALES_DE_BASE = Object.freeze({
   [NOMBRE_CARGA_ALTA]: ["materialidadFocoPctVenta"],
+  /* §7.3·40a (diagnóstico v16): «con capital inmovilizado critico» = el estado «inmovilizado critico»: declara los umbrales de ESE estado (la misma tabla `UMBRALES_DE_ESTADO`, una sola verdad) */
+  [NOMBRE_CON_CAPITAL_INMOVILIZADO_CRITICO]: UMBRALES_DE_ESTADO["inmovilizado critico"],
 });
 /** umbralesDeBases(bases) → las llaves de POLICY (sin repetir) de los umbrales que sostienen esos conjuntos de la casa (por su nombre, sin tildes ni mayúsculas) */
 export function umbralesDeBases(bases) {

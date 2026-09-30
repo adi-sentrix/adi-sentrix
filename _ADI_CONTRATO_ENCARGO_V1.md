@@ -291,7 +291,7 @@ y es lo que el catálogo de desarrollo espera:
 |---|---|---|---|---|---|---|
 | comercial | sí | sí (`componerEntregaBrechaComercial` + contrato comercial) | sí | sí (2 entidades, mismo eje) | sí (§3.5) | sí |
 | inventario | sí | sí (`componerEntregaInventario`) | sí | sí (2 SKU / 2 bodegas) | `simulateCapital` (sku) | sí |
-| cobranza | sí | sí (`componerEntregaCobranza`) | sí | 2 clientes (por `mesaFlujo`, no por `compareEntities`) — **decision_pendiente**: no hay composer de comparación de cobranza | **no** (sin productor) | sí |
+| cobranza | sí | sí (`componerEntregaCobranza`) | sí | sí, 2 clientes por `mesaFlujo` (no por `compareEntities`): las dos cifras de la mesa + su diferencia derivada, con el mismo `_planComparacion` (§7.3·40c) | **no** (sin productor) | sí |
 | multi-tema | — | sí (`componerEntregaMultidominio`) | sí (cierre integrado siempre) | — | — | — |
 
 ### 3.5 · Supuestos con productor (para `simulacion`)
@@ -468,7 +468,7 @@ venta a crédito, ley del owner).
 5. RC15 · `ejes_mezclados` → `campo: "cierre"` (igual que `cardinalidad`).
 6. RC13 · `entidad_inexistente` con eje EXPLÍCITO de ≤ 5 miembros y sin ningún parecido → se ofrecen TODOS los
    miembros como alternativas (solo en el validador; el escaneo de texto libre no lo usa).
-7. Comparación en cobranza: sigue `decision_pendiente` hasta medir su composer.
+7. Comparación en cobranza: cerrada por la §7.3·40(c) (composer = `_planComparacion` sobre las figs de `mesaFlujo`; medida en el catálogo v16, V45).
 8. [2026-09-26, tras la medición v6] `top` combinado con `estados`/`filtros` en el MISMO universo: por defecto el top se
    calcula DENTRO del conjunto ya filtrado («los 3 deudores más grandes entre los que están en mora»), que es la
    pregunta de negocio más común. Para la lectura inversa («de los 3 de menor venta, cuántos están en mora») el
@@ -674,6 +674,17 @@ venta a crédito, ley del owner).
     (d) Un universo con solo `excluir` (entidades o conjuntos) es un universo PROPIO: restringe lo servido y lleva la
     procedencia y la referencia de sus conjuntos.
     (e) En una tabla que mezcla partes, toda fila tiene su dueño (entidad) y su tema.
+40. [2026-09-29, supervisor; diagnóstico v16]
+    (a) Un conjunto de la casa que ES un estado (p. ej. «con capital inmovilizado crítico») declara los umbrales de ese
+    estado, esté en `base`, en `excluir.conjuntos` o en una premisa.
+    (b) El formato de la casa conserva el significado de la cifra: un porcentaje chico no se redondea a otro valor
+    («0.05 %» nunca es «0.1 %»). Una misma cifra se escribe de UNA forma en toda la Entrega; si la boleta trae dos figs con el
+    mismo rótulo y formatos distintos, la Entrega usa una sola. La boleta del agente vivo no cambia en esta etapa.
+    (c) Cierra la §7.3·7: una comparación en COBRANZA entre dos cuentas se compone con las dos cifras de la mesa de flujo
+    (la misma fuente que la pantalla) más su diferencia derivada, y las premisas se juzgan sobre ellas.
+    (d) Un UMBRAL DECLARADO (por la empresa, la consulta o como criterio de ADI) se escribe con su valor declarado
+    exacto («0.75%», nunca «0.8%»), en el Marco, en el veredicto y en la referencia: es un número declarado, no una medición.
+    El formato de la casa con redondeo vale para las cifras MEDIDAS.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
@@ -689,7 +700,8 @@ venta a crédito, ley del owner).
 - **Alternativas de `entidad_inexistente` en un eje chico** (RC13): con un eje de ≤ N miembros sin ningún parecido,
   ¿se ofrecen todos los miembros? (`findCandidates` hoy devuelve `[]`).
 - **Comparación en cobranza**: cerrada como «dos `cifra` de `mesaFlujo` + `derivada`» (7.1·4) pero sin composer
-  medido todavía — sigue `decision_pendiente` en el catálogo.
+  medido todavía — sigue `decision_pendiente` en el catálogo. [Cerrada por la §7.3·40(c): `_pasosComparacion` la lee de `cobranza` (mesaFlujo)
+  con las dos cuentas y `_planComparacion` compone los pares y la diferencia derivada.]
 
 ---
 

@@ -208,6 +208,14 @@ function _direccionDeTop(direccion, metrica) {
   }
   return _dirAscDesc(dir === "menor" ? "menor" : "mayor");
 }
+/* LA LLAMADA de COBRANZA de una parte (mesaFlujo): la MISMA para un `cifra` y para una `comparacion` (§7.3·40c) — con las cuentas que la parte nombra (`entidadesRequeridas`, decisión v13 Z78) y, si la
+ * parte trae universo propio, el universo YA RESUELTO. Una sola definición: la comparación no arma una lectura de cobranza paralela. */
+function _callDeCobranzaDeParte(p, universoRequerido, quien) {
+  const entidadesRequeridas = _nombresDeEntidades(p.entidades);
+  const argsCobranza = universoRequerido ? { universoRequerido, figsPorVencer: true } : { figsPorVencer: true };
+  if (entidadesRequeridas.length) argsCobranza.entidadesRequeridas = entidadesRequeridas;
+  return { tool: "cobranza", args: argsCobranza, para: `cobranza de ${quien} (mesaFlujo)` };
+}
 /* ── cierre `cifra` (contrato §1.1: productor `queryMetric / entityRecord / gridTable / mesaFlujo / mesaCapital`) */
 function _pasosCifra(p) {
   const eje = p.eje;
@@ -225,10 +233,7 @@ function _pasosCifra(p) {
     // que traerse aunque quede fuera del top 8 fijo de `cobranza()` (una cuenta al día y chica —Hites, Jumbo, Ripley— nunca
     // entra ahí): sin su fig, `entrega/componer.js:_planCifraEntidad` no tenía qué servir y la parte se perdía. Se pasa
     // por el mismo opt-in del Encargo que `universoRequerido` (el turno libre del agente nunca lo manda: su boleta no cambia).
-    const entidadesRequeridas = _nombresDeEntidades(p.entidades);
-    const argsCobranza = universoRequerido ? { universoRequerido, figsPorVencer: true } : { figsPorVencer: true };
-    if (entidadesRequeridas.length) argsCobranza.entidadesRequeridas = entidadesRequeridas;
-    const out = [{ tool: "cobranza", args: argsCobranza, para: `cobranza de ${quien} (mesaFlujo)` }];
+    const out = [_callDeCobranzaDeParte(p, universoRequerido, quien)];
     // §7.3·13 (diagnóstico v7) — `universo.top` puede ordenar por una métrica AJENA a cobranza («ventas», para
     // «los clientes de menor venta que están en mora»): `mesaFlujo` solo publica `venta_credito` («Venta
     // (flujo)», la venta A CRÉDITO — `adi-caja-no-es-cobranza` — nunca la venta total), así que no basta con
@@ -349,6 +354,9 @@ const _FAM_FUERA_DE_COMPARE = _FAM_DIAS_SIN_VENTA;
 function _pasosComparacion(p) {
   if (p.entidades.length !== 2 || p.entidades[0].eje !== p.entidades[1].eje) return [];
   const eje = p.entidades[0].eje;
+  /* §7.3·40(c) — cierra la 7.1·4/7.3·7: una comparación en COBRANZA entre dos cuentas la sirve `mesaFlujo` (la misma fuente que la pantalla y que un `cifra` de cobranza), NO `compareEntities` (que no sirve ese
+   * tema): la lectura trae la fila de las dos cuentas con todas sus cifras de la mesa, y `_planComparacion` (Entrega) arma los pares y la diferencia derivada, igual que para cualquier otro tema. */
+  if (p.tema === "cobranza") return [_callDeCobranzaDeParte(p, null, p.entidades.map((e) => e.nombre).join(" y "))];
   const calls = [{ tool: "compareEntities", args: { dimension: eje, entities: p.entidades.map((e) => e.nombre) }, para: `comparación ${p.entidades.map((e) => e.nombre).join(" vs ")}` }];
   for (const c of p.conceptos || []) if (_FAM_FUERA_DE_COMPARE.has(c)) calls.push(..._callsDeConceptoEje(p.tema, c, eje));
   return _dedupeCalls(calls);
