@@ -334,24 +334,47 @@ export const UNIDAD_DE_UMBRAL = Object.freeze({
   dohMax: "days", sobrestockDohMin: "days", quiebreDohMax: "days", frenadoDiasSinVenta: "days",
   materialidadFocoPctVenta: "pct_venta",
 });
-/** formatoPct(x) → el porcentaje con la forma de la casa: UNA sola definición (`notario/hechos.js:formatoDeLaCasa(x, "pct")` la importa; el valor de un umbral en pct la usa igual).
- *  §7.3·40(b): conserva el SIGNIFICADO de la cifra — la forma de siempre (entero si está a menos de 0.05, si no un decimal) pierde la cifra por debajo de ~0.5 % (0.05 % → «0.1%», el doble):
- *  cuando el error relativo de esa forma pasa del 10 %, se conservan dos decimales, como los publica el KPI («0.05%»). Del 0.5 % para arriba la forma es la de siempre, byte por byte; el signo se conserva. */
+/** formatoPct(x) → el porcentaje MEDIDO con la forma de la casa: UNA sola definición (`notario/hechos.js:formatoDeLaCasa(x, "pct")` la importa).
+ *  §7.3·40(b): conserva el SIGNIFICADO de la cifra. De 0.5 % para arriba la forma es la de siempre, byte por byte (entero si está a menos de 0.05 de un entero, si no un decimal).
+ *  Por DEBAJO de 0.5 % (|x| < 0.5) un porcentaje chico no se redondea a otro valor: se escriben dos cifras SIGNIFICATIVAS, sin ceros de cola («0.049%», «0.05%», «0.25%», «0.015%») —
+ *  un decimal de más habría dicho «0.05%» por 0.049 y «0.1%» por 0.05—. Un valor DECLARADO (umbral, referencia) no pasa por acá: se escribe exacto (`formatoDeUmbral`). El signo se conserva. */
 export function formatoPct(x) {
-  const vieja = (Math.abs(x - Math.round(x)) < 0.05 ? String(Math.round(x)) : x.toFixed(1));
-  if (x !== 0 && Math.abs(parseFloat(vieja) - x) / Math.abs(x) > 0.1) { const t = +x.toFixed(2); if (t !== 0) return `${t}%`; }
-  return vieja + "%";
+  const a = Math.abs(x);
+  if (a > 0 && a < 0.5) {
+    const dec = Math.min(20, 1 - Math.floor(Math.log10(a)));   // dos cifras significativas: 0.049 → 3 decimales, 0.25 → 2
+    const t = x.toFixed(dec).replace(/0+$/, "").replace(/\.$/, "");
+    if (parseFloat(t) !== 0) return `${t}%`;
+  }
+  return (Math.abs(x - Math.round(x)) < 0.05 ? String(Math.round(x)) : x.toFixed(1)) + "%";
 }
-/** valorDeUmbralEnTexto(key, consulta?) → el VALOR con que se juzga un umbral, dicho como la casa («2.0x», «120 días», «0.05 % de la venta»), del MISMO `umbral(key).valor` que da su origen;
+/** valorExacto(x) → el número escrito EXACTO como se declaró («0.75», «27.25», «1.55»): sin redondear y sin el ruido de coma flotante (0.1 + 0.2 → «0.3»); nunca notación científica. */
+export function valorExacto(x) {
+  const n = +(+x).toPrecision(12);
+  const s = String(n);
+  return /e/i.test(s) ? n.toFixed(20).replace(/0+$/, "").replace(/\.$/, "") : s;
+}
+/** formatoDeUmbral(x, unidad) → un valor DECLARADO (un umbral o una referencia, de la empresa, de la consulta o criterio de ADI) escrito con su valor EXACTO — «0.75%», «27.25%», «1.55x», «27.5 días» —,
+ *  nunca redondeado: es un número declarado, no una medición (§7.3·40d). Las cifras MEDIDAS siguen con el formato de la casa (`formatoDeLaCasa`). Una sola función para el Marco, el veredicto y la
+ *  referencia declarada: el ORIGEN de la cifra (`umbral()`, las referencias de la casa, un filtro de la consulta) decide que pase por acá, jamás su valor. El múltiplo lleva al menos un decimal
+ *  («2.0x», como siempre). Devuelve null para una unidad sin forma exacta declarada (dinero, puntos, conteos): quien llama usa entonces el formato de la casa. */
+export function formatoDeUmbral(x, unidad) {
+  if (x == null || x === "" || !Number.isFinite(+x)) return null;
+  const e = valorExacto(x);
+  switch (unidad) {
+    case "pct": return `${e}%`;
+    case "ratio": return `${/\./.test(e) ? e : `${e}.0`}x`;
+    case "days": return `${e} ${Math.abs(+e) === 1 ? "día" : "días"}`;
+    case "pct_venta": return `${e}% de la venta`;
+    default: return null;
+  }
+}
+/** valorDeUmbralEnTexto(key, consulta?) → el VALOR con que se juzga un umbral, dicho EXACTO («2.0x», «120 días», «0.75% de la venta», «1.55x»), del MISMO `umbral(key).valor` que da su origen;
  *  null si no hay valor declarado (nadie lo declaró: nunca se inventa) o el umbral no tiene unidad declarada. Una sola redacción para la oración de una premisa y para `marco.definiciones`. */
 export function valorDeUmbralEnTexto(key, consulta = null) {
   const u = UNIDAD_DE_UMBRAL[key];
   const v = umbral(key, consulta).valor;
   if (!u || v == null || !Number.isFinite(v)) return null;
-  if (u === "ratio") return `${v.toFixed(1)}x`;
-  if (u === "days") return `${Math.round(v)} días`;
-  if (u === "pct_venta") return `${formatoPct(v)} de la venta`;   // §7.3·40(b): el MISMO formateador que `formatoDeLaCasa` — «0.05% de la venta», sin espacio antes del %, como el KPI y PRI-04
-  return null;
+  return formatoDeUmbral(v, u);   // §7.3·40(d): un umbral declarado se escribe con su valor declarado, nunca redondeado (ni «1.6x» por 1.55x, ni «0.8%» por 0.75%)
 }
 
 /** Las DOS familias de umbral que la Entrega declara, cada una con su propia oración (una cláusula por umbral dentro de ella) y su

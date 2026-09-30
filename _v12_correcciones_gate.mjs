@@ -30,7 +30,7 @@ import { lecturasDe } from "./src/adi/encargo/lecturasDe.js";
 import { componerEntrega } from "./src/adi/entrega/componer.js";
 import { verificarEntrega } from "./src/adi/entrega/verificar.js";
 import { ausenciaPorId } from "./src/config/contract/ausencias.js";
-import { ETIQUETA_ORIGEN, umbral, NOMBRE_DE_UMBRAL, FAMILIAS_DE_PROCEDENCIA, clausulasDeProcedencia, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio } from "./src/config/businessPolicy.js";
+import { ETIQUETA_ORIGEN, umbral, NOMBRE_DE_UMBRAL, FAMILIAS_DE_PROCEDENCIA, clausulasDeProcedencia, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, formatoDeUmbral, setBenchmarkOverride } from "./src/config/businessPolicy.js";
 import { UMBRALES_DE_ESTADO, ESTADO_DE_CONCEPTO, ESTADOS_CANON, umbralesDeEstados, estadoDeLaPremisa } from "./src/adi/notario/estados.js";
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
 import fs from "node:fs";
@@ -295,6 +295,92 @@ H("A7 · la premisa de grupo falsa imprime la cifra PROPIA de la entidad, nunca 
   /* CARNADA: el defecto original reconstruido — un número sin dueño con el valor de k SÍ se tomaría como cifra propia */
   const sinDueno = [{ raw: 2, unidad: "count", texto: "2" }];
   ok(sinDueno.find(esCifraPropia) && sinDueno.find(esCifraPropia).texto === "2", "CARNADA · un número sin dueño declarado sigue contando como cifra propia (por eso el `k` tiene que llevar su marca)");
+}
+
+/* ═══ A9 · §7.3·40(d): UN UMBRAL DECLARADO SE ESCRIBE EXACTO · §7.3·40(b): UN % CHICO CONSERVA SU SIGNIFICADO ═════════════════════════════════════
+ * Decisión del supervisor 2026-09-30 (diagnóstico v16, antes de la medición ciega): un umbral declarado (por la empresa, la consulta o como criterio de ADI) es un NÚMERO
+ * DECLARADO, no una medición: «0.75%», «27.25%», «1.55x», nunca «0.8%», «27.3%», «1.6x». Vale en el Marco, en el veredicto de las premisas y en la referencia declarada. El
+ * formato de la casa (con redondeo) sigue siendo el de las cifras MEDIDAS; la diferencia la marca el ORIGEN (`umbral()` / las referencias / la consulta), nunca el número.
+ * Los oráculos son los valores declarados A MANO (el dato de entrada), sin pasar por el formateador que se prueba. */
+H("A9 · un umbral declarado se escribe EXACTO en el Marco (materialidad 0.75% · piso de rotación 1.55x)");
+{
+  initTenant(TENANT_PERFIL({ materialidadFocoPctVenta: 0.75, rotacionMin: 1.55 }));
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["carga"], universo: { eje: "cliente", base: "carga comercial alta" } }, INV({ id: "p2", universo: { eje: "sku", estados: ["rota lento"] } })] });
+  const d = definiciones(E).join(" | ");
+  ok(E.ok === true, "el encargo compone ok", E.motivo);
+  ok(d.includes("umbral de materialidad: 0.75% de la venta") && !/0\.8%/.test(d), "materialidad declarada 0.75% → «0.75% de la venta» en marco.definiciones (nunca «0.8%»)", d);
+  ok(d.includes("piso de rotación: 1.55x") && !/1\.6x/.test(d), "piso de rotación declarado 1.55x → «1.55x» en marco.definiciones (nunca «1.6x»)", d);
+  ok(E.texto.includes("0.75% de la venta") && E.texto.includes("1.55x") && !/\b0\.8%|\b1\.6x/.test(E.texto), "el texto impreso de la Entrega dice los valores exactos");
+  initTenant(TENANT_DEMO);
+}
+
+H("A9 · … en el VEREDICTO de las premisas («criterio aplicado» y el valor de la referencia)");
+{
+  initTenant(TENANT_PERFIL({ materialidadFocoPctVenta: 0.075, rotacionMin: 1.55, targetCarga: 3.75, dohMax: 127.5 }));
+  const { E } = entregaDe({ partes: [INV({ universo: { eje: "sku" }, conceptos: ["capital", "dias_inventario"] })], premisas: [
+    { id: "q1", tipo: "grupo", miembros: ["Easy"], universo: { eje: "cliente", base: "carga comercial alta" } },
+    { id: "q2", tipo: "estado", sujeto: "SAM-TV55", estado: "inmovilizado critico" },
+    { id: "q3", tipo: "estado", sujeto: "SAM-TV55", estado: "rota lento" },
+  ] });
+  const oraciones = E.entrega.respuesta.filter((r) => r._premisa).map((r) => r.texto);
+  const t = oraciones.join("\n");
+  ok(oraciones.length >= 3, "las tres premisas se juzgan", t);
+  ok(t.includes("criterio aplicado: umbral de materialidad 0.075% de la venta") && !/0\.07%|0\.08%|0\.1%/.test(t), "el veredicto de «carga comercial alta» imprime el umbral de materialidad 0.075% exacto (nunca «0.07%» ni «0.08%»)", t);
+  ok(t.includes("nivel de carga declarado 3.75%") && !/3\.8%/.test(t), "el veredicto imprime el nivel de carga declarado 3.75% exacto (nunca «3.8%»)", t);
+  ok(t.includes("piso de rotación 1.55x") && !/1\.6x/.test(t), "el veredicto imprime el piso de rotación 1.55x exacto (nunca «1.6x»)", t);
+  ok(t.includes("techo de días de inventario 127.5 días") && !/128 días/.test(t), "el veredicto imprime el techo de días 127.5 exacto (nunca «128 días»)", t);
+  initTenant(TENANT_DEMO);
+}
+
+H("A9 · … y en la REFERENCIA declarada (la de la empresa y la de la consulta)");
+{
+  setBenchmarkOverride(27.25);
+  const enc = { partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen", "brecha"], universo: { eje: "cliente", base: "bajo el benchmark" } }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Falabella"], universo: { eje: "cliente", base: "bajo el benchmark" } }] };
+  const { E } = entregaDe(enc);
+  const ref = E.entrega.marco.referenciaDeclarada;
+  ok(!!ref && ref.texto === "Benchmark de margen: 27.25%, declarado por la empresa.", "la referencia de la EMPRESA (benchmark 27.25) se declara exacta en el Marco", JSON.stringify(ref));
+  const t = E.entrega.respuesta.filter((r) => r._premisa).map((r) => r.texto).join("\n");
+  ok(t.includes("benchmark de margen 27.25%") && !/27\.3%/.test(t + E.texto), "el veredicto y el resto de la Entrega dicen «27.25%» (nunca «27.3%»)", t);
+  setBenchmarkOverride(null);
+  const { E: E2 } = entregaDe({ ...enc, criterio: { referencia: { concepto: "benchmark", valor: 25.55, unidad: "pct" } } });
+  const lim = E2.entrega.limites.find((l) => /referencia planteada en la consulta/i.test(l.titulo));
+  ok(!!lim && lim.titulo.includes("(25.55%)") && !/25\.6%|25\.5%/.test(lim.titulo), "la referencia del USUARIO (25.55) se declara exacta al lado de la oficial", lim && lim.titulo);
+  const { E: E3 } = entregaDe({ partes: [INV({ universo: { eje: "sku", estados: ["rota lento"] } })], criterio: { referencia: { concepto: "piso_rotacion", valor: 1.55, unidad: "ratio" } } });
+  const lim3 = E3.entrega.limites.find((l) => /referencia planteada en la consulta/i.test(l.titulo));
+  ok(!!lim3 && lim3.titulo.includes("(1.55x)") && !/1\.6x/.test(lim3.titulo), "el piso de rotación del USUARIO (1.55x) se declara exacto", lim3 && lim3.titulo);
+  const { E: E4 } = entregaDe({ partes: [INV({ universo: { eje: "sku", filtros: [{ metrica: "dias_inventario", op: ">", ref: "techo_cobertura" }] } })], criterio: { referencia: { concepto: "techo_cobertura", valor: 130.5, unidad: "days" } } });
+  const lim4 = E4.entrega.limites.find((l) => /referencia planteada en la consulta/i.test(l.titulo));
+  ok(!!lim4 && lim4.titulo.includes("(130.5 días)") && !/131 días/.test(lim4.titulo), "el techo de cobertura del USUARIO (130.5 días) se declara exacto", lim4 && lim4.titulo);
+  const { E: E5 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", universo: { eje: "cliente", filtros: [{ metrica: "margen", op: ">", valor: 27.25, unidad: "pct" }] } }] });
+  ok(E5.entrega.respuesta.some((r) => /margen superior a 27\.25%/.test(r.texto)) && !/27\.3%/.test(E5.texto), "el umbral que la CONSULTA plantea en un filtro (margen > 27.25%) se dice exacto", E5.texto.slice(0, 300));
+}
+
+H("A9 · CARNADA · declarado ≠ medido POR SU ORIGEN, no por el número (27.25 declarado = «27.25%»; 27.25 medido = «27.3%»)");
+{
+  ok(formatoDeUmbral(27.25, "pct") === "27.25%" && formatoDeLaCasa(27.25, "pct") === "27.3%", "el MISMO 27.25: como umbral declarado «27.25%», como cifra medida «27.3%» (el formato de la casa no cambió)");
+  ok(formatoDeUmbral(0.75, "pct") === "0.75%" && formatoDeUmbral(3.75, "pct") === "3.75%" && formatoDeUmbral(1.55, "ratio") === "1.55x" && formatoDeUmbral(2, "ratio") === "2.0x" && formatoDeUmbral(120, "days") === "120 días" && formatoDeUmbral(127.5, "days") === "127.5 días", "el formateador de umbrales escribe exacto (0.75% · 3.75% · 1.55x · 2.0x · 120 días · 127.5 días)");
+  ok(formatoDeUmbral(0.1 + 0.2, "pct") === "0.3%" && formatoDeUmbral(0.0075 * 100, "pct") === "0.75%", "sin el ruido de coma flotante (0.1 + 0.2 → «0.3%» · 0.0075 × 100 → «0.75%»)");
+  ok(formatoDeUmbral(500000, "money") === null && formatoDeUmbral(NaN, "pct") === null, "una unidad sin forma exacta (dinero) o un valor no numérico devuelve null: se usa el formato de la casa");
+  /* CARNADA: el defecto original reconstruido — un umbral redondeado con el formato de la casa NO es el declarado */
+  ok(formatoDeLaCasa(0.75, "pct") !== "0.75%" && formatoDeLaCasa(1.55, "ratio") !== "1.55x", "CARNADA · pasar un umbral declarado por el formato de la casa lo redondea («0.8%», «1.6x»): eso es lo que 40(d) prohíbe");
+}
+
+H("A9 · §7.3·40(b) · un porcentaje MEDIDO chico conserva su significado (dos cifras significativas bajo 0.5 %) y de 0.5 para arriba el formato NO cambió");
+{
+  const casos = [[0.049, "0.049%"], [0.05, "0.05%"], [0.25, "0.25%"], [0.015, "0.015%"], [0.1, "0.1%"], [0.075, "0.075%"], [0.4, "0.4%"], [0.001, "0.001%"], [-0.049, "-0.049%"], [0, "0%"]];
+  ok(casos.every(([x, e]) => formatoDeLaCasa(x, "pct") === e), "0.049 → «0.049%» · 0.05 → «0.05%» · 0.25 → «0.25%» · 0.015 → «0.015%» (sin ceros de cola, con signo)", JSON.stringify(casos.map(([x]) => formatoDeLaCasa(x, "pct"))));
+  /* el ORÁCULO de «de 0.5 para arriba, como siempre»: la fórmula anterior, escrita a mano */
+  const anterior = (x) => (Math.abs(x - Math.round(x)) < 0.05 ? String(Math.round(x)) : x.toFixed(1)) + "%";
+  let dif = 0, n = 0;
+  for (let i = -30000; i <= 30000; i++) { const x = i / 100; if (Math.abs(x) < 0.5) continue; n++; if (formatoDeLaCasa(x, "pct") !== anterior(x)) dif++; }
+  for (let i = -3000; i <= 3000; i++) { const x = i / 10; if (Math.abs(x) < 0.5) continue; n++; if (formatoDeLaCasa(x, "pct") !== anterior(x)) dif++; }
+  ok(n > 60000 && dif === 0, `de 0.5 a 300 (± ) el formateador queda byte-idéntico a la forma anterior (${n} valores, ${dif} distintos)`);
+  /* un % medido chico en la Entrega: la fig 0.049 se dice «0.049%» */
+  const I = indiceDeEvidencia({ figs: [{ label: "Falabella · Carga comercial", value: "0.05%", unit: "pct", raw: 0.049, source: "computed" }], datoProyectado: cifrasDelDato(ESCENARIO_INICIAL, null), ejesDelTenant: ejes });
+  const lib = libroDeHechos([{ id: "h1", tipo: "cifra", sujeto: "Falabella", metrica: "carga", valor: "0.049%" }], { indice: I });
+  const h1 = lib.hechos[0];
+  const rendido = JSON.stringify(h1 && h1.render);
+  ok(!!h1 && /0\.049%/.test(rendido) && !/0\.05%/.test(rendido), "una cifra MEDIDA de 0.049 % (la boleta la muestra «0.05%») se rinde «0.049%» (nunca «0.05%»)", rendido);
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");

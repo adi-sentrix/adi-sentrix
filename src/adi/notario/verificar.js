@@ -19,6 +19,7 @@
  * Tres redacciones de la misma afirmación → el mismo veredicto, por construcción. Puro: sin I/O, sin red. */
 import { tolCalculo } from "../oracle/calculoCatalogo.js";
 import { parseFigures } from "../boleta.js";
+import { formatoDeUmbral } from "../../config/businessPolicy.js";   /* §7.3·40(d): el valor de una referencia de la casa se escribe EXACTO (la única función de la casa) */
 import { metricasEn } from "./evidencia.js";   // el del muro + las métricas derivadas de la proyección
 import { rangoDeMatiz } from "../agente/atributosYRelaciones.js";
 import { normalizarAfirmaciones, normalizar, menosAscii } from "./afirmacion.js";
@@ -547,7 +548,7 @@ export function valorDeReferencia(ref, I) { return _refRaw(ref, I); }
 function _refRaw(ref, I) {
   const m = metricaPorClave(ref);
   const nombres = m ? [m.nombre, ...m.conceptos] : [String(ref)];
-  for (const n of nombres) { let fs = []; try { fs = I.buscarFigs("negocio", n); } catch { fs = []; } const f = fs.find((g) => Number.isFinite(g.raw)); if (f) return { raw: f.raw, unidad: f.unidad, label: f.label, texto: f.texto || "" }; }
+  for (const n of nombres) { let fs = []; try { fs = I.buscarFigs("negocio", n); } catch { fs = []; } const f = fs.find((g) => Number.isFinite(g.raw)); if (f) return { raw: f.raw, unidad: f.unidad, label: f.label, texto: formatoDeUmbral(f.raw, f.unidad) || f.texto || "" }; }   /* §7.3·40(d): la referencia es un valor DECLARADO — su texto sale exacto de su crudo, no del redondeo con que la boleta la muestra */
   return null;
 }
 /* el conjunto de un estado: los de la Mesa Capital vienen de la proyección; los definidos (estados.js) se demuestran entidad por entidad */

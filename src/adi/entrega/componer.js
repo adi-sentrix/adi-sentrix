@@ -34,7 +34,7 @@ import { CONCEPT_DEFS } from "../sentrix/glossary.js";
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
 import { axisEntityNames } from "../oracle/entityIndex.js";
 import { indiceDeEvidencia } from "../notario/evidencia.js";
-import { libroDeHechos, asignarIds, renderDe, procedenciaDe, NOMBRE_DE_PROCEDENCIA, PROCEDENCIAS, validarUniverso, nombrarUniverso, dominioDeEstado, formatoDeLaCasa, esCifraPropia } from "../notario/hechos.js";
+import { libroDeHechos, asignarIds, renderDe, procedenciaDe, NOMBRE_DE_PROCEDENCIA, PROCEDENCIAS, validarUniverso, nombrarUniverso, dominioDeEstado, formatoDeLaCasa, formatoDeReferencia, esCifraPropia } from "../notario/hechos.js";
 import { periodoDeFiguras, reconcilian, UNIVERSOS, PERIODO_TXT, historiaDeFiguras } from "../../config/contract/figureType.js";
 // CORTE 3c (owner 2026-09-25, piezas 1 y 3 del encargo) — `conjuntoDeUniverso` es LA MISMA primitiva que ya
 // evalúa un universo tipado (estados/filtros) para el Notario v3 (`notario/hechos.js:_conteoTipado` la llama
@@ -4002,7 +4002,7 @@ export function componerEntrega(resolucion) {
     if (refCitada) {
       const r = valorDeReferencia(refCitada, I);
       const m = metricaPorClave(refCitada);
-      if (r && Number.isFinite(r.raw) && m) entrega.marco.referenciaDeclarada = { texto: `${m.nombre}: ${formatoDeLaCasa(r.raw, r.unidad || m.unidad)}, declarado por la empresa.`, hechoId: null };
+      if (r && Number.isFinite(r.raw) && m) entrega.marco.referenciaDeclarada = { texto: `${m.nombre}: ${formatoDeReferencia(r.raw, r.unidad || m.unidad)}, declarado por la empresa.`, hechoId: null };
     }
   }
   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6, MEDIA) — un `universo.base` que NOMBRA una cohorte derivada
@@ -4038,7 +4038,7 @@ export function componerEntrega(resolucion) {
     if (partesConBaseBenchmark || premisaConBaseBenchmark) {
       const benchRaw = benchmarkOf();
       if (Number.isFinite(benchRaw)) {
-        const benchFmt = formatoDeLaCasa(benchRaw, "pct");
+        const benchFmt = formatoDeReferencia(benchRaw, "pct");   /* §7.3·40(d): el benchmark es un valor DECLARADO — exacto */
         // regla 1 «cero cifras desnudas» (verificar.js): el dígito impreso en el Marco tiene que casar con algo
         // que el compositor DECLARÓ como legítimo — sin `R()` (no hay hecho con id que citar, ver el comentario de
         // arriba) hay que declararlo a mano en `cifrasImpresas`, el mismo registro que usa toda esta función.
@@ -4106,7 +4106,7 @@ export function componerEntrega(resolucion) {
       // una PREMISA de estado («¿LG está frenado?») también pone en juego el estado de la familia con `operativaSinOficial`:
       // sin esto, el umbral que planteó quien consulta se ignoraría en silencio cuando solo aparece en una premisa.
       if (familiaRef.operativaSinOficial || familiaRef.umbral) for (const pr of resolucion.premisas || []) { const e = typeof pr.estado === "string" ? estadoDeclarado(pr.estado) : null; if (e) basesEnJuego.add(normalizar(e)); }
-      const valFmt = formatoDeLaCasa(refUsuario.valor, refUsuario.unidad || "pct");
+      const valFmt = formatoDeReferencia(refUsuario.valor, refUsuario.unidad || "pct");   /* §7.3·40(d): la referencia que la consulta planteó es un valor DECLARADO — exacto, nunca redondeado */
       const _nombreDeLasEntidades = (set) => [...set].map((k) => (I.entidades && I.entidades.get ? (I.entidades.get(k) || { nombre: k }).nombre : k));
       // ETAPA 6 (§7.3·35) — la referencia de la consulta es la OPERATIVA (la empresa no declaró la suya): no hay oficial
       // contra el cual declarar «serían N»; el veredicto de ESTA respuesta ya se calculó con ella (índice) y lo que

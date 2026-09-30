@@ -21,7 +21,7 @@ import { parsearLineasDeBloque, MARCA_FIN } from "./declaracion.js";
 import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO, opDe, esReferencia, AUSENTE_VALE_CERO, diasEnPalabras } from "./lexico.js";
 import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn, estadoDeclarado, ejeCompatible, COMPLEMENTO_V3, estadosValidosPara, formaDeEstado, verificarEstadoDeLaCasa, ESTADOS_PROPIOS, METRICA_DE_ESTADO } from "./estados.js";
 import { referenciaDeBase, referenciaDeEstado, conjuntoConocido, estadoDeConjunto, nombreDeMetricaDeReferencia } from "./conjuntosDeLaCasa.js";   // §7.3, tarea 4 (supervisor 2026-09-27, diagnóstico v8/v9): la tabla base→referencia y estado→referencia viven en UN registro, compartida con notario/verificar.js — nunca dos tablas que puedan divergir
-import { formatoPct } from "../../config/businessPolicy.js";   // §7.3·40(b): la forma de la casa del porcentaje, una sola definición (la comparte el valor de un umbral en pct)
+import { formatoPct, formatoDeUmbral } from "../../config/businessPolicy.js";   // §7.3·40(b): la forma de la casa del porcentaje, una sola definición (la comparte el valor de un umbral en pct)
 import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // §7.3·28 (SUPERVISOR, ley de registro del owner): ÚNICA fuente de "qué palabra está vetada del registro" — la misma que usa `_registro_gate`/`entrega/verificar.js` (regla `registro-informal`)
 
 export const MARCA_HECHOS = "<<HECHOS>>";
@@ -319,6 +319,10 @@ export function formatoDeLaCasa(raw, unidad) {
     default: return String(Math.round(raw * 100) / 100);
   }
 }
+/* §7.3·40(d) — un valor DECLARADO (el de una referencia de la casa —benchmark, nivel de carga, piso de rotación, techo de cobertura, umbral de frenado— o el umbral que la consulta plantea en un filtro) se escribe EXACTO, nunca con
+ * el redondeo de una cifra medida: es un número declarado, no una medición. La ÚNICA función es `businessPolicy.js:formatoDeUmbral` (la misma del Marco y del criterio aplicado); acá solo se completa para las unidades sin forma
+ * exacta (dinero, puntos, conteos), que siguen con el formato de la casa. El ORIGEN decide (quien llama trae una referencia o un umbral, no una medición), jamás el número. */
+export const formatoDeReferencia = (raw, unidad) => (Number.isFinite(raw) ? formatoDeUmbral(raw, unidad) : null) ?? formatoDeLaCasa(raw, unidad);
 /* §7.3·40(b) — UNA sola forma por cifra: un % que la boleta imprime con un decimal de más («24.0%», el `_p1` del retrieval legado) se dice con el formato de la casa («24%», el de la tabla de Cifras) SOLO si
  * ese texto conserva el valor a la precisión de lo impreso; si no lo conserva se deja el impreso. Nunca cambia el valor ni la boleta: solo la forma en que la Entrega lo ESCRIBE. Un % con signo dicho («+6.6%») se deja. */
 export function textoDeLaCasa(raw, unidad, texto) {
@@ -363,11 +367,11 @@ const _fmtUmbral = (f, I = null) => {
     // notario/verificar.js, ya usa para juzgar este mismo filtro — nunca una segunda cifra inventada). Sin `I`
     // (un llamador que no lo tenga a mano, p. ej. un placeholder `{id.umbral}` fuera de este archivo) se sirve el
     // nombre solo, como antes — documentado, nunca silencioso.
-    if (I) { const r = valorDeReferencia(f.ref, I); if (r && Number.isFinite(r.raw)) return `${base}, ${formatoDeLaCasa(r.raw, r.unidad || unidadDeClave(f.ref) || "pct")}`; }
+    if (I) { const r = valorDeReferencia(f.ref, I); if (r && Number.isFinite(r.raw)) return `${base}, ${formatoDeReferencia(r.raw, r.unidad || unidadDeClave(f.ref) || "pct")}`; }
     return base;
   }
   const unidad = f.unidad ? String(f.unidad) : unidadDeClave(clave) || "";
-  const val = (v) => (/^(?:days|money|pct|pp|count|ratio)$/.test(unidad) ? formatoDeLaCasa(+v, unidad) : `${v} ${unidad}`);
+  const val = (v) => (/^(?:days|money|pct|pp|count|ratio)$/.test(unidad) ? formatoDeReferencia(+v, unidad) : `${v} ${unidad}`);   /* §7.3·40(d): el valor que la CONSULTA planteó en un filtro es declarado: exacto (dinero y conteos siguen con el formato de la casa) */
   if (f.op === "entre") { const v = Array.isArray(f.valor) ? f.valor : [f.valor, f.hasta]; return `${nombre} entre ${val(v[0])} y ${val(v[1])}`; }
   return `${nombre} ${_OPS[f.op] || "superior a"} ${val(f.valor)}`;
 };
@@ -392,7 +396,7 @@ export function nombrarUniverso(u, I = null) {
     const rRef = fam ? valorDeReferencia(fam.concepto, I) : null;
     if (rRef && Number.isFinite(rRef.raw)) {
       const mRef = metricaPorClave(fam.concepto);
-      partes.push(`${_nombreDeBase(_baseStr)}, ${mRef ? mRef.nombre.toLowerCase() : fam.concepto} ${formatoDeLaCasa(rRef.raw, rRef.unidad || "pct")}`);   // el nombre VISIBLE del conjunto (owner 2026-09-29): «con carga comercial alta», no el identificador a secas
+      partes.push(`${_nombreDeBase(_baseStr)}, ${mRef ? mRef.nombre.toLowerCase() : fam.concepto} ${formatoDeReferencia(rRef.raw, rRef.unidad || "pct")}`);   // el nombre VISIBLE del conjunto (owner 2026-09-29): «con carga comercial alta», no el identificador a secas
     } else partes.push(_nombreDeBase(_baseStr));
   }
   for (const e of _lista(u.estados)) partes.push(formaDeEstado(_canonDe(e)).plural);
@@ -484,7 +488,10 @@ const _operando = (I, x, libro = null) => {
   if (_es(x)) { if (x.id) return _figPorId(I, x.id) || _operandoDeHecho(I, libro, x.id); if (x.sujeto != null && x.metrica != null) return _figDe(I, x.sujeto === "negocio" || /^(?:negocio|total)$/i.test(String(x.sujeto)) ? "negocio" : x.sujeto, x.metrica); }
   return null;
 };
-const _fmtFig = (f) => `${f.label} = ${f.texto || (f.fig && f.fig.value) || formatoDeLaCasa(f.raw, f.unidad)}`;
+/* §7.3·40(d): una fig cuya métrica ES una referencia de la casa (`lexico.js`, `referencia: true` —la MISMA marca que ya decide la procedencia «estimación contra referencia»—) es un valor declarado: su texto sale EXACTO de su crudo
+ * (`formatoDeUmbral`), nunca del redondeo con que la boleta la muestra. Por su ORIGEN (qué métrica es), nunca por su número; una unidad sin forma exacta (dinero) conserva el texto de siempre. */
+const _textoDeReferencia = (f) => { const c = f && claveDeMetrica(f.concepto); return c && esReferencia(c) && Number.isFinite(f.raw) ? formatoDeUmbral(f.raw, f.unidad) : null; };
+const _fmtFig = (f) => `${f.label} = ${_textoDeReferencia(f) || f.texto || (f.fig && f.fig.value) || formatoDeLaCasa(f.raw, f.unidad)}`;
 /* tolerancia de una razón dicha: media unidad de su precisión + 0,02 puntos (la de tasas.js) */
 const _tolPct = (texto) => { const m = /(\d+)(?:[.,](\d+))?\s*%/.exec(String(texto || "")); const dec = m && m[2] ? m[2].length : 0; return 0.5 / Math.pow(10, dec) + 0.02; };
 
@@ -519,7 +526,7 @@ function _deFig(H, I, f, sujeto = null) {
   if (c) H.claves.add(c); else H.claves.add(normalizar(f.concepto).replace(/\s+/g, "_"));
   H.dominio = _dominioDeFig(f); H.polaridad = c ? polaridadDeClave(c) : null;
   H.numeros.push({ raw: f.raw, unidad: f.unidad, texto: f.texto || (f.fig && f.fig.value) || "", clave: c || normalizar(f.concepto).replace(/\s+/g, "_") });
-  H.render.valor = textoDeLaCasa(f.raw, f.unidad, f.texto || (f.fig && String(f.fig.value))) || formatoDeLaCasa(f.raw, f.unidad);
+  H.render.valor = _textoDeReferencia(f) || textoDeLaCasa(f.raw, f.unidad, f.texto || (f.fig && String(f.fig.value))) || formatoDeLaCasa(f.raw, f.unidad);
   { const declarado = _origenDeclaradoDeFig(f); _aplicarComposicion(H, [{ origen: _origenDeFigStruct(f), naturaleza: _naturalezaDeFig(f), id: _idDeOperando(f), rol: "valor", crudo: f.crudo !== false, verificado: declarado && declarado.verificado === true }]); const conf = f.confirmacion || (f.fig && f.fig.confirmacion); if (conf && typeof conf === "object") H.confirmacion = conf; }
   if (f.agregado) { H.universo = { set: null, fuente: f.universoTexto || f.calificador || "", texto: f.universoTexto || "" }; H.render.universo = f.universoTexto || ""; }
   if (/anterior|pasado/.test(f.conceptoNorm) && !/variacion|vs/.test(f.conceptoNorm)) H.periodo = "anterior";
@@ -775,7 +782,7 @@ function _conteoTipado(H, h, I) {
   // imprime en la oración de la premisa), no «lo directo tal como llegó»: se formatea con `formatoDeLaCasa`
   // (la MISMA función que ya usa este archivo para cualquier otro número calculado, línea ~1005), nunca
   // `String(f.valor)` a secas — antes el número crudo de la consulta (`5000000`) llegaba tal cual al texto.
-  for (const f of Array.isArray(u.filtros) ? u.filtros : []) { _addClave(H, f.metrica); if (f.valor != null && !Array.isArray(f.valor)) { const unidad = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)) ? "days" : (f.unidad || unidadDeClave(f.metrica) || "count"); const raw = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)) ? diasDe(f.valor, f.unidad) : +f.valor; H.numeros.push({ raw: +f.valor, unidad: unidad === "days" && raw !== +f.valor ? "count" : unidad, texto: formatoDeLaCasa(+f.valor, unidad === "days" && raw !== +f.valor ? "count" : unidad) || String(f.valor), dueno: "universo" }); if (raw != null && raw !== +f.valor) H.numeros.push({ raw, unidad: "days", texto: `${raw} días`, dueno: "universo" }); H.render.umbral = _fmtUmbral(f).replace(/^.*?(?:superior a|de al menos|inferior a|de hasta|igual a|entre)\s+/, ""); } }
+  for (const f of Array.isArray(u.filtros) ? u.filtros : []) { _addClave(H, f.metrica); if (f.valor != null && !Array.isArray(f.valor)) { const unidad = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)) ? "days" : (f.unidad || unidadDeClave(f.metrica) || "count"); const raw = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)) ? diasDe(f.valor, f.unidad) : +f.valor; H.numeros.push({ raw: +f.valor, unidad: unidad === "days" && raw !== +f.valor ? "count" : unidad, texto: formatoDeReferencia(+f.valor, unidad === "days" && raw !== +f.valor ? "count" : unidad) || String(f.valor), dueno: "universo" }); if (raw != null && raw !== +f.valor) H.numeros.push({ raw, unidad: "days", texto: `${raw} días`, dueno: "universo" }); H.render.umbral = _fmtUmbral(f).replace(/^.*?(?:superior a|de al menos|inferior a|de hasta|igual a|entre)\s+/, ""); } }
   if (u.top) { _addClave(H, u.top.metrica); H.numeros.push({ raw: +u.top.k, unidad: "count", texto: String(u.top.k), dueno: "universo" }); H.render.k = String(u.top.k); }
   for (const e of [..._lista(u.estados), ..._lista(u.no_estados), ..._lista(u.excluir && u.excluir.estados)]) { const c = _canonDe(e); H.estado = H.estado || c; H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(c); if (!H.dominio) H.dominio = dominioDeEstado(c); }
   H.numeros.push({ raw: set.size, unidad: "count", texto: String(set.size), dueno: "universo" }, { raw: mBase, unidad: "count", texto: String(mBase), dueno: "universo" });
@@ -800,7 +807,7 @@ function _conteoTipado(H, h, I) {
     const rRef = valorDeReferencia(fam.concepto, I);
     if (!rRef || !Number.isFinite(rRef.raw)) continue;
     const mRef = metricaPorClave(fam.concepto);
-    const valTxt = formatoDeLaCasa(rRef.raw, rRef.unidad || "pct");
+    const valTxt = formatoDeReferencia(rRef.raw, rRef.unidad || "pct");
     if (verdad.includes(valTxt)) break;
     verdad = `${verdad}, ${mRef ? mRef.nombre.toLowerCase() : fam.concepto} ${valTxt}`;
     break;
@@ -1213,14 +1220,14 @@ export function libroDeHechos(hechos, ctx = {}) {
         // `_rotuloDeLaCasaDeH` (componer.js) imprimía «Easy: contribución 1» (el `k`=1 del top, no los $ de Easy).
         // Para `grupo`/`conteo` este número SÍ hace falta (su gemelo de `_conteoTipado`, citado arriba, lo declara
         // igual) — se acota el chequeo a excluir SOLO `orden`, sin tocar los otros dos tipos ni ninguna otra rama.
-        if (_es(u)) { for (const f of Array.isArray(u.filtros) ? u.filtros : []) { _addClave(H, f.metrica); if (f.valor != null && !Array.isArray(f.valor)) { const enDias = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)); H.numeros.push({ raw: +f.valor, unidad: enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count"), texto: formatoDeLaCasa(+f.valor, enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count")) || String(f.valor), dueno: "universo" }); if (enDias) { const d = diasDe(f.valor, f.unidad); if (d != null) H.numeros.push({ raw: d, unidad: "days", texto: `${d} días`, dueno: "universo" }); } H.render.umbral = _fmtUmbral(f).replace(/^.*?(?:superior a|de al menos|inferior a|de hasta|igual a|entre)\s+/, ""); } } if (u.top) { _addClave(H, u.top.metrica); if (tipo !== "orden") H.numeros.push({ raw: +u.top.k, unidad: "count", texto: String(u.top.k), dueno: "universo" }); } for (const e of [..._lista(u.estados), ..._lista(u.no_estados), ..._lista(u.excluir && u.excluir.estados)]) { H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(_canonDe(e)); }
+        if (_es(u)) { for (const f of Array.isArray(u.filtros) ? u.filtros : []) { _addClave(H, f.metrica); if (f.valor != null && !Array.isArray(f.valor)) { const enDias = f.unidad && !/^(?:days|money|pct|pp|count|ratio)$/.test(String(f.unidad)); H.numeros.push({ raw: +f.valor, unidad: enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count"), texto: formatoDeReferencia(+f.valor, enDias ? "count" : (f.unidad || unidadDeClave(f.metrica) || "count")) || String(f.valor), dueno: "universo" }); if (enDias) { const d = diasDe(f.valor, f.unidad); if (d != null) H.numeros.push({ raw: d, unidad: "days", texto: `${d} días`, dueno: "universo" }); } H.render.umbral = _fmtUmbral(f).replace(/^.*?(?:superior a|de al menos|inferior a|de hasta|igual a|entre)\s+/, ""); } } if (u.top) { _addClave(H, u.top.metrica); if (tipo !== "orden") H.numeros.push({ raw: +u.top.k, unidad: "count", texto: String(u.top.k), dueno: "universo" }); } for (const e of [..._lista(u.estados), ..._lista(u.no_estados), ..._lista(u.excluir && u.excluir.estados)]) { H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(_canonDe(e)); }
           // §7.3, tarea 4 (segunda tanda): un `union` trae sus propios filtros DENTRO de cada miembro — declaran
           // su clave acá, con el MISMO `_addClave` de arriba, para que el rescate de la referencia (más abajo, el
           // bloque «GENERALIZACIÓN A filtros[].ref») sepa qué métrica reporta la entidad también en este caso.
           if (Array.isArray(u.union)) for (const v of u.union) if (_es(v)) for (const f of Array.isArray(v.filtros) ? v.filtros : []) _addClave(H, f.metrica);
         }
       }
-      if (tipo === "cifra" && v.veredicto === "verdadera") { const f = (v.evidencia || []).map((l) => I.figs.find((g) => normalizar(g.label) === normalizar(l))).find(Boolean); if (f) { H.render.valor = textoDeLaCasa(f.raw, f.unidad, f.texto || (f.fig && String(f.fig.value)) || ""); if (!H.dominio) H.dominio = _dominioDeFig(f); } if (!H.render.valor && a2.valor && a2.valor.texto) H.render.valor = a2.valor.texto; }
+      if (tipo === "cifra" && v.veredicto === "verdadera") { const f = (v.evidencia || []).map((l) => I.figs.find((g) => normalizar(g.label) === normalizar(l))).find(Boolean); if (f) { H.render.valor = _textoDeReferencia(f) || textoDeLaCasa(f.raw, f.unidad, f.texto || (f.fig && String(f.fig.value)) || ""); if (!H.dominio) H.dominio = _dominioDeFig(f); } if (!H.render.valor && a2.valor && a2.valor.texto) H.render.valor = a2.valor.texto; }
       if (tipo === "grupo") { const gv = leerValor(a2.valor); if (gv && gv.texto) H.render.valor = _canonTexto(gv.texto); }
       // A4 (v7 «A4a», generalizada por el supervisor 2026-09-27, diagnóstico v8, §7.3 «las comparables viajan
       // juntas», entrega/verificar.js) — un grupo de MEMBRESÍA PURA (sin valor declarado: `afirmacion.js` ya no
@@ -1242,7 +1249,7 @@ export function libroDeHechos(hechos, ctx = {}) {
           const rRef = valorDeReferencia(fam.concepto, I);
           if (rRef && Number.isFinite(rRef.raw)) {
             const mRef = metricaPorClave(fam.concepto);
-            const valTxt = formatoDeLaCasa(rRef.raw, rRef.unidad || "pct");
+            const valTxt = formatoDeReferencia(rRef.raw, rRef.unidad || "pct");
             const refTxt = `${mRef ? mRef.nombre.toLowerCase() : fam.concepto} ${valTxt}`;
             if (!H.numeros.some((n) => n.texto === valTxt)) {
               H.verdad = `${H.verdad || ""}${H.verdad ? ", " : ""}${refTxt}`;
@@ -1277,7 +1284,7 @@ export function libroDeHechos(hechos, ctx = {}) {
           const rRefO = valorDeReferencia(famO.concepto, I);
           if (rRefO && Number.isFinite(rRefO.raw)) {
             const mRefO = metricaPorClave(famO.concepto);
-            const valTxtO = formatoDeLaCasa(rRefO.raw, rRefO.unidad || "pct");
+            const valTxtO = formatoDeReferencia(rRefO.raw, rRefO.unidad || "pct");
             H.render.referencia = `${mRefO ? mRefO.nombre.toLowerCase() : famO.concepto} ${valTxtO}`;
           }
         }
@@ -1291,7 +1298,7 @@ export function libroDeHechos(hechos, ctx = {}) {
           const rRefX = valorDeReferencia(famX.concepto, I);
           if (!rRefX || !Number.isFinite(rRefX.raw)) continue;
           const mRefX = metricaPorClave(famX.concepto);
-          const refTxtX = `${mRefX ? mRefX.nombre.toLowerCase() : famX.concepto} ${formatoDeLaCasa(rRefX.raw, rRefX.unidad || "pct")}`;
+          const refTxtX = `${mRefX ? mRefX.nombre.toLowerCase() : famX.concepto} ${formatoDeReferencia(rRefX.raw, rRefX.unidad || "pct")}`;
           if (!(H.render.referencia && H.render.referencia.includes(refTxtX))) H.render.referencia = H.render.referencia ? `${H.render.referencia}, ${refTxtX}` : refTxtX;
         }
       }
@@ -1314,7 +1321,7 @@ export function libroDeHechos(hechos, ctx = {}) {
         const rRefE = valorDeReferencia(famE.concepto, I);
         if (!rRefE || !Number.isFinite(rRefE.raw)) continue;
         const mRefE = metricaPorClave(famE.concepto);
-        const valTxtE = formatoDeLaCasa(rRefE.raw, rRefE.unidad || "pct");
+        const valTxtE = formatoDeReferencia(rRefE.raw, rRefE.unidad || "pct");
         const refTxtE = `${mRefE ? mRefE.nombre.toLowerCase() : famE.concepto} ${valTxtE}`;
         // tipo "estado" (verify.js:_estado) YA puede traer el valor en `H.verdad` (estados.js declara el piso a la
         // MISMA precisión, `.toFixed(1)`, ronda A4) — solo se agrega si NINGUNA de las dos formas (H.numeros o
@@ -1399,7 +1406,7 @@ export function libroDeHechos(hechos, ctx = {}) {
           const rRef = valorDeReferencia(f.ref, I);
           if (!rRef || !Number.isFinite(rRef.raw)) continue;
           const mRef = metricaPorClave(f.ref);
-          const valTxt = formatoDeLaCasa(rRef.raw, rRef.unidad || "pct");
+          const valTxt = formatoDeReferencia(rRef.raw, rRef.unidad || "pct");
           if (H.render.referencia && H.render.referencia.includes(valTxt)) continue;   // ya declarada (misma cifra)
           const refTxt2 = `${mRef ? mRef.nombre.toLowerCase() : f.ref} ${valTxt}`;
           H.render.referencia = H.render.referencia ? `${H.render.referencia}, ${refTxt2}` : refTxt2;
