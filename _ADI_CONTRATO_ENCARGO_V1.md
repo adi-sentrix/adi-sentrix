@@ -685,6 +685,18 @@ venta a crédito, ley del owner).
     (d) Un UMBRAL DECLARADO (por la empresa, la consulta o como criterio de ADI) se escribe con su valor declarado
     exacto («0.75%», nunca «0.8%»), en el Marco, en el veredicto y en la referencia: es un número declarado, no una medición.
     El formato de la casa con redondeo vale para las cifras MEDIDAS.
+41. [2026-09-30, supervisor; diagnóstico v17]
+    (a) Precisa la 40(a): un conjunto que es un estado SIN umbral (p. ej. «con saldo vencido» = «en mora», definido
+    como saldo vencido > 0) no declara umbrales; en la Entrega puede nombrarse como el conjunto o como el estado.
+    (b) Precisa la 40(d) junto con la 12, la 19 y la 37(b): una referencia planteada en la consulta que NO reemplaza a
+    la oficial se escribe exacta en su declaración al lado (la referencia declarada o el límite), no en el Marco ni en el
+    veredicto; esos llevan la oficial con que se juzgó. Cuando la referencia de la consulta ES la operativa
+    (`umbral_frenado` sin umbral oficial), va exacta en las tres.
+    (c) La verdad propia de una premisa falsa de grupo trae la entidad, su cifra propia (o su estado propio) y la
+    referencia. NO se exige la fórmula «lo deja fuera <conjunto>» con esas palabras; con `top`, si la entidad está fuera
+    del top, su puesto es una razón verdadera y suficiente.
+    (d) Las referencias de la consulta sobre el piso de materialidad caen en la 19: se declaran al lado del piso oficial
+    con su origen y nunca lo reemplazan en silencio.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
