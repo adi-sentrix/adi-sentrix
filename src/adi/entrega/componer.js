@@ -19,7 +19,7 @@
  * este módulo no se importa desde ningún camino de producción todavía — lo ejercita solo el gate. */
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
 import { benchmarkOf, ETIQUETA_ORIGEN, umbral, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, NOMBRE_DE_UMBRAL, valorDeUmbralEnTexto, procedenciaDeMaterialidad } from "../../config/businessPolicy.js";
-import { umbralesDeBases, umbralesDeConceptos } from "../notario/conjuntosDeLaCasa.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
+import { umbralesDeBases, umbralesDeConceptos, NOMBRE_CARGA_ALTA } from "../notario/conjuntosDeLaCasa.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
 import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "../agente/herramientasAgente.js";
@@ -32,6 +32,7 @@ import { buildRolesCartera } from "../sentrix/rolesCartera.js";
 // establecido en este archivo (`rolesCartera.js`, línea de arriba) — no es una capa nueva.
 import { CONCEPT_DEFS } from "../sentrix/glossary.js";
 import { cifrasDelDato } from "../oracle/datoProyectado.js";
+import { descomposicionDeBrecha } from "../specRetrieval.js";   // v17 (W27): el detector de «carga comercial alta», la MISMA función que la proyección y la boleta — para declarar cuántas cuentas serían con el piso que planteó la consultaimport { axisEntityNames } from "../oracle/entityIndex.js";
 import { axisEntityNames } from "../oracle/entityIndex.js";
 import { indiceDeEvidencia } from "../notario/evidencia.js";
 import { libroDeHechos, asignarIds, renderDe, procedenciaDe, NOMBRE_DE_PROCEDENCIA, PROCEDENCIAS, validarUniverso, nombrarUniverso, dominioDeEstado, formatoDeLaCasa, formatoDeReferencia, esCifraPropia } from "../notario/hechos.js";
@@ -224,8 +225,10 @@ function _limitePerfilIncompleto(perfil) {
  * error a la vista, nunca en silencio (CLAUDE.md §5: «declara, no esconde»). Es el CIMIENTO para que una
  * pregunta de seguimiento («de esos, ¿cuál priorizo?») se resuelva sobre el universo correcto — la conversación
  * en sí queda para más adelante (Etapa 6 del plan), acá solo se declara la identidad. */
-function _declararUniverso(entrega, I, { id, eje, top = null, base = null, filtros = null, excluir = null, periodo = null, entidades = [], criterio = null, estados = null, no_estados = null, soloRanking = false }) {
+function _declararUniverso(entrega, I, { id, eje, top = null, base = null, filtros = null, excluir = null, periodo = null, entidades = [], criterio = null, estados = null, no_estados = null, soloRanking = false, bodega = null, union = null }) {
   const u = { eje };
+  if (bodega) u.bodega = bodega;
+  if (Array.isArray(union) && union.length) u.union = union;
   if (top) u.top = top;
   if (base) u.base = base;
   if (filtros) u.filtros = filtros;
@@ -2038,7 +2041,24 @@ function _rotuloDeLaCasaLegado(H) {
   // se dice «no tiene …», nunca «(ausente = 0)».
   // 39(c) (diagnóstico v15): UN criterio para toda métrica —un cero, medido o por ausencia del conjunto, se dice «no tiene …» junto a su cifra (`dichoElCero`, la forma de la casa en el léxico)—.
   const _dice = (m) => (m ? (m.ausente || esCero(m.raw, m.unidad) ? dichoElCero(m.nombre, m.texto) : `${m.nombre} ${m.texto}`) : "");
+  const _fraseDeVP = (vp) => {
+    if (vp.excluidaPorLaConsulta) return `${vp.entidad}: fuera del universo por exclusión de la consulta`;
+    const nombreM = vp.metrica ? vp.metrica.nombre : null;
+    const partes = [];
+    if (vp.estado) partes.push(`está ${vp.estado.texto}`);
+    if (vp.metrica) partes.push(_dice(vp.metrica));
+    if (vp.puesto) partes.push(`puesto ${vp.puesto.n} de ${vp.puesto.de} al ordenar de ${vp.puesto.dir === "menor" ? "menor a mayor" : "mayor a menor"} por ${nombreM}`);
+    return `${vp.entidad}: ${partes.join(", ")}`;
+  };
+  /* §7.3·37a (v17): una premisa de VARIOS miembros dice la verdad de CADA uno que el universo deja fuera, con su dueño */
+  const vps = H.render && H.render.verdadesPropias;
+  if (Array.isArray(vps) && vps.length) {
+    const cuerpo = vps.map(_fraseDeVP).join("; ");
+    const refL = H.render.referencia && !cuerpo.includes(H.render.referencia) ? `, ${H.render.referencia}` : "";
+    return `${cuerpo}${refL}`;
+  }
   const vp = H.render && H.render.verdadPropia;
+  if (vp && vp.entidad && vp.excluidaPorLaConsulta) return _fraseDeVP(vp);
   if (vp && vp.entidad) {
     const nombreM = vp.metrica ? vp.metrica.nombre : null;
     const partes = [];
@@ -2547,7 +2567,8 @@ function _planComparacion(parte, figs, ref, declararDerivada) {
     const idA = ref(figA), idB = ref(figB);
     if (!idA || !idB) continue;
     const idDiff = declararDerivada(figA, idA, figB, idB);
-    pares.push({ concepto, idA, idB, idDiff });
+    /* §7.3·39(c)/40(c) (v17, P-C): un lado que vale exactamente 0 (cantidad: dinero, días, unidades) se dice en palabras junto a su cifra, con el mismo criterio de toda superficie (`esCero`/`dichoElCero`) */
+    pares.push({ concepto, idA, idB, idDiff, ceroA: esCero(figA.raw, figA.unit), ceroB: esCero(figB.raw, figB.unit) });
   }
   if (!pares.length) return null;
   return { kind: "comparacion", tema: parte.tema, parteId: parte.id, a: a.nombre, b: b.nombre, pares };
@@ -3587,7 +3608,7 @@ export function componerEntrega(resolucion) {
         // oración «El top K de M» de arriba) esa regla nunca los mira como si fueran de esta entidad.
         else if (lenteTxt && idsCabeza.length) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${prefijo.charAt(0).toLowerCase()}${prefijo.slice(1)}, ordenado por ${(_labelDeClave(plan.claveOrden) || plan.claveOrden || lenteTxt).toLowerCase()}, lo encabeza ${plan.orden[0]}.`, hechos: idsCabeza });
       }
-      _declararUniverso(entrega, I, { id: plan.idUniverso || plan.parteId, eje: plan.eje, top: plan.universoDecl.top, base: plan.universoDecl.base, estados: plan.universoDecl.estados, no_estados: plan.universoDecl.no_estados, filtros: plan.universoDecl.filtros, excluir: plan.universoDecl.excluir, entidades: plan.orden });
+      _declararUniverso(entrega, I, { id: plan.idUniverso || plan.parteId, eje: plan.eje, top: plan.universoDecl.top, base: plan.universoDecl.base, estados: plan.universoDecl.estados, no_estados: plan.universoDecl.no_estados, filtros: plan.universoDecl.filtros, excluir: plan.universoDecl.excluir, bodega: plan.universoDecl.bodega, union: plan.universoDecl.union, entidades: plan.orden });
     } else if (plan.kind === "comparacion") {
       temasCubiertos.add(plan.tema);
       for (const p of plan.pares) {
@@ -3595,7 +3616,8 @@ export function componerEntrega(resolucion) {
         entrega.cifras.filas.push(_fila(plan.b, plan.tema, p.concepto, p.idB));
         if (p.idDiff) entrega.cifras.filas.push(_fila(`${plan.a} − ${plan.b}`, plan.tema, `Diferencia · ${p.concepto}`, p.idDiff));
       }
-      const frases = plan.pares.slice(0, 4).map((p) => `en ${p.concepto.toLowerCase()}, ${plan.a} ${R(p.idA)} contra ${plan.b} ${R(p.idB)}`);
+      const _ladoCmp = (concepto, id, cero) => (cero ? dichoElCero(concepto.toLowerCase(), R(id)) : R(id));
+      const frases = plan.pares.slice(0, 4).map((p) => `en ${p.concepto.toLowerCase()}, ${plan.a} ${_ladoCmp(p.concepto, p.idA, p.ceroA)} contra ${plan.b} ${_ladoCmp(p.concepto, p.idB, p.ceroB)}`);
       entrega.respuesta.push({ texto: `Comparando ${plan.a} y ${plan.b}: ${frases.join("; ")}.`, hechos: plan.pares.flatMap((p) => [p.idA, p.idB]) });
       _declararUniverso(entrega, I, { id: plan.parteId, eje: (resolucion.partes.find((p) => p.id === plan.parteId) || {}).eje || "cliente", entidades: [plan.a, plan.b] });
     } else if (plan.kind === "simulacion") {
@@ -3810,7 +3832,7 @@ export function componerEntrega(resolucion) {
         if (lenteTxt && idPrimero != null) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${plan.miembros[0]}, con ${R(idPrimero)} en ${(plan.claveOrden ? _labelDeClave(plan.claveOrden) : lenteTxt).toLowerCase()}.`, hechos: [plan.idConteo, idPrimero] });
         else if (lenteTxt) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${plan.miembros[0]} (${kTxt} de ${mTxt} en ${uTxt}).`, hechos: [plan.idConteo] });
       }
-      _declararUniverso(entrega, I, { id: plan.parteId, eje: plan.eje, filtros: (plan.universo && plan.universo.filtros) || null, estados: (plan.universo && plan.universo.estados) || null, no_estados: (plan.universo && plan.universo.no_estados) || null, entidades: plan.miembros });
+      _declararUniverso(entrega, I, { id: plan.parteId, eje: plan.eje, top: (plan.universo && plan.universo.top) || null, base: (plan.universo && plan.universo.base) || null, filtros: (plan.universo && plan.universo.filtros) || null, excluir: (plan.universo && plan.universo.excluir) || null, estados: (plan.universo && plan.universo.estados) || null, no_estados: (plan.universo && plan.universo.no_estados) || null, entidades: plan.miembros });
     } else if (plan.kind === "multitema") {
       // R-INICIATIVA-UNIVERSO-NO-ENTIDADES / V81 (diagnóstico v6, coordinador 2026-09-26/27) — un plan degradado
       // (`_planMultiTema` sin señal de riesgo en el universo restringido) no dice nada por sí solo: se declara
@@ -4088,6 +4110,10 @@ export function componerEntrega(resolucion) {
     // y la Entrega la ignoraba en silencio (la cara opuesta de «nunca reemplaza a la oficial en silencio»). Su conjunto no se nombra
     // por `base` ni por estado sino por el FILTRO que cita la referencia (`filtros[].ref`): la dirección se dispara por `ref`.
     techo_cobertura: { eje: "sku", metrica: "dias_inventario", umbral: "dohMax", nombreDeLaEmpresa: { articulo: "el", nucleo: "techo de cobertura de la empresa" }, direcciones: { sobre: { ref: "techo_cobertura", op: ">" } } },
+    // v17 (W27, §7.3·19 «la referencia del usuario vale para TODA referencia que define un conjunto de la casa»): la SEXTA — el piso de materialidad (`materialidadFocoPctVenta`, % de la venta) que decide
+    // «carga comercial alta» (`UMBRALES_DE_BASE`). Sin esta entrada, `criterio.referencia{umbral_materialidad}` se ignoraba en silencio. Se declara AL LADO del piso oficial (su origen sale de `umbral().origen`:
+    // criterio general de ADI o declarado por la empresa) y nunca lo reemplaza: el conjunto alternativo lo calculan las MISMAS filas del detector (`descomposicionDeBrecha`) con el otro piso. Ni `direcciones` ni `umbral`: no pasan por la ruta de las demás.
+    umbral_materialidad: { eje: "cliente", pisoDePolicy: "materialidadFocoPctVenta", detector: NOMBRE_CARGA_ALTA, direcciones: {} },
   };
   {
     const refUsuario = resolucion.criterio && resolucion.criterio.referencia;
@@ -4101,8 +4127,8 @@ export function componerEntrega(resolucion) {
       const _estadosCasa = (u) => [...(Array.isArray(u && u.estados) ? u.estados : []), ...(Array.isArray(u && u.no_estados) ? u.no_estados : [])].map((e) => estadoDeclarado(e)).filter(Boolean);
       // (2) PARTES y PREMISAS, unidas — nunca solo partesUtiles.
       const basesEnJuego = new Set();
-      for (const p of partesUtiles) { const b = _baseCasa(p.universo); if (b) basesEnJuego.add(normalizar(b)); for (const e of _estadosCasa(p.universo)) basesEnJuego.add(normalizar(e)); for (const r of _refsCasa(p.universo)) basesEnJuego.add(normalizar(r)); }
-      for (const pr of resolucion.premisas || []) { const uu = pr.universo != null ? pr.universo : pr.de; const b = _baseCasa(uu); if (b) basesEnJuego.add(normalizar(b)); for (const e of _estadosCasa(uu)) basesEnJuego.add(normalizar(e)); for (const r of _refsCasa(uu)) basesEnJuego.add(normalizar(r)); }
+      for (const p of partesUtiles) { for (const nb of _basesDeUniverso(p.universo)) basesEnJuego.add(normalizar(nb)); const b = _baseCasa(p.universo); if (b) basesEnJuego.add(normalizar(b)); for (const e of _estadosCasa(p.universo)) basesEnJuego.add(normalizar(e)); for (const r of _refsCasa(p.universo)) basesEnJuego.add(normalizar(r)); }
+      for (const pr of resolucion.premisas || []) { const uu = pr.universo != null ? pr.universo : pr.de; for (const nb of _basesDeUniverso(uu)) basesEnJuego.add(normalizar(nb)); const b = _baseCasa(uu); if (b) basesEnJuego.add(normalizar(b)); for (const e of _estadosCasa(uu)) basesEnJuego.add(normalizar(e)); for (const r of _refsCasa(uu)) basesEnJuego.add(normalizar(r)); }
       // una PREMISA de estado («¿LG está frenado?») también pone en juego el estado de la familia con `operativaSinOficial`:
       // sin esto, el umbral que planteó quien consulta se ignoraría en silencio cuando solo aparece en una premisa.
       if (familiaRef.operativaSinOficial || familiaRef.umbral) for (const pr of resolucion.premisas || []) { const e = typeof pr.estado === "string" ? estadoDeclarado(pr.estado) : null; if (e) basesEnJuego.add(normalizar(e)); }
@@ -4162,6 +4188,34 @@ export function componerEntrega(resolucion) {
                 titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez ${conPreposicion("de", familiaRef.nombreDeLaEmpresa)}`,
                 motivo: `${cnt.condicional} ${cnt.texto} ${formaDeEstado(canonEstado).plural} con esa referencia (contra ${oficial.set.size} con ${sintagmaDe(familiaRef.nombreDeLaEmpresa)}): ${nombresAlt.length ? nombresAlt.join(", ") : "ninguno"} — calculado con la misma cuenta; no reemplaza la referencia oficial ni es un objetivo de la empresa.`,
               });
+            }
+          } catch { /* la referencia del usuario no se pudo evaluar contra el dato: no se declara nada a medias */ }
+        }
+      }
+      // v17 (W27): el piso de materialidad planteado en la consulta se declara AL LADO del oficial, con la cifra Y los nombres que daría el MISMO detector con ese piso. Solo si el piso está en juego
+      // (una parte o premisa nombra «carga comercial alta» o pide su concepto) y la referencia es un % de la venta; si el detector no se puede leer o no cierra con el conjunto oficial de la Entrega, no se declara nada a medias.
+      if (familiaRef.pisoDePolicy && (refUsuario.unidad || "pct") === "pct" && refUsuario.valor > 0) {
+        const kPiso = familiaRef.pisoDePolicy;
+        const enJuego = umbralesDeBases([...basesEnJuego]).includes(kPiso) || umbralesDeConceptos(partesUtiles.flatMap((p) => p.conceptos || [])).includes(kPiso);
+        if (enJuego) {
+          try {
+            const pisoOficial = umbral(kPiso);
+            const D = descomposicionDeBrecha(scenario);
+            const oficial = conjuntoDeUniverso({ eje: familiaRef.eje, base: familiaRef.detector }, I, familiaRef.eje, "");
+            if (pisoOficial && pisoOficial.valor > 0 && D && Array.isArray(D.filas) && D.piso > 0 && oficial && oficial.set) {
+              const delDetector = new Set(D.filas.filter((f) => f.cargaMaterial).map((f) => normalizar(f.entidad)));
+              const coincide = delDetector.size === oficial.set.size && [...delDetector].every((k) => oficial.set.has(k));
+              if (coincide) {
+                const pisoAlterno = D.piso * (refUsuario.valor / pisoOficial.valor);   // el mismo % de la venta real, con el otro porcentaje
+                const nombresAlt = D.filas.filter((f) => f.cargaUsd >= pisoAlterno).map((f) => f.entidad);
+                const cnt = conteoDeEje(familiaRef.eje, nombresAlt.length);
+                const nombreOficial = { articulo: "el", nucleo: `umbral de materialidad ${pisoOficial.origen === "empresa" ? "declarado por la empresa" : "general de ADI"}` };
+                cifrasImpresas.push(valFmt, String(nombresAlt.length), String(oficial.set.size));
+                entrega.limites.push({
+                  titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez ${conPreposicion("de", nombreOficial)}`,
+                  motivo: `${cnt.condicional} ${cnt.texto} con «${familiaRef.detector}» con esa referencia (contra ${oficial.set.size} con ${sintagmaDe(nombreOficial)}): ${nombresAlt.length ? nombresAlt.join(", ") : "ninguno"} — calculado con el mismo detector y las mismas filas, solo con otro piso; no reemplaza el criterio oficial ni es un objetivo de la empresa.`,
+                });
+              }
             }
           } catch { /* la referencia del usuario no se pudo evaluar contra el dato: no se declara nada a medias */ }
         }

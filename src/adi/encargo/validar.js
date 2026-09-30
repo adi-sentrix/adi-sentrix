@@ -559,7 +559,7 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
   if (cierre === "definicion") {
     estado = definicionValida ? "resuelta" : "no_resuelta";
   } else if (cierre === "comparacion") {
-    estado = (cardinalidadOk && !ejesMezclados && entidadesResueltas.length === 2) ? "resuelta" : "no_resuelta";
+    estado = (cardinalidadOk && !ejesMezclados && entidadesResueltas.length === 2) ? (parcialForzado ? "parcial" : "resuelta") : "no_resuelta";   /* §1.2: parcial = elementos válidos e inválidos en un campo-lista */
   } else if (cierre === "simulacion") {
     if (supuestosValidosN === 0 || entidadEsencialFalla) estado = "no_resuelta";
     else estado = parcialForzado ? "parcial" : "resuelta";

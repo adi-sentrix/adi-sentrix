@@ -16,6 +16,8 @@
  *   A6 · `techo_cobertura` entra a `_REFERENCIA_FAMILIAS`: la referencia del usuario se declara al lado, con su cifra y sus nombres.
  *   A7 · `k` es el tamaño del top, nunca una cifra de la entidad: la premisa de grupo falsa imprime la cifra PROPIA de la entidad.
  *   A8 · la frase de ausencias del umbral de materialidad dice su origen REAL (del mismo helper), no «que la empresa declaró».
+ *   A10 · diagnóstico v17: verdad propia de un miembro (V-A) · par de días de una comparación en cobranza (V-B) · referencia de la consulta sobre un universo solo-excluir (V-C) ·
+ *         piso de materialidad de la consulta (W27) · universos declarados (P-A) · comparación parcial (P-B) · el cero en palabras en la comparación (P-C).
  *
  * Solo por `npm run gates:offline` (o con el candado: node --import ./scripts/offline-guard.mjs _v12_correcciones_gate.mjs). Cero red. */
 import { initTenant } from "./src/data/tenantStore.js";
@@ -33,6 +35,8 @@ import { ausenciaPorId } from "./src/config/contract/ausencias.js";
 import { ETIQUETA_ORIGEN, umbral, NOMBRE_DE_UMBRAL, FAMILIAS_DE_PROCEDENCIA, clausulasDeProcedencia, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, formatoDeUmbral, setBenchmarkOverride } from "./src/config/businessPolicy.js";
 import { UMBRALES_DE_ESTADO, ESTADO_DE_CONCEPTO, ESTADOS_CANON, umbralesDeEstados, estadoDeLaPremisa } from "./src/adi/notario/estados.js";
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
+import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
+import { cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
 import fs from "node:fs";
 
 let pass = 0, fail = 0;
@@ -381,6 +385,160 @@ H("A9 · §7.3·40(b) · un porcentaje MEDIDO chico conserva su significado (dos
   const h1 = lib.hechos[0];
   const rendido = JSON.stringify(h1 && h1.render);
   ok(!!h1 && /0\.049%/.test(rendido) && !/0\.05%/.test(rendido), "una cifra MEDIDA de 0.049 % (la boleta la muestra «0.05%») se rinde «0.049%» (nunca «0.05%»)", rendido);
+}
+
+/* ═══ A10 · DIAGNÓSTICO v17 (medición ciega v17, catálogo sellado v17) ══════════════════════════════════════════════════════════════════
+ * Cinco raíces de ADI, cada una con su carnada en POSITIVO (la corrección dice lo verdadero) y en NEGATIVO (el control que NO debe cambiar):
+ *   V-A · la verdad propia de un miembro que el universo deja fuera dice su ENTIDAD, su cifra de la métrica del conjunto que la deja fuera y —solo fuera del top— su puesto: `base` que es un estado ·
+ *         varios miembros · entidad DENTRO del top · entidad excluida por la consulta (`excluir.entidades`, sin cifra ni puesto).
+ *   V-B · una comparación en cobranza no pierde el par de días vencido de una cuenta sana (ausente = cero): la boleta gana «Dias Vencido 0d» SOLO con un encargo tipado (opt-in); la del agente queda igual.
+ *   V-C · la referencia que planteó la consulta sobre un universo SOLO-EXCLUIR se declara al lado de la oficial (nunca en silencio).
+ *   W27 · el piso de materialidad planteado en la consulta (`umbral_materialidad`) se declara al lado del oficial, con su origen y las cuentas que daría; nunca lo reemplaza ni se ignora.
+ *   P-A · `entrega.universos[]` declara el universo SERVIDO (base · excluir · top · unión), no uno más ancho.  P-B · una comparación con un concepto inválido es `parcial`.
+ *   P-C · un lado de una comparación que vale 0 se dice en palabras junto a su cifra (`no tiene … (0 días)`).
+ * Oráculos: los rankings de la proyección (`cifrasDelDato`) y los valores declarados a mano; nunca el helper que se prueba. */
+const RK = cifrasDelDato(ESCENARIO_INICIAL, null).rankings;
+const valRk = (eje, clave, ent) => { const f = RK[eje][clave].filas.find((x) => x.entidad === ent); return f ? f.valor : null; };
+const oracionesDe = (E) => E.entrega.respuesta.filter((r) => r._premisa).map((r) => r.texto);
+const oracionDe = (E, nombre) => oracionesDe(E).find((t) => t.includes(`${nombre}:`)) || "";
+
+H("A10 · V-A1 · una `base` que ES un estado: la premisa de grupo falsa dice la entidad y el estado en que SÍ está (nunca «con capital inmovilizado critico» sin dueño)");
+{
+  const U = { eje: "sku", base: "con capital inmovilizado critico" };
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital_frenado", "rotacion", "dias_inventario"], eje: "sku", universo: U }], premisas: [
+    { id: "q1", tipo: "grupo", miembros: ["PHI-IRON-PRO"], universo: U }, { id: "q2", tipo: "grupo", miembros: ["LG-DRYER8KG"], universo: U }] });
+  const f = oracionDe(E, "PHI-IRON-PRO");
+  ok(E.ok === true && /PHI-IRON-PRO: está /.test(f) && !/capital inmovilizado critico[;,]/.test(f), "PHI-IRON-PRO (no es inmovilizado crítico): «PHI-IRON-PRO: está <su estado>», sin el identificador crudo del conjunto", f);
+  ok(/sobrestock/.test(f), "el estado que se dice es en el que SÍ está (oráculo: sobrestock, del dato del SKU)", f);
+  const v = oracionesDe(E).find((t) => /LG-DRYER8KG/.test(t)) || "";
+  ok(/es correcto/.test(v) && !/no es así/.test(v), "CONTROL NEGATIVO · un SKU que SÍ es inmovilizado crítico sigue verdadero (la corrección no invierte veredictos)", v);
+}
+
+H("A10 · V-A2 · una premisa de VARIOS miembros dice la verdad de CADA uno que el universo deja fuera, con su dueño (y no nombra a los que sí están dentro)");
+{
+  const U = { eje: "cliente", excluir: { conjuntos: ["carga comercial alta", "bajo el benchmark"] } };
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["ventas", "margen", "carga"], universo: U }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Tottus", "Ripley"], universo: U }] });
+  const t = oracionesDe(E).join("\n");
+  ok(t.includes(`Tottus: margen ${formatoDeLaCasa(valRk("cliente", "margen", "Tottus"), "pct")}`) && t.includes(`Ripley: carga comercial ${formatoDeLaCasa(valRk("cliente", "carga", "Ripley"), "pct")}`), "Tottus dice su margen (bajo el benchmark) y Ripley su carga (carga comercial alta): cada uno con la cifra de la métrica del conjunto que LO deja fuera", t);
+  const U2 = { eje: "cliente", excluir: { conjuntos: ["carga comercial alta"] } };
+  const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_por_vencer"], universo: { eje: "cliente", estados: ["al dia"] } }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Jumbo", "Hites"], universo: U2 }] });
+  const t2 = oracionesDe(E2).join("\n");
+  ok(t2.includes(`Jumbo: carga comercial ${formatoDeLaCasa(valRk("cliente", "carga", "Jumbo"), "pct")}`) && !/Hites:/.test(t2), "NEGATIVO · Jumbo (la deja fuera el conjunto) dice su carga; Hites (SÍ está en el universo) NO se nombra como si fallara", t2);
+}
+
+H("A10 · V-A3 · con `top` y un conjunto excluido: la entidad DENTRO del top dice la cifra del conjunto que la deja fuera; FUERA del top, su puesto");
+{
+  const U = { eje: "cliente", top: { metrica: "ventas", k: 5 }, excluir: { conjuntos: ["carga comercial alta"] } };
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["ventas", "contribucion", "carga"], universo: U }], criterio: { lente: "contribucion" }, premisas: [{ id: "q1", tipo: "grupo", miembros: ["Sodimac"], universo: U }] });
+  const f = oracionDe(E, "Sodimac");
+  ok(f.includes(`Sodimac: carga comercial ${formatoDeLaCasa(valRk("cliente", "carga", "Sodimac"), "pct")}`) && !/puesto \d+ de 13/.test(f), "Sodimac está en el top 5 por venta y la deja fuera «carga comercial alta»: dice su CARGA, sin un «puesto 4 de 13» que leería como si la premisa fuera cierta", f);
+  const U2 = { eje: "cliente", top: { metrica: "ventas", k: 3 } };
+  const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["ventas"], universo: U2 }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Easy"], universo: U2 }] });
+  const f2 = oracionDe(E2, "Easy");
+  ok(/puesto \d+ de 13/.test(f2), "CONTROL NEGATIVO · fuera del top el PUESTO sigue siendo la razón verdadera (Easy, top 3 por venta)", f2);
+  const U3 = { eje: "cliente", base: "carga comercial alta", excluir: { conjuntos: ["bajo el benchmark"] } };
+  const { E: E3 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["carga", "margen", "ventas"], universo: U3 }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Ripley"], universo: U3 }] });
+  const f3 = oracionDe(E3, "Ripley");
+  ok(f3.includes(`Ripley: margen ${formatoDeLaCasa(valRk("cliente", "margen", "Ripley"), "pct")}`), "base «carga comercial alta» que Ripley SÍ cumple + excluir «bajo el benchmark» que NO cumple: la deja fuera el segundo, y dice su MARGEN (no su carga)", f3);
+}
+
+H("A10 · V-A4 · una entidad que la CONSULTA sacó por su nombre (`excluir.entidades`) dice esa razón, sin cifra ni puesto; una excluida por un conjunto sigue con su cifra");
+{
+  const U = { eje: "cliente", excluir: { conjuntos: ["bajo el benchmark"], entidades: ["Unimarc"] } };
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "margen"], universo: U }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Unimarc"], universo: U }, { id: "q2", tipo: "grupo", miembros: ["Ripley"], universo: U }] });
+  const u = oracionDe(E, "Unimarc"), r = oracionDe(E, "Ripley");
+  ok(/Unimarc: fuera del universo por exclusión de la consulta/.test(u) && !/Unimarc:[^;.]*\d/.test(u.replace(/criterio aplicado.*/, "")), "Unimarc: «fuera del universo por exclusión de la consulta», sin cifra ni puesto (una cifra suya diría que el universo la incluye)", u);
+  ok(/Ripley: margen/.test(r) && !/exclusión de la consulta/.test(r), "CONTROL NEGATIVO · Ripley (la deja fuera el CONJUNTO, no la consulta) dice su margen, no «exclusión de la consulta»", r);
+}
+
+H("A10 · V-B · una comparación en cobranza no pierde el par de días vencido de una cuenta sana (ausente = cero), dentro o fuera del top 8");
+{
+  const cmp = (a, b) => entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "comparacion", conceptos: ["saldo_vencido", "dias_vencido"], entidades: [{ nombre: a }, { nombre: b }] }] }).E;
+  const E = cmp("Easy", "Unimarc");
+  ok(/en dias vencido, Easy 270 días contra Unimarc/.test(E.texto) && E.entrega.cifras.filas.some((f) => f.valores["Entidad / grupo"] === "Unimarc" && /dias vencido/i.test(f.valores["Métrica"] || "")), "Easy 270 días contra Unimarc 0 días (fuera del top 8): el par SÍ sale, con la fila de Unimarc", E.texto.split("\n").find((l) => /Comparando/.test(l)));
+  const sin = [];
+  const ents = ["Falabella", "Lider", "Jumbo", "Easy", "Sodimac", "Ripley", "La Polar", "Unimarc", "Tottus", "Hites", "Paris"];
+  for (const a of ["Jumbo", "Ripley", "La Polar"]) for (const b of ents) { if (a === b) continue; if (!/dias vencido/i.test(cmp(a, b).texto)) sin.push(`${a}~${b}`); }
+  ok(sin.length === 0, "las 27 comparaciones de una cuenta sana (Jumbo —dentro del top 8—, Ripley, La Polar) contra cada otra traen su par de días", sin.join(" "));
+  const caja = cajaDelAgente(TOOLS);
+  const dias = (args) => ((caja.cobranza({ scenario: ESCENARIO_INICIAL, ...args }).boleta) || []).filter((x) => /Dias Vencido/.test(x.label)).map((x) => `${x.label}=${x.value}`);
+  const conEncargo = dias({ entidadesRequeridas: ["Jumbo", "Unimarc"] });
+  ok(conEncargo.includes("Jumbo · Dias Vencido=0d") && conEncargo.includes("Unimarc · Dias Vencido=0d"), "CON un encargo tipado (opt-in `entidadesRequeridas`) la boleta publica «Dias Vencido 0d» de la cuenta sana pedida", conEncargo.join(" | "));
+  const sinEncargo = dias({}), nombrada = dias({ _preguntaUsuario: "cobro de Unimarc y Jumbo" });
+  ok(!sinEncargo.some((x) => /^(Jumbo|Unimarc) /.test(x)) && !nombrada.some((x) => /^(Jumbo|Unimarc) /.test(x)) && sinEncargo.join() === nombrada.join(), "CANDADO · SIN encargo tipado (turno del agente, con o sin la cuenta nombrada en texto libre) la boleta NO gana ningún «Dias Vencido» de una cuenta sana: idéntica a la de antes", sinEncargo.join(" | "));
+}
+
+H("A10 · V-C · la referencia de la consulta sobre un universo SOLO-EXCLUIR se declara al lado de la oficial (no se ignora en silencio ni la reemplaza)");
+{
+  const enc = { partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "brecha", "ventas"], universo: { eje: "cliente", excluir: { conjuntos: ["bajo el benchmark"] } } }] };
+  const { E } = entregaDe({ ...enc, criterio: { referencia: { concepto: "benchmark", valor: 33, unidad: "pct" } } });
+  const lim = E.entrega.limites.find((l) => /referencia planteada en la consulta/i.test(l.titulo));
+  ok(!!lim && lim.titulo.includes("(33%)") && /no reemplaza la referencia oficial/.test(lim.motivo), "benchmark 33 % planteado sobre «todas menos las bajo el benchmark»: se declara «(33%)» al lado, «no reemplaza la referencia oficial»", lim && `${lim.titulo} | ${lim.motivo}`);
+  ok(/Benchmark de margen: 30\.1%/.test((E.entrega.marco.referenciaDeclarada || {}).texto || ""), "el Marco sigue con el benchmark OFICIAL (30.1%), no el de la consulta");
+  const { E: E0 } = entregaDe(enc);
+  ok(!E0.entrega.limites.some((l) => /referencia planteada en la consulta/i.test(l.titulo)), "CONTROL NEGATIVO · sin referencia del usuario no se declara ninguna");
+}
+
+H("A10 · W27 · el piso de materialidad planteado en la consulta se declara al lado del oficial, con su origen y las cuentas que daría (nunca lo reemplaza, nunca se ignora)");
+{
+  /* oráculo independiente: la cuenta del detector a mano — carga comercial alta = carga sobre el nivel declarado (3.5 %) cuyo exceso en $ ≥ el piso (% de la venta total) */
+  const nivel = 3.5, filasV = RK.cliente.ventas.filas, total = filasV.reduce((s, f) => s + f.valor, 0);
+  const cuentasCon = (pct) => filasV.filter((f) => { const c = valRk("cliente", "carga", f.entidad); return c > nivel && ((c - nivel) / 100) * f.valor >= (pct / 100) * total; }).map((f) => f.entidad).sort();
+  const U = { eje: "cliente", base: "carga comercial alta" };
+  const enc = (pct, extra = {}) => ({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["carga", "no_capturada", "ventas"], universo: U }], criterio: { referencia: { concepto: "umbral_materialidad", valor: pct, unidad: "pct" } }, premisas: [{ id: "q1", tipo: "conteo", conteo: { n: 6, m: 13 }, de: U }], ...extra });
+  const { E } = entregaDe(enc(0.1));
+  const lim = E.entrega.limites.find((l) => /referencia planteada en la consulta/i.test(l.titulo));
+  const alt = cuentasCon(0.1);
+  ok(!!lim && lim.titulo.includes("(0.1%)") && /general de ADI/.test(lim.titulo), "el piso de 0.1 % de la consulta se declara EXACTO «(0.1%)», contra el criterio general de ADI (su procedencia)", lim && lim.titulo);
+  ok(!!lim && alt.length === 3 && alt.every((n) => lim.motivo.includes(n)) && new RegExp(`Serían 3 .*contra ${cuentasCon(0.05).length} con`).test(lim.motivo), `las cuentas que daría son las del detector con 0.1 % (oráculo: ${alt.join(", ")}) y el conteo oficial (${cuentasCon(0.05).length}) al lado`, lim && lim.motivo);
+  ok(/0\.05% de la venta/.test(definiciones(E).join(" ")) && !/0\.1%/.test(definiciones(E).join(" ")), "NUNCA reemplaza: el Marco sigue con el piso OFICIAL 0.05 % (el 0.1 % vive solo en el límite, al lado)", definiciones(E).join(" | "));
+  const { E: E2 } = entregaDe(enc(0.02));
+  const lim2 = E2.entrega.limites.find((l) => /referencia planteada en la consulta/i.test(l.titulo));
+  ok(!!lim2 && cuentasCon(0.02).every((n) => lim2.motivo.includes(n)) && cuentasCon(0.02).length >= cuentasCon(0.05).length, `un piso MÁS BAJO (0.02 %) da un conjunto mayor o igual y también se declara (${cuentasCon(0.02).length} cuentas)`, lim2 && lim2.motivo);
+  initTenant(TENANT_PERFIL({ materialidadFocoPctVenta: 0.06 }));
+  const { E: E3 } = entregaDe(enc(0.1));
+  const lim3 = E3.entrega.limites.find((l) => /referencia planteada en la consulta/i.test(l.titulo));
+  ok(!!lim3 && /declarado por la empresa/.test(lim3.titulo) && /0\.06% de la venta/.test(definiciones(E3).join(" ")) && !/0\.1%/.test(definiciones(E3).join(" ")), "el origen SIGUE al perfil: con el piso declarado por la EMPRESA (0.06 %) el límite dice «declarado por la empresa» y el Marco conserva 0.06 %", lim3 ? lim3.titulo : definiciones(E3).join(" | ") + " || " + E3.entrega.limites.map((l) => l.titulo).join(" | "));
+  initTenant(TENANT_DEMO);
+  const { E: E4 } = entregaDe({ partes: [INV({ universo: { eje: "sku" } })], criterio: { referencia: { concepto: "umbral_materialidad", valor: 0.1, unidad: "pct" } } });
+  ok(!E4.entrega.limites.some((l) => /referencia planteada en la consulta/i.test(l.titulo)), "CONTROL NEGATIVO · si la Entrega no usa el piso (solo inventario) no declara una referencia que no está en juego");
+  const { E: E5 } = entregaDe({ partes: enc(0.1).partes, premisas: enc(0.1).premisas });
+  ok(!E5.entrega.limites.some((l) => /referencia planteada en la consulta/i.test(l.titulo)), "CONTROL NEGATIVO · sin la referencia del usuario no se declara ninguna");
+}
+
+H("A10 · P-A · `entrega.universos[]` declara el universo SERVIDO (base · excluir · unión), no uno más ancho");
+{
+  const uni = (encargo) => entregaDe(encargo).E.entrega.universos;
+  const u1 = uni({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["dias_sin_venta", "capital_frenado"], eje: "sku", universo: { eje: "sku", base: "con capital inmovilizado critico", filtros: [{ metrica: "dias_sin_venta", op: ">", valor: 90 }] } }] });
+  ok(u1.some((u) => u.base === "con capital inmovilizado critico" && /inmovilizado/.test(u.texto)), "base «con capital inmovilizado critico» + filtro de días: el universo declarado conserva la BASE (antes decía solo el filtro)", JSON.stringify(u1.map((u) => [u.base, u.texto])));
+  const u2 = uni({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "ventas", "brecha"], universo: { eje: "cliente", estados: ["al dia"], excluir: { conjuntos: ["bajo el benchmark"] } } }] });
+  ok(u2.some((u) => u.excluir && Array.isArray(u.excluir.conjuntos) && u.excluir.conjuntos.includes("bajo el benchmark") && /benchmark/.test(u.texto)), "estados + excluir «bajo el benchmark»: el universo declarado nombra el conjunto que excluye", JSON.stringify(u2.map((u) => [u.excluir, u.texto])));
+  const u3 = uni({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital", "dias_inventario", "rotacion"], eje: "sku", universo: { eje: "sku", union: [{ eje: "sku", base: "con capital inmovilizado critico" }, { eje: "sku", estados: ["riesgo de quiebre"] }] } }] });
+  ok(u3.some((u) => /inmovilizado/.test(u.texto) && /quiebre/.test(u.texto)), "una UNIÓN de dos conjuntos: el universo declarado nombra los dos (antes «los 13 SKU»)", JSON.stringify(u3.map((u) => u.texto)));
+  const u4 = uni({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], universo: { eje: "cliente", estados: ["al dia"] } }] });
+  ok(u4.every((u) => !u.excluir) && !u4.some((u) => /benchmark/.test(u.texto || "")), "CONTROL NEGATIVO · un universo SIN exclusión no declara ninguna", JSON.stringify(u4.map((u) => [u.excluir, u.texto])));
+}
+
+H("A10 · P-B · una comparación con un concepto de otro tema deja la parte `parcial` (elementos válidos e inválidos); sin concepto inválido, `resuelta`");
+{
+  const enc = (conceptos) => ({ version: "encargo/v1", partes: [{ id: "p1", tema: "cobranza", cierre: "comparacion", conceptos, entidades: [{ nombre: "Ripley" }, { nombre: "Unimarc" }] }] });
+  const R1 = validarEncargo(enc(["saldo_por_vencer", "recuperado", "capital"]), {});
+  ok(R1.partes[0].estado === "parcial" && R1.noResuelto.some((n) => n.parte === "p1" && n.valor === "capital"), "«capital» (de inventario) en una comparación de cobranza: la parte queda PARCIAL con el concepto declarado sin resolver", JSON.stringify(R1.partes[0].estado));
+  const R2 = validarEncargo(enc(["saldo_por_vencer", "recuperado"]), {});
+  ok(R2.partes[0].estado === "resuelta", "CONTROL NEGATIVO · la misma comparación con conceptos válidos sigue `resuelta`", R2.partes[0].estado);
+}
+
+H("A10 · P-C · un lado de una comparación que vale 0 se dice en palabras junto a su cifra; un lado que no es 0, no");
+{
+  const cmp = (a, b, conceptos) => entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "comparacion", conceptos, entidades: [{ nombre: a }, { nombre: b }] }] }).E;
+  const l = (E) => E.texto.split("\n").find((x) => /Comparando/.test(x)) || "";
+  const E1 = cmp("La Polar", "Ripley", ["saldo_pendiente", "dias_vencido"]);
+  ok(/La Polar no tiene dias vencido \(0 días\) contra Ripley no tiene dias vencido \(0 días\)/.test(l(E1)), "La Polar 0 días contra Ripley 0 días: «no tiene dias vencido (0 días)» de cada lado", l(E1));
+  const E2 = cmp("Easy", "Unimarc", ["saldo_vencido", "dias_vencido"]);
+  ok(/Easy 270 días contra Unimarc no tiene dias vencido \(0 días\)/.test(l(E2)) && !/Easy no tiene/.test(l(E2)), "Easy 270 días (no es 0: plano) contra Unimarc 0 días (en palabras)", l(E2));
+  ok(/Unimarc no tiene saldo vencido \(\$0\)/.test(l(E2)), "el mismo criterio para el dinero: «no tiene saldo vencido ($0)»", l(E2));
+  const E3 = cmp("Falabella", "Lider", ["saldo_pendiente", "dias_vencido"]);
+  ok(!/no tiene/.test(l(E3)), "CONTROL NEGATIVO · dos cuentas con cifra distinta de cero: ningún «no tiene»", l(E3));
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");

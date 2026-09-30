@@ -945,7 +945,7 @@ export function validarHecho(h, I) {
 function _clausulasDeEstado(u, acc = []) {
   if (!_es(u)) return acc;
   for (const e of _lista(u.estados)) { const c = estadoDeclarado(String(e).replace(/_/g, " ")) || _canonDe(e); if (ESTADOS_CANON.has(c)) acc.push({ canon: c, modo: "en" }); }
-  if (typeof u.base === "string") { const c = estadoDeclarado(u.base); if (c) acc.push({ canon: c, modo: "en" }); }
+  if (typeof u.base === "string") { const c = estadoDeclarado(u.base) || estadoDeConjunto(u.base); if (c && ESTADOS_CANON.has(c)) acc.push({ canon: c, modo: "en" }); }   /* §7.3·40(a) (v17): un conjunto que ES un estado también como BASE */
   for (const e of _lista(u.no_estados)) { const c = estadoDeclarado(String(e).replace(/_/g, " ")) || _canonDe(e); if (ESTADOS_CANON.has(c)) acc.push({ canon: c, modo: "no" }); }
   if (_es(u.excluir)) for (const e of _lista(u.excluir.estados)) { const c = estadoDeclarado(String(e).replace(/_/g, " ")) || _canonDe(e); if (ESTADOS_CANON.has(c)) acc.push({ canon: c, modo: "excluir" }); }
   /* §7.3·39(d): un conjunto de la casa que ES un estado con otro nombre («con saldo vencido» = en mora) y se EXCLUYE dice en qué estado SÍ está la entidad; el mismo `estadoDeclarado` que resuelve un `base` (sin tabla aparte) */
@@ -1031,13 +1031,15 @@ function _verdadPropiaDeRelacion(h, H, I) {
   if (!ma || !mb) return null;
   return { entidad: a.nombre, eje: normalizar(a.eje || ""), estado: null, metrica: ma, puesto: null, contra: { entidad: b.nombre, metrica: mb } };
 }
-function _verdadPropiaDeGrupo(h, H, I) {
-  const u = h.universo;
-  if (!_es(u) || H.roles.sujetos.length !== 1 || H.roles.sujetos[0] === "negocio") return null;
-  const ent = I.resolverEntidad(H.roles.sujetos[0]);
+/* §7.3·37a/40a (diagnóstico v17): la verdad propia de UN miembro que el universo deja fuera. Se separa de `_verdadPropiaDeGrupo` para que una premisa de VARIOS miembros diga la verdad de CADA uno que falla
+ * (antes, con más de un sujeto devolvía null y el veredicto caía a la traza del Notario: «fuera de carga comercial alta…» sin entidad ni cifra). */
+function _verdadPropiaDeMiembro(u, nombre, I) {
+  const ent = I.resolverEntidad(nombre);
   if (!ent) return null;
   const eje = normalizar(ent.eje || u.eje || "");
   const key = normalizar(ent.nombre);
+  // (0) la CONSULTA la excluyó por su nombre (`excluir.entidades`): esa es la razón, sin cifra ni puesto (una cifra suya de otra métrica leería como si el universo la incluyera)
+  if (_es(u.excluir) && _lista(u.excluir.entidades).some((n) => { const r = I.resolverEntidad(String(n)); return normalizar(r ? r.nombre : String(n)) === key; })) return { entidad: ent.nombre, eje, estado: null, metrica: null, puesto: null, excluidaPorLaConsulta: true };
   // (1) los estados del universo que la entidad NO cumple (fuera de un «en», dentro de un «no» o de una exclusión)
   const falla = [];
   const clausulas = _clausulasDeEstado(u);
@@ -1062,20 +1064,26 @@ function _verdadPropiaDeGrupo(h, H, I) {
   let fRef = null;
   {
     const cands = [];
-    if (typeof u.base === "string") { const fam = referenciaDeBase(u.base); if (fam) cands.push({ fam, modo: "en", nombre: u.base }); }
-    if (_es(u.excluir)) for (const n of _lista(u.excluir.conjuntos)) { const fam = referenciaDeBase(String(n)); if (fam) cands.push({ fam, modo: "excluir", nombre: String(n) }); }
+    if (typeof u.base === "string") { const fam2 = referenciaDeBase(u.base); if (fam2) cands.push({ fam: fam2, modo: "en", nombre: u.base }); }
+    if (_es(u.excluir)) for (const n of _lista(u.excluir.conjuntos)) { const fam2 = referenciaDeBase(String(n)); if (fam2) cands.push({ fam: fam2, modo: "excluir", nombre: String(n) }); }
     for (const c of cands) {
       let S = null; try { S = conjuntoDeUniverso({ eje, base: c.nombre }, I, eje, ""); } catch { S = null; }
       if (!S || S.error || !S.set) continue;
       if (c.modo === "en" ? !S.set.has(key) : S.set.has(key)) { fRef = c.fam; break; }
     }
   }
+  /* §7.3·40(a) (diagnóstico v17): con `top` y un conjunto excluido, si la entidad ESTÁ dentro del top el top NO la dejó fuera: la dejó fuera el conjunto, y la verdad es la cifra del conjunto (su carga, su margen), sin un «puesto 4 de 13» que
+   * leería como si la premisa fuera cierta. Fuera del top, el puesto sigue siendo la razón verdadera. */
+  const rkTop = u.top ? rankingDeTop(u, I, eje) : null;
+  const iTop = rkTop ? rkTop.orden.indexOf(key) : -1;
+  const dentroDelTop = !!(rkTop && iTop >= 0 && rkTop.k != null && iTop + 1 <= rkTop.k);
   let clave = null;
-  if (u.top && u.top.metrica) clave = _claveDeMetricaDeUniverso(u.top.metrica);
+  if (fRef && dentroDelTop) clave = fRef.metrica;
+  else if (u.top && u.top.metrica) clave = _claveDeMetricaDeUniverso(u.top.metrica);
   else if (exTop) clave = _claveDeMetricaDeUniverso(exTop.metrica);
   else if (fF) clave = _claveDeMetricaDeUniverso(fF.metrica);
+  else if (fRef) clave = fRef.metrica;   /* el conjunto que la deja fuera antes que la base que sí cumple (v17: «base carga alta» + «excluir bajo el benchmark») */
   else if (fBase) clave = fBase.metrica;
-  else if (fRef) clave = fRef.metrica;
   else { const c = (falla.length ? falla : clausulas).find((x) => METRICA_DE_ESTADO[x.canon]); if (c) clave = METRICA_DE_ESTADO[c.canon]; }
   const cifra = clave ? _cifraPropia(I, ent.nombre, clave) : null;
   const m = clave ? metricaPorClave(clave) : null;
@@ -1085,6 +1093,23 @@ function _verdadPropiaDeGrupo(h, H, I) {
   if (metrica && (u.top || exTop)) { const rk = rankingDeTop(u, I, eje); if (rk && rk.clave === clave) { const i = rk.orden.indexOf(key); if (i >= 0) puesto = { n: i + 1, de: rk.orden.length, dir: rk.dir }; } }
   if (!metrica && !estado) return null;
   return { entidad: ent.nombre, eje, estado, metrica, puesto };
+}
+function _verdadPropiaDeGrupo(h, H, I) {
+  const u = h.universo;
+  if (!_es(u) || !H.roles.sujetos.length || H.roles.sujetos.includes("negocio")) return null;
+  if (H.roles.sujetos.length === 1) return _verdadPropiaDeMiembro(u, H.roles.sujetos[0], I);
+  /* varios miembros: cada uno que el universo deja fuera dice SU verdad con su dueño (los que sí están dentro no se nombran) */
+  const ej = normalizar(u.eje || "");
+  let S = null; try { S = conjuntoDeUniverso(u, I, ej, ""); } catch { S = null; }
+  if (!S || S.error || !S.set) return null;
+  const lista = [];
+  for (const nombre of H.roles.sujetos) {
+    const ent = I.resolverEntidad(nombre);
+    if (!ent || S.set.has(normalizar(ent.nombre))) continue;
+    const vp = _verdadPropiaDeMiembro(u, nombre, I);
+    if (vp) lista.push(vp); else return null;   /* una verdad que no se puede decir con dueño → cae al texto de siempre, nunca a medias */
+  }
+  return lista.length ? { lista } : null;
 }
 /* los estados propios de una entidad SKU (con su bodega) cuando la premisa es de ESTADO de la Mesa Capital: el veredicto los dice con el nombre de la entidad (diagnóstico v13, colateral 1) */
 function _estadosPropiosDePremisa(H, I) {
@@ -1424,7 +1449,7 @@ export function libroDeHechos(hechos, ctx = {}) {
     const H = evaluar(h);
     /* decisión 37a (diagnóstico v13): la verdad PROPIA de la entidad de una premisa de grupo falsa, y los estados propios de una premisa de estado de la Mesa Capital */
     try {
-      if (H.tipo === "grupo" && H.veredicto === "falsa") { const vp = _verdadPropiaDeGrupo(h, H, I); if (vp) H.render.verdadPropia = vp; }
+      if (H.tipo === "grupo" && H.veredicto === "falsa") { const vp = _verdadPropiaDeGrupo(h, H, I); if (vp) { if (vp.lista) H.render.verdadesPropias = vp.lista; else H.render.verdadPropia = vp; } }
       /* decisión 38(a) (diagnóstico v14): el MISMO punto único para el orden y la relación falsos */
       if (H.tipo === "orden" && H.veredicto === "falsa") { const vp = _verdadPropiaDeOrden(h, H, I); if (vp) H.render.verdadPropia = vp; }
       if (H.tipo === "relacion" && H.veredicto === "falsa") { const vp = _verdadPropiaDeRelacion(h, H, I); if (vp) H.render.verdadPropia = vp; }

@@ -382,6 +382,8 @@ export function cobranza(_args = {}, ctx = {}) {
   for (const f of filas) {
     if (f.recuperadoFmt != null && Number.isFinite(f.recuperadoPct)) boleta.push(fig(`${f.nombre} · Recuperado`, f.recuperadoFmt, { unit: "pct", raw: f.recuperadoPct, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
     if (f.diasVencidoFmt && f.diasVencidoFmt !== "—" && Number.isFinite(f.diasVencido)) boleta.push(fig(`${f.nombre} · Dias Vencido`, f.diasVencidoFmt, { unit: "days", raw: f.diasVencido, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
+    /* v17 (V-B): una cuenta sana DENTRO del top 8 que la parte de un encargo tipado nombra (opt-in `entidadesRequeridas`) publica sus 0 días — igual que su «Saldo vencido» de arriba; sin encargo, la boleta del agente no cambia */
+    else if (_entidadesDeLaParte.includes(f.nombre) && Number.isFinite(f.diasVencido) && f.diasVencido <= 0) boleta.push(fig(`${f.nombre} · Dias Vencido`, "0d", { unit: "days", raw: 0, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
   }
   // Z09 (supervisor 2026-09-27, diagnóstico v8, tarea 5 del cierre) — «Saldo por vencer» (lo pendiente que TODAVÍA
   // no vence, `mesaFlujo.js:porVencerK` = saldo − vencido) ya lo usa el RANKING de la proyección
@@ -500,6 +502,8 @@ export function cobranza(_args = {}, ctx = {}) {
       else if (_entidadesDelUniversoTipado.has(f.nombre)) _fig(`${f.nombre} · Saldo vencido`, _mKDeLaMesa(0), 0);
       if (f.recuperadoFmt != null && Number.isFinite(f.recuperadoPct)) boleta.push(fig(`${f.nombre} · Recuperado`, f.recuperadoFmt, { unit: "pct", raw: f.recuperadoPct, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
       if (f.diasVencidoFmt && f.diasVencidoFmt !== "—" && Number.isFinite(f.diasVencido)) boleta.push(fig(`${f.nombre} · Dias Vencido`, f.diasVencidoFmt, { unit: "days", raw: f.diasVencido, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
+      /* v17 (V-B): ausente ES cero (`AUSENTE_VALE_CERO`, como «Saldo vencido» arriba): la cuenta sana que el universo TIPADO del encargo pide (opt-in `entidadesRequeridas`/universo) publica sus 0 días, para que una comparación no pierda el par en silencio. Sin encargo tipado, la boleta del agente NO cambia. */
+      else if (_entidadesDelUniversoTipado.has(f.nombre) && Number.isFinite(f.diasVencido) && f.diasVencido <= 0) boleta.push(fig(`${f.nombre} · Dias Vencido`, "0d", { unit: "days", raw: 0, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
       // Z09 (tarea 5 del cierre): la misma «Saldo por vencer» que ya publica el bucle del top-8, también para las
       // cuentas EXTRA que este bucle agrega (el propio `top.metrica:"saldo_por_vencer"` es lo que suele traerlas).
       if (_args.figsPorVencer && f.porVencerFmt != null && Number.isFinite(f.porVencerK)) boleta.push(fig(`${f.nombre} · Saldo por vencer`, f.porVencerFmt, { unit: "money", raw: f.porVencerK * fx, source: "actual", context: _ctxCobranza }));
