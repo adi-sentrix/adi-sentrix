@@ -128,6 +128,10 @@ const HISTORICOS_HECHOS_FRENADO = new Set([
   "x02-estado-negado-inventario h3", "x15-excluir-bodega-en-eje-bodega h3", "x15-excluir-bodega-en-eje-bodega h4",
   "t15-control-inventario-4 h1", "t15-control-inventario-4 h5", "t15-control-inventario-4 h7",
 ]);
+/* §7.3·44(a) (v20): un top cuyo filo cae DENTRO de un empate sirve a TODOS los empatados y lo declara (antes: el universo «no está definido» y todo lo que se apoyaba en él era no-verificable).
+ * x14-top-que-corta-un-empate h3 («Unimarc es la de menor saldo pendiente entre los 3 de menor días vencido», con 7 cuentas empatadas en 0 días) esperaba «no-verificable» por la decisión anterior; con la 44(a) el top son las 7
+ * y Unimarc SÍ es la de menor saldo pendiente entre ellas: «verdadera», con el empate declarado en la fuente («7 por el empate del filo»). Se congela contra el significado histórico que probaba; no se re-etiqueta ni se borra. */
+const HISTORICOS_HECHOS_EMPATE_FILO = new Set(["x14-top-que-corta-un-empate h3"]);
 if (!solo || solo.has("hechos")) {
   const F = leer("hechos.json");
   for (const c of (F.casos || F)) {
@@ -144,6 +148,7 @@ if (!solo || solo.has("hechos")) {
       if (vistosId.has(H.id)) continue; vistosId.add(H.id);   /* un id repetido: solo el primero entra al libro */
       const e = esp[H.id]; if (!e) continue;
       if (HISTORICOS_HECHOS_FRENADO.has(`${c.id} ${H.id}`)) { cuenta("hechos", "excluidos"); console.log(`  ❄ HISTÓRICO · ${c.id} ${H.id} — congelado (frenado-regla-de-rotacion, §7.3·34b), no se juzga contra el canon vigente`); continue; }
+      if (HISTORICOS_HECHOS_EMPATE_FILO.has(`${c.id} ${H.id}`)) { cuenta("hechos", "excluidos"); console.log(`  ❄ HISTÓRICO · ${c.id} ${H.id} — congelado (top-que-corta-un-empate, §7.3·44a), no se juzga contra el canon vigente`); continue; }
       cuenta("hechos", "hechos");
       const esperadoVerdadero = /^(?:verdadera|sellada)$/.test(e);
       const salioVerdadero = H.veredicto === "verdadera" || H.veredicto === "sellada";

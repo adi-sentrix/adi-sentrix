@@ -2008,7 +2008,17 @@ function _parteDePremisa(p, partesUtiles) {
  * podía filtrar sintaxis interna. Sin evidencia suficiente para un rótulo, cae a `H.verdad`/`H.motivo` (nunca
  * deja el veredicto sin texto). */
 const _VERBO_DIRECCION_PREMISA = { sube: "creció", baja: "cayó" };
+/* v20 (§7.3·44a): el empate del filo de un top se dice con los empatados y el puesto compartido: «empatado con Tottus en el puesto 8» (un sujeto) o «Tottus y Paris empatan en el puesto 8» (varios) */
+function _listaDeNombres(xs) { return xs.length > 1 ? `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}` : String(xs[0] || ""); }
+function _fraseEmpateFilo(e) {
+  const otros = e.entidades.filter((x) => !e.sujetos.includes(x));
+  return e.sujetos.length === 1 && otros.length ? `empatado con ${_listaDeNombres(otros)} en el puesto ${e.n}` : `${_listaDeNombres(e.entidades)} empatan en el puesto ${e.n}`;
+}
 function _rotuloDeLaCasaDeH(H) {
+  const r = _rotuloBaseDeLaCasaDeH(H);
+  return r && H && H.render && H.render.empateFilo ? `${r}, ${_fraseEmpateFilo(H.render.empateFilo)}` : r;
+}
+function _rotuloBaseDeLaCasaDeH(H) {
   const r = _rotuloDeLaCasaLegado(H);
   if (r) return r;
   // la pertenencia de un grupo VERDADERO (decisión del supervisor 2026-09-29, v13): «<entidades> pertenece(n) a <universo en palabras de la casa>», más la referencia que el universo cita si el texto aún no la dice
@@ -2131,7 +2141,17 @@ function _rotuloDeLaCasaLegado(H) {
   return null;
 }
 function _textoVerdadDerivada(H, libroPremisas) {
-  return (H.derivados || []).map((d) => { const D = libroPremisas.porId.get(d); return D ? (D.verdad || D.motivo) : null; }).filter(Boolean).join(" · ");
+  /* §7.3·44e: cada premisa lleva UNA sola traza de su verdad: dos hechos derivados que dicen lo mismo se dicen una vez */
+  return [...new Set((H.derivados || []).map((d) => { const D = libroPremisas.porId.get(d); return D ? (D.verdad || D.motivo) : null; }).filter(Boolean))].join(" · ");
+}
+/* §7.3·44e: la traza «La verdad: …» solo va si dice algo que la oración no dice ya: la traza que la oración contiene (la oración ES la traza) o cuyas cifras la oración ya trae (la verdad propia en palabras) es la misma verdad dicha dos veces, con la notación interna. Nunca se repite. */
+function _trazaSinRepetir(cuerpo, traza) {
+  const t = String(traza || "").trim();
+  if (!t) return "";
+  if (normalizar(String(cuerpo || "")).includes(normalizar(t))) return "";
+  const cifras = t.match(/\d+(?:[.,]\d+)?/g) || [];
+  if (cifras.length && cifras.every((x) => new RegExp(`(?<![\\d.,])${x.replace(/[.,]/g, "[.,]")}(?![\\d])`).test(String(cuerpo || "")))) return "";
+  return t;
 }
 /* los `base` (nombres de conjuntos de la casa) que un universo tipado nombra, también en las ramas de una unión — campo tipado, nunca prosa */
 function _basesDeUniverso(u, acc = new Set()) {
@@ -2183,7 +2203,7 @@ function _textoDePremisa(H, libroPremisas, consulta = null) {
   // dueño correcto: «la premisa planteada en la consulta».
   if (H.veredicto === "verdadera") return `Sobre la premisa planteada en la consulta: es correcto — ${verdadCasa}.`;
   // 38(a)/39(b): con `contra` la oración ya dice las DOS cifras con su dueño, y una `cifra` falsa ya dice la suya con su dueño; la traza de la verdad derivada («La verdad: …») repetiría lo mismo con la notación interna
-  if (H.veredicto === "falsa") { const vd = H.render && H.render.verdadPropia && (H.render.verdadPropia.contra || H.tipo === "cifra") ? "" : _textoVerdadDerivada(H, libroPremisas); return `Sobre la premisa planteada en la consulta: no es así — ${verdadCasa}${vd ? `. La verdad: ${vd}` : ""}.`; }
+  if (H.veredicto === "falsa") { const vd = H.render && H.render.verdadPropia && (H.render.verdadPropia.contra || H.tipo === "cifra") ? "" : _trazaSinRepetir(verdadCasa, _textoVerdadDerivada(H, libroPremisas)); return `Sobre la premisa planteada en la consulta: no es así — ${verdadCasa}${vd ? `. La verdad: ${vd}` : ""}.`; }
   return `Sobre la premisa planteada en la consulta, no se pudo verificar con este dato: ${H.motivo}.`;
 }
 
@@ -2270,7 +2290,7 @@ function _entidadesDelTopVerificado(entidadesDeLaToolCruda, figsAcotadas, top, e
   // resolvió VACÍO de verdad («los 4 mayores están todos bajo el benchmark» — 0 es la respuesta correcta, no un
   // hueco de datos) de un universo que no se pudo verificar en absoluto (sin `indice`, o `conjuntoDeUniverso`
   // sin `set`) — solo el segundo caso declina con «sin evidencia».
-  if (coincide) return { entidades: entidadesDeLaTool, figsExtra: [], resuelto: true };
+  if (coincide) return { entidades: entidadesDeLaTool, figsExtra: [], resuelto: true, ...(R.empateEnElFilo ? { empateFilo: R.empateEnElFilo } : {}) };
   const nombres = [...R.set].map((k) => (indice.entidades && indice.entidades.get ? (indice.entidades.get(k) || { nombre: k }).nombre : k));
   // R-VARIACION-SIN-CIFRA-EN-TOP (diagnóstico v6, MEDIA) — «conocida» tiene que significar «ya trae una fig de
   // ESTE `conceptoTop»», no «ya trae CUALQUIER fig»: una entidad puede llegar con su «Venta» (otro concepto) y
@@ -2284,7 +2304,7 @@ function _entidadesDelTopVerificado(entidadesDeLaToolCruda, figsAcotadas, top, e
   if (faltan.size && typeof indice.figsDeMetrica === "function") {
     try { figsExtra = (indice.figsDeMetrica(conceptoTop, eje) || []).filter((f) => { const e = _entidadDe(_lab(f)); return e && faltan.has(normalizar(e)); }); } catch { figsExtra = []; }
   }
-  return { entidades: nombres, figsExtra, resuelto: true };
+  return { entidades: nombres, figsExtra, resuelto: true, ...(R.empateEnElFilo ? { empateFilo: R.empateEnElFilo } : {}) };
 }
 function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direccionSinTop = null } = {}) {
   if (_universoNoSoportado(parte.universo)) return null;
@@ -2314,16 +2334,17 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
   // parte no se pudo resolver (nunca un «sin evidencia» genérico): `_planCifraGrupo` lo devuelve como
   // `{error: errorUniverso}` en vez de `null` para que el llamador declare el límite de negocio verdadero (ver la
   // nota grande de `_resolverConjuntoDeclarado`).
-  let entidadesEnJuego, universoResuelto = false, errorUniverso = null;
+  let entidadesEnJuego, universoResuelto = false, errorUniverso = null, empateFilo = null;   /* §7.3·44a: el empate del filo del top */
   if (top) {
     const crudo = _todasLasFilasDeConcepto(figsAcotadas, conceptoTop).map((x) => x.entidad);
     // A1b — el MISMO universo que ya resolvió `figsEnAlcance` para `figsAcotadas` (base/estados/no_estados/
     // filtros/union/excluir), para que el contraste de arriba nunca discrepe con lo que ya filtró el alcance.
     const camposUniverso = _camposDeUniverso(alcance);
-    const { entidades, figsExtra, resuelto, errorUniverso: errU } = _entidadesDelTopVerificado(crudo, figsAcotadas, top, eje, conceptoTop, indice, camposUniverso);
+    const { entidades, figsExtra, resuelto, errorUniverso: errU, empateFilo: empF } = _entidadesDelTopVerificado(crudo, figsAcotadas, top, eje, conceptoTop, indice, camposUniverso);
     if (figsExtra.length) figsAcotadas = [...figsAcotadas, ...figsExtra];
     entidadesEnJuego = entidades;
     universoResuelto = resuelto;
+    if (empF) empateFilo = empF;
     if (errU) errorUniverso = errU;
   }
   else {
@@ -2483,7 +2504,8 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
   // aparte — hoy la oración/tabla siguen usando solo `orden` (ya acotado) y el prefijo «El top K de M» que ya
   // declara la cola como agregado (componer.js, más abajo).
   let cola = [];
-  if (top) { const r = recortarATop(orden, top); orden = r.enFoco; cola = r.cola; }
+  /* §7.3·44a: un top cuyo filo cae dentro de un empate sirve a TODOS los empatados del filo (`empateFilo.servidos`): el recorte respeta esa cuenta, nunca deja fuera a uno de los empatados */
+  if (top) { const r = recortarATop(orden, empateFilo && empateFilo.servidos > top.k ? { ...top, k: empateFilo.servidos } : top); orden = r.enFoco; cola = r.cola; }
   // §7.3·17 (supervisor 2026-09-27, diagnóstico v8) — `universoDecl` viaja con TODOS los campos del universo
   // declarado (antes solo `top`): `_declararUniverso` los necesita para que `entrega.universos[]` describa el
   // universo REAL de una parte `lectura`/`decision` sin entidades (no solo su `top`), y para que el invariante de
@@ -2500,7 +2522,7 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
     }
     for (const g of grupos) if (g.entidades.length > 1) empates.push(g);
   }
-  return { kind: "grupo", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, eje, conceptos, porEntidad, orden, cola, empates, claveOrden, universoDecl: { top: top || null, base: alcance.base || null, estados: alcance.estados || null, no_estados: alcance.no_estados || null, filtros: alcance.filtros || null, bodega: alcance.bodega || null, union: alcance.union || null, excluir: alcance.excluirCompleto || null, entidades: orden } };
+  return { kind: "grupo", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, eje, conceptos, porEntidad, orden, cola, empates, ...(empateFilo && orden.length === empateFilo.servidos ? { empateFilo } : {}), claveOrden, universoDecl: { top: top || null, base: alcance.base || null, estados: alcance.estados || null, no_estados: alcance.no_estados || null, filtros: alcance.filtros || null, bodega: alcance.bodega || null, union: alcance.union || null, excluir: alcance.excluirCompleto || null, entidades: orden } };
 }
 
 /* ── PLAN «multitema» (cierre `lectura`/`decision` SIN entidades, 1..N temas: reusa `prioridadIntegrada`, LA
@@ -3623,13 +3645,21 @@ export function componerEntrega(resolucion) {
       // índice que ya usan las 4 rutas fijas (`ejesDelTenant`) — nunca un número a mano; sin `top`, el listado YA
       // es el eje completo (no hay cola que declarar).
       const totalEje = ejesDelTenant[plan.eje] ? ejesDelTenant[plan.eje].length : null;
-      const prefijo = plan.universoDecl.top && totalEje != null ? `El top ${plan.universoDecl.top.k} de ${totalEje} ${plan.eje}` : `Por ${plan.eje}`;
-      if (plan.universoDecl.top && totalEje != null) { cifrasImpresas.push(String(totalEje)); cifrasImpresas.push(String(plan.universoDecl.top.k)); }
+      /* §7.3·44a: un top cuyo filo cae DENTRO de un empate sirve a TODOS los empatados y lo declara: «El top 8 de 13 cliente, con 9 por el empate del filo (Tottus y Paris empatan en el puesto 8)». Nunca elige a uno ni declina el top. */
+      const _empF = plan.empateFilo || null;
+      const _nombresEmpF = _empF ? plan.orden.filter((e) => _empF.entidades.includes(normalizar(e))) : [];
+      const _declaraEmpF = !!(_empF && _nombresEmpF.length > 1 && plan.universoDecl.top && totalEje != null);
+      const prefijo = plan.universoDecl.top && totalEje != null
+        ? `El top ${plan.universoDecl.top.k} de ${totalEje} ${plan.eje}${_declaraEmpF ? `, que sirve ${plan.orden.length} por el empate del filo (${_listaDeNombres(_nombresEmpF)} empatan en el puesto ${_empF.puesto})` : ""}`
+        : `Por ${plan.eje}`;
+      if (plan.universoDecl.top && totalEje != null) { cifrasImpresas.push(String(totalEje)); cifrasImpresas.push(String(plan.universoDecl.top.k)); if (_declaraEmpF) { cifrasImpresas.push(String(plan.orden.length)); cifrasImpresas.push(String(_empF.puesto)); } }
       /* §7.3·43(b) (v19, Y02): un orden servido con EMPATE declara el puesto compartido y quiénes lo comparten (`plan.empates`, calculado sobre el crudo al armar el plan). Va en la MISMA oración del orden: no agrega una oración
        * con hechos propios (que la protección cruzada de `tamano.js` leería como cifras a servir y movería filas de lugar); las cifras de los empatados ya viajan en esta oración y en la tabla. */
       const _listaDe = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}` : xs[0]);
-      const empateTxt = plan.claveOrden && Array.isArray(plan.empates) && plan.empates.length
-        ? ` Empate en el orden servido: ${plan.empates.map((g) => { cifrasImpresas.push(String(g.n)); return `puesto ${g.n} compartido por ${_listaDe(g.entidades)}`; }).join("; ")}.`
+      /* el empate del filo ya se dijo arriba (con su puesto): no se repite en esta línea */
+      const _empatesPorDecir = plan.claveOrden && Array.isArray(plan.empates) ? plan.empates.filter((g) => !(_declaraEmpF && g.entidades.length === _nombresEmpF.length && g.entidades.every((e) => _nombresEmpF.includes(e)))) : [];
+      const empateTxt = _empatesPorDecir.length
+        ? ` Empate en el orden servido: ${_empatesPorDecir.map((g) => { cifrasImpresas.push(String(g.n)); return `puesto ${g.n} compartido por ${_listaDe(g.entidades)}`; }).join("; ")}.`
         : "";
       entrega.respuesta.push({ texto: `${prefijo}, ordenado por ${_labelDeClave(plan.claveOrden) || plan.claveOrden}: ${cabeza}.${empateTxt}`, hechos: idsCabeza });
       // §7.3·17 (supervisor 2026-09-27, diagnóstico v8) — una `decision` sobre un universo propio calcula la

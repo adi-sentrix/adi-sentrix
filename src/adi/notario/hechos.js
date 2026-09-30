@@ -786,8 +786,10 @@ function _conteoTipado(H, h, I) {
   if (u.top) { _addClave(H, u.top.metrica); H.numeros.push({ raw: +u.top.k, unidad: "count", texto: String(u.top.k), dueno: "universo" }); H.render.k = String(u.top.k); }
   for (const e of [..._lista(u.estados), ..._lista(u.no_estados), ..._lista(u.excluir && u.excluir.estados)]) { const c = _canonDe(e); H.estado = H.estado || c; H.estadosDelUniverso = H.estadosDelUniverso || new Set(); H.estadosDelUniverso.add(c); if (!H.dominio) H.dominio = dominioDeEstado(c); }
   H.numeros.push({ raw: set.size, unidad: "count", texto: String(set.size), dueno: "universo" }, { raw: mBase, unidad: "count", texto: String(mBase), dueno: "universo" });
+  /* v20 (§7.3·44d): el «de M» que se dice es el tamaño del universo de la PREMISA (`mRender`: el «de M» admisible que la consulta planteó), no el de otra base («3 de 4» donde la consulta dijo «3 de 4», nunca «3 de 5») */
+  if (mRender !== mBase && Number.isFinite(mRender)) H.numeros.push({ raw: mRender, unidad: "count", texto: String(mRender), dueno: "universo" });
   const lista = H.roles.miembros.join(", ");
-  let verdad = `${set.size}${mBase ? " de " + mBase : ""} en ${H.universo.texto}${lista ? ": " + lista : ""}`;
+  let verdad = `${set.size}${mRender ? " de " + mRender : ""} en ${H.universo.texto}${lista ? ": " + lista : ""}`;
   // A4, GENERALIZACIÓN A `conteo` (supervisor 2026-09-27, diagnóstico v9, RAÍZ A4 — precisa el bloque gemelo de
   // `grupo`/`estado`, más abajo en este archivo) — un conteo sobre un universo de REFERENCIA (`base`/`estados`
   // citando «rota bien»/«rota lento», «bajo/sobre el benchmark», etc.) imprime el VALOR de esa referencia en la
@@ -988,6 +990,29 @@ function _metricaPropia(I, nombre, clave) {
   if (!cifra) return null;
   const m = metricaPorClave(clave);
   return { clave, nombre: (m ? m.nombre : (nombreDeMetricaDeReferencia(clave) || metricaDeClave(clave))).toLowerCase(), raw: cifra.raw, unidad: cifra.unidad, texto: cifra.texto, ...(cifra.ausente ? { ausente: true } : {}) };
+}
+/* v20 (§7.3·44a): una premisa de PERTENENCIA a un top cuyo filo cae DENTRO de un empate, sobre un empatado del filo, es verdadera y DECLARA el empate: `{ n (el puesto compartido), sujetos, entidades (todos los empatados del filo) }`.
+ * Del `orden` topk (la cuenta de `puestoDeOrden`, la misma que el veredicto) y del `grupo` sobre un universo con `top` (`empateEnElFilo` de `conjuntoDeUniverso`, la misma cuenta que eligió al conjunto). Sin empate en el filo: null (un empate dentro del top no se declara: el corte no lo parte). */
+function _empateFiloDeOrden(h, I) {
+  const o = _es(h.orden) ? h.orden : {};
+  if (normalizar(String(o.forma || "")) !== "topk" || !_entero(o.k)) return null;
+  const sujeto = _sujetoUnico(h.sujeto);
+  const ent = sujeto ? I.resolverEntidad(sujeto) : null;
+  if (!ent) return null;
+  let po = null; try { po = puestoDeOrden(_aV2(h, I), I); } catch { po = null; }
+  if (!po || !Array.isArray(po.empatadoCon) || !po.empatadoCon.length) return null;
+  const k = +o.k;
+  if (!(po.n <= k && po.n + po.empatadoCon.length > k)) return null;
+  return { n: po.n, sujetos: [ent.nombre], entidades: [ent.nombre, ...po.empatadoCon] };
+}
+function _empateFiloDeGrupo(h, I, nombres) {
+  const u = _es(h.universo) ? h.universo : null;
+  if (!u || !u.top) return null;
+  let U = null; try { U = conjuntoDeUniverso(u, I, u.eje || null, ""); } catch { U = null; }
+  const e = U && U.empateEnElFilo;
+  if (!e || !Array.isArray(e.nombres)) return null;
+  const propios = nombres.filter((n) => e.nombres.some((x) => normalizar(x) === normalizar(n)));
+  return propios.length ? { n: e.puesto, sujetos: propios, entidades: e.nombres } : null;
 }
 const _sujetoUnico = (s) => { const x = Array.isArray(s) ? (s.length === 1 ? s[0] : null) : s; return typeof x === "string" && x !== "negocio" ? x : null; };
 function _verdadPropiaDeOrden(h, H, I) {
@@ -1564,7 +1589,9 @@ export function libroDeHechos(hechos, ctx = {}) {
       if (H.tipo === "grupo" && H.veredicto === "verdadera" && _es(h.universo) && H.roles.sujetos.length && !H.roles.sujetos.includes("negocio")) {
         const nombres = H.roles.sujetos.map((s) => { const r = I.resolverEntidad(s); return r ? r.nombre : s; });
         H.render.pertenencia = { entidades: nombres, universo: nombrarUniverso(h.universo, I) };
+        { const ef = _empateFiloDeGrupo(h, I, nombres); if (ef) H.render.empateFilo = ef; }   // §7.3·44a
       }
+      if (H.tipo === "orden" && H.veredicto === "verdadera") { const ef = _empateFiloDeOrden(h, I); if (ef) H.render.empateFilo = ef; }   // §7.3·44a
       if (H.tipo === "estado" && (H.veredicto === "verdadera" || H.veredicto === "falsa")) { const ep = _estadosPropiosDePremisa(H, I); if (ep) H.render.estadosPropios = ep; }
     } catch { /* sin verdad propia el veredicto cae al texto de siempre */ }
     libro.hechos.push(H); libro.porId.set(H.id, H);

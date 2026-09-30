@@ -614,11 +614,18 @@ function _topTipado(t, I, eje, dentro) {
   }
   if (dir !== "mayor" && dir !== "menor") return { error: `universo-no-resoluble: dirección «${t.direccion}» desconocida` };
   const ordenadas = F.filas.filter((x) => !dentro || dentro.has(x.entidad)).sort((x, y) => (dir === "mayor" ? y.raw - x.raw : x.raw - y.raw));
-  if (ordenadas.length > k && ordenadas[k - 1].raw === ordenadas[k].raw) return { error: `top-empatado: el corte de los ${k} de ${dir} ${clave} parte un empate (${ordenadas[k - 1].nombre} y ${ordenadas[k].nombre} valen lo mismo)` };
-  const filas = ordenadas.slice(0, k);
+  /* v20 (§7.3·44a): un top cuyo filo cae DENTRO de un empate sirve a TODOS los empatados del filo y lo declara (`empateEnElFilo`); nunca elige a uno ni declina el top. El puesto compartido es el de la casa (1 + cuántas lo superan estrictamente), la misma cuenta que `_ordenar`. */
+  let empateEnElFilo = null;
+  let filas = ordenadas.slice(0, k);
+  if (ordenadas.length > k && ordenadas[k - 1].raw === ordenadas[k].raw) {
+    const vFilo = ordenadas[k - 1].raw;
+    filas = ordenadas.filter((x, i) => i < k || x.raw === vFilo);
+    const empatadas = ordenadas.filter((x) => x.raw === vFilo);
+    empateEnElFilo = { valor: vFilo, puesto: ordenadas.findIndex((x) => x.raw === vFilo) + 1, k, servidos: filas.length, entidades: empatadas.map((x) => x.entidad), nombres: empatadas.map((x) => x.nombre || x.entidad) };
+  }
   /* `orden`/`filasOrden`/`dir` (supervisor 2026-09-29, diagnóstico v13, decisión 37a): el ranking COMPLETO que el top ordena, en SU dirección, para que el libro
    * pueda decir el PUESTO real de una entidad con la misma cuenta que eligió al conjunto (nunca una segunda ordenación). Aditivo: quien solo lee `set` no cambia. */
-  return { set: new Set(filas.map((x) => x.entidad)), fuente: `los ${k} de ${dir} ${clave}`, orden: ordenadas.map((x) => x.entidad), filasOrden: ordenadas, dir };
+  return { set: new Set(filas.map((x) => x.entidad)), fuente: `los ${k} de ${dir} ${clave}${empateEnElFilo ? ` (${filas.length} por el empate del filo)` : ""}`, orden: ordenadas.map((x) => x.entidad), filasOrden: ordenadas, dir, ...(empateEnElFilo ? { empateEnElFilo } : {}) };
 }
 const _listaOUno = (x) => (Array.isArray(x) ? x : x == null || x === "" ? [] : [x]);
 function _conjuntoTipado(u, I, eje0, metrica = "") {
@@ -626,6 +633,7 @@ function _conjuntoTipado(u, I, eje0, metrica = "") {
   const fuentes = [];
   const todos = _todosDelEje(I, eje);
   let set = null;   // null = el eje entero (sin restricción)
+  let empateFilo = null;   // §7.3·44a: el empate del filo del `top` (los que sirve de más y lo declara)
   const restringir = (S, f) => { set = set ? new Set([...set].filter((x) => S.has(x))) : new Set(S); if (f) fuentes.push(f); };
   if (u.base && !/^(?:todos|todas|todo|el eje|eje|el total|la cartera|(?:todos|todas)\s+(?:los|las|tus|mis|sus)\s+[a-záéíóúñ]+)$/i.test(String(u.base).trim())) {
     const nombre = normalizar(u.base);
@@ -687,6 +695,7 @@ function _conjuntoTipado(u, I, eje0, metrica = "") {
     // texto. Se intersecta preservando el orden de `S.set` (nunca el de `set`, que no ordena nada).
     set = set ? new Set([...S.set].filter((x) => set.has(x))) : new Set(S.set);
     fuentes.push(S.fuente);
+    if (S.empateEnElFilo) empateFilo = S.empateEnElFilo;
   }
   if (u.excluir && typeof u.excluir === "object") {
     const ex = u.excluir;
@@ -717,7 +726,10 @@ function _conjuntoTipado(u, I, eje0, metrica = "") {
     for (const v of u.union) { const S = _conjuntoTipado(v && typeof v === "object" ? v : {}, I, eje, metrica); if (S.error) return S; for (const x of (S.set || _todosDelEje(I, eje) || [])) acc.add(x); if (S.fuente) fuentesUnion.push(S.fuente); }
     set = acc; fuentes.push(fuentesUnion.length ? fuentesUnion.join(" o ") : "unión");
   }
-  return { set, fuente: fuentes.length ? fuentes.join(" · ") : "el eje entero", tipado: true };
+  /* el empate del filo se declara solo con los empatados que sobreviven al resto del universo (sin filtros que los saquen, sin las exclusiones); con menos de dos, no hay empate que decir */
+  let empateDeclarado = null;
+  if (empateFilo && set) { const enSet = empateFilo.entidades.map((x, i) => ({ x, n: empateFilo.nombres[i] })).filter((e) => set.has(e.x)); if (enSet.length > 1) empateDeclarado = { ...empateFilo, entidades: enSet.map((e) => e.x), nombres: enSet.map((e) => e.n), servidos: set.size }; }
+  return { set, fuente: fuentes.length ? fuentes.join(" · ") : "el eje entero", tipado: true, ...(empateDeclarado ? { empateEnElFilo: empateDeclarado } : {}) };
 }
 /** rankingDeTop(u, I, eje) → { orden:[entidad normalizada…], dir, clave, k, de:'top'|'excluir' } | null · el ranking COMPLETO que el `top` de un universo tipado
  *  ordena (decisión 37a, diagnóstico v13): el conjunto previo al top —la base, los estados, los filtros— o el eje entero con `top.sobre:"eje"`, ordenado en la

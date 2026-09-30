@@ -542,9 +542,10 @@ H("(a5) · un top / orden por días sin venta: el top correcto sobre TODOS los S
   const f5m = E5m.ok ? filasDeDias(E5m) : [];
   ok(cero.length === 5 && E5m.ok === true && f5m.length === 5 && f5m.every((x) => x[1] === 0) && JSON.stringify(f5m.map((x) => x[0]).sort()) === JSON.stringify(cero.map((x) => x[0]).sort()), "top 5 de MENOS días: exactamente los 5 SKU que vendieron a la fecha de corte (antes: sin productor, la Entrega no salía)", E5m.ok ? JSON.stringify(f5m) : E5m.motivo);
   ok(E5m.ok === true && !JSON.stringify(E5m.entrega.paraSuJuicio || []).includes("esté inmovilizado"), "la cabeza del ranking (SAM-REF500L, con 0 días, no inmovilizado) NO dispara la pregunta «por qué está inmovilizado»: no afirma algo falso");
-  // el top 3 «menor» parte un EMPATE (5 SKU con 0 días): se declina con su motivo, no se sirven 3 al azar
+  // el top 3 «menor» parte un EMPATE (5 SKU con 0 días): §7.3·44(a) — se sirven los 5 empatados y se declara el empate (nunca 3 al azar, ni se declina el top)
   const E3m = entregaDe(encTop(3, "menor"));
-  ok(E3m.ok === true && filasDeDias(E3m).length === 0 && (E3m.entrega.limites || []).some((l) => /empat/i.test(String(l.motivo))), "top 3 de MENOS días: el corte parte un empate → se declina honestamente, sin elegir 3 de 5 iguales");
+  const f3m = E3m.ok ? filasDeDias(E3m) : [];
+  ok(E3m.ok === true && f3m.length === 5 && JSON.stringify(f3m.map((x) => x[0]).sort()) === JSON.stringify(cero.map((x) => x[0]).sort()) && /que sirve 5 por el empate del filo \(.+ empatan en el puesto 1\)/.test(E3m.texto || "") && !(E3m.entrega.limites || []).some((l) => /empat/i.test(String(l.motivo))), "top 3 de MENOS días: el corte parte un empate → se sirven los 5 empatados y se declara el empate del filo (§7.3·44a), sin elegir 3 de 5 iguales ni declinar", E3m.ok ? JSON.stringify(f3m) : E3m.motivo);
   const Ecs = entregaDe({ version: "encargo/v1", partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["dias_sin_venta"], eje: "sku" }] });
   const fcs = Ecs.ok ? filasDeDias(Ecs) : [];
   ok(Ecs.ok === true && fcs.length === 13 && JSON.stringify(fcs.map((x) => x[0]).sort()) === JSON.stringify(ORACULO_DIAS.map((x) => x[0]).sort()) && fcs.every((x) => ORACULO_DIAS.find((o) => o[0] === x[0])[1] === x[1]), "el CONCEPTO «días sin venta» por SKU: los 13, cada uno con su cifra del archivo");

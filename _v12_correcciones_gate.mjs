@@ -27,6 +27,9 @@
  *   A15 · diagnóstico v20 (§7.3·43): una parte no_resuelta no reporta entidades (d) · el Marco comercial cita el benchmark sea cual sea la herramienta (e) · una lectura con eje explícito sirve el eje (U06 U42) ·
  *         el cero de un empate por ausencia en palabras y el del SUJETO (U06 U91) · el SKU fuera por la bodega PEDIDA dice su bodega (U62) · una definición sin curar se declara (U34).
  *
+ *   A16 · diagnóstico v20 (§7.3·44): un top cuyo filo cae dentro de un empate sirve a TODOS los empatados y lo declara, y la premisa de pertenencia sobre un empatado del filo es verdadera y lo declara (a, Y73 U10) ·
+ *         el «de M» de un conteo es el de la premisa (d, U62) · cada premisa lleva UNA sola traza «La verdad: …» (e).
+ *
  * Solo por `npm run gates:offline` (o con el candado: node --import ./scripts/offline-guard.mjs _v12_correcciones_gate.mjs). Cero red. */
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -997,6 +1000,88 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
   ok(a.E.ok && _partesDe(a.R).p1.estado === "resuelta" && _limitesDe(a.E).some((t) => /la definición de «markup» no está disponible en este registro/.test(t)), "«qué es el markup» (parte resuelta, sin definición curada): el límite lo dice", JSON.stringify(_limitesDe(a.E)));
   const b = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "definicion", concepto: "margen" }, cob] });
   ok(b.E.ok && !_limitesDe(b.E).some((t) => /no está disponible en este registro/.test(t)) && /margen de contribución/.test(b.E.texto), "CONTROL NEGATIVO · «qué es el margen» (curada) se sirve y no agrega límite", JSON.stringify(_limitesDe(b.E)));
+}
+
+/* ═══ A16 · DIAGNÓSTICO v20 (§7.3·44) ══════════════════════════════════════════════════════════════════════════════════════════════════════════
+ * Tres raíces de la Entrega, cada una con su carnada en POSITIVO y su control en NEGATIVO:
+ *   44(a) · Y73 · U10 · un top cuyo filo cae DENTRO de un empate sirve a TODOS los empatados del filo y lo declara (nunca elige a uno ni declina el top); una premisa de PERTENENCIA a ese top (`orden` topk o `grupo` sobre un universo con `top`)
+ *           sobre un empatado del filo es verdadera y declara el empate. Un corte que NO parte el empate no cambia nada; el puesto único (`max`, `puesto`) sigue la 43(a).
+ *   44(d) · U62 · el «de M» de un conteo es el tamaño del universo de la PREMISA (el «de M» admisible que la consulta planteó), no el de otra base («3 de 4», nunca «3 de 5»).
+ *   44(e) · 37 textos · cada premisa lleva UNA sola traza «La verdad: …»: nunca se repite ni repite lo que la oración ya dice; la que agrega una verdad que la oración no trae se conserva.
+ * Oráculos: el ranking de la proyección (`cifrasDelDato`), el tamaño real de cada universo y la cuenta de trazas del propio texto servido; nunca el código que se corrige. */
+{
+  H("A16 · 44(a) · Y73 · un top cuyo filo cae DENTRO de un empate sirve a TODOS los empatados y lo declara");
+  const rec = RK.cliente.recuperado.filas.slice().sort((x, y) => y.valor - x.valor);
+  const filoPartido = (k) => rec.length > k && rec[k - 1].valor === rec[k].valor;
+  const tamServido = (k) => { const v = rec[k - 1].valor; return rec.filter((f, i) => i < k || f.valor === v).length; };
+  const topDe = (k) => entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["recuperado", "abonado"], universo: { eje: "cliente", top: { metrica: "recuperado", k } } }] });
+  const filasDe = (E) => new Set(((E.entrega.universos || []).find((u) => u.id === "p1") || {}).entidades || []);   /* el universo DECLARADO de la parte (las entidades servidas), no la tabla (que manda filas al Detalle) */
+  const lineaTop = (E) => (E.entrega.respuesta.find((r) => /^El top \d+ de \d+/.test(r.texto || "")) || {}).texto || "";
+  { const k = 1, { R, E } = topDe(k), sirve = rec.filter((f) => f.valor === rec[0].valor).map((f) => f.entidad), l = lineaTop(E);
+    ok(filoPartido(k) && sirve.length === 2, "oráculo · el top 1 de recuperado parte un empate (dos cuentas con el mismo valor)", JSON.stringify(rec.slice(0, 3)));
+    ok(E.ok && R.partes[0].estado === "resuelta" && sirve.every((n) => filasDe(E).has(n)) && filasDe(E).size === sirve.length, "top 1: se sirven las DOS empatadas (ni una sola, ni la parte declinada)", JSON.stringify([...filasDe(E)]));
+    ok(new RegExp(`que sirve ${sirve.length} por el empate del filo \\(${sirve[0]} y ${sirve[1]} empatan en el puesto 1\\)`).test(l) && !/Empate en el orden servido/.test(l), "el empate del filo se declara UNA vez, con la cuenta servida y el puesto compartido", l);
+    ok(!_limitesDe(E).some((t) => /empate|top/i.test(t)), "ningún límite dice que el universo «no se pudo evaluar» por el empate", JSON.stringify(_limitesDe(E))); }
+  { const k = 8, { E } = topDe(k), n = tamServido(k), l = lineaTop(E), pu = rec.findIndex((f) => f.valor === rec[k - 1].valor) + 1;
+    ok(filoPartido(k) && n === 9 && filasDe(E).size === n, "top 8: el filo cae dentro de un empate: se sirven 9 cuentas", JSON.stringify([...filasDe(E)]));
+    ok(new RegExp(`que sirve 9 por el empate del filo \\(.+ empatan en el puesto ${pu}\\)`).test(l), "«top 8: 9 cuentas, … empatan en el puesto 8»", l); }
+  for (const k of [2, 9]) { const { E } = topDe(k), l = lineaTop(E);
+    ok(!filoPartido(k) && filasDe(E).size === k && !/empate del filo/.test(l), `CONTROL NEGATIVO · el top ${k} NO parte ningún empate (el corte cae entre dos valores): se sirven ${k} y no se declara empate del filo`, l); }
+  { const k = 3, { E } = topDe(k), l = lineaTop(E), n = tamServido(k);
+    ok(filoPartido(k) && filasDe(E).size === n && n > 3 && /empate del filo/.test(l), `un empate de MÁS de dos cuentas en el filo (top 3: ${n} servidas) se sirve entero y se declara`, l); }
+
+  H("A16 · 44(a) · U10 · la premisa de PERTENENCIA a un top sobre un empatado del filo es verdadera y declara el empate");
+  const empatados = rec.filter((f) => f.valor === rec[7].valor).map((f) => f.entidad);
+  const otro = (n) => empatados.find((x) => x !== n);
+  const topk = (sujeto, k) => oracionesDe(entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["recuperado"] }], premisas: [{ id: "q1", tipo: "orden", sujeto, metrica: "recuperado", orden: { forma: "topk", k }, universo: { eje: "cliente" } }] }).E)[0] || "";
+  { const t = topk("Paris", 8);
+    ok(empatados.length === 2 && empatados.includes("Paris") && empatados.includes("Tottus"), "oráculo · Paris y Tottus comparten el puesto 8 de recuperado", JSON.stringify(empatados));
+    ok(/es correcto — Paris: recuperado 58\.3%, empatado con Tottus en el puesto 8\./.test(t), "«Paris está entre las 8 primeras» (el corte parte el empate): VERDADERA y declara el empate con Tottus en el puesto 8", t);
+    const t2 = topk("Tottus", 8); ok(/es correcto — Tottus: recuperado 58\.3%, empatado con Paris en el puesto 8\./.test(t2), "lo mismo para el otro empatado (Tottus)", t2); }
+  { const t = topk("Tottus", 9);
+    ok(/es correcto — Tottus: recuperado 58\.3%\./.test(t) && !/empatado/.test(t), "CONTROL NEGATIVO · «Tottus está entre las 9 primeras» (el grupo empatado cabe entero): verdadera, sin declaración de empate (el corte no lo parte)", t);
+    const f = topk("Falabella", 7); ok(/no es así — Falabella/.test(f) && !/empatado con/.test(f), "CONTROL NEGATIVO · «Falabella está entre las 7 primeras» sigue FALSA (fuera del top), sin declaración de empate", f);
+    const pu = oracionesDe(entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["recuperado"] }], premisas: [{ id: "q1", tipo: "orden", sujeto: "Paris", metrica: "recuperado", orden: { forma: "puesto", k: 8 }, universo: { eje: "cliente" } }] }).E)[0] || "";
+    ok(/no se pudo verificar/.test(pu) && /empat|valen lo mismo/.test(pu), "CONTROL NEGATIVO · una premisa de PUESTO único («Paris es el 8.º») sigue la 43(a): no verificable, con el empate", pu); }
+  { const u8 = { eje: "cliente", top: { metrica: "recuperado", k: 8 } }, u9 = { eje: "cliente", top: { metrica: "recuperado", k: 9 } };
+    const gr = (m, u) => oracionesDe(entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["recuperado"], universo: u }], premisas: [{ id: "q1", tipo: "grupo", miembros: [m], universo: u }] }).E)[0] || "";
+    const t = gr("Paris", u8);
+    ok(/es correcto — Paris/.test(t) && /empatado con Tottus en el puesto 8/.test(t), "«Paris está en el grupo de las 8 primeras» (grupo sobre un universo con top que parte el empate): verdadera y declara el empate", t);
+    const t9 = gr("Paris", u9); ok(/es correcto — Paris/.test(t9) && !/empatado/.test(t9), "CONTROL NEGATIVO · el grupo de las 9 primeras (el corte no parte el empate) no declara empate", t9);
+    const tf = gr("Falabella", u8); ok(/no es así — Falabella/.test(tf) && !/empatado con/.test(tf), "CONTROL NEGATIVO · un miembro que NO está en el top sigue falso", tf); }
+
+  H("A16 · 44(d) · U62 · el «de M» de un conteo es el de la PREMISA, no el de otra base");
+  { const univ = { eje: "sku", top: { metrica: "capital", k: 4, sobre: "eje" }, bodega: "Santiago" };
+    const cnt = (m) => oracionesDe(entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital"], eje: "sku", universo: univ }], premisas: [{ id: "q1", tipo: "conteo", conteo: { n: 3, m }, de: univ }] }).E)[0] || "";
+    const santiago = RK.sku.capital.filas.filter((f) => _bodegaDeSku(f.entidad) === "Santiago").length;
+    const t4 = cnt(4);
+    ok(santiago === 5 && /es correcto — 3 de 4 en /.test(t4) && !/3 de 5/.test(t4), "«3 de los 4» (4 = el top del eje, un «de M» admisible; la bodega tiene 5 SKU): la oración dice «3 de 4», nunca «3 de 5»", t4);
+    const t5 = cnt(5); ok(/es correcto — 3 de 5 en /.test(t5), "CONTROL · «3 de 5» (el tamaño de la base) dice «3 de 5»", t5);
+    const t7 = cnt(7); ok(/no es así — 3 de 5 en /.test(t7), "CONTROL NEGATIVO · un «de M» que NO es admisible (7) no se dice: la falsa dice el tamaño real de la base", t7);
+    const enMora = RK.cliente.saldo_vencido.filas.filter((f) => f.valor > 0).length, nEje = RK.cliente.saldo_vencido.filas.length;
+    const z = oracionesDe(entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"] }], premisas: [{ id: "q1", tipo: "conteo", conteo: { n: enMora, m: nEje }, de: { eje: "cliente", estados: ["en mora"] } }] }).E)[0] || "";
+    ok(new RegExp(`es correcto — ${enMora} de ${nEje} en los clientes en mora`).test(z), `un conteo sobre un estado con «de ${nEje}» (el eje, admisible) dice «${enMora} de ${nEje}», el universo que la premisa planteó`, z); }
+
+  H("A16 · 44(e) · cada premisa lleva UNA sola traza «La verdad: …»: sin repetirla ni repetir lo que la oración ya dice");
+  { const premisasFalsas = [
+      { partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["rotacion"] }], premisas: [{ id: "q1", tipo: "estado", sujeto: "BOS-SANDER", estado: "rota bien" }] },
+      { partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"] }], premisas: [{ id: "q1", tipo: "estado", sujeto: "Lider", estado: "al dia" }] },
+      { partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"] }], premisas: [{ id: "q1", tipo: "variacion", sujeto: "Ripley", metrica: "ventas", variacion: { direccion: "sube" }, periodo: "anterior" }] },
+    ];
+    const trazas = (t) => { const m = /\. La verdad: (.*)\.$/.exec(t); return m ? m[1] : null; };
+    const dicho = (t) => t.replace(/^.*no es así — /, "").replace(/\. La verdad: .*$/, "").replace(/\.$/, "");
+    for (const enc of premisasFalsas) {
+      const t = oracionesDe(entregaDe(enc).E)[0] || "", tr = trazas(t), cuerpo = dicho(t);
+      const segs = tr ? tr.split(" · ") : [];
+      ok(/no es así/.test(t) && (t.match(/La verdad:/g) || []).length <= 1 && new Set(segs).size === segs.length && (!tr || !cuerpo.includes(tr)), `premisa de ${enc.premisas[0].tipo} falsa sobre ${enc.premisas[0].sujeto}: a lo más UNA traza, sin segmentos repetidos y sin repetir la oración`, t);
+    }
+    const t1 = oracionesDe(entregaDe(premisasFalsas[0]).E)[0] || "";
+    ok(/BOS-SANDER: rotación 1\.6x, piso de rotación 2\.0x/.test(t1) && !/La verdad/.test(t1), "«BOS-SANDER rota bien» (falsa): la verdad propia va una vez, en palabras, y no se repite con la notación interna", t1);
+    const t2 = oracionesDe(entregaDe(premisasFalsas[1]).E)[0] || "";
+    ok((t2.match(/Saldo vencido = \$4\.6M/g) || []).length === 1, "«Lider está al día» (falsa): «Saldo vencido = $4.6M» aparece UNA vez", t2);
+    const u18 = oracionesDe(entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "contribucion", "variacion"], eje: "canal", universo: { eje: "canal" } }], premisas: [{ id: "q1", tipo: "variacion", sujeto: "Retail", metrica: "ventas", variacion: { direccion: "sube", valor: "7.6%" }, periodo: "anterior" }] }).E)[0] || "";
+    ok((u18.match(/La verdad:/g) || []).length === 1 && /La verdad: Retail · Variación vs año anterior = \+6\.6%/.test(u18), "CONTROL NEGATIVO · una traza que AGREGA la verdad (Retail +6.6% cuando la consulta dijo 7.6%) se conserva, una sola vez", u18);
+  }
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");
