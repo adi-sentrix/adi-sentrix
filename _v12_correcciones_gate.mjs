@@ -20,6 +20,8 @@
  *         piso de materialidad de la consulta (W27) · universos declarados (P-A) · comparación parcial (P-B) · el cero en palabras en la comparación (P-C).
  *   A11 · diagnóstico v18: la cartera de cobranza sirve los N clientes (C-A) · el filtro con `ref` pone en juego la referencia de la consulta (C-B) · el Marco declara el nivel de carga oficial (C-C) ·
  *         el puesto empatado dice con quién empata (C-D) · `verificarEntrega` no acusa por sustring (C-E).
+ *   A13 · diagnóstico v19: `==` con el crudo (Y96) · la razón de un miembro es la condición que NO cumple (Y41 · Y11 · Y14) · la unión dice cada rama (Y10) · la referencia de un filtro con `ref` en la premisa de orden (Y24) ·
+ *         el Marco declara todas las referencias oficiales (Y40, 42b) · la cartera completa con sus 0 días (Y20, 42c) · la bodega excluida se nombra (Y74) · el empate del orden dice con quién (Y06, 42a).
  *
  * Solo por `npm run gates:offline` (o con el candado: node --import ./scripts/offline-guard.mjs _v12_correcciones_gate.mjs). Cero red. */
 import { initTenant } from "./src/data/tenantStore.js";
@@ -34,7 +36,7 @@ import { lecturasDe } from "./src/adi/encargo/lecturasDe.js";
 import { componerEntrega } from "./src/adi/entrega/componer.js";
 import { verificarEntrega } from "./src/adi/entrega/verificar.js";
 import { ausenciaPorId } from "./src/config/contract/ausencias.js";
-import { ETIQUETA_ORIGEN, umbral, NOMBRE_DE_UMBRAL, FAMILIAS_DE_PROCEDENCIA, clausulasDeProcedencia, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, formatoDeUmbral, setBenchmarkOverride } from "./src/config/businessPolicy.js";
+import { benchmarkOf, ETIQUETA_ORIGEN, umbral, NOMBRE_DE_UMBRAL, FAMILIAS_DE_PROCEDENCIA, clausulasDeProcedencia, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, formatoDeUmbral, setBenchmarkOverride } from "./src/config/businessPolicy.js";
 import { UMBRALES_DE_ESTADO, ESTADO_DE_CONCEPTO, ESTADOS_CANON, umbralesDeEstados, estadoDeLaPremisa } from "./src/adi/notario/estados.js";
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
@@ -612,8 +614,7 @@ H("A11 · C-C · el Marco declara el nivel de carga OFICIAL cuando un conjunto d
   ok(new RegExp(`Nivel de carga declarado: ${nivel}%, declarado por la empresa\\.`).test(ref), `base «sobre el nivel declarado de carga»: el Marco dice «Nivel de carga declarado: ${nivel}%, declarado por la empresa» (oráculo: umbral().valor)`, ref);
   ok(ref.split("Nivel de carga declarado").length === 2, "…una sola vez (no se duplica si otra ruta ya lo había declarado)", ref);
   ok(/Benchmark de margen: 30\.1%/.test(ref) ? /Nivel de carga declarado/.test(ref) : true, "si el benchmark de las observaciones de controller ocupó el campo, el nivel se AGREGA (no queda sin declarar)", ref);
-  const { E: E1 } = entregaDe(base("carga comercial alta"));
-  ok(!/Nivel de carga declarado/.test((E1.entrega.marco.referenciaDeclarada || {}).texto || ""), "CONTROL NEGATIVO · el detector «carga comercial alta» se define por su piso de materialidad, no por el nivel: el Marco no lo agrega");
+  /* v19 (§7.3·42b): la v18 leía «carga comercial alta» solo por su piso de materialidad y NO agregaba el nivel; el detector es carga > nivel Y exceso ≥ piso, y su veredicto imprime el nivel: el Marco también lo lleva (bloque A13·Y40) */
   const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "margen"], universo: { eje: "cliente" } }] });
   ok(!/Nivel de carga declarado/.test((E2.entrega.marco.referenciaDeclarada || {}).texto || ""), "CONTROL NEGATIVO · un encargo que no usa el nivel de carga no lo declara en el Marco");
 }
@@ -658,6 +659,154 @@ H("A12 · 42(e) · «¿plazo pactado o atraso real?» solo sobre una cuenta en m
   const eJ = cifraDe("Jumbo"), eL = cifraDe("Lider");
   ok(eJ.ok && !preguntaDe(eJ).some((q) => /Jumbo/.test(q)), "Jumbo (saldo vencido 0, al día): la Entrega NO pregunta «¿plazo pactado o atraso real?» — presupondría una mora que no existe", JSON.stringify(preguntaDe(eJ)));
   ok(eL.ok && preguntaDe(eL).some((q) => /Lider/.test(q)), "CONTROL · Lider (en mora, 269 días): la pregunta abierta de cobranza sigue", JSON.stringify(preguntaDe(eL)));
+}
+
+/* ═══ A13 · DIAGNÓSTICO v19 (medición ciega v19, catálogo sellado v19) ══════════════════════════════════════════════════════════════════
+ * Diez raíces de ADI, cada una con su carnada en POSITIVO (la corrección dice lo verdadero) y en NEGATIVO (el control que NO debe cambiar):
+ *   Y96 · un filtro `==` se juzga con el CRUDO (§7.3·23), no dentro de la tolerancia del muro: «capital == 11200» es BOS-SANDER, no PHI-SHAVER9 ($11.4K; los dos se imprimen «$11K»).
+ *   Y41 · el top se calcula DENTRO del conjunto ya filtrado (§7.3·8): la entidad que el ESTADO deja fuera dice la cifra del estado (0 días sin venta), no el capital del top.
+ *   Y11 · la verdad propia de un miembro nombra la condición que NO cumple (rota bien), no la base que sí cumple (bajo el benchmark).
+ *   Y14 · …y el filtro que NO pasa, no el primero de la lista (La Polar pasa la carga y sale por el benchmark); la referencia de cada condición viaja en la frase de su miembro.
+ *   Y10 · una UNIÓN deja fuera a quien no cumple ninguna rama: la verdad dice la cifra de cada rama (antes caía a la traza del Notario, sin entidad).
+ *   Y24 · un filtro con `ref` en el universo de una premisa de ORDEN verdadera imprime el valor de la referencia (comparables juntas, §7.3·12/19).
+ *   Y40 · 42(b): el Marco declara todas las referencias oficiales con que se juzgó: «carga comercial alta» también lleva el nivel de carga; el benchmark de la base no se pierde si otra referencia ocupó el campo.
+ *   Y20 · 42(c): la cartera completa trae el «Días vencido 0d» de TODA cuenta sana (también las del top 8); la boleta del agente sin el opt-in no cambia.
+ *   Y74 · un SKU que la consulta deja fuera por SU BODEGA (`excluir.bodega`) dice la bodega, sin una cifra de otra condición.
+ *   Y06 · 42(a) en el ORDEN: el puesto empatado de la verdad propia de un orden falso dice con quién empata; el cero de un empate se dice en palabras (39c).
+ * Oráculos: los rankings de la proyección (`cifrasDelDato`), el estado por bodega de la proyección y el benchmark/nivel declarados (`benchmarkOf`, `umbral()`); nunca el código que se corrige. */
+const _premisasDe = (E) => oracionesDe(E);
+const _univDe = (E, id = "p1") => (E.entrega.universos || []).find((x) => x.id === id);
+
+H("A13 · Y96 · el filtro `==` se juzga con el CRUDO: «capital == $11.200» es solo BOS-SANDER, no PHI-SHAVER9 ($11.4K, que también se imprime «$11K»)");
+{
+  const filas = RK.sku.capital.filas;
+  const exacto = filas.filter((f) => f.raw === 11200).map((f) => f.entidad);
+  const impresoIgual = filas.filter((f) => Math.round(f.raw / 1000) === 11).map((f) => f.entidad);
+  const univ = { eje: "sku", filtros: [{ metrica: "capital", op: "==", valor: 11200 }] };
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital"], eje: "sku", universo: univ }], premisas: [{ id: "q1", tipo: "conteo", conteo: { n: 1, m: 13 }, de: univ }, { id: "q2", tipo: "grupo", miembros: ["PHI-SHAVER9"], universo: univ }, { id: "q3", tipo: "grupo", miembros: ["BOS-SANDER"], universo: univ }] });
+  const u = _univDe(E), ps = _premisasDe(E);
+  ok(exacto.length === 1 && impresoIgual.length === 2 && !!u && u.entidades.length === 1 && u.entidades[0] === exacto[0], `el universo declarado es SOLO ${exacto[0]} (crudo $11.200); ${impresoIgual.join(" y ")} comparten el impreso «$11K» y no cuentan como iguales`, u && JSON.stringify(u.entidades));
+  ok(/es correcto — 1 de 13/.test(ps[0] || "") && /no es así — PHI-SHAVER9/.test(ps[1] || "") && /es correcto — BOS-SANDER/.test(ps[2] || ""), "«es 1 de 13» verdadera · «PHI-SHAVER9 está en el grupo» FALSA · «BOS-SANDER está en el grupo» verdadera", JSON.stringify(ps));
+  const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen"], universo: { eje: "cliente", filtros: [{ metrica: "margen", op: "==", valor: 22 }] } }] });
+  const igual22 = RK.cliente.margen.filas.filter((f) => f.valor === 22).map((f) => f.entidad);
+  const u2 = _univDe(E2);
+  ok(igual22.length === 1 && !!u2 && u2.entidades.length === 1 && u2.entidades[0] === igual22[0], `CONTROL · «margen == 22 %» sigue sirviendo a ${igual22[0]} (la igualdad exacta sigue igualando)`, u2 && JSON.stringify(u2.entidades));
+  const { E: E3 } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital"], eje: "sku", universo: { eje: "sku", filtros: [{ metrica: "capital", op: "entre", valor: [11200, 11400] }] } }] });
+  const u3 = _univDe(E3);
+  ok(!!u3 && u3.entidades.length === 2, "CONTROL · «entre $11.200 y $11.400» (inclusivo) sigue trayendo a los dos", u3 && JSON.stringify(u3.entidades));
+}
+
+H("A13 · Y41 · con estado + top, la entidad que el ESTADO deja fuera dice la cifra del estado (0 días sin venta), no el capital del top");
+{
+  const univ = { eje: "sku", estados: ["sin venta"], top: { metrica: "capital", k: 3 } };
+  const mk = (miembros) => entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital", "dias_sin_venta"], eje: "sku", universo: univ }], premisas: [{ id: "q1", tipo: "grupo", miembros, universo: univ }] });
+  const cero = RK.sku.dias_sin_venta.filas.find((f) => f.entidad === "SAM-REF500L").valor;
+  const { E } = mk(["PHI-IRON-PRO", "SAM-REF500L"]);
+  const tRef = _premisasDe(E)[0] || "";
+  const segRef = (tRef.match(/SAM-REF500L:[^;]*/) || [""])[0];
+  ok(cero === 0 && /no tiene días sin venta \(0 días\)/.test(segRef) && !/capital/.test(segRef), "SAM-REF500L (vendió al corte: 0 días sin venta) sale por el ESTADO «sin venta»: dice «no tiene días sin venta (0 días)» y ningún capital (antes «capital $19K», que lo leía como si el top lo incluyera)", tRef);
+  const segIron = (tRef.match(/PHI-IRON-PRO:[^;]*/) || [""])[0];
+  ok(/capital \$10K/.test(segIron) && /puesto 4 de 8/.test(segIron), "CONTROL · PHI-IRON-PRO SÍ está sin venta y sale por el top: sigue diciendo su capital y su puesto (4 de 8)", tRef);
+  const { E: E2 } = mk(["PHI-SHAVER9"]);
+  const t2 = _premisasDe(E2)[0] || "";
+  ok(/PHI-SHAVER9: no tiene días sin venta \(0 días\)/.test(t2) && !/capital/.test(t2), "el mismo criterio con un solo miembro (PHI-SHAVER9, 0 días)", t2);
+}
+
+H("A13 · Y11 · la verdad propia nombra la condición que la entidad NO cumple: PHI-IRON-PRO SÍ está bajo el benchmark y sale por rotar bien");
+{
+  const univ = { eje: "sku", base: "SKU bajo el benchmark", estados: ["rota lento"] };
+  const mk = (miembros) => entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["rotacion", "capital"], eje: "sku", universo: univ }], premisas: [{ id: "q1", tipo: "grupo", miembros, universo: univ }] });
+  const rot = RK.sku.rotacion.filas.find((f) => f.entidad === "PHI-IRON-PRO").valor;
+  const mvIron = RK.sku.margen_venta.filas.find((f) => f.entidad === "PHI-IRON-PRO").valor;
+  const t = _premisasDe(mk(["PHI-IRON-PRO"]).E)[0] || "";
+  ok(mvIron < benchmarkOf() && /PHI-IRON-PRO: rotación 2\.4x/.test(t) && rot === 2.4 && !/margen de venta/.test(t), "PHI-IRON-PRO (margen 22 % < benchmark: cumple la base) dice su ROTACIÓN 2.4x (rota bien: lo que falla), nunca «margen de venta 22 %»", t);
+  const mvSaw = RK.sku.margen_venta.filas.find((f) => f.entidad === "MAK-SAW18V").valor;
+  const t2 = _premisasDe(mk(["MAK-SAW18V"]).E)[0] || "";
+  ok(mvSaw > benchmarkOf() && /MAK-SAW18V: margen de venta 34%/.test(t2), "CONTROL · MAK-SAW18V (margen 34 % > benchmark) SÍ falla la base: dice su margen de venta", t2);
+}
+
+H("A13 · Y14 · el filtro que la entidad NO pasa decide, y la referencia de cada condición viaja en la frase de su miembro");
+{
+  const univ = { eje: "cliente", base: "bajo el benchmark", filtros: [{ metrica: "carga", op: ">", ref: "nivel_carga" }] };
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "carga"], universo: univ }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Tottus", "La Polar"], universo: univ }] });
+  const t = _premisasDe(E)[0] || "";
+  const segT = (t.match(/Tottus:[^;]*/) || [""])[0], segL = (t.match(/La Polar:[^;.]*(?:\.\d%|%)[^;]*/) || [""])[0];
+  const carga = (n) => RK.cliente.carga.filas.find((f) => f.entidad === n).valor, margen = (n) => RK.cliente.margen.filas.find((f) => f.entidad === n).valor;
+  ok(carga("Tottus") <= umbral("targetCarga").valor && new RegExp(`carga comercial ${carga("Tottus")}%`).test(segT) && new RegExp(`nivel de carga declarado ${umbral("targetCarga").valor}%`).test(segT), "Tottus (bajo el benchmark, carga 3.2 % que NO supera el nivel): dice su carga y el nivel 3.5 % en SU frase", t);
+  ok(margen("La Polar") > benchmarkOf() && carga("La Polar") > umbral("targetCarga").valor && new RegExp(`margen ${margen("La Polar")}%`).test(segL) && !/carga comercial/.test(segL) && new RegExp(`benchmark de margen ${benchmarkOf()}%`).test(segL), "La Polar (34 % > benchmark: sale por la BASE; su carga 3.9 % SÍ pasa el filtro): dice su margen y el benchmark, nunca «carga comercial 3.9 %»", t);
+}
+
+H("A13 · Y10 · una UNIÓN deja fuera a quien no cumple ninguna rama: la verdad dice la cifra de cada rama (antes caía a la traza, sin entidad)");
+{
+  const univ = { eje: "cliente", union: [{ eje: "cliente", base: "sobre el benchmark" }, { eje: "cliente", base: "sobre el nivel declarado de carga" }] };
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "carga"], universo: univ }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Tottus", "Mercado Libre"], universo: univ }, { id: "q2", tipo: "grupo", miembros: ["La Polar"], universo: univ }] });
+  const t = _premisasDe(E)[0] || "";
+  const m = (n) => RK.cliente.margen.filas.find((f) => f.entidad === n).valor, c = (n) => RK.cliente.carga.filas.find((f) => f.entidad === n).valor;
+  ok(t.includes(`Tottus: margen ${m("Tottus")}%, carga comercial ${c("Tottus")}%`) && t.includes(`Mercado Libre: margen ${m("Mercado Libre")}%, carga comercial ${c("Mercado Libre")}%`), "Tottus y Mercado Libre (fuera por los dos lados): cada una con su margen y su carga, no la traza del universo sin entidad", t);
+  ok(new RegExp(`benchmark de margen ${benchmarkOf()}%`).test(t) && new RegExp(`nivel de carga declarado ${umbral("targetCarga").valor}%`).test(t), "…con las dos referencias de la unión en la misma oración", t);
+  ok(/es correcto — La Polar/.test(_premisasDe(E)[1] || ""), "CONTROL · La Polar (34 %, sobre el benchmark) SÍ está en la unión: la premisa es verdadera y no dice ninguna verdad propia", _premisasDe(E)[1]);
+}
+
+H("A13 · Y24 · un filtro con `ref` en el universo de una premisa de ORDEN verdadera imprime el valor de la referencia");
+{
+  const univ = { eje: "cliente", filtros: [{ metrica: "margen", op: ">=", ref: "benchmark" }] };
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "margen"], universo: univ }], premisas: [{ id: "q1", tipo: "orden", sujeto: "Easy", metrica: "ventas", orden: { forma: "max" }, universo: univ }] });
+  const t = _premisasDe(E)[0] || "";
+  ok(/es correcto — Easy/.test(t) && new RegExp(`benchmark de margen ${benchmarkOf()}%`).test(t), `«Easy es la de más venta entre las que alcanzan el benchmark» (verdadera): la oración lleva «benchmark de margen ${benchmarkOf()}%»`, t);
+  const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], universo: { eje: "cliente" } }], premisas: [{ id: "q1", tipo: "orden", sujeto: "Falabella", metrica: "ventas", orden: { forma: "max" }, universo: { eje: "cliente" } }] });
+  ok(!/benchmark/.test(_premisasDe(E2)[0] || ""), "CONTROL · un orden sin filtro con `ref` no arrastra ninguna referencia", _premisasDe(E2)[0]);
+}
+
+H("A13 · Y40 · 42(b): el Marco declara todas las referencias oficiales con que se juzgó («carga comercial alta» lleva el nivel; el benchmark de la base no se pierde)");
+{
+  const nivel = umbral("targetCarga").valor;
+  const marco = (E) => ((E.entrega.marco.referenciaDeclarada || {}).texto || "");
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["carga", "no_capturada"], universo: { eje: "cliente", base: "carga comercial alta" } }] });
+  ok(new RegExp(`Nivel de carga declarado: ${nivel}%, declarado por la empresa\\.`).test(marco(E)) && marco(E).split("Nivel de carga declarado").length === 2, `base «carga comercial alta»: el Marco lleva el nivel oficial ${nivel} % (el detector es carga > nivel Y exceso ≥ piso; el veredicto ya lo imprime), una sola vez`, marco(E));
+  const univ = { eje: "cliente", base: "bajo el benchmark", filtros: [{ metrica: "carga", op: ">", ref: "nivel_carga" }] };
+  const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "carga"], universo: univ }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Tottus"], universo: univ }] });
+  ok(new RegExp(`Benchmark de margen: ${benchmarkOf()}%`).test(marco(E2)) && new RegExp(`Nivel de carga declarado: ${nivel}%`).test(marco(E2)) && marco(E2).split("Benchmark de margen").length === 2, "base «bajo el benchmark» + filtro con `ref` del nivel en una premisa: el Marco lleva el benchmark Y el nivel (antes solo el nivel, que había ocupado el campo primero), cada uno una vez", marco(E2));
+  const { E: E3 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "margen"], universo: { eje: "cliente" } }] });
+  ok(!/Nivel de carga declarado/.test(marco(E3)), "CONTROL NEGATIVO · un encargo que no usa el nivel de carga no lo declara en el Marco", marco(E3));
+}
+
+H("A13 · Y20 · 42(c): la cartera completa trae el «Días vencido 0d» de TODA cuenta sana (también las del top 8); la boleta del agente sin el opt-in no cambia");
+{
+  const todos = ejes.cliente || [];
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["dias_vencido", "saldo_vencido"] }] });
+  const filas = [...E.entrega.cifras.filas, ...((E.entrega.detalle && E.entrega.detalle.filas) || [])];
+  const dias = (n) => filas.some((f) => f.valores["Entidad / grupo"] === n && f.valores["Métrica"] === "Días vencido");
+  const sanas = RK.cliente.dias_vencido.filas.filter((f) => f.valor === 0).map((f) => f.entidad);
+  ok(todos.length === 13 && todos.every(dias), "las 13 cuentas tienen su fila de «Días vencido» (Jumbo y Mercado Libre, sanas del top 8, antes sin ella)", todos.filter((n) => !dias(n)).join(", "));
+  ok(sanas.length === 7 && sanas.every((n) => filas.some((f) => f.valores["Entidad / grupo"] === n && f.valores["Métrica"] === "Días vencido" && f.valores["Valor"] === "0d")), "cada una de las 7 cuentas sanas dice «0d» (ausente vale cero: un hecho)", sanas.join(", "));
+  const caja = cajaDelAgente(TOOLS);
+  const etiquetas = (args) => new Set(((caja.cobranza({ scenario: ESCENARIO_INICIAL, ...args }).boleta) || []).map((x) => String(x.label)));
+  const sin = etiquetas({}), con = etiquetas({ mesaCompleta: true });
+  ok(!sin.has("Jumbo · Dias Vencido") && con.has("Jumbo · Dias Vencido") && con.has("Mercado Libre · Dias Vencido"), "CANDADO · sin `mesaCompleta` (la boleta del agente) Jumbo no publica «Dias Vencido»; con el opt-in del Encargo sí", `sin=${sin.has("Jumbo · Dias Vencido")} con=${con.has("Jumbo · Dias Vencido")}`);
+}
+
+H("A13 · Y74 · un SKU que la consulta deja fuera por SU BODEGA dice la bodega, sin una cifra de otra condición");
+{
+  const bodegaDe = (n) => (cifrasDelDato(ESCENARIO_INICIAL, null).estados.find((x) => x.entidad === n) || {}).bodega;
+  const univ = { eje: "sku", estados: ["sin venta"], excluir: { bodega: "Valparaíso" } };
+  const mk = (miembros) => entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["dias_sin_venta", "capital"], eje: "sku", universo: univ }], premisas: [{ id: "q1", tipo: "grupo", miembros, universo: univ }] });
+  const t = _premisasDe(mk(["BOS-SANDER"]).E)[0] || "";
+  ok(bodegaDe("BOS-SANDER") === "Valparaíso" && /BOS-SANDER: fuera del universo por su bodega \(Valparaíso\)/.test(t) && !/días sin venta/.test(t), "BOS-SANDER (Valparaíso, 68 días sin venta) queda fuera por su BODEGA: la oración nombra Valparaíso y no dice «días sin venta 68» (que leería como si el universo la incluyera)", t);
+  const t2 = _premisasDe(mk(["PHI-SHAVER9"]).E)[0] || "";
+  ok(bodegaDe("PHI-SHAVER9") !== "Valparaíso" && /PHI-SHAVER9: no tiene días sin venta \(0 días\)/.test(t2) && !/bodega/.test(t2), "CONTROL · PHI-SHAVER9 (no está en Valparaíso) sale por el estado, no por la bodega: sigue diciendo su cifra", t2);
+}
+
+H("A13 · Y06 · 42(a) en el ORDEN: el puesto empatado de la verdad propia dice con quién empata; el cero de un empate se dice en palabras");
+{
+  const dias = Object.fromEntries(RK.cliente.dias_vencido.filas.map((f) => [f.entidad, f.valor]));
+  const empatadas = Object.keys(dias).filter((n) => dias[n] === dias.Paris && n !== "Paris");
+  const mkOrden = (sujeto, k) => entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["dias_vencido", "saldo_vencido"] }], premisas: [{ id: "q1", tipo: "orden", sujeto, metrica: "dias_vencido", orden: { forma: "puesto", k }, universo: { eje: "cliente" } }] });
+  const t = _premisasDe(mkOrden("Paris", 3).E)[0] || "";
+  ok(empatadas.length === 2 && /puesto 4 de 13/.test(t) && empatadas.every((n) => t.includes(n)) && /empatado con/.test(t), `«Paris es la 3.ª en días vencido» (falsa): su puesto compartido es el 4.º y dice que empata con ${empatadas.join(" y ")}`, t);
+  const t2 = _premisasDe(mkOrden("Lider", 1).E)[0] || "";
+  ok(/Lider: días vencido 269 días, puesto 2 de 13/.test(t2) && !/empat/.test(t2), "CONTROL NEGATIVO · «Lider es la 1.ª» (falsa; 269 días, sin empate): dice su puesto 2 sin «empatado»", t2);
+  const t3 = _premisasDe(mkOrden("ABC", 7).E)[0] || "";
+  ok(/no tiene días vencido \(0 días\)/.test(t3) && !/\(ABC \(0/.test(t3), "el empate de siete cuentas en 0 días dice el cero en palabras de negocio («no tiene días vencido (0 días)»), no «(ABC (0 días))»", t3);
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");

@@ -1008,7 +1008,7 @@ function _verdadPropiaDeOrden(h, H, I) {
   try { po = puestoDeOrden(_aV2(h, I), I); } catch { po = null; }
   if (!po) return base;
   const ocupantes = po.afirmado.filter((n) => normalizar(n) !== normalizar(ent.nombre)).map((n) => ({ entidad: n, metrica: _metricaPropia(I, n, clave) }));
-  return { ...base, puesto: { n: po.n, de: po.de, dir: po.dir }, ...(ocupantes.length ? { ocupantes } : {}) };
+  return { ...base, puesto: { n: po.n, de: po.de, dir: po.dir, ...(Array.isArray(po.empatadoCon) && po.empatadoCon.length ? { empatadoCon: po.empatadoCon } : {}) }, ...(ocupantes.length ? { ocupantes } : {}) };
 }
 /* §7.3·37a/38a/39(b): la premisa `cifra` FALSA dice la entidad con SU cifra en ESA clave —en el mismo registro que el orden y la relación—, nunca la cifra errónea del usuario */
 function _verdadPropiaDeCifra(h, H, I) {
@@ -1033,13 +1033,36 @@ function _verdadPropiaDeRelacion(h, H, I) {
 }
 /* §7.3·37a/40a (diagnóstico v17): la verdad propia de UN miembro que el universo deja fuera. Se separa de `_verdadPropiaDeGrupo` para que una premisa de VARIOS miembros diga la verdad de CADA uno que falla
  * (antes, con más de un sujeto devolvía null y el veredicto caía a la traza del Notario: «fuera de carga comercial alta…» sin entidad ni cifra). */
-function _verdadPropiaDeMiembro(u, nombre, I) {
-  const ent = I.resolverEntidad(nombre);
-  if (!ent) return null;
-  const eje = normalizar(ent.eje || u.eje || "");
-  const key = normalizar(ent.nombre);
-  // (0) la CONSULTA la excluyó por su nombre (`excluir.entidades`): esa es la razón, sin cifra ni puesto (una cifra suya de otra métrica leería como si el universo la incluyera)
-  if (_es(u.excluir) && _lista(u.excluir.entidades).some((n) => { const r = I.resolverEntidad(String(n)); return normalizar(r ? r.nombre : String(n)) === key; })) return { entidad: ent.nombre, eje, estado: null, metrica: null, puesto: null, excluidaPorLaConsulta: true };
+/* v19 (Y74 · Y33): un SKU que el universo deja fuera porque la consulta EXCLUYE su bodega (`excluir.bodega`) dice esa bodega —la razón—, sin cifra ni puesto (una cifra suya de otra métrica leería como si el universo la incluyera: la misma
+ * razón que la exclusión por nombre). Solo si la bodega ES lo que la deja fuera: entra en el universo SIN la exclusión de bodega y sale con ella. Devuelve el nombre de la bodega (la de la entidad, entre las excluidas) o null. */
+function _excluidaPorBodega(u, ent, key, eje, I) {
+  if (!_es(u.excluir)) return null;
+  const bodegas = _lista(u.excluir.bodega).map((b) => String(b)).filter(Boolean);
+  if (!bodegas.length) return null;
+  const ex = { ...u.excluir }; delete ex.bodega;
+  const uSin = { ...u }; if (Object.keys(ex).length) uSin.excluir = ex; else delete uSin.excluir;
+  let A = null, B = null;
+  try { A = conjuntoDeUniverso(uSin, I, eje, ""); B = conjuntoDeUniverso(u, I, eje, ""); } catch { return null; }
+  if (!A || A.error || !B || B.error || !B.set) return null;
+  if (A.set && !A.set.has(key)) return null;
+  if (B.set.has(key)) return null;
+  let propias = new Set(); try { propias = new Set((I.estadosDe(ent.nombre) || []).map((x) => normalizar(x && x.bodega ? x.bodega : "")).filter(Boolean)); } catch { propias = new Set(); }
+  const dela = bodegas.filter((b) => propias.has(normalizar(b)));
+  return (dela.length ? dela : bodegas).join(" y ");
+}
+/* v19: el texto de la referencia de la casa que un conjunto o un filtro pone en juego («benchmark de margen 30.1%»): la misma tabla y la misma función que el veredicto (`valorDeReferencia` / `formatoDeReferencia`), nunca una segunda cifra */
+function _textoDeReferenciaDeCasa(concepto, I) {
+  if (!concepto) return null;
+  const r = valorDeReferencia(concepto, I);
+  if (!r || !Number.isFinite(r.raw)) return null;
+  const m = metricaPorClave(concepto);
+  return `${m ? m.nombre.toLowerCase() : concepto} ${formatoDeReferencia(r.raw, r.unidad || unidadDeClave(concepto) || "pct")}`;
+}
+/* v19 (Y10 · Y11 · Y14 · Y41, §7.3·37a): LA razón por la que un miembro queda fuera de UN universo simple —la condición que la entidad NO cumple, con la métrica de ESA condición—. Antes, la métrica salía de una precedencia fija
+ * (top > exclusión > primer filtro > conjunto > base > estado) que nombraba una condición que la entidad SÍ cumple: el top cuando el que la sacó fue el estado (Y41: «capital $19K» de un SKU que vendió al corte), el primer filtro
+ * aunque lo pasara (Y14: «carga 3.9 %» de una cuenta que sale por el benchmark) o la base que sí cumplía (Y11: «margen 22 %» de un SKU que sale por rotar bien). Se evalúa cada condición contra la entidad con las MISMAS primitivas del
+ * Notario (`conjuntoDeUniverso`, `rankingDeTop`); la que falla decide. Sin nada evaluable cae a la precedencia de siempre. */
+function _razonDeMiembro(u, ent, key, eje, I) {
   // (1) los estados del universo que la entidad NO cumple (fuera de un «en», dentro de un «no» o de una exclusión)
   const falla = [];
   const clausulas = _clausulasDeEstado(u);
@@ -1055,20 +1078,29 @@ function _verdadPropiaDeMiembro(u, nombre, I) {
     if (eje === "sku") { const propios = I.estadosDe(ent.nombre).map((x) => estadoCanon(x.estado)); const c = fam.orden.find((x) => propios.includes(x)); if (c) estado = { canon: c, texto: formaDeEstado(c).singular }; }
     else for (const c of fam.orden) { let r = null; try { r = verificarEstadoDeLaCasa(c, I, ent.nombre); } catch { r = null; } if (r && typeof r === "object" && r.ok) { estado = { canon: c, texto: formaDeEstado(c).singular }; break; } }
   }
-  // (3) la métrica que define el universo: la del top (o de la exclusión por top), la del filtro, la de la base con referencia o la del estado que falló
+  // (3) la métrica que define el universo: la de la condición que la entidad NO cumple
   const exTop = _es(u.excluir) ? _lista(u.excluir.top).find((t) => _es(t) && t.metrica) : null;
-  const fF = _primerFiltroDe(u);
+  const filtros = (Array.isArray(u.filtros) ? u.filtros : []).filter((x) => _es(x) && x.metrica);
+  /* el filtro que la entidad NO pasa (v19): cada uno contra el eje, con la misma primitiva; si ninguno es evaluable, el primero de siempre */
+  let fF = null, fFSinEvaluar = null;
+  for (const f of filtros) {
+    let S = null; try { S = conjuntoDeUniverso({ eje, filtros: [f] }, I, eje, ""); } catch { S = null; }
+    if (!S || S.error || !S.set) { if (!fFSinEvaluar) fFSinEvaluar = f; continue; }
+    if (!S.set.has(key)) { fF = f; break; }
+  }
+  if (!fF && fFSinEvaluar) fF = fFSinEvaluar;
+  if (!fF && !filtros.length) fF = _primerFiltroDe(u);   /* filtros dentro de una unión: el de siempre */
   const fBase = typeof u.base === "string" ? referenciaDeBase(u.base) : null;
   /* §7.3·40(a) (diagnóstico v16): un conjunto con REFERENCIA numérica que el universo EXCLUYE (o exige como base) y que la entidad NO cumple es el que la deja fuera: su métrica es la de esa referencia
    * («carga comercial alta» → su carga; «SKU bajo el benchmark» → su margen de venta), no la de otro conjunto que la entidad sí cumple */
-  let fRef = null;
+  let fRef = null, baseSinEvaluar = false;
   {
     const cands = [];
     if (typeof u.base === "string") { const fam2 = referenciaDeBase(u.base); if (fam2) cands.push({ fam: fam2, modo: "en", nombre: u.base }); }
     if (_es(u.excluir)) for (const n of _lista(u.excluir.conjuntos)) { const fam2 = referenciaDeBase(String(n)); if (fam2) cands.push({ fam: fam2, modo: "excluir", nombre: String(n) }); }
     for (const c of cands) {
       let S = null; try { S = conjuntoDeUniverso({ eje, base: c.nombre }, I, eje, ""); } catch { S = null; }
-      if (!S || S.error || !S.set) continue;
+      if (!S || S.error || !S.set) { baseSinEvaluar = true; continue; }
       if (c.modo === "en" ? !S.set.has(key) : S.set.has(key)) { fRef = c.fam; break; }
     }
   }
@@ -1077,13 +1109,16 @@ function _verdadPropiaDeMiembro(u, nombre, I) {
   const rkTop = u.top ? rankingDeTop(u, I, eje) : null;
   const iTop = rkTop ? rkTop.orden.indexOf(key) : -1;
   const dentroDelTop = !!(rkTop && iTop >= 0 && rkTop.k != null && iTop + 1 <= rkTop.k);
-  let clave = null;
-  if (fRef && dentroDelTop) clave = fRef.metrica;
-  else if (u.top && u.top.metrica) clave = _claveDeMetricaDeUniverso(u.top.metrica);
+  /* v19 (Y41): el top se calcula DENTRO del conjunto ya filtrado (§7.3·8): una entidad que no está en ese ranking no la sacó el top sino la condición previa (estado, base, filtro, bodega) */
+  const preTop = ["base", "estados", "no_estados", "bodega", "filtros"].some((c) => u[c] != null);
+  const fueraPorLaCondicionPrevia = !!(u.top && rkTop && iTop < 0 && preTop && normalizar(u.top.sobre) !== "eje");
+  let clave = null, refConcepto = null;
+  if (fRef && dentroDelTop) { clave = fRef.metrica; refConcepto = fRef.concepto; }
+  else if (u.top && u.top.metrica && !fueraPorLaCondicionPrevia) clave = _claveDeMetricaDeUniverso(u.top.metrica);
   else if (exTop) clave = _claveDeMetricaDeUniverso(exTop.metrica);
-  else if (fF) clave = _claveDeMetricaDeUniverso(fF.metrica);
-  else if (fRef) clave = fRef.metrica;   /* el conjunto que la deja fuera antes que la base que sí cumple (v17: «base carga alta» + «excluir bajo el benchmark») */
-  else if (fBase) clave = fBase.metrica;
+  else if (fF) { clave = _claveDeMetricaDeUniverso(fF.metrica); if (fF.ref) refConcepto = fF.ref; }
+  else if (fRef) { clave = fRef.metrica; refConcepto = fRef.concepto; }   /* el conjunto que la deja fuera antes que la base que sí cumple (v17: «base carga alta» + «excluir bajo el benchmark») */
+  else if (fBase && baseSinEvaluar) { clave = fBase.metrica; refConcepto = fBase.concepto; }   /* v19: la base solo si no se pudo evaluar: una base que la entidad SÍ cumple no es lo que la deja fuera */
   else { const c = (falla.length ? falla : clausulas).find((x) => METRICA_DE_ESTADO[x.canon]); if (c) clave = METRICA_DE_ESTADO[c.canon]; }
   const cifra = clave ? _cifraPropia(I, ent.nombre, clave) : null;
   const m = clave ? metricaPorClave(clave) : null;
@@ -1106,7 +1141,37 @@ function _verdadPropiaDeMiembro(u, nombre, I) {
     }
   }
   if (!metrica && !estado) return null;
-  return { entidad: ent.nombre, eje, estado, metrica, puesto };
+  const referencia = refConcepto ? _textoDeReferenciaDeCasa(refConcepto, I) : null;
+  return { entidad: ent.nombre, eje, estado, metrica, puesto, ...(referencia ? { referencia } : {}) };
+}
+function _verdadPropiaDeMiembro(u, nombre, I) {
+  const ent = I.resolverEntidad(nombre);
+  if (!ent) return null;
+  const eje = normalizar(ent.eje || u.eje || "");
+  const key = normalizar(ent.nombre);
+  // (0) la CONSULTA la excluyó por su nombre (`excluir.entidades`): esa es la razón, sin cifra ni puesto (una cifra suya de otra métrica leería como si el universo la incluyera)
+  if (_es(u.excluir) && _lista(u.excluir.entidades).some((n) => { const r = I.resolverEntidad(String(n)); return normalizar(r ? r.nombre : String(n)) === key; })) return { entidad: ent.nombre, eje, estado: null, metrica: null, puesto: null, excluidaPorLaConsulta: true };
+  // (0b) v19: la CONSULTA excluyó su bodega: esa es la razón (con el nombre de la bodega)
+  { const b = _excluidaPorBodega(u, ent, key, eje, I); if (b) return { entidad: ent.nombre, eje, estado: null, metrica: null, puesto: null, excluidaPorBodega: b }; }
+  /* v19 (Y10): una UNIÓN pura («sobre el benchmark O sobre el nivel declarado de carga») deja fuera a quien no cumple NINGUNA rama: la verdad dice, por cada rama, la cifra de la condición que falla y su referencia (antes no decía nada y caía a la traza del Notario) */
+  const ramas = _lista(u.union).filter(_es);
+  if (ramas.length && !["base", "estados", "no_estados", "bodega", "top"].some((c) => u[c] != null) && !(Array.isArray(u.filtros) && u.filtros.length)) {
+    const rs = [];
+    for (const v of ramas) { const r = _razonDeMiembro({ ...v, eje: v.eje || u.eje }, ent, key, eje, I); if (r) rs.push(r); }
+    if (!rs.length) return null;
+    /* el estado PROPIO de la entidad (la rama de estado lo trae: «está al día») no se pierde aunque la primera rama sea un conjunto */
+    const estadoUnion = rs.map((r) => r.estado).find(Boolean) || null;
+    const cabeza = { ...rs[0], estado: rs[0].estado || estadoUnion };
+    const claves = new Set(cabeza.metrica ? [cabeza.metrica.clave] : []);
+    const otras = [];
+    const refs = [];
+    for (const r of rs) {
+      if (r.metrica && !claves.has(r.metrica.clave)) { claves.add(r.metrica.clave); otras.push(r.metrica); }
+      if (r.referencia && !refs.includes(r.referencia)) refs.push(r.referencia);
+    }
+    return { ...cabeza, ...(otras.length ? { otras } : {}), ...(refs.length ? { referencia: refs.join(", ") } : {}) };
+  }
+  return _razonDeMiembro(u, ent, key, eje, I);
 }
 function _verdadPropiaDeGrupo(h, H, I) {
   const u = h.universo;
@@ -1339,6 +1404,16 @@ export function libroDeHechos(hechos, ctx = {}) {
           const mRefX = metricaPorClave(famX.concepto);
           const refTxtX = `${mRefX ? mRefX.nombre.toLowerCase() : famX.concepto} ${formatoDeReferencia(rRefX.raw, rRefX.unidad || "pct")}`;
           if (!(H.render.referencia && H.render.referencia.includes(refTxtX))) H.render.referencia = H.render.referencia ? `${H.render.referencia}, ${refTxtX}` : refTxtX;
+        }
+      }
+      // v19 (Y24 · Y27, §7.3·12/·19/·42d): un universo con un FILTRO que cita una referencia de la casa (`filtros[].ref`, también en las ramas de una unión) en una premisa de ORDEN, RELACIÓN o CIFRA imprime el valor de esa referencia en la MISMA oración —
+      // igual que el `base` y el `excluir` de arriba—: antes solo lo hacía el grupo de un sujeto (más abajo) y la premisa verdadera («Easy es la que más vende entre las que alcanzan el benchmark») quedaba sin el 30.1 %. Solo `H.render.referencia`, con la misma función.
+      if ((tipo === "orden" || tipo === "relacion" || tipo === "cifra") && _es(h.universo)) {
+        const _filtrosRef = (u) => (_es(u) ? [...(Array.isArray(u.filtros) ? u.filtros : []), ..._lista(u.union).flatMap(_filtrosRef)] : []).filter((f) => _es(f) && f.ref);
+        for (const f of _filtrosRef(h.universo)) {
+          const refTxtF = _textoDeReferenciaDeCasa(String(f.ref).trim(), I);
+          if (!refTxtF) continue;
+          if (!(H.render.referencia && H.render.referencia.includes(refTxtF))) H.render.referencia = H.render.referencia ? `${H.render.referencia}, ${refTxtF}` : refTxtF;
         }
       }
       // A4, GENERALIZACIÓN A ESTADOS/EXCLUIR (supervisor 2026-09-27, diagnóstico v9, RAÍZ A4 — precisa el bloque

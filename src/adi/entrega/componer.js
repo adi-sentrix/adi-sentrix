@@ -2043,33 +2043,43 @@ function _rotuloDeLaCasaLegado(H) {
   const _dice = (m) => (m ? (m.ausente || esCero(m.raw, m.unidad) ? dichoElCero(m.nombre, m.texto) : `${m.nombre} ${m.texto}`) : "");
   /* v18: un puesto EMPATADO dice con quién comparte el puesto (X46 · X83) */
   const _textoDelPuesto = (p, nombreM) => `puesto ${p.n} de ${p.de} al ordenar de ${p.dir === "menor" ? "menor a mayor" : "mayor a menor"} por ${nombreM}${Array.isArray(p.empatadoCon) && p.empatadoCon.length ? `, empatado con ${p.empatadoCon.length > 1 ? `${p.empatadoCon.slice(0, -1).join(", ")} y ${p.empatadoCon[p.empatadoCon.length - 1]}` : p.empatadoCon[0]}` : ""}`;
-  const _fraseDeVP = (vp) => {
+  /* v19 (Y74 · Y33): la consulta excluyó su bodega: esa es la razón, con el nombre de la bodega (sin cifra ni puesto, como la exclusión por nombre) */
+  const _fraseDeVP = (vp, yaDichas = null, refGlobal = null) => {
     if (vp.excluidaPorLaConsulta) return `${vp.entidad}: fuera del universo por exclusión de la consulta`;
+    if (vp.excluidaPorBodega) return `${vp.entidad}: fuera del universo por su bodega (${vp.excluidaPorBodega}), que la consulta excluye`;
     const nombreM = vp.metrica ? vp.metrica.nombre : null;
     const partes = [];
     if (vp.estado) partes.push(`está ${vp.estado.texto}`);
     if (vp.metrica) partes.push(_dice(vp.metrica));
     if (vp.puesto) partes.push(_textoDelPuesto(vp.puesto, nombreM));
+    /* v19 (Y10): una unión dice, por rama, la cifra de la condición que la entidad no cumple */
+    if (Array.isArray(vp.otras)) for (const o of vp.otras) partes.push(_dice(o));
+    /* v19 (Y14 · Y10): la referencia de LA condición que la entidad no cumple viaja en SU frase (una vez por oración), salvo que la oración ya la lleve al final (`H.render.referencia`) */
+    if (vp.referencia && yaDichas) for (const r of String(vp.referencia).split(", ")) { if (!r || yaDichas.has(r) || (refGlobal && String(refGlobal).includes(r))) continue; yaDichas.add(r); partes.push(r); }
     return `${vp.entidad}: ${partes.join(", ")}`;
   };
   /* §7.3·37a (v17): una premisa de VARIOS miembros dice la verdad de CADA uno que el universo deja fuera, con su dueño */
   const vps = H.render && H.render.verdadesPropias;
   if (Array.isArray(vps) && vps.length) {
-    const cuerpo = vps.map(_fraseDeVP).join("; ");
+    const _yaDichas = new Set();
+    const cuerpo = vps.map((x) => _fraseDeVP(x, _yaDichas, H.render.referencia)).join("; ");
     const refL = H.render.referencia && !cuerpo.includes(H.render.referencia) ? `, ${H.render.referencia}` : "";
     return `${cuerpo}${refL}`;
   }
   const vp = H.render && H.render.verdadPropia;
-  if (vp && vp.entidad && vp.excluidaPorLaConsulta) return _fraseDeVP(vp);
+  if (vp && vp.entidad && (vp.excluidaPorLaConsulta || vp.excluidaPorBodega)) return _fraseDeVP(vp);
   if (vp && vp.entidad) {
     const nombreM = vp.metrica ? vp.metrica.nombre : null;
     const partes = [];
     if (vp.estado) partes.push(`está ${vp.estado.texto}`);
     if (vp.metrica) partes.push(_dice(vp.metrica));
     if (vp.puesto) partes.push(_textoDelPuesto(vp.puesto, nombreM));
+    if (Array.isArray(vp.otras)) for (const o of vp.otras) partes.push(_dice(o));   /* v19 (Y10): una unión dice la cifra de cada rama */
     if (vp.contra && vp.contra.metrica) partes.push(`frente a ${vp.contra.entidad}: ${_dice(vp.contra.metrica)}`);
     if (Array.isArray(vp.ocupantes) && vp.ocupantes.length) partes.push(`${vp.ocupantes.length > 1 ? "los puestos afirmados los ocupan" : "el puesto afirmado lo ocupa"} ${vp.ocupantes.map((o) => (o.metrica ? `${o.entidad}: ${_dice(o.metrica)}` : o.entidad)).join(" · ")}`);
-    const refP = H.render.referencia && !partes.some((x) => x.includes(H.render.referencia)) ? `, ${H.render.referencia}` : "";
+    /* v19: sin referencia del libro (una unión no la declara), la propia de la condición que falla */
+    const _refDeLaCondicion = !H.render.referencia && vp.referencia ? String(vp.referencia).split(", ").filter((r) => r && !partes.some((x) => x.includes(r))) : [];
+    const refP = H.render.referencia && !partes.some((x) => x.includes(H.render.referencia)) ? `, ${H.render.referencia}` : (_refDeLaCondicion.length ? `, ${_refDeLaCondicion.join(", ")}` : "");
     return `${vp.entidad}: ${partes.join(", ")}${refP}`;
   }
   // los estados de la Mesa Capital de la entidad de una premisa de ESTADO, con su nombre y con las palabras de la casa («con alerta en el archivo», nunca «crítico» a secas; decisión 34a)
@@ -4042,7 +4052,8 @@ export function componerEntrega(resolucion) {
   // que usa para armar la cohorte. Se declara desde ahí, sin `hechoId` (mismo patrón que el mecanismo de arriba:
   // no hay una fig de LEDGER que citar) — nunca un número recalculado a mano, es la función que ya gobierna la
   // cohorte, leída una vez más para declararla.
-  if (!entrega.marco.referenciaDeclarada) {
+  /* v19 (Y14, §7.3·42b): `referenciaDeclarada` es UN campo y el benchmark solo entraba si estaba vacío: el nivel de carga que un filtro con `ref` de una premisa ya había escrito lo dejaba sin el benchmark de su `base`. Ahora el benchmark se ANTEPONE al texto que ya hay (todas las referencias oficiales con que se juzgó, no solo la primera). */
+  {
     const _BASE_BENCHMARK_RE = /\bbenchmark\b/i;
     // A4b (diagnóstico v7, MATERIAL) — un universo `union` (§7.3·11) puede nombrar el benchmark en una de sus
     // RAMAS (`u.union: [{base:"bajo el benchmark", ...}, {estados:[...]}]`, Y19) sin que `u.base` de nivel
@@ -4066,8 +4077,10 @@ export function componerEntrega(resolucion) {
         // regla 1 «cero cifras desnudas» (verificar.js): el dígito impreso en el Marco tiene que casar con algo
         // que el compositor DECLARÓ como legítimo — sin `R()` (no hay hecho con id que citar, ver el comentario de
         // arriba) hay que declararlo a mano en `cifrasImpresas`, el mismo registro que usa toda esta función.
-        cifrasImpresas.push(benchFmt);
-        entrega.marco.referenciaDeclarada = { texto: `Benchmark de margen: ${benchFmt}, declarado por la empresa.`, hechoId: null };
+        const _txtB = `Benchmark de margen: ${benchFmt}, declarado por la empresa.`;
+        const _yaB = entrega.marco.referenciaDeclarada;
+        if (!_yaB) { cifrasImpresas.push(benchFmt); entrega.marco.referenciaDeclarada = { texto: _txtB, hechoId: null }; }
+        else if (!/benchmark de margen/i.test(String(_yaB.texto || ""))) { cifrasImpresas.push(benchFmt); entrega.marco.referenciaDeclarada = { ..._yaB, texto: `${_txtB} ${_yaB.texto}` }; }
       }
     }
   }
@@ -4080,7 +4093,8 @@ export function componerEntrega(resolucion) {
       if (!u || typeof u !== "object") return false;
       if (Array.isArray(u.union) && u.union.some(nivelEnJuego)) return true;
       if ((Array.isArray(u.filtros) ? u.filtros : []).some((x) => x && typeof x.ref === "string" && x.ref.trim() === "nivel_carga")) return true;
-      return [..._basesDeUniverso(u)].some((b) => { const fam = referenciaDeBase(b); return !!(fam && fam.concepto === "nivel_carga" && normalizar(b) !== normalizar(NOMBRE_CARGA_ALTA)); });
+      /* v19 (Y09 · Y13 · Y16 · Y40 · Y43, §7.3·42b): «carga comercial alta» TAMBIÉN se define por el nivel oficial (el detector: carga > nivel Y exceso ≥ piso de materialidad) y su veredicto ya lo imprime: el Marco lo lleva junto al piso. La v18 lo excluía por leerlo solo como el piso. */
+      return [..._basesDeUniverso(u)].some((b) => { const fam = referenciaDeBase(b); return !!(fam && fam.concepto === "nivel_carga"); });
     };
     const enJuego = partesUtiles.some((p) => nivelEnJuego(p.universo)) || (resolucion.premisas || []).some((pr) => nivelEnJuego(pr.universo != null ? pr.universo : pr.de));
     if (enJuego && I) {
