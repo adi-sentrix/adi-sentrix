@@ -571,9 +571,14 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
     else estado = parcialForzado ? "parcial" : "resuelta";
   }
 
+  /* §7.3·43(d): una parte `no_resuelta` NO reporta entidades resueltas (la parte no corre: el contrato §1.2 pone las
+   * entidades en `resuelta`/`parcial`; la entidad que existe queda dicha en `noResuelto`/alternativas cuando es lo que
+   * falló, y una premisa que la nombre la juzga por su cuenta). Es UNA sola salida: los seis caminos que llegan aquí
+   * (cifra sin concepto, comparación con una cuenta sola, eje explícito sin productor, simulación con el tope de
+   * supuestos, …) la comparten; los retornos tempranos de arriba ya devolvían `entidades: []`. */
   return {
     id, tema, cierre, estado,
-    conceptos: conceptosValidos, entidades: entidadesResueltas, eje: ejeEfectivo,
+    conceptos: conceptosValidos, entidades: estado === "no_resuelta" ? [] : entidadesResueltas, eje: ejeEfectivo,
     universo: universoValido ? universoResuelto : null, periodo: periodoResuelto,
     ausencias, noResuelto, avisos,
   };

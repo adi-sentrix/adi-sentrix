@@ -1050,6 +1050,20 @@ function _excluidaPorBodega(u, ent, key, eje, I) {
   const dela = bodegas.filter((b) => propias.has(normalizar(b)));
   return (dela.length ? dela : bodegas).join(" y ");
 }
+/* v20 (U62, §7.3·37a): el mismo caso con la bodega PEDIDA (`universo.bodega`: «los de Santiago»): un SKU que entra al universo sin la condición de bodega y sale con ella lo deja fuera SU bodega, y esa es la razón real. Sin esto la verdad decía «capital $14K, puesto 3 de 13»
+ * del SKU que la 41(c) no cubre —su puesto está DENTRO del top, no fuera—, y leía como si el grupo lo incluyera. Devuelve { propia, pedida } o null. */
+function _fueraPorBodegaPedida(u, ent, key, eje, I) {
+  const pedidas = _lista(u.bodega).map((b) => String(b)).filter(Boolean);
+  if (!pedidas.length) return null;
+  const uSin = { ...u }; delete uSin.bodega;
+  let A = null, B = null;
+  try { A = conjuntoDeUniverso(uSin, I, eje, ""); B = conjuntoDeUniverso(u, I, eje, ""); } catch { return null; }
+  if (!A || A.error || !A.set || !B || B.error || !B.set) return null;
+  if (!A.set.has(key) || B.set.has(key)) return null;
+  let propias = []; try { propias = [...new Set((I.estadosDe(ent.nombre) || []).map((x) => (x && x.bodega ? String(x.bodega) : "")).filter(Boolean))]; } catch { propias = []; }
+  if (!propias.length) return null;
+  return { propia: propias.join(" y "), pedida: pedidas.join(" y ") };
+}
 /* v19: el texto de la referencia de la casa que un conjunto o un filtro pone en juego («benchmark de margen 30.1%»): la misma tabla y la misma función que el veredicto (`valorDeReferencia` / `formatoDeReferencia`), nunca una segunda cifra */
 function _textoDeReferenciaDeCasa(concepto, I) {
   if (!concepto) return null;
@@ -1153,6 +1167,8 @@ function _verdadPropiaDeMiembro(u, nombre, I) {
   if (_es(u.excluir) && _lista(u.excluir.entidades).some((n) => { const r = I.resolverEntidad(String(n)); return normalizar(r ? r.nombre : String(n)) === key; })) return { entidad: ent.nombre, eje, estado: null, metrica: null, puesto: null, excluidaPorLaConsulta: true };
   // (0b) v19: la CONSULTA excluyó su bodega: esa es la razón (con el nombre de la bodega)
   { const b = _excluidaPorBodega(u, ent, key, eje, I); if (b) return { entidad: ent.nombre, eje, estado: null, metrica: null, puesto: null, excluidaPorBodega: b }; }
+  // (0c) v20: la CONSULTA pidió una bodega y la del SKU es otra: esa es la razón (con su bodega y la pedida)
+  { const b = _fueraPorBodegaPedida(u, ent, key, eje, I); if (b) return { entidad: ent.nombre, eje, estado: null, metrica: null, puesto: null, fueraPorBodegaPedida: b }; }
   /* v19 (Y10): una UNIÓN pura («sobre el benchmark O sobre el nivel declarado de carga») deja fuera a quien no cumple NINGUNA rama: la verdad dice, por cada rama, la cifra de la condición que falla y su referencia (antes no decía nada y caía a la traza del Notario) */
   const ramas = _lista(u.union).filter(_es);
   if (ramas.length && !["base", "estados", "no_estados", "bodega", "top"].some((c) => u[c] != null) && !(Array.isArray(u.filtros) && u.filtros.length)) {

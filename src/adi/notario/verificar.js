@@ -26,7 +26,7 @@ import { normalizarAfirmaciones, normalizar, menosAscii } from "./afirmacion.js"
 import { resolverDeclaraciones } from "./resolutor.js";
 import { ESTADOS_CANON, estadoDeLaCasa, verificarEstadoDeLaCasa, ejeCompatible } from "./estados.js";
 import { juzgarBase, calcularConBase } from "./tasas.js";
-import { AUSENTE_VALE_CERO, claveDeMetrica as _claveDeMetricaLex, metricaPorClave, polaridadDeClave, diasDe, opDe, esCero, dichoElCero } from "./lexico.js";   // verdad finita (E1): el universo tipado se evalúa por claves, no por palabras   // la base de una tasa (ronda adversarial 3): valor + base, o no es esa tasa   // fase 4: la casa canoniza la forma de la declaración antes del veredicto
+import { AUSENTE_VALE_CERO, claveDeMetrica as _claveDeMetricaLex, metricaPorClave, polaridadDeClave, diasDe, opDe, esCero, dichoElCero, diasEnPalabras } from "./lexico.js";   // verdad finita (E1): el universo tipado se evalúa por claves, no por palabras   // la base de una tasa (ronda adversarial 3): valor + base, o no es esa tasa   // fase 4: la casa canoniza la forma de la declaración antes del veredicto
 import { indiceDeEvidencia, tokens, numerosEn, ES_TODO, ES_TODO_FUERTE, estadoCanon, conceptosDe, mismoValor as _mismoValor, unidadCompatible as _u, necesitaUniverso as _necesitaUniverso, conDigitos } from "./evidencia.js";
 import { NOMBRE_CARGA_ALTA, NOMBRE_SOBRE_NIVEL_CARGA, referenciaDeBase } from "./conjuntosDeLaCasa.js";   // §7.3·11: el nombre de estos dos conjuntos vive en UN solo lugar (con oracle/datoProyectado.js y encargo/validar.js) — la lógica de membresía de abajo no cambia. `referenciaDeBase` (tarea 4 del cierre, §7.3): el MISMO registro que usa notario/hechos.js, para que la fuente de un `base` con referencia numérica también lleve su valor acá
 
@@ -1255,7 +1255,10 @@ function _orden(a, I) {
   const nombre = (e) => { const r = I.resolverEntidad(e); return r ? r.nombre : e; };
   const fmtFila = (x) => { const f = I.buscarFigs(x.entidad, a.metrica)[0]; return `${x.entidad} (${f ? f.fig.value : x.valor})`; };
   /* v19 (Y06 · Y20, §7.3·39c): el cero de un empate se dice en palabras de negocio junto a su cifra («no tiene días vencido (0d)»), nunca «(0d)» a secas — el mismo criterio que toda premisa */
-  const fmtEmpate = (x) => { const f = I.buscarFigs(x.entidad, a.metrica)[0]; const txt = f ? f.fig.value : x.valor; const un = f ? f.unidad : null; if (f && esCero(f.raw, un)) { const m = metricaPorClave(_claveDeMetricaLex(a.metrica)); return `${x.entidad}: ${dichoElCero(m ? m.nombre.toLowerCase() : String(a.metrica), txt)}`; } return `${x.entidad} (${txt})`; };
+  const fmtEmpate = (x) => { const f = I.buscarFigs(x.entidad, a.metrica)[0]; const txt = f ? f.fig.value : x.valor; const un = f ? f.unidad : null; if (f && esCero(f.raw, un)) { const m = metricaPorClave(_claveDeMetricaLex(a.metrica)); return `${x.entidad}: ${dichoElCero(m ? m.nombre.toLowerCase() : String(a.metrica), txt)}`; }
+    /* v20 (U06): el cero POR AUSENCIA del conjunto que la métrica define (`AUSENTE_VALE_CERO`: Santiago no tiene capital inmovilizado crítico) no trae fig —vale 0 en la fila del ranking—; se dice igual en palabras de negocio con su cifra (39c), nunca «Santiago (0)». La cifra de un cero es la de la casa: $0 · 0 días · 0. */
+    if (!f && x.valor === 0) { const m = metricaPorClave(_claveDeMetricaLex(a.metrica)); if (m && esCero(0, m.unidad)) return `${x.entidad}: ${dichoElCero(m.nombre.toLowerCase(), m.unidad === "money" ? "$0" : m.unidad === "days" ? diasEnPalabras(0) : "0")}`; }
+    return `${x.entidad} (${txt})`; };
   const ev = F.rk ? [`ranking ${eje} · ${F.rk.clave} · ${F.universo}`] : [`cifras de «${a.metrica}» por ${eje}`];
   const cabeza = filas.slice(0, Math.min(3, filas.length)).map(fmtFila).join(" · ");
   const sujetos = (Array.isArray(a.sujeto) ? a.sujeto : [a.sujeto]).map(nombre);
@@ -1270,7 +1273,7 @@ function _orden(a, I) {
   if (o.forma === "max" || o.forma === "min") {
     if (sujetos.length > 1) return _topk({ ...a, orden: { ...o, forma: "topk", k: sujetos.length } }, sujetos, filas, puesto, ev, cabeza, fmtFila, dir);
     const k = kDe(sujetos[0]);
-    if (k === 1 && filas.length > 1 && filas[1].valor === filas[0].valor) return _nv(`empate: ${filas.filter((x) => x.valor === filas[0].valor).map((x) => x.entidad).join(", ")} comparten el extremo «${dir}» de «${a.metrica}» (${fmtEmpate(filas[0])}): no hay un solo «${dir === "mayor" ? "más" : "menos"}»`, ev);
+    if (k === 1 && filas.length > 1 && filas[1].valor === filas[0].valor) return _nv(`empate: ${filas.filter((x) => x.valor === filas[0].valor).map((x) => x.entidad).join(", ")} comparten el extremo «${dir}» de «${a.metrica}» (${fmtEmpate(filas.find((x) => normalizar(x.entidad) === normalizar(sujetos[0])) || filas[0])}): no hay un solo «${dir === "mayor" ? "más" : "menos"}»`, ev);
     if (k === 1) return _ok(`${sujetos[0]} es el extremo «${dir}» de «${a.metrica}» en ${F.universo}`, ev, cabeza);
     return _falsa(`orden-falso: ${sujetos[0]} va ${k}.º de ${filas.length} en «${a.metrica}» (${dir}); el primero es ${fmtFila(filas[0])}`, cabeza, ev);
   }

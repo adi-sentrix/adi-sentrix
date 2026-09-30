@@ -24,6 +24,8 @@
  *         el Marco declara todas las referencias oficiales (Y40, 42b) · la cartera completa con sus 0 días (Y20, 42c) · la bodega excluida se nombra (Y74) · el empate del orden dice con quién (Y06, 42a).
  *   A14 · diagnóstico v19 (§7.3·43): el orden servido con empate declara el puesto compartido y quiénes lo comparten (b, Y02) · la relación juzgada dice la cifra de CADA lado (c, Y31) ·
  *         una cifra sobre un eje completo sin orden pedido se exhibe con lo que pide atención primero, según la polaridad (f).
+ *   A15 · diagnóstico v20 (§7.3·43): una parte no_resuelta no reporta entidades (d) · el Marco comercial cita el benchmark sea cual sea la herramienta (e) · una lectura con eje explícito sirve el eje (U06 U42) ·
+ *         el cero de un empate por ausencia en palabras y el del SUJETO (U06 U91) · el SKU fuera por la bodega PEDIDA dice su bodega (U62) · una definición sin curar se declara (U34).
  *
  * Solo por `npm run gates:offline` (o con el candado: node --import ./scripts/offline-guard.mjs _v12_correcciones_gate.mjs). Cero red. */
 import { initTenant } from "./src/data/tenantStore.js";
@@ -880,6 +882,121 @@ H("A14 · 43(f) · una cifra sobre un eje completo, sin orden pedido, se exhibe 
   const { E: E5 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["carga", "no_capturada", "contribucion"], universo: { eje: "cliente", base: "carga comercial alta" } }] });
   const vs5 = cab(_ordenDe(E5)).map((n) => _filaDe(n, cg).valor);
   ok(E5.ok && vs5.length >= 2 && vs5.every((v, i) => i === 0 || v >= vs5[i - 1]), "CONTROL · una `decision` conserva su orden de siempre (la cifra menor primero: la prioridad del procedimiento no la mueve la 43(f), que habla de la cifra)", _ordenDe(E5));
+}
+
+/* ═══ A15 · DIAGNÓSTICO v20 (medición ciega v20, catálogo sellado v20; §7.3·43) ═══════════════════════════════════════════════════════════════
+ * Seis raíces de ADI, cada una con su carnada en POSITIVO (la corrección dice lo verdadero) y en NEGATIVO (el control que NO debe cambiar):
+ *   43(d) · U21 U22 U23 U25 U28 U86 U100 · una parte `no_resuelta` NO reporta entidades resueltas: es UNA salida de `validarEncargo` (antes las devolvían solo los retornos tempranos).
+ *   43(e) · U03 U04 U12 … (24 casos) · el Marco comercial cita el benchmark con que se juzga el margen AUNQUE la fig «Benchmark de margen» no viaje en la boleta (la publica `entityRecord`/`rolesCartera`, no `queryMetric`):
+ *           la regla es del TEMA (toda parte comercial servida que no es una definición), no de la herramienta que la sirvió.
+ *   eje   · U06 U42 · una `lectura` sin entidades con un eje EXPLÍCITO (bodega) sirve ese eje además de la foto del tema (antes solo si el plan del tema no armaba nada: la lectura de inventario SIEMPRE lo arma); y el listado
+ *           se ordena por el primer concepto que trae fig de TODAS las entidades en juego (no «Antofagasta, Valparaíso, Santiago» sin cifra).
+ *   cero  · U06 · el cero de un empate POR AUSENCIA del conjunto (Santiago no tiene capital inmovilizado crítico) se dice en palabras de negocio, no «Santiago (0)» (39c).
+ *   bodega· U62 · un SKU que la consulta deja fuera porque su bodega no es la PEDIDA dice su bodega (37a), no un «puesto 3 de 13» que leería como si el top lo incluyera.
+ *   defin.· U34 · una definición que el validador acepta y `defineConcept` no tiene curada (`markup`) no desaparece en silencio: se declara el límite.
+ * Oráculos: los rankings de la proyección (`cifrasDelDato`), el estado por bodega de la proyección, `benchmarkOf()` y el índice de entidades de cada eje; nunca el código que se corrige. */
+const _marcoDe = (E) => (/\*\*Marco\.\*\*[^\n]*/.exec(E.texto || "") || [""])[0];
+const _limitesDe = (E) => ((E.entrega && E.entrega.limites) || []).map((l) => String((l && l.titulo) || l));
+const _filasDe = (E) => ((E.entrega && E.entrega.cifras && E.entrega.cifras.filas) || []).map((f) => f.valores["Entidad / grupo"]);
+const _partesDe = (R) => Object.fromEntries((R.partes || []).map((p) => [p.id, p]));
+const _bodegaDeSku = (n) => (cifrasDelDato(ESCENARIO_INICIAL, null).estados.find((x) => x.entidad === n) || {}).bodega;
+
+H("A15 · 43(d) · una parte `no_resuelta` NO reporta entidades resueltas (una sola salida), sea cual sea el motivo; las `parcial` y `resuelta` SÍ reportan lo resuelto");
+{
+  const a = entregaDe({ partes: [
+    { id: "p1", tema: "cobranza", cierre: "comparacion", conceptos: ["saldo_vencido"], entidades: [{ nombre: "Falabella" }, { nombre: "Cencosud" }] },
+    { id: "p2", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"], entidades: [{ nombre: "Falabella" }] },
+    { id: "p3", tema: "cobranza", cierre: "cifra", conceptos: [], entidades: [{ nombre: "Jumbo" }] },
+    { id: "p4", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"], eje: "sku", entidades: [{ nombre: "SAM-TV55", eje: "sku" }] },
+  ] });
+  const P = _partesDe(a.R);
+  const noRes = a.R.partes.filter((p) => p.estado === "no_resuelta");
+  ok(noRes.length === 3 && ["p1", "p3", "p4"].every((id) => P[id].estado === "no_resuelta"), "las tres partes que fallan (comparación con una cuenta inexistente · cifra sin concepto · eje sin productor) quedan no_resuelta", JSON.stringify(a.R.partes.map((p) => [p.id, p.estado])));
+  ok(noRes.every((p) => p.entidades.length === 0), "ninguna parte no_resuelta reporta entidades (Falabella en p1, Jumbo en p3 y SAM-TV55 en p4 existen y NO se reportan)", JSON.stringify(noRes.map((p) => [p.id, p.entidades.map((e) => e.nombre)])));
+  ok(P.p2.estado === "resuelta" && P.p2.entidades.map((e) => e.nombre).join() === "Falabella", "CONTROL · la parte resuelta (p2) SÍ reporta a Falabella: una cifra puntual de la misma cuenta la sirve otra parte", JSON.stringify(P.p2.entidades));
+  const b = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"], entidades: [{ nombre: "Falabella" }, { nombre: "Cencosud" }] }] });
+  ok(b.R.partes[0].estado === "parcial" && b.R.partes[0].entidades.map((e) => e.nombre).join() === "Falabella", "CONTROL NEGATIVO · una parte `parcial` (una cuenta válida y una inexistente) SÍ reporta la resuelta", JSON.stringify(b.R.partes.map((p) => [p.estado, p.entidades.map((e) => e.nombre)])));
+  const c = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"], entidades: [{ nombre: "Cencosud" }] }] });
+  ok(c.R.partes[0].estado === "no_resuelta" && c.R.partes[0].entidades.length === 0 && c.R.noResuelto.some((n) => n.motivo === "entidad_inexistente"), "la entidad que FALLÓ sigue dicha en `noResuelto` (motivo entidad_inexistente): quitar las entidades de la parte no borra la razón", JSON.stringify(c.R.noResuelto.map((n) => n.motivo)));
+}
+
+H("A15 · 43(e) · el Marco comercial cita el benchmark con que se juzga el margen, sirva la parte la herramienta que sirva (no depende de que la fig viaje en la boleta)");
+{
+  const txtB = `Benchmark de margen: ${formatoDeUmbral(benchmarkOf(), "pct")}, declarado por la empresa.`;
+  const veces = (m) => m.split(txtB).length - 1;
+  const casos = [
+    ["cifra por cliente (ventas, contribución: `queryMetric`, sin la fig del benchmark)", { partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "contribucion"] }] }],
+    ["cifra por SKU (margen, ventas)", { partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "ventas"], eje: "sku", universo: { eje: "sku" } }] }],
+    ["cifra por marca (carga, margen)", { partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["carga", "margen"], eje: "marca", universo: { eje: "marca" } }] }],
+    ["cifra puntual de un cliente (`entityRecord`: la fig SÍ viaja; una sola vez)", { partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "margen"], entidades: [{ nombre: "Sodimac" }] }] }],
+  ];
+  for (const [t, enc] of casos) { const { E } = entregaDe(enc); const m = _marcoDe(E); ok(E.ok && veces(m) === 1, `${t}: el Marco lleva «${txtB}» UNA vez`, m.slice(0, 260)); }
+  const c1 = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "definicion", concepto: "margen" }, { id: "p2", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"], entidades: [{ nombre: "Lider" }] }] });
+  ok(c1.E.ok && veces(_marcoDe(c1.E)) === 0 && !/Benchmark de margen/.test(_marcoDe(c1.E)), "CONTROL NEGATIVO · una parte comercial que es solo una DEFINICIÓN (no juzga ningún margen) no trae el benchmark al Marco", _marcoDe(c1.E));
+  const c2 = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital"], eje: "sku", universo: { eje: "sku" } }, { id: "p2", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"], entidades: [{ nombre: "Lider" }] }] });
+  ok(c2.E.ok && !/Benchmark de margen/.test(_marcoDe(c2.E)), "CONTROL NEGATIVO · sin parte comercial (inventario y cobranza) el Marco no agrega el benchmark", _marcoDe(c2.E));
+}
+
+H("A15 · lectura con eje EXPLÍCITO · una `lectura` de inventario por BODEGA sirve las cuatro bodegas (además de la foto del tema); sin eje explícito no agrega nada");
+{
+  const bodegas = ejes.bodega || [], rkCap = RK.bodega.capital.filas;
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "lectura", conceptos: ["capital_frenado", "capital"], eje: "bodega", universo: { eje: "bodega" } }] });
+  const filas = new Set(_filasDe(E));
+  ok(E.ok && bodegas.length === 4 && bodegas.every((b) => filas.has(b)), "las cuatro bodegas están en la tabla de Cifras (la lectura pedía el eje bodega)", JSON.stringify([...filas]));
+  ok(E.entrega.respuesta.some((r) => /quien más pesa/.test(r.texto || "")), "la foto del procedimiento (el SKU que más pesa) se conserva: el eje pedido se SIRVE además, no en su lugar", E.entrega.respuesta.map((r) => r.texto).join(" | ").slice(0, 300));
+  const linea = (E.entrega.respuesta.find((r) => /^Por bodega, ordenado por/.test(r.texto || "")) || {}).texto || "";
+  const esperada = rkCap.slice(0, 3).map((f) => `${f.entidad} (${formatoDeLaCasa(f.raw, "money")})`).join(", ");
+  ok(linea === `Por bodega, ordenado por Capital: ${esperada}.`, `el listado se ordena por «Capital» (el primer concepto con fig de las cuatro), cada nombre con su cifra: ${esperada}`, linea);
+  const solo = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital_frenado"], eje: "bodega", universo: { eje: "bodega" } }] });
+  const lineaSolo = (solo.E.entrega.respuesta.find((r) => /ordenado por/.test(r.texto || "")) || {}).texto || "";
+  ok(/ordenado por Capital inmovilizado crítico: Valparaíso \(\$25K\), Antofagasta \(\$8K\)/.test(lineaSolo), "CONTROL · con un solo concepto (solo dos bodegas lo traen) el orden es el de siempre, por ese concepto", lineaSolo);
+  const sin = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "lectura", conceptos: ["capital", "dias_inventario"] }] });
+  ok(sin.E.ok && !_filasDe(sin.E).some((n) => bodegas.includes(n)) && !sin.E.entrega.respuesta.some((r) => /^Por bodega/.test(r.texto || "")), "CONTROL NEGATIVO · una lectura de inventario SIN eje explícito (el sujeto del tema es el SKU) no agrega listado por bodega", JSON.stringify(_filasDe(sin.E)));
+  const marcas = ejes.marca || [];
+  const com = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["ventas", "margen"], eje: "marca", universo: { eje: "marca" } }] });
+  const fm = new Set(_filasDe(com.E));
+  ok(com.E.ok && marcas.length >= 4 && marcas.every((m) => fm.has(m)), "una lectura comercial por MARCA (eje explícito) sirve las marcas: antes salía sin una sola cifra, solo con límites", JSON.stringify([...fm]));
+  const comSin = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura" }] });
+  ok(comSin.E.ok && !_filasDe(comSin.E).some((n) => marcas.includes(n)), "CONTROL NEGATIVO · una lectura comercial sin eje explícito no agrega marcas", JSON.stringify(_filasDe(comSin.E)));
+}
+
+H("A15 · U06 · el cero de un empate POR AUSENCIA se dice en palabras de negocio con su cifra (no «Santiago (0)»); un empate sin cero no cambia");
+{
+  const cf = RK.bodega.capital_frenado.filas.map((f) => f.entidad);
+  const mk = (premisas) => entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "lectura", conceptos: ["capital_frenado", "capital"], eje: "bodega", universo: { eje: "bodega" } }], premisas });
+  const t = oracionesDe(mk([{ id: "q1", tipo: "orden", sujeto: "Santiago", metrica: "capital_frenado", orden: { forma: "min" }, universo: { eje: "bodega" } }]).E)[0] || "";
+  ok(!cf.includes("Santiago") && !cf.includes("Concepción") && /no se pudo verificar/.test(t) && /Santiago: no tiene capital inmovilizado crítico \(\$0\)/.test(t) && !/Santiago \(0\)/.test(t), "«Santiago es la bodega con menos capital inmovilizado crítico» (empata con Concepción, ambas sin crítico: 0 por ausencia): «Santiago: no tiene capital inmovilizado crítico ($0)»", t);
+  /* U91: el cero que la oración dice es el del SUJETO de la premisa (Ripley), no el del primero del empate (Jumbo) */
+  const dv0 = RK.cliente.dias_vencido.filas, ceros = dv0.filter((f) => f.valor === 0).map((f) => f.entidad);
+  const menos = (sujeto) => oracionesDe(entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["dias_vencido", "saldo_vencido"] }], premisas: [{ id: "q1", tipo: "orden", sujeto, metrica: "dias_vencido", orden: { forma: "min" }, universo: { eje: "cliente" } }] }).E)[0] || "";
+  const tR = menos("Ripley"), tJ = menos("Jumbo");
+  ok(ceros.length === 7 && ceros.indexOf("Ripley") > 0 && /comparten el extremo/.test(tR) && /Ripley: no tiene días vencido \(0 días\)/.test(tR) && !/Jumbo: no tiene/.test(tR), "«Ripley es la de menos días vencidos» (empata con otras 6 en 0 días; Jumbo va primero del empate): el cero dicho es el de RIPLEY", tR);
+  ok(/Jumbo: no tiene días vencido \(0 días\)/.test(tJ) && !/Ripley: no tiene/.test(tJ), "CONTROL · «Jumbo es la de menos días vencidos» (el sujeto es el primero del empate) sigue diciendo el cero de Jumbo", tJ);
+  const dv = Object.fromEntries(RK.cliente.dias_vencido.filas.map((f) => [f.entidad, f.valor]));
+  const t2 = oracionesDe(entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["dias_vencido", "saldo_vencido"] }], premisas: [{ id: "q1", tipo: "orden", sujeto: "Tottus", metrica: "dias_vencido", orden: { forma: "puesto", k: 4 }, universo: { eje: "cliente" } }] }).E)[0] || "";
+  ok(dv.Tottus > 0 && dv.Tottus === dv.Paris && /valen lo mismo/.test(t2) && /Tottus \(8 días\)/.test(t2) && !/no tiene/.test(t2), "CONTROL NEGATIVO · un empate SIN cero (Tottus, Falabella y Paris: 8 días) sigue con su cifra, sin «no tiene»", t2);
+}
+
+H("A15 · U62 · un SKU que la consulta deja fuera porque su BODEGA no es la pedida dice su bodega (37a), sin un puesto que leería como si el top lo incluyera");
+{
+  const univ = { eje: "sku", top: { metrica: "capital", k: 4, sobre: "eje" }, bodega: "Santiago" };
+  const mk = (m) => entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital", "rotacion"], eje: "sku", universo: univ }], premisas: [{ id: "q1", tipo: "grupo", miembros: [m], universo: univ }] }).E;
+  const top4 = RK.sku.capital.filas.slice(0, 4).map((f) => f.entidad), bp = _bodegaDeSku("LG-DRYER8KG");
+  const t = oracionesDe(mk("LG-DRYER8KG"))[0] || "";
+  ok(top4.includes("LG-DRYER8KG") && bp === "Valparaíso" && /no es así — LG-DRYER8KG: fuera del universo por su bodega \(Valparaíso\), distinta de la pedida \(Santiago\)/.test(t) && !/puesto/.test(t), "LG-DRYER8KG (3.º del eje, pero en Valparaíso): la oración nombra su bodega y la pedida, sin «puesto 3 de 13»", t);
+  const t2 = oracionesDe(mk("PHI-SHAVER9"))[0] || "";
+  ok(!top4.includes("PHI-SHAVER9") && /PHI-SHAVER9: capital \$11K, puesto 5 de 13/.test(t2) && !/bodega/.test(t2), "CONTROL · PHI-SHAVER9 (5.º del eje, FUERA del top) sigue diciendo su cifra y su puesto: el puesto es la razón (41c)", t2);
+  const t3 = oracionesDe(mk("SAM-TV55"))[0] || "";
+  ok(_bodegaDeSku("SAM-TV55") === "Santiago" && /es correcto — SAM-TV55/.test(t3), "CONTROL NEGATIVO · SAM-TV55 (top 4 y en Santiago) es MIEMBRO: verdadera, sin razón de exclusión", t3);
+}
+
+H("A15 · U34 · una definición aceptada por el validador que `defineConcept` no tiene curada (`markup`) se DECLARA como límite, no desaparece; una curada se sirve");
+{
+  const cob = { id: "p2", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"], entidades: [{ nombre: "Lider" }] };
+  const a = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "definicion", concepto: "markup" }, cob] });
+  ok(a.E.ok && _partesDe(a.R).p1.estado === "resuelta" && _limitesDe(a.E).some((t) => /la definición de «markup» no está disponible en este registro/.test(t)), "«qué es el markup» (parte resuelta, sin definición curada): el límite lo dice", JSON.stringify(_limitesDe(a.E)));
+  const b = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "definicion", concepto: "margen" }, cob] });
+  ok(b.E.ok && !_limitesDe(b.E).some((t) => /no está disponible en este registro/.test(t)) && /margen de contribución/.test(b.E.texto), "CONTROL NEGATIVO · «qué es el margen» (curada) se sirve y no agrega límite", JSON.stringify(_limitesDe(b.E)));
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");

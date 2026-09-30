@@ -2047,6 +2047,8 @@ function _rotuloDeLaCasaLegado(H) {
   const _fraseDeVP = (vp, yaDichas = null, refGlobal = null) => {
     if (vp.excluidaPorLaConsulta) return `${vp.entidad}: fuera del universo por exclusión de la consulta`;
     if (vp.excluidaPorBodega) return `${vp.entidad}: fuera del universo por su bodega (${vp.excluidaPorBodega}), que la consulta excluye`;
+    /* v20 (U62): la bodega del SKU no es la que la consulta pidió: esa es la razón (sin cifra ni puesto: el puesto de un SKU dentro del top leería como si el grupo lo incluyera) */
+    if (vp.fueraPorBodegaPedida) return `${vp.entidad}: fuera del universo por su bodega (${vp.fueraPorBodegaPedida.propia}), distinta de la pedida (${vp.fueraPorBodegaPedida.pedida})`;
     const nombreM = vp.metrica ? vp.metrica.nombre : null;
     const partes = [];
     if (vp.estado) partes.push(`está ${vp.estado.texto}`);
@@ -2067,7 +2069,7 @@ function _rotuloDeLaCasaLegado(H) {
     return `${cuerpo}${refL}`;
   }
   const vp = H.render && H.render.verdadPropia;
-  if (vp && vp.entidad && (vp.excluidaPorLaConsulta || vp.excluidaPorBodega)) return _fraseDeVP(vp);
+  if (vp && vp.entidad && (vp.excluidaPorLaConsulta || vp.excluidaPorBodega || vp.fueraPorBodegaPedida)) return _fraseDeVP(vp);
   if (vp && vp.entidad) {
     const nombreM = vp.metrica ? vp.metrica.nombre : null;
     const partes = [];
@@ -2446,7 +2448,11 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
   // con el SKU intruso (oracion-hecho + tentacion-no-precalculada), solo que por una causa distinta. Se elige el
   // primer concepto DECLARADO (respetando `conceptoTop` si hay `top`) que sí tiene AL MENOS una fig entre las
   // entidades en juego — nunca un concepto inventado ni reordenado por valor, solo el primero que el eje sostiene.
-  const claveOrden = conceptoTop || conceptos.find((c) => entidadesEnJuego.some((e) => porEntidad.has(e) && porEntidad.get(e).has(c))) || conceptos[0];
+  /* v20 (U06): en una `lectura`/`decision` (que no exigen orden exhibido: la 43(f) habla de la `cifra`, cuyo orden es el del PRIMER concepto pedido) se prefiere, entre los conceptos declarados que el eje sostiene, el PRIMERO que trae fig para TODAS las entidades en juego: «capital inmovilizado crítico» por bodega solo trae las dos bodegas con crítico y la línea de orden quedaba
+   * «Antofagasta ($8K), Valparaíso ($25K), Santiago» (Santiago sin cifra pegada al nombre, Concepción fuera), mientras el concepto siguiente («capital») las trae a las cuatro. Sin un concepto completo, el criterio de siempre. */
+  const claveOrden = conceptoTop
+    || (parte.cierre === "cifra" ? null : conceptos.find((c) => entidadesEnJuego.length > 1 && entidadesEnJuego.every((e) => porEntidad.has(e) && porEntidad.get(e).has(c))))
+    || conceptos.find((c) => entidadesEnJuego.some((e) => porEntidad.has(e) && porEntidad.get(e).has(c))) || conceptos[0];
   // RAÍZ ordenServido (supervisor 2026-09-27, diagnóstico v9) — `top.direccion` acepta CUATRO valores (contrato
   // §2, `hechos.js:_ENUM.direccion`: mayor · menor · peor · mejor), pero acá solo se leía «menor» — «peor»/
   // «mejor» caían al `else` como si fueran «mayor» sin mirar la POLARIDAD de la métrica: para «recuperado»,
@@ -3117,7 +3123,11 @@ export function componerEntrega(resolucion) {
     const figsDelGrupo = partesSinEntidadLecturaDecision.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }, { indice: I }));
     const plan = _planMultiTema(temas, figsDelGrupo, ref, declararRazon, declararDerivadaOpcional, { conDecision });
     if (plan) { plan.partesIds = partesSinEntidadLecturaDecision.map((p) => p.id); planes.push(plan); }
-    else {
+    /* v20 (U06 · U42, §7.3·13 «la lectura TRAE el ranking completo del eje que la parte nombra»): el listado por el eje EXPLÍCITO (RC8, abajo) solo corría cuando `_planMultiTema` no armaba nada. Una lectura de inventario con eje `bodega` SIEMPRE
+     * arma plan (la foto por SKU), así que el eje que la parte pidió se ignoraba en silencio: el ranking de las cuatro bodegas ni se servía. El plan del tema conserva su lugar (la foto del procedimiento) y el eje pedido se SIRVE además, por el mismo
+     * camino «grupo por eje» de `cifra`; sin plan del tema, todo sigue igual que antes (fallback y «no se pudo componer»). */
+    {
+      const hayPlanDelGrupo = !!plan;
       // RC8 (owner, diagnostico.md §RC8, punto 2 — «LA GRIETA DE UN SOLO TEMA CON EJE EXPLÍCITO», documentada en
       // lecturasDe.js:230-239 y cerrada solo a medias): `_planMultiTema` está pensado para "cartera entera con
       // el sujeto por defecto" — con un solo tema y un eje EXPLÍCITO (ej. "el margen por marca") no arma nada, y
@@ -3159,7 +3169,7 @@ export function componerEntrega(resolucion) {
         partesYaAgrupadas.add(p.id);
         huboFallback = true;
       }
-      if (!huboFallback) for (const p of partesSinEntidadLecturaDecision) partesYaAgrupadas.delete(p.id);   // sin evidencia suficiente: cada parte cae en su propio "no se pudo componer" abajo
+      if (!huboFallback && !hayPlanDelGrupo) for (const p of partesSinEntidadLecturaDecision) partesYaAgrupadas.delete(p.id);   // sin evidencia suficiente: cada parte cae en su propio "no se pudo componer" abajo
     }
   }
   // §7.3·22 (supervisor 2026-09-27, diagnóstico v9) — la prioridad CRUZADA entre dominios se AGREGA aparte,
@@ -3315,6 +3325,12 @@ export function componerEntrega(resolucion) {
       // de Sentrix (tuteo) como si fuera de la Entrega.
       if (plan === "sin_neutra") limitesGap.push({ titulo: `Sobre la parte ${p.id}, la definición de «${facts.concepto}» no está disponible en este registro`, motivo: "Esta definición todavía no tiene una redacción en tercera persona para la Entrega — se declina en vez de servir el texto de Sentrix, que está en segunda persona." });
       else if (plan) planes.push(plan);
+      /* v20 (U34, «declina, no adivina»): el concepto que el validador ACEPTA (una clave de métrica, `markup`) pero que `defineConcept` no tiene curado devuelve `facts: null`: la parte quedaba `resuelta` y NO se servía ni se declaraba (un cambio silencioso; con otras partes, la definición pedida desaparecía sin rastro). Se declara el límite, con el mismo título del camino hermano. */
+      else {
+        const crudaDef = ((resolucion.encargo && resolucion.encargo.partes) || []).find((x) => x && x.id === p.id);
+        const conceptoDef = (crudaDef && crudaDef.concepto) || p.id;
+        limitesGap.push({ titulo: `Sobre la parte ${p.id}, la definición de «${conceptoDef}» no está disponible en este registro`, motivo: "Este concepto todavía no tiene una definición curada para la Entrega — se declina en vez de inventarla." });
+      }
     }
   }
   // §7.3·29 (SUPERVISOR, 2026-09-28 — ley «declinar honestamente cuenta como éxito», X75) — si TODAS las partes
@@ -4092,7 +4108,11 @@ export function componerEntrega(resolucion) {
     const partesConBaseBenchmark = partesUtiles.some((p) => _baseNombraBenchmark(p.universo));
     let premisaConBaseBenchmark = false;
     if (!partesConBaseBenchmark && libroPremisas) { for (const H of libroPremisas.porId.values()) { if (_baseNombraBenchmark(H && H.universoTipado)) { premisaConBaseBenchmark = true; break; } } }
-    if (partesConBaseBenchmark || premisaConBaseBenchmark) {
+    /* v20 (§7.3·43e; U03 U04 U12 U14 U17 … 24 casos): el Marco comercial cita el benchmark con que se juzga el margen AUNQUE la consulta no lo nombre. Hasta v19 el benchmark solo llegaba al Marco si la fig «Benchmark de margen»
+     * casualmente viajaba en la boleta del turno (`idBenchComercialGlobal`: la publica `entityRecord`/`rolesCartera`, no `queryMetric`): la misma parte comercial declaraba el benchmark según QUÉ herramienta la sirvió. La regla es del tema, no de la
+     * herramienta: toda parte COMERCIAL servida (resuelta o parcial) que no es una definición (§1.1: sin cifras) lo pone en juego, con el mismo valor que juzga el margen (`benchmarkOf`, la fuente de la cohorte «bajo el benchmark»). */
+    const parteComercialServida = partesUtiles.some((p) => p.tema === "comercial" && p.cierre !== "definicion");
+    if (partesConBaseBenchmark || premisaConBaseBenchmark || parteComercialServida) {
       const benchRaw = benchmarkOf();
       if (Number.isFinite(benchRaw)) {
         const benchFmt = formatoDeReferencia(benchRaw, "pct");   /* §7.3·40(d): el benchmark es un valor DECLARADO — exacto */
