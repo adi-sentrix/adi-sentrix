@@ -22,6 +22,8 @@
  *         el puesto empatado dice con quién empata (C-D) · `verificarEntrega` no acusa por sustring (C-E).
  *   A13 · diagnóstico v19: `==` con el crudo (Y96) · la razón de un miembro es la condición que NO cumple (Y41 · Y11 · Y14) · la unión dice cada rama (Y10) · la referencia de un filtro con `ref` en la premisa de orden (Y24) ·
  *         el Marco declara todas las referencias oficiales (Y40, 42b) · la cartera completa con sus 0 días (Y20, 42c) · la bodega excluida se nombra (Y74) · el empate del orden dice con quién (Y06, 42a).
+ *   A14 · diagnóstico v19 (§7.3·43): el orden servido con empate declara el puesto compartido y quiénes lo comparten (b, Y02) · la relación juzgada dice la cifra de CADA lado (c, Y31) ·
+ *         una cifra sobre un eje completo sin orden pedido se exhibe con lo que pide atención primero, según la polaridad (f).
  *
  * Solo por `npm run gates:offline` (o con el candado: node --import ./scripts/offline-guard.mjs _v12_correcciones_gate.mjs). Cero red. */
 import { initTenant } from "./src/data/tenantStore.js";
@@ -807,6 +809,77 @@ H("A13 · Y06 · 42(a) en el ORDEN: el puesto empatado de la verdad propia dice 
   ok(/Lider: días vencido 269 días, puesto 2 de 13/.test(t2) && !/empat/.test(t2), "CONTROL NEGATIVO · «Lider es la 1.ª» (falsa; 269 días, sin empate): dice su puesto 2 sin «empatado»", t2);
   const t3 = _premisasDe(mkOrden("ABC", 7).E)[0] || "";
   ok(/no tiene días vencido \(0 días\)/.test(t3) && !/\(ABC \(0/.test(t3), "el empate de siete cuentas en 0 días dice el cero en palabras de negocio («no tiene días vencido (0 días)»), no «(ABC (0 días))»", t3);
+}
+
+/* ═══ A14 · §7.3·43 (b · c · f) (diagnóstico v19, supervisor) ═════════════════════════════════════════════════════════════════════════════
+ *   43(b) · un orden servido con EMPATE declara el puesto compartido y quiénes lo comparten (Y02): «puesto 1 compartido por Mercado Libre y Ripley»; sin empate no hay línea.
+ *   43(c) · una relación juzgada, verdadera o falsa, dice la cifra de CADA lado en la oración (Y31); un cero se dice con el criterio de la casa (39c: «no tiene saldo vencido ($0)»).
+ *   43(f) · una cifra sobre un eje completo, sin orden pedido, se exhibe con lo que pide ATENCIÓN primero según la polaridad de la métrica (el ranking de la proyección declara `peorEs`: días vencido → el mayor primero;
+ *          margen → el menor primero; sin polaridad → el mayor primero); el tope de tamaño manda al Detalle lo que pide menos atención. Un top pedido conserva el orden que se pidió.
+ * Oráculos: los rankings de la proyección (`cifrasDelDato`: `valor`, `texto`, `peorEs`); nunca el código que se corrige. */
+const _ordenDe = (E) => (E.entrega.respuesta.find((r) => /ordenado por/.test(r.texto || "")) || {}).texto || "";
+const _lineaDeEmpate = (E) => { const m = /Empate en el orden servido:[^\n]*/.exec(_ordenDe(E)); return m ? m[0] : ""; };
+const _filaDe = (n, rk) => rk.filas.find((f) => f.entidad === n);
+/* el orden «atención primero» que declara la proyección: `peorEs: "mayor"` (más es peor) → el mayor primero; `"menor"` → el menor primero; sin polaridad → el mayor primero */
+const _atencionPrimero = (rk) => [...rk.filas].sort((a, b) => (rk.peorEs === "menor" ? a.valor - b.valor : b.valor - a.valor)).map((f) => f.entidad);
+
+H("A14 · 43(b) · Y02 · un orden servido con EMPATE declara el puesto compartido y quiénes lo comparten");
+{
+  const rec = RK.cliente.recuperado, sanas = new Set(RK.cliente.saldo_vencido.filas.filter((f) => f.valor === 0).map((f) => f.entidad));
+  const alDia = rec.filas.filter((f) => sanas.has(f.entidad));
+  const maxV = Math.max(...alDia.map((f) => f.valor));
+  const empatadas = alDia.filter((f) => f.valor === maxV).map((f) => f.entidad);
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["recuperado"], universo: { eje: "cliente", estados: ["al dia"], top: { metrica: "recuperado", k: 2 } } }] });
+  const linea = _lineaDeEmpate(E);
+  ok(E.ok && empatadas.length === 2 && empatadas.every((n) => linea.includes(n)) && /puesto 1 compartido por/.test(linea), `las 2 al día que más recuperaron (${empatadas.join(" y ")}: ${maxV} %) comparten el 1.er puesto: la oración del orden lo declara con los dos nombres`, linea || _ordenDe(E));
+  const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], universo: { eje: "cliente", top: { metrica: "ventas", k: 3 } } }] });
+  const sinEmpate = new Set(RK.cliente.ventas.filas.map((f) => f.valor)).size === RK.cliente.ventas.filas.length;
+  ok(E2.ok && sinEmpate && _lineaDeEmpate(E2) === "" && /ordenado por Venta/.test(_ordenDe(E2)), "CONTROL NEGATIVO · un top 3 de ventas (13 cifras distintas, sin empate) no agrega línea de empate", _ordenDe(E2));
+  const dv = RK.cliente.dias_vencido.filas;
+  const grupos = [...new Set(dv.map((f) => f.valor))].map((v) => ({ v, ns: dv.filter((f) => f.valor === v).map((f) => f.entidad), puesto: dv.filter((f) => f.valor > v).length + 1 })).filter((g) => g.ns.length > 1);
+  const { E: E3 } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["dias_vencido", "saldo_vencido"] }] });
+  const l3 = _lineaDeEmpate(E3);
+  ok(grupos.length === 2 && grupos.every((g) => g.ns.every((n) => l3.includes(n)) && l3.includes(`puesto ${g.puesto} compartido por`)), `la cartera completa por días vencido dice CADA puesto compartido (${grupos.map((g) => `${g.puesto}.º: ${g.ns.length} cuentas`).join(" · ")}), con el puesto del primero del grupo`, l3);
+}
+
+H("A14 · 43(c) · Y31 · una relación juzgada dice la cifra de CADA lado en la oración (verdadera o falsa); el cero, con el criterio de la casa");
+{
+  const sv = RK.cliente.saldo_vencido, lider = _filaDe("Lider", sv), jumbo = _filaDe("Jumbo", sv), fala = _filaDe("Falabella", sv);
+  const rel = (sujeto, vs) => entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "comparacion", conceptos: ["saldo_vencido"], entidades: [{ nombre: sujeto }, { nombre: vs }] }], premisas: [{ id: "q1", tipo: "relacion", sujeto, metrica: "saldo_vencido", relacion: { forma: "mayor", vs: { sujeto: vs } } }] });
+  const t1 = _premisasDe(rel("Lider", "Jumbo").E)[0] || "";
+  ok(jumbo.valor === 0 && /es correcto/.test(t1) && t1.includes(`Lider: saldo vencido ${lider.texto}`) && /frente a Jumbo: no tiene saldo vencido \(\$0\)/.test(t1), `«Lider tiene más saldo vencido que Jumbo» (verdadera): dice ${lider.texto} de Lider Y el cero de Jumbo en palabras («no tiene saldo vencido ($0)»)`, t1);
+  const t2 = _premisasDe(rel("Lider", "Falabella").E)[0] || "";
+  ok(lider.valor > fala.valor && /es correcto/.test(t2) && t2.includes(`Lider: saldo vencido ${lider.texto}`) && t2.includes(`frente a Falabella: saldo vencido ${fala.texto}`) && !/no tiene/.test(t2), `«Lider tiene más que Falabella» (verdadera, sin ceros): las dos cifras ${lider.texto} y ${fala.texto}, cada una con su dueño`, t2);
+  const t3 = _premisasDe(rel("Falabella", "Lider").E)[0] || "";
+  ok(fala.valor < lider.valor && /no es así/.test(t3) && t3.includes(`Falabella: saldo vencido ${fala.texto}`) && t3.includes(`frente a Lider: saldo vencido ${lider.texto}`), "CONTROL · «Falabella tiene más que Lider» (falsa) sigue diciendo las dos cifras, como en la 38(a)", t3);
+}
+
+H("A14 · 43(f) · una cifra sobre un eje completo, sin orden pedido, se exhibe con lo que pide ATENCIÓN primero (según la polaridad de la métrica); lo que pide menos atención se va al Detalle");
+{
+  const nombresDe = (t) => [...String(t || "").matchAll(/(?:^|: |, )([A-ZÁÉÍÓÚ][\wÁÉÍÓÚáéíóúñ .-]+?) \(/g)].map((m) => m[1]);
+  const cab = (t) => nombresDe(String(t).split("ordenado por")[1] || "");
+  const dv = RK.cliente.dias_vencido, esperadoDv = _atencionPrimero(dv);
+  const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["dias_vencido", "saldo_vencido"] }] });
+  ok(E.ok && dv.peorEs === "mayor" && cab(_ordenDe(E)).join() === esperadoDv.slice(0, 3).join(), `días vencido (más es peor): la cartera completa abre con ${esperadoDv.slice(0, 3).join(", ")} (los peores), no con las de 0 días`, _ordenDe(E));
+  const enTabla = new Set(E.entrega.cifras.filas.map((f) => f.valores["Entidad / grupo"])), enDetalle = [...new Set(((E.entrega.detalle && E.entrega.detalle.filas) || []).map((f) => f.valores["Entidad / grupo"]))];
+  const rango = (n) => esperadoDv.indexOf(n);
+  ok(enDetalle.length > 0 && enDetalle.every((d) => [...enTabla].every((t) => rango(t) < rango(d))), `el tope de tamaño manda al Detalle a las que piden MENOS atención (${enDetalle.join(", ")}); Easy y Lider (270 y 269 días) quedan en la tabla`, `tabla=${[...enTabla].join(",")} detalle=${enDetalle.join(",")}`);
+  const mg = RK.cliente.margen, esperadoMg = _atencionPrimero(mg);
+  const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen"] }] });
+  /* 43(f), lectura estrecha del supervisor: donde más es MEJOR se conserva el orden de siempre (de mayor a menor), no se invierte */
+  const esperadoMgDesc = [...mg.filas].filter((f) => Number.isFinite(f.valor)).sort((a, b) => b.valor - a.valor).map((f) => f.entidad);
+  ok(E2.ok && mg.peorEs === "menor" && cab(_ordenDe(E2)).join() === esperadoMgDesc.slice(0, 3).join() && cab(_ordenDe(E2)).join() !== esperadoMg.slice(0, 3).join(), `margen (más es mejor): conserva el orden de siempre, de mayor a menor (${esperadoMgDesc.slice(0, 3).join(", ")}); no se invierte`, _ordenDe(E2));
+  const un = RK.cliente.saldo_por_vencer, esperadoUn = _atencionPrimero(un);
+  const { E: E3 } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_por_vencer"] }] });
+  ok(E3.ok && un.peorEs == null && cab(_ordenDe(E3)).join() === esperadoUn.slice(0, 3).join(), `CONTROL · sin polaridad (saldo por vencer) sigue de mayor a menor (${esperadoUn.slice(0, 3).join(", ")})`, _ordenDe(E3));
+  const vt = RK.cliente.ventas;
+  const { E: E4 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], universo: { eje: "cliente", top: { metrica: "ventas", k: 3 } } }] });
+  ok(E4.ok && cab(_ordenDe(E4)).join() === [...vt.filas].sort((a, b) => b.valor - a.valor).slice(0, 3).map((f) => f.entidad).join(), "CONTROL NEGATIVO · un TOP pedido conserva el orden que se pidió (el mayor primero), aunque la métrica tenga polaridad", _ordenDe(E4));
+  /* una `decision` NO cambia: su primera fila es «la prioridad del procedimiento» (una conclusión, no una exhibición); la 43(f) habla de la cifra */
+  const cg = RK.cliente.carga;
+  const { E: E5 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["carga", "no_capturada", "contribucion"], universo: { eje: "cliente", base: "carga comercial alta" } }] });
+  const vs5 = cab(_ordenDe(E5)).map((n) => _filaDe(n, cg).valor);
+  ok(E5.ok && vs5.length >= 2 && vs5.every((v, i) => i === 0 || v >= vs5[i - 1]), "CONTROL · una `decision` conserva su orden de siempre (la cifra menor primero: la prioridad del procedimiento no la mueve la 43(f), que habla de la cifra)", _ordenDe(E5));
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");

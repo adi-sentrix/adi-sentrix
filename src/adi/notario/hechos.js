@@ -1541,7 +1541,8 @@ export function libroDeHechos(hechos, ctx = {}) {
       if (H.tipo === "grupo" && H.veredicto === "falsa") { const vp = _verdadPropiaDeGrupo(h, H, I); if (vp) { if (vp.lista) H.render.verdadesPropias = vp.lista; else H.render.verdadPropia = vp; } }
       /* decisión 38(a) (diagnóstico v14): el MISMO punto único para el orden y la relación falsos */
       if (H.tipo === "orden" && H.veredicto === "falsa") { const vp = _verdadPropiaDeOrden(h, H, I); if (vp) H.render.verdadPropia = vp; }
-      if (H.tipo === "relacion" && H.veredicto === "falsa") { const vp = _verdadPropiaDeRelacion(h, H, I); if (vp) H.render.verdadPropia = vp; }
+      /* §7.3·43(c) (v19): una relación juzgada —verdadera o falsa— dice la cifra de CADA lado en la oración (garantía transversal 4 de la Constitución) */
+      if (H.tipo === "relacion" && (H.veredicto === "falsa" || H.veredicto === "verdadera")) { const vp = _verdadPropiaDeRelacion(h, H, I); if (vp) H.render.verdadPropia = vp; }
       if (H.tipo === "cifra" && H.veredicto === "falsa") { const vp = _verdadPropiaDeCifra(h, H, I); if (vp) H.render.verdadPropia = vp; }   // 39(b): la cifra falsa dice la verdad propia
       // decisión del supervisor 2026-09-29 (v13, misma raíz que A2): una premisa de grupo VERDADERA nombra a sus entidades y dice el universo con las palabras de la casa (`FORMA_DE_ESTADO`), nunca la traza `estados «…»`
       if (H.tipo === "grupo" && H.veredicto === "verdadera" && _es(h.universo) && H.roles.sujetos.length && !H.roles.sujetos.includes("negocio")) {

@@ -708,6 +708,18 @@ venta a crédito, ley del owner).
     sobre ese filtro se declara al lado de la oficial (19, 41b), con la dirección que da su `op`.
     (e) Una pregunta abierta que presupone un estado (p. ej. «¿plazo pactado o atraso real?» presupone mora) solo se formula
     sobre una entidad que está en ese estado; si no lo está, no se formula.
+43. [2026-09-30, supervisor; diagnóstico v19]
+    (a) Se mantiene el Notario v3.1 (plan aprobado por el owner): una premisa «es la k.ª» o «el más/menos» cuyo puesto
+    está COMPARTIDO no es verificable como puesto único. Se declara el empate, con los empatados y el puesto compartido,
+    y no se da por verdadera ni por falsa. La 42(a) no se extiende a las premisas verdaderas.
+    (b) Un orden servido con empate declara el puesto compartido y quiénes lo comparten.
+    (c) Una relación juzgada (verdadera o falsa) dice la cifra de CADA lado en la oración (garantía transversal 4 de la
+    Constitución: comparaciones con la cifra de cada lado).
+    (d) Una parte `no_resuelta` no reporta entidades resueltas.
+    (e) El Marco comercial cita el benchmark con que se juzga el margen, aunque la consulta no lo nombre.
+    (f) Una cifra sobre un eje completo, sin orden pedido, se exhibe de mayor a menor. En una métrica donde más es peor
+    (días o saldo vencido), así va primero lo que pide atención, y si el tope de tamaño manda filas al Detalle, nunca van
+    las peores. En una métrica donde más es mejor (venta, margen) se conserva el orden de siempre.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

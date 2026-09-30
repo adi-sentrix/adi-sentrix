@@ -2464,7 +2464,11 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
   } else if (direccionSinTop) {
     dirMenor = direccionSinTop === "menor";   // el llamador fija el sentido (el ranking de días sin venta: de MÁS a MENOS, como la vista «Días sin venta» de la cara Capital)
   } else {
-    dirMenor = (metricaPorClave(claveOrden) || {}).polaridad === "menor";
+    /* §7.3·43(f) (v19, lectura estrecha del supervisor): en una CIFRA sobre un eje completo, sin orden pedido, la exhibición va de MAYOR a menor. Con `polaridad: "menor"` (más es peor: días y saldo vencido) eso es lo que pide ATENCIÓN
+     * primero; con `"mayor"` (venta, margen) es el orden de siempre, sin invertirlo. El tope de tamaño manda al Detalle la cola. Antes una métrica «menor» iba «mejor primero» (Jumbo 0 días al frente y Easy 270 d al Detalle). Una `lectura`/`decision`
+     * NO cambia: su primera fila es «la prioridad del procedimiento» (conclusión del procedimiento, no una exhibición) y la 43(f) habla de la cifra. */
+    const _pol = (metricaPorClave(claveOrden) || {}).polaridad;
+    dirMenor = parte.cierre === "cifra" ? false : _pol === "menor";
   }
   const _num = (f) => (f && Number.isFinite(f.raw) ? f.raw : NaN);
   let orden = [...entidadesEnJuego].sort((a, b) => { const va = _num(porEntidad.get(a) && porEntidad.get(a).get(claveOrden)), vb = _num(porEntidad.get(b) && porEntidad.get(b).get(claveOrden)); if (!Number.isFinite(va) || !Number.isFinite(vb)) return 0; return dirMenor ? va - vb : vb - va; });
@@ -2478,7 +2482,19 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
   // declarado (antes solo `top`): `_declararUniverso` los necesita para que `entrega.universos[]` describa el
   // universo REAL de una parte `lectura`/`decision` sin entidades (no solo su `top`), y para que el invariante de
   // `entrega/verificar.js` pueda recomponer el MISMO conjunto de forma independiente.
-  return { kind: "grupo", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, eje, conceptos, porEntidad, orden, cola, claveOrden, universoDecl: { top: top || null, base: alcance.base || null, estados: alcance.estados || null, no_estados: alcance.no_estados || null, filtros: alcance.filtros || null, bodega: alcance.bodega || null, union: alcance.union || null, excluir: alcance.excluirCompleto || null, entidades: orden } };
+  /* §7.3·43(b) (v19, Y02): los EMPATES del orden servido —igualdad del crudo de la cifra que ordena, la misma regla que `_ordenar` del Notario—; el puesto es el del primero del grupo dentro del orden servido (los empatados comparten el puesto). Se calcula acá, con las figs, antes de que el compositor las cambie por ids. */
+  const empates = [];
+  if (claveOrden) {
+    const grupos = [];
+    for (let i = 0; i < orden.length; i++) {
+      const fig = porEntidad.get(orden[i]) && porEntidad.get(orden[i]).get(claveOrden);
+      if (!fig || !Number.isFinite(fig.raw)) continue;
+      const g = grupos.find((x) => x.v === fig.raw);
+      if (g) g.entidades.push(orden[i]); else grupos.push({ v: fig.raw, n: i + 1, unit: fig.unit, entidades: [orden[i]] });
+    }
+    for (const g of grupos) if (g.entidades.length > 1) empates.push(g);
+  }
+  return { kind: "grupo", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, eje, conceptos, porEntidad, orden, cola, empates, claveOrden, universoDecl: { top: top || null, base: alcance.base || null, estados: alcance.estados || null, no_estados: alcance.no_estados || null, filtros: alcance.filtros || null, bodega: alcance.bodega || null, union: alcance.union || null, excluir: alcance.excluirCompleto || null, entidades: orden } };
 }
 
 /* ── PLAN «multitema» (cierre `lectura`/`decision` SIN entidades, 1..N temas: reusa `prioridadIntegrada`, LA
@@ -3593,7 +3609,13 @@ export function componerEntrega(resolucion) {
       const totalEje = ejesDelTenant[plan.eje] ? ejesDelTenant[plan.eje].length : null;
       const prefijo = plan.universoDecl.top && totalEje != null ? `El top ${plan.universoDecl.top.k} de ${totalEje} ${plan.eje}` : `Por ${plan.eje}`;
       if (plan.universoDecl.top && totalEje != null) { cifrasImpresas.push(String(totalEje)); cifrasImpresas.push(String(plan.universoDecl.top.k)); }
-      entrega.respuesta.push({ texto: `${prefijo}, ordenado por ${_labelDeClave(plan.claveOrden) || plan.claveOrden}: ${cabeza}.`, hechos: idsCabeza });
+      /* §7.3·43(b) (v19, Y02): un orden servido con EMPATE declara el puesto compartido y quiénes lo comparten (`plan.empates`, calculado sobre el crudo al armar el plan). Va en la MISMA oración del orden: no agrega una oración
+       * con hechos propios (que la protección cruzada de `tamano.js` leería como cifras a servir y movería filas de lugar); las cifras de los empatados ya viajan en esta oración y en la tabla. */
+      const _listaDe = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}` : xs[0]);
+      const empateTxt = plan.claveOrden && Array.isArray(plan.empates) && plan.empates.length
+        ? ` Empate en el orden servido: ${plan.empates.map((g) => { cifrasImpresas.push(String(g.n)); return `puesto ${g.n} compartido por ${_listaDe(g.entidades)}`; }).join("; ")}.`
+        : "";
+      entrega.respuesta.push({ texto: `${prefijo}, ordenado por ${_labelDeClave(plan.claveOrden) || plan.claveOrden}: ${cabeza}.${empateTxt}`, hechos: idsCabeza });
       // §7.3·17 (supervisor 2026-09-27, diagnóstico v8) — una `decision` sobre un universo propio calcula la
       // prioridad del procedimiento DENTRO de ese universo (nunca fuera, nunca con la lente de negocio del
       // dominio entero): el MISMO texto que ya usa el plan `grupoUniverso` unas líneas más abajo, aplicado acá
