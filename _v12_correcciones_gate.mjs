@@ -650,6 +650,16 @@ H("A11 · C-E · `verificarEntrega` no acusa por sustring («3%» ⊂ «0.3%», 
   ok(vs.some((v) => /atribuye a "Bosch" la cifra "0\.3%"/.test(v.detalle) && /Ripley/.test(v.detalle)), "CARNADA · la cifra EXACTA de otra cuenta (Ripley 0.3 %) dicha como de Bosch SÍ se acusa: «dueno-de-cifra-equivocado»", JSON.stringify(vs));
 }
 
+/* ═══ A12 · §7.3·42(e) (diagnóstico v18, supervisor) — una pregunta abierta que presupone mora solo se hace sobre una cuenta EN MORA ═══ */
+H("A12 · 42(e) · «¿plazo pactado o atraso real?» solo sobre una cuenta en mora (el estado de la casa); una cuenta al día no se pregunta");
+{
+  const preguntaDe = (E) => JSON.stringify((E.entrega && E.entrega.paraSuJuicio) || []).match(/La deuda de [^?]{0,60}\?/g) || [];
+  const cifraDe = (nombre) => entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"], entidades: [{ nombre }] }] }).E;
+  const eJ = cifraDe("Jumbo"), eL = cifraDe("Lider");
+  ok(eJ.ok && !preguntaDe(eJ).some((q) => /Jumbo/.test(q)), "Jumbo (saldo vencido 0, al día): la Entrega NO pregunta «¿plazo pactado o atraso real?» — presupondría una mora que no existe", JSON.stringify(preguntaDe(eJ)));
+  ok(eL.ok && preguntaDe(eL).some((q) => /Lider/.test(q)), "CONTROL · Lider (en mora, 269 días): la pregunta abierta de cobranza sigue", JSON.stringify(preguntaDe(eL)));
+}
+
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");
 {
   const fuente = fs.readFileSync("./_v12_correcciones_gate.mjs", "utf8");

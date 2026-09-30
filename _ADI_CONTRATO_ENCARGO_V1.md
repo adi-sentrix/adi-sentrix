@@ -697,6 +697,17 @@ venta a crédito, ley del owner).
     del top, su puesto es una razón verdadera y suficiente.
     (d) Las referencias de la consulta sobre el piso de materialidad caen en la 19: se declaran al lado del piso oficial
     con su origen y nunca lo reemplazan en silencio.
+42. [2026-09-30, supervisor; diagnóstico v18]
+    (a) Un EMPATE en la verdad propia: el puesto es el compartido (el del primero del empate) y la oración nombra con quién
+    empata. Un puesto que depende del orden de la lista nunca se imprime como si fuera único.
+    (b) El Marco declara TODAS las referencias oficiales con que se juzgó (p. ej. el benchmark y el nivel de carga oficial
+    cuando un conjunto de la casa lo define), no solo la primera.
+    (c) Una cifra de cobranza sin restricción de universo se sirve sobre el eje COMPLETO (toda la cartera; lo ausente vale
+    cero), nunca sobre un top fijo del productor. La boleta del agente sin encargo tipado no cambia.
+    (d) Un filtro que cita una referencia (`ref`) la pone en juego igual que una `base`: la referencia de la consulta
+    sobre ese filtro se declara al lado de la oficial (19, 41b), con la dirección que da su `op`.
+    (e) Una pregunta abierta que presupone un estado (p. ej. «¿plazo pactado o atraso real?» presupone mora) solo se formula
+    sobre una entidad que está en ese estado; si no lo está, no se formula.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

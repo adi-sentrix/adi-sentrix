@@ -4370,7 +4370,10 @@ export function componerEntrega(resolucion) {
   if (temasCubiertos.has("cobranza")) {
     const entidadCob = _entidadRepresentativaDeTema("cobranza", planes);
     // CORTE 3e (owner 2026-09-26) — antes: `Solo usted puede responder: la deuda de …?` (segunda persona).
-    { const pa = _preguntaAbiertaCobranza(entidadCob, perfil); if (pa) entrega.paraSuJuicio.push(pa); }
+    /* §7.3·42(e) (diagnóstico v18): «¿plazo pactado o atraso real?» presupone mora: solo se pregunta por una cuenta que ESTÁ en mora
+     * (el estado de la casa, la MISMA primitiva del Notario, como `_esInmovilizado` en inventario). Una cuenta al día no se pregunta. */
+    const _estaEnMora = (cli) => { try { const Rz = conjuntoDeUniverso({ eje: "cliente", estados: ["en mora"] }, I, "cliente", ""); return !!(Rz && Rz.set && Rz.set.has(normalizar(cli))); } catch { return false; } };
+    { const pa = entidadCob && _estaEnMora(entidadCob) ? _preguntaAbiertaCobranza(entidadCob, perfil) : null; if (pa) entrega.paraSuJuicio.push(pa); }
   }
 
   // (e) CORRECCIÓN DEL SUPERVISOR (2026-09-25) — unidades abreviadas fuera de la tabla de Cifras: "269d" → "269
