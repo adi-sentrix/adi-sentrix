@@ -795,6 +795,20 @@ venta a crédito, ley del owner).
     (inventario por SKU para ventas), se declara.
     (c) Si el tope de tamaño no alcanza para las entidades enteras que citan las oraciones de una `lectura` con varias
     partes, la cabeza cita solo las que caben enteras y declara que hay más en el Detalle (49g).
+51. [2026-09-30, supervisor; mediciones v27 y v28]
+    (a) Precisa la 45(a) y la 50(a): la LISTA de una foto se ordena por el primer concepto pedido que su productor publica,
+    y la Entrega DICE por cuál («ordenado por …»). La oración de prioridad sigue la 50(a).
+    (b) Una entidad que el usuario NOMBRA, o que un top sirve, tiene su fila en cada concepto pedido que su productor
+    publica. Si no la tiene, se declara con verdad. Un límite nunca niega una cifra que la misma Entrega imprime.
+    (c) La 48(d) rige en TODAS las oraciones, incluidas las de puesto («Easy, 7.° de 13»): la cifra pertenece a su dueño
+    y el verificador la acepta.
+    (d) La 48(b) rige en TODOS los caminos: «riesgo» pedido sobre un grupo se declara como el criterio entre dominios y se
+    nombra la medida que ordenó; nunca «por riesgo integrado: X» sobre un grupo.
+    (e) Una `decision` o `lectura` sobre el eje BODEGA sirve las bodegas (45a), no un SKU.
+    (f) La 49(f) en filas: cada concepto pedido lleva SU rótulo del léxico. Capital inmovilizado ≠ capital inmovilizado
+    crítico; saldo por vencer ≠ saldo pendiente; venta a crédito se rotula «Venta a crédito».
+    (g) La 49(a) sobre una parte que EXCLUYE un conjunto: la referencia se declara sobre el conjunto de la casa (forma de la
+    12), con su conteo contra el oficial.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
