@@ -764,6 +764,15 @@ venta a crédito, ley del owner).
     (d) Una lente de OTRO dominio se declara y el grupo se ordena por su propia medida, que se nombra (46d).
     (e) Pendiente del OWNER: la lente «contribución» sobre un grupo sin brecha al benchmark. Hoy: «ninguna cuenta queda
     primera», declarado. Alternativa: caer a la contribución medida, declarándolo.
+48. [2026-09-30, supervisor; diagnóstico v24 y barrido por familia]
+    (a) Lo declarado ES lo servido, también cuando el empate es en cero: cada entidad que un top sirve lleva su fila. Un top
+    se lee con el productor de su familia de métricas.
+    (b) Una lente sin dominio (riesgo, crecimiento, ventas) sobre un grupo que no ordena se DECLARA y el grupo se ordena por
+    la medida que se nombra (46d, 47d); «riesgo» sobre un grupo se declara como el criterio entre dominios.
+    (c) El «de M» de un conteo recorre la cadena completa del universo (antes de excluir, antes del top) y la falsa por su M
+    imprime el eslabón más ajustado.
+    (d) Toda oración que compone la Entrega pasa `verificarEntrega`; composer y verificador no se contradicen.
+    (e) Una definición sola no cita benchmark (44b) y la cola de la foto se declara también en profundidad breve.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
