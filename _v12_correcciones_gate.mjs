@@ -1268,12 +1268,12 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     ok(E.ok && mismos(filasServidas(E), enBodega), `la misma acotación rige en una ${cierre} (no solo en la cifra)`, JSON.stringify(filasServidas(E))); }
 
   H("A18 · 45(e) · una lente se nombra con su NOMBRE VISIBLE (la declaración de la lente), nunca con su id — «por credito» → «por exposición de crédito»");
+  /* §7.3·46(d): la oración del grupo nombra la lente que de verdad ORDENÓ la lista (ver A20); aquí solo se cobra que, cuando una lente se nombra (como la que ordena o como el criterio pedido que no aplica), se diga con su NOMBRE VISIBLE y nunca con su id */
   { const lente = (id) => { const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido"], universo: { eje: "cliente", top: { metrica: "saldo_vencido", k: 3 } } }], ...(id ? { criterio: { lente: id } } : {}) }); const m = /Prioridad del procedimiento dentro de este grupo, por ([^:]+):/.exec(E.texto || ""); return m ? m[1] : null; };
     ok(Object.keys(CRITERIOS).length >= 6 && CRITERIOS.credito.nombre === "exposición de crédito", "oráculo · la declaración de la lente (`CRITERIOS`) trae el nombre visible de cada lente", JSON.stringify(Object.keys(CRITERIOS)));
-    for (const id of Object.keys(CRITERIOS)) { const v = lente(id), nom = CRITERIOS[id].nombre; ok(v === nom || nom.split(" ")[0] === v, `la lente «${id}» se dice con su nombre visible «${nom}» (o la palabra que lo abre, si es su id), nunca con el id`, String(v)); }
-    ok(lente("contribucion") === "contribución" && lente("ventas") === "ventas" && lente("capital") === "capital" && lente("crecimiento") === "crecimiento", "las lentes cuyo id ya es una palabra de su nombre se dicen con ella, con su tilde («contribución»)", JSON.stringify(["contribucion", "ventas", "capital", "crecimiento"].map(lente)));
-    ok(lente("credito") === "exposición de crédito" && !/\bcredito\b/.test(lente("credito") || ""), "«por credito» ya no se imprime: dice «por exposición de crédito»", String(lente("credito")));
-    ok(lente(undefined) === "riesgo" && lente("riesgo") === "riesgo", "CONTROL NEGATIVO · la lente de riesgo (por defecto o fijada) sigue diciéndose «por riesgo» dentro del grupo de una parte: «riesgo integrado» es el criterio ENTRE dominios (la oración cruzada) y no se estampa en la oración de un grupo", JSON.stringify([lente(undefined), lente("riesgo")])); }
+    for (const id of Object.keys(CRITERIOS).filter((x) => x !== "riesgo")) { const v = lente(id), nom = CRITERIOS[id].nombre; ok(v != null && v.includes(nom) && (new RegExp(`\\b${id}\\b`).test(nom) || !new RegExp(`\\b${id}\\b`).test(v)),`la lente «${id}» se dice con su nombre visible «${nom}», nunca con el id`, String(v)); }
+    ok(lente("credito") === "exposición de crédito" && !/\bcredito\b/.test(lente("credito") || ""), "«por credito» ya no se imprime: dice «por exposición de crédito» (es la lente que ordena el saldo vencido)", String(lente("credito")));
+    ok(!/riesgo/.test(lente(undefined) || "riesgo") && !/riesgo/.test(lente("riesgo") || "riesgo"), "CONTROL NEGATIVO · la lente de riesgo (por defecto o fijada) no se estampa en la oración de un grupo: «riesgo integrado» es el criterio ENTRE dominios (la oración cruzada) y el grupo dice la clave que lo ordenó (A20)", JSON.stringify([lente(undefined), lente("riesgo")])); }
   { const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital", "dias_sin_venta"], eje: "sku", universo: { eje: "sku", estados: ["frenado"] } }], criterio: { referencia: { concepto: "umbral_frenado", valor: 45, unidad: "days" } } });
     ok(E.ok && /por umbral de venta frenada:/.test(E.texto || "") && !/umbral_frenado/.test(E.texto || ""), "CONTROL NEGATIVO · un criterio que es una REFERENCIA (no una lente) conserva su nombre de la casa, nunca la clave técnica", ((E.texto || "").split("\n").find((l) => /Prioridad del procedimiento/.test(l)) || "").slice(0, 160)); }
 }
@@ -1306,7 +1306,7 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     ok(frenados68.length >= 2 && skuInventario.find((s) => s.sku === "BOS-SANDER").diasSinVenta === 68, "oráculo · hay ≥ 2 SKU con más de 68 días sin venta y BOS-SANDER tiene exactamente 68 (el filo: «sobre el umbral» es estricto)", JSON.stringify(frenados68));
     ok(R.criterio && R.criterio.lente === "capital" && R.criterio.origen === "usuario" && R.criterio.referencia && R.criterio.referencia.valor === 68 && R.criterio.referencia.concepto === "umbral_frenado", "el criterio resuelto trae la LENTE y la REFERENCIA (antes: solo la lente)", JSON.stringify(R.criterio));
     ok(E.ok && mismos(universoDe(E, "p1"), frenados68), `el universo de frenados con el umbral 68 son los ${frenados68.length} SKU sobre 68 días (no vacío)`, JSON.stringify(universoDe(E, "p1")));
-    ok(/por capital:/.test(textoDe(E)) && !/sin umbral declarado/.test(textoDe(E)), "la lente ordena («por capital») y el Marco no dice «sin umbral declarado»", textoDe(E).split("\n").filter((l) => /Prioridad|umbral/i.test(l)).join(" | "));
+    ok(/por días sin venta:/.test(textoDe(E)) && !/por capital:/.test(textoDe(E)) && !/sin umbral declarado/.test(textoDe(E)), "la oración del grupo nombra lo que ordena la lista («por días sin venta», el primer concepto pedido; 46(d): la lente capital no la ordenó) y el Marco no dice «sin umbral declarado»",textoDe(E).split("\n").filter((l) => /Prioridad|umbral/i.test(l)).join(" | "));
     ok(/es correcto — .*\b2 de 13\b/.test(lineaCon(E, /de 13/)) || lineaCon(E, /de 13/).includes(`${frenados68.length} de ${skus.length}`), "la premisa «son N de 13» se juzga (verdadera) con el umbral de la consulta", lineaCon(E, /de 13/));
     ok(/no es así/.test(lineaCon(E, "BOS-SANDER")) && /68/.test(lineaCon(E, "BOS-SANDER")), "«BOS-SANDER está frenado» es FALSA con el umbral 68 (tiene exactamente 68)", lineaCon(E, "BOS-SANDER"));
     { const { R: R2, E: E2 } = entregaDe({ partes: [parte], criterio: { referencia: ref } });
@@ -1424,6 +1424,62 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
       const l = lineasR(E).find((x) => /premisa planteada/.test(x) && deM(x)) || "";
       ok(/es correcto/.test(l) && deM(l).m === clientes.length, "CONTROL NEGATIVO · un M verdadero de la cadena (el eje entero) se imprime tal cual lo planteó la consulta", l); }
   }
+}
+
+/* ═══ A20 · §7.3·46(d) · DIAGNÓSTICO v22 (S16 p2) ═════════════════════════════════════════════════════════════════════════════════════════════════════
+ * «Una oración nombra SIEMPRE la lente que de verdad ordenó su lista; nunca nombra una lente que no la ordenó.» El defecto: el grupo de inventario decía «por exposición de crédito: BOS-SANDER, con 1.6x en rotación» —la lente de crédito es de cobranza y no ordenó
+ * esa lista de SKU—. La lista del grupo la ordena SU clave (la métrica del primer concepto pedido): la oración nombra la LENTE solo si esa clave es la suya, si no nombra la CLAVE con su nombre visible, y si el usuario pidió una lente que no ordena el grupo lo DECLARA.
+ * La prioridad CRUZADA entre dominios no cambia (sigue en «riesgo integrado» / en la lente pedida, según A19 · 46(c)).
+ * Oráculo: los datos del tenant (la rotación de cada SKU) y una tabla escrita a mano de QUÉ clave es de cada lente; nunca el código que se corrige. */
+{
+  const lineasDe = (E) => String(E.texto || "").split("\n").map((l) => l.replace(/^▸ /, ""));
+  const prioGrupo = (E) => String(E.texto || "").split("\n").find((l) => /Prioridad del procedimiento dentro de este grupo/.test(l)) || "";
+  const porDe = (E) => { const m = /Prioridad del procedimiento dentro de este grupo, por ([^:]+): /.exec(prioGrupo(E)); return m ? m[1] : null; };
+  const colaDe = (E) => { const m = /Prioridad del procedimiento dentro de este grupo, por [^:]+: (.+)$/.exec(prioGrupo(E)); return m ? m[1] : null; };
+  const grupo = (tema, eje, m, lente) => entregaDe({ partes: [{ id: "p1", tema, cierre: "decision", conceptos: [m], universo: { eje, top: { metrica: m, k: 3 } } }], ...(lente ? { criterio: { lente } } : {}) }).E;
+
+  H("A20 · 46(d) · S16 · el grupo de inventario con la lente de crédito dice por cuál se ordena (la rotación) y que la lente pedida no lo ordena; antes nombraba una lente que no lo ordenó");
+  { const lentos = skuInventario.filter((s) => s.rotacion < 2).sort((a, b) => b.rotacion - a.rotacion);
+    const enc = { partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["dias_vencido", "saldo_vencido"] }, { id: "p2", tema: "inventario", cierre: "decision", conceptos: ["rotacion", "capital"], eje: "sku", universo: { eje: "sku", estados: ["rota lento"] } }], criterio: { lente: "credito" } };
+    const { E } = entregaDe(enc), L = prioGrupo(E), cab = lentos[0];
+    ok(lentos.length === 3 && cab && cab.rotacion > lentos[1].rotacion, "oráculo · 3 SKU rotan bajo el piso de 2.0x y uno de ellos rota más que los otros (el que encabeza la lista por rotación)", JSON.stringify(lentos.map((s) => [s.sku, s.rotacion])));
+    ok(E.ok && L.startsWith("▸ Prioridad del procedimiento dentro de este grupo, por rotación (el criterio pedido, exposición de crédito, es de cobranza y no ordena este grupo): "), "la oración del grupo de inventario dice «por rotación» (lo que ordenó la lista) y DECLARA que el criterio pedido, exposición de crédito, es de cobranza y no la ordenó", L);
+    ok(L.endsWith(`: ${cab.sku}, con ${cab.rotacion.toFixed(1)}x en rotación.`), "el primero y su cifra son los de siempre: el SKU que más rota del grupo, con su rotación (la cifra impresa es la real)", L);
+    ok(!/dentro de este grupo, por exposición de crédito/.test(String(E.texto || "")), "la lente de crédito ya no se nombra como la que ordenó la lista de SKU", L);
+    ok(lineasDe(E).some((l) => /^Prioridad del procedimiento, por exposición de crédito: /.test(l)), "CONTROL NEGATIVO · la prioridad CRUZADA (la de cobranza, con la lente pedida) sigue intacta: la lente gobierna donde sí ordena", lineasDe(E).filter((l) => /^Prioridad del procedimiento,/.test(l)).join(" | ")); }
+
+  H("A20 · 46(d) · la lente se nombra SOLO si la clave que ordenó el grupo es la suya; si no, se nombra la clave y, si la lente pedida es de otro dominio (o no ordena), se declara");
+  { const DUENA = { credito: ["saldo_vencido"], contribucion: ["contribucion"], capital: ["capital"], ventas: ["ventas"] };   /* a mano: qué clave ordena cada lente en su dominio */
+    const ROTULO = { saldo_vencido: "saldo vencido", dias_vencido: "días vencido", contribucion: "contribución", margen: "margen", ventas: "venta", capital: "capital", rotacion: "rotación" };   /* a mano: el nombre visible de cada clave */
+    const GRUPOS = [["cobranza", "cliente", "saldo_vencido"], ["cobranza", "cliente", "dias_vencido"], ["comercial", "cliente", "contribucion"], ["comercial", "cliente", "margen"], ["comercial", "cliente", "ventas"], ["inventario", "sku", "capital"], ["inventario", "sku", "rotacion"]];
+    const malas = [], colaDistinta = [];
+    let n = 0, nombradas = 0;
+    for (const [tema, eje, m] of GRUPOS) {
+      const base = colaDe(grupo(tema, eje, m));
+      for (const lente of Object.keys(DUENA)) {
+        const E = grupo(tema, eje, m, lente), por = porDe(E), nom = CRITERIOS[lente].nombre, dom = CRITERIOS[lente].dominio;
+        n++;
+        const nombrada = por === nom;
+        if (nombrada) nombradas++;
+        if (nombrada !== DUENA[lente].includes(m)) malas.push(`${lente}/${tema}:${m} → «${por}»`);   /* nombrada ⇔ la clave es la suya */
+        if (!nombrada) {
+          const esperado = `${ROTULO[m]} (el criterio pedido, ${nom}, ${dom && dom !== tema ? `es de ${dom} y ` : ""}no ordena este grupo)`;
+          const declara = dom === tema ? por === ROTULO[m] : por === esperado;   /* mismo dominio con otra clave: solo la clave; otro dominio o sin dominio: la clave y la declaración */
+          if (!declara) malas.push(`${lente}/${tema}:${m} declara mal → «${por}»`);
+        }
+        if (colaDe(E) !== base) colaDistinta.push(`${lente}/${tema}:${m}`);
+      }
+    }
+    ok(n === 28 && malas.length === 0, `la lente se nombra ⇔ la clave del grupo es la suya, en ${n} combinaciones lente × grupo (crédito, contribución, capital, ventas × 7 grupos de 3 dominios); si no, dice la clave y declara el criterio pedido`, malas.join(" | "));
+    ok(nombradas === 4, "oráculo · de las 28 combinaciones, solo 4 son la lente sobre su propia clave (crédito/saldo vencido · contribución · capital · ventas)", String(nombradas));
+    ok(colaDistinta.length === 0, "CONTROL NEGATIVO · el primero del grupo y su cifra no dependen de la lente: la cola de la oración es idéntica con cualquier lente y sin ella", colaDistinta.join(" | "));
+    const defecto = [];
+    for (const [tema, eje, m] of GRUPOS) for (const lente of [undefined, "riesgo"]) { const por = porDe(grupo(tema, eje, m, lente)); if (por !== ROTULO[m]) defecto.push(`${lente}/${tema}:${m} → «${por}»`); }
+    ok(defecto.length === 0, "CONTROL NEGATIVO · sin lente pedida (o con «riesgo»): el grupo nombra la clave que lo ordenó, nunca «riesgo» (la lente ENTRE dominios no ordena dentro de un grupo)", defecto.join(" | ")); }
+
+  H("A20 · 46(d) · una referencia (umbral, piso) no es una lente: conserva su nombre de la casa; sin clave de orden, nada cambia");
+  { const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["dias_sin_venta", "capital"], eje: "sku", universo: { eje: "sku", estados: ["frenado"] } }], criterio: { referencia: { concepto: "umbral_frenado", valor: 45, unidad: "days" } } });
+    ok(E.ok && /dentro de este grupo, por umbral de venta frenada: /.test(prioGrupo(E)), "CONTROL NEGATIVO · un criterio que es una REFERENCIA conserva su nombre de la casa («por umbral de venta frenada»)", prioGrupo(E)); }
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");

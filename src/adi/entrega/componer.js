@@ -396,6 +396,29 @@ const _lenteDelCriterio = (criterio) => {
   const m = metricaPorClave(c);
   return m ? m.nombre.toLowerCase() : c;
 };
+/* §7.3·46(d) (diagnóstico v22, S16 p2: «por exposición de crédito: BOS-SANDER, con 1.6x en rotación») — la oración «Prioridad del procedimiento dentro de este grupo, por X» nombra la lente que de verdad ORDENÓ la lista del grupo, nunca una que no la ordenó.
+ * La lista de un grupo la ordena SIEMPRE su `claveOrden` (la métrica del primer concepto pedido): la lente del criterio no entra a ese orden. Por eso la oración nombra la LENTE solo cuando esa clave es la suya (la señal que la lente declara:
+ * el «Saldo vencido» de la exposición de crédito, la «Contribución» de la contribución, el «Capital» de capital, la «Venta» de ventas); en cualquier otro caso nombra la CLAVE con su nombre visible del léxico («rotación»), y si el usuario PIDIÓ una lente que no ordena ese grupo
+ * lo DECLARA («por rotación (el criterio pedido, exposición de crédito, es de cobranza y no ordena este grupo)»). La lente de riesgo integrado (la de ADI por defecto) es el criterio ENTRE dominios: dentro de un grupo no ordena, así que tampoco se nombra ahí. Una REFERENCIA (umbral, piso)
+ * no es una lente: conserva su nombre de la casa. Sin clave de orden no hay nada mejor que decir: queda lo de siempre. La prioridad cruzada entre dominios sigue en «riesgo integrado». */
+const _lenteOrdenaLaClave = (id, claveOrden) => {
+  const L = CRITERIOS[id];
+  if (!L || !claveOrden) return false;
+  const lab = _planoDeLente(_labelDeClave(claveOrden));
+  if (_planoDeLente(L.nombre).startsWith(lab)) return true;   // «contribución» ↔ Contribución · «capital» ↔ Capital · «ventas» ↔ Venta
+  const spec = L.dominio && L.lente && LENTES[L.dominio] && LENTES[L.dominio][L.lente];   // la señal propia de la lente: el «Saldo vencido» de la exposición de crédito
+  return !!(spec && spec.re.test(`· ${lab}`));
+};
+const _lenteDeLaLista = (criterio, tema, claveOrden) => {
+  const id = criterio && criterio.lente && CRITERIOS[criterio.lente] ? criterio.lente : null;
+  if (!id || !claveOrden) return _lenteDelCriterio(criterio);   // una referencia (no es lente) o sin clave de orden: lo de siempre
+  const clave = _labelDeClave(claveOrden).toLowerCase();
+  const L = CRITERIOS[id];
+  if (id !== "riesgo" && L.dominio !== tema && !_lenteOrdenaLaClave(id, claveOrden)) {   // la lente pedida no ordena este grupo: se declara y se dice por cuál se ordena
+    return `${clave} (el criterio pedido, ${_nombreVisibleDeLente(id)}, ${L.dominio && _DOM_NOMBRE[L.dominio] ? `es de ${_DOM_NOMBRE[L.dominio]} y ` : ""}no ordena este grupo)`;
+  }
+  return _lenteOrdenaLaClave(id, claveOrden) ? _nombreVisibleDeLente(id) : clave;
+};
 function _indiceDelTenant(figs, scenario, consulta = null) {
   const datoProyectado = cifrasDelDato(scenario, consulta);
   const ejesDelTenant = {};
@@ -3783,7 +3806,7 @@ export function componerEntrega(resolucion) {
       // por `_planMultiTema`. La cifra que sostiene «el primero» es la MISMA que ya ordenó el grupo (`claveOrden`,
       // ya declarada y renderizada arriba — nunca una segunda referencia).
       if (plan.cierre === "decision" && resolucion.criterio && plan.orden.length && !plan.esFoto) {
-        const lenteTxt = _lenteDelCriterio(resolucion.criterio);
+        const lenteTxt = _lenteDeLaLista(resolucion.criterio, plan.tema, plan.claveOrden);   /* §7.3·46(d): la lente que de verdad ordenó la lista */
         const idPrimero = plan.claveOrden ? _mapaDe(plan.porEntidad, plan.orden[0]).get(plan.claveOrden) : null;
         if (lenteTxt && idPrimero != null) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${plan.orden[0]}, con ${R(idPrimero)} en ${(plan.claveOrden ? _labelDeClave(plan.claveOrden) : lenteTxt).toLowerCase()}.`, hechos: [idPrimero] });
         // §7.3 (SUPERVISOR, residual del diagnóstico v10 — X03.p3/X12.p1/X23.p3) — «la oración de prioridad
@@ -4021,7 +4044,7 @@ export function componerEntrega(resolucion) {
       // una premisa del usuario) decide quién abre la fila; la cifra que sostiene «el primero» es la MISMA que
       // ya ordenó el grupo (`claveOrden`, ya declarada y renderizada arriba — nunca una segunda referencia).
       if (plan.cierre === "decision" && resolucion.criterio && plan.miembros.length) {
-        const lenteTxt = _lenteDelCriterio(resolucion.criterio);
+        const lenteTxt = _lenteDeLaLista(resolucion.criterio, plan.tema, plan.claveOrden);   /* §7.3·46(d): la lente que de verdad ordenó la lista */
         const idPrimero = plan.claveOrden ? _mapaDe(plan.porEntidad, plan.miembros[0]).get(plan.claveOrden) : null;
         if (lenteTxt && idPrimero != null) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${plan.miembros[0]}, con ${R(idPrimero)} en ${(plan.claveOrden ? _labelDeClave(plan.claveOrden) : lenteTxt).toLowerCase()}.`, hechos: [plan.idConteo, idPrimero] });
         else if (lenteTxt) entrega.respuesta.push({ texto: `Prioridad del procedimiento dentro de este grupo, por ${lenteTxt}: ${plan.miembros[0]} (${kTxt} de ${mTxt} en ${uTxt}).`, hechos: [plan.idConteo] });
