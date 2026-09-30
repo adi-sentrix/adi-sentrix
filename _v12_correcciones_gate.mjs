@@ -37,9 +37,13 @@
  *   A18 · decisión 45 (§7.3·45; diagnóstico v21): una BODEGA pedida acota el universo servido también en el hecho histórico de los días sin venta sin umbral de frenado, con el límite que lo dice (c, T70) ·
  *         una lente se nombra con su nombre visible, nunca con su id: «por credito» → «por exposición de crédito» (e).
  *
+ *   A19 · diagnóstico v22 (propuesta §7.3·46): un criterio con lente Y referencia conserva las dos (S47) · la verdad propia de un miembro que falla la base es la cifra de la base (S42) y la del SKU fuera por la bodega pedida
+ *         nombra su bodega (S67) · una cifra de dos ejes se sirve con el productor de cada uno y la «Venta diaria» no pisa a «Ventas» (S84) · la lente pedida gobierna la prioridad de una decision sin universo y la foto declara lo que no trae
+ *         (S31 S16) · el empate en cero de la pertenencia dice su cifra (S03 S04) · la falsa por M dice el M más ajustado de la cadena (S17 S18 S21).
+ *
  * Solo por `npm run gates:offline` (o con el candado: node --import ./scripts/offline-guard.mjs _v12_correcciones_gate.mjs). Cero red. */
 import { initTenant } from "./src/data/tenantStore.js";
-import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+import { TENANT_DEMO, skuInventario, clientesMargen, clientesVentas, skusMargen } from "./src/data/tenants/demo.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
@@ -1272,6 +1276,154 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     ok(lente(undefined) === "riesgo" && lente("riesgo") === "riesgo", "CONTROL NEGATIVO · la lente de riesgo (por defecto o fijada) sigue diciéndose «por riesgo» dentro del grupo de una parte: «riesgo integrado» es el criterio ENTRE dominios (la oración cruzada) y no se estampa en la oración de un grupo", JSON.stringify([lente(undefined), lente("riesgo")])); }
   { const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital", "dias_sin_venta"], eje: "sku", universo: { eje: "sku", estados: ["frenado"] } }], criterio: { referencia: { concepto: "umbral_frenado", valor: 45, unidad: "days" } } });
     ok(E.ok && /por umbral de venta frenada:/.test(E.texto || "") && !/umbral_frenado/.test(E.texto || ""), "CONTROL NEGATIVO · un criterio que es una REFERENCIA (no una lente) conserva su nombre de la casa, nunca la clave técnica", ((E.texto || "").split("\n").find((l) => /Prioridad del procedimiento/.test(l)) || "").slice(0, 160)); }
+}
+
+/* ═══ A19 · DIAGNÓSTICO v22 (medición ciega v22, catálogo sellado v22; §7.3·45 y propuesta 46) ═══════════════════════════════════════════════════════════
+ * Siete raíces, cada una con su carnada en POSITIVO y su control en NEGATIVO:
+ *   46(a) · S47 · un `criterio` con lente Y referencia conserva LAS DOS (antes la lente ganaba y la referencia se descartaba en silencio: el umbral de la consulta no se aplicaba, el universo de frenados salía vacío).
+ *   41(c) · S42 · la verdad propia de un miembro que falla la BASE (no el top excluido) es la cifra de la base (su margen), no un «puesto 9 de 13 por venta» que el top excluido no explica.
+ *   37a  · S67 · la verdad propia de un SKU fuera por la bodega PEDIDA (universo = solo la bodega) nombra al SKU y a su bodega propia (antes: «en Antofagasta.»).
+ *   46(b) · S84 · una `cifra` con entidades de DOS ejes se sirve con el productor de cada una (`ejes_mezclados` rige solo la comparación): la venta de un SKU es la venta (no la «Venta diaria (unidades)» 0.8), y `verificarEntrega` acepta la Entrega.
+ *   46(c) · S31 · S16 · «el criterio del usuario manda»: la lente pedida gobierna la prioridad de una `decision` sin universo (antes: siempre «por riesgo integrado»); si la lente no ordena ese conjunto, se DECLARA; y la foto
+ *           declara las cuentas sin la cifra de un concepto pedido.
+ *   39(c) · S03 · S04 · la pertenencia a un top sobre un empatado del filo EN CERO dice el cero con su cifra («no tiene capital inmovilizado crítico ($0)»).
+ *   44(d) · S17 · S18 · S21 · la verdad propia de un conteo falso solo por el «de M» imprime el M MÁS AJUSTADO de la cadena del universo (el mismo que una premisa verdadera de ese universo), nunca un «5 de 5» vacuo ni el eje.
+ * Oráculos: los datos del tenant (`skuInventario`, `clientesMargen`, `skusMargen`), la mesa de cobranza y la bodega de cada SKU en la proyección; nunca el código que se corrige. */
+{
+  const skus = axisEntityNames("sku"), clientes = axisEntityNames("cliente");
+  const textoDe = (E) => String(E.texto || "");
+  const lineasR = (E) => ((E.entrega && E.entrega.respuesta) || []).map((r) => String(r.texto || ""));
+  const lineaCon = (E, ...frag) => lineasR(E).find((l) => /premisa planteada/.test(l) && frag.every((f) => (f instanceof RegExp ? f.test(l) : l.includes(f)))) || "";
+  const universoDe = (E, id) => ((E.entrega.universos || []).find((u) => u.id === id) || {}).entidades || [];
+  const mismos = (a, b) => a.length === b.length && b.every((x) => a.includes(x));
+
+  H("A19 · 46(a) · S47 · un criterio con lente Y referencia conserva las dos: el umbral de la consulta se aplica y la lente ordena");
+  { const frenados68 = skuInventario.filter((s) => s.diasSinVenta > 68).map((s) => s.sku);
+    const parte = { id: "p1", tema: "inventario", cierre: "decision", conceptos: ["dias_sin_venta", "capital"], eje: "sku", universo: { eje: "sku", estados: ["frenado"] } };
+    const ref = { concepto: "umbral_frenado", valor: 68, unidad: "days" };
+    const premisas = [{ id: "q1", tipo: "conteo", conteo: { n: frenados68.length, m: skus.length }, de: { eje: "sku", estados: ["frenado"] } }, { id: "q2", tipo: "estado", sujeto: "BOS-SANDER", estado: "frenado" }];
+    const { R, E } = entregaDe({ partes: [parte], criterio: { lente: "capital", referencia: ref }, premisas });
+    ok(frenados68.length >= 2 && skuInventario.find((s) => s.sku === "BOS-SANDER").diasSinVenta === 68, "oráculo · hay ≥ 2 SKU con más de 68 días sin venta y BOS-SANDER tiene exactamente 68 (el filo: «sobre el umbral» es estricto)", JSON.stringify(frenados68));
+    ok(R.criterio && R.criterio.lente === "capital" && R.criterio.origen === "usuario" && R.criterio.referencia && R.criterio.referencia.valor === 68 && R.criterio.referencia.concepto === "umbral_frenado", "el criterio resuelto trae la LENTE y la REFERENCIA (antes: solo la lente)", JSON.stringify(R.criterio));
+    ok(E.ok && mismos(universoDe(E, "p1"), frenados68), `el universo de frenados con el umbral 68 son los ${frenados68.length} SKU sobre 68 días (no vacío)`, JSON.stringify(universoDe(E, "p1")));
+    ok(/por capital:/.test(textoDe(E)) && !/sin umbral declarado/.test(textoDe(E)), "la lente ordena («por capital») y el Marco no dice «sin umbral declarado»", textoDe(E).split("\n").filter((l) => /Prioridad|umbral/i.test(l)).join(" | "));
+    ok(/es correcto — .*\b2 de 13\b/.test(lineaCon(E, /de 13/)) || lineaCon(E, /de 13/).includes(`${frenados68.length} de ${skus.length}`), "la premisa «son N de 13» se juzga (verdadera) con el umbral de la consulta", lineaCon(E, /de 13/));
+    ok(/no es así/.test(lineaCon(E, "BOS-SANDER")) && /68/.test(lineaCon(E, "BOS-SANDER")), "«BOS-SANDER está frenado» es FALSA con el umbral 68 (tiene exactamente 68)", lineaCon(E, "BOS-SANDER"));
+    { const { R: R2, E: E2 } = entregaDe({ partes: [parte], criterio: { referencia: ref } });
+      ok(R2.criterio && R2.criterio.referencia && !R2.criterio.lente && mismos(universoDe(E2, "p1"), frenados68), "CONTROL NEGATIVO · la referencia SOLA se honra como siempre (mismo universo)", JSON.stringify(R2.criterio)); }
+    { const { R: R3, E: E3 } = entregaDe({ partes: [parte], criterio: { lente: "capital" } });
+      ok(R3.criterio && R3.criterio.lente === "capital" && !R3.criterio.referencia && !universoDe(E3, "p1").length, "CONTROL NEGATIVO · la lente SOLA no inventa un umbral: sin referencia, «frenado» sigue sin evaluar (universo vacío)", JSON.stringify(R3.criterio)); }
+    { const { R: R4 } = entregaDe({ partes: [parte], criterio: { lente: "capital", referencia: { concepto: "inventado", valor: 1, unidad: "days" } } });
+      ok(R4.criterio && R4.criterio.lente === "capital" && !R4.criterio.referencia && R4.noResuelto.some((n) => n.campo === "criterio" && n.motivo === "criterio_desconocido"), "CONTROL NEGATIVO · una referencia inválida junto a una lente válida conserva la lente y DECLARA la referencia (nunca la descarta en silencio)", JSON.stringify([R4.criterio, R4.noResuelto.map((n) => n.motivo)])); }
+  }
+
+  H("A19 · 41(c) · S42 · la verdad propia de un miembro que falla la BASE es la cifra de la base; la del que el TOP excluido saca sigue siendo su puesto");
+  { const margenDe = (n) => clientesMargen.find((c) => c.nombre === n).margen;
+    const U = { eje: "cliente", base: "bajo el benchmark", excluir: { top: [{ metrica: "ventas", k: 3 }] } };
+    const top3 = clientesVentas.slice().sort((a, b) => b.actual - a.actual).slice(0, 3).map((c) => c.nombre);
+    const bench = 30.1;
+    const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "ventas"], universo: U }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Easy"], universo: U }, { id: "q2", tipo: "grupo", miembros: [top3[2]], universo: U }] });
+    const lE = lineaCon(E, "Easy", "no es así"), lJ = lineaCon(E, top3[2], "no es así");
+    ok(margenDe("Easy") > bench && !top3.includes("Easy") && top3.length === 3, "oráculo · Easy (margen 32 %) está sobre el benchmark 30.1 % y NO está entre las 3 que más venden: la deja fuera la BASE, no el top", `${margenDe("Easy")} ${top3}`);
+    ok(lE && new RegExp(`margen ${String(margenDe("Easy")).replace(".", "\\.")}\\s?%`).test(lE) && !/puesto|venta \$/.test(lE), "la verdad propia de Easy es SU MARGEN (la condición que falla), sin «puesto N de 13 por venta»", lE);
+    ok(lJ && /puesto 3 de 13/.test(lJ) && /venta/.test(lJ), `CONTROL NEGATIVO · ${top3[2]} (3.ª en venta: la saca el top excluido) sigue diciendo su venta y su puesto`, lJ);
+  }
+
+  H("A19 · 37a · S67 · la verdad propia de un SKU fuera por la bodega PEDIDA (universo = solo la bodega) nombra al SKU y a su bodega propia");
+  { const propia = (n) => _bodegaDeSku(n);
+    const PEDIDA = _bodegaDeSku("MAK-COMP-AIR");
+    const fuera = skus.find((n) => propia(n) !== PEDIDA);
+    const U = { eje: "sku", bodega: PEDIDA };
+    const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["dias_sin_venta", "capital"], eje: "sku", universo: U }], premisas: [{ id: "q1", tipo: "grupo", miembros: [fuera], universo: U }, { id: "q2", tipo: "grupo", miembros: ["MAK-COMP-AIR"], universo: U }] });
+    const l = lineaCon(E, fuera, "no es así");
+    ok(PEDIDA && propia(fuera) && propia(fuera) !== PEDIDA, "oráculo · hay un SKU cuya bodega propia no es la pedida", JSON.stringify([fuera, propia(fuera), PEDIDA]));
+    ok(l.includes(fuera) && l.includes(propia(fuera)) && l.includes(PEDIDA), "la verdad propia nombra al SKU, su bodega propia y la pedida (antes: «en Antofagasta.»)", l);
+    ok(/es correcto/.test(lineaCon(E, "MAK-COMP-AIR", "pertenece")) || /es correcto/.test(lineaCon(E, "MAK-COMP-AIR")), "CONTROL NEGATIVO · un SKU que SÍ es de la bodega pedida sigue siendo miembro (premisa verdadera)", lineaCon(E, "MAK-COMP-AIR"));
+  }
+
+  H("A19 · 46(b) · S84 · una `cifra` con entidades de dos ejes se sirve con el productor de cada una, sin cifras equivocadas; la comparación de dos ejes sigue declinando");
+  { const ventaSku = skusMargen.find((s) => s.nombre === "SAM-TV55").venta;
+    const fmt = (k) => "$" + (k / 1000).toFixed(1) + "M";
+    const { R, E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], entidades: [{ nombre: "Lider" }, { nombre: "SAM-TV55", eje: "sku" }] }] });
+    const filas = (E.entrega.cifras.filas || []).map((f) => f.valores);
+    const vSku = (filas.find((v) => v["Entidad / grupo"] === "SAM-TV55" && /^Venta/.test(v["Métrica"])) || {})["Valor"], vLid = (filas.find((v) => v["Entidad / grupo"] === "Lider" && /^Venta/.test(v["Métrica"])) || {})["Valor"];   /* la venta del cliente la fija otra verdad (D8): aquí solo que exista en moneda */
+    ok(R.partes[0].estado === "resuelta" && E.ok === true, "la parte con dos ejes se resuelve y la Entrega compone ok (verificarEntrega no la rechaza)", E.motivo);
+    ok(vSku === fmt(ventaSku) && /^\$\d+\.\dM$/.test(vLid || ""), `la venta de cada entidad es la de SU productor: SAM-TV55 ${fmt(ventaSku)} (skusMargen) y Lider en moneda (no 0.8)`, JSON.stringify([vSku, vLid]));
+    ok(!/SAM-TV55: venta 0\.8/.test(textoDe(E)) && !filas.some((v) => v["Entidad / grupo"] === "SAM-TV55" && v["Valor"] === "0.8"), "la «Venta diaria (unidades)» (0.8) NO se sirve como «Venta»", textoDe(E).split("\n").filter((l) => /SAM-TV55/.test(l)).join(" | "));
+    const r2 = validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "comparacion", conceptos: ["ventas"], entidades: [{ nombre: "Lider" }, { nombre: "SAM-TV55", eje: "sku" }] }] }, {});
+    ok(r2.partes[0].estado === "no_resuelta" && r2.noResuelto.some((n) => n.motivo === "ejes_mezclados"), "CONTROL NEGATIVO · la COMPARACIÓN con entidades de dos ejes sigue declinando por `ejes_mezclados`", JSON.stringify(r2.noResuelto.map((n) => n.motivo)));
+    const { E: E3 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "margen"], eje: "sku", entidades: [{ nombre: "SAM-TV55", eje: "sku" }] }] });
+    const v3 = (E3.entrega.cifras.filas || []).map((f) => f.valores).find((v) => /^Venta/.test(v["Métrica"])) || {};
+    ok(v3["Valor"] === fmt(ventaSku), "la venta de un SKU en una cifra de UN solo eje también es la de skusMargen (la «Venta diaria» nunca pisa a «Ventas»)", JSON.stringify(v3));
+  }
+
+  H("A19 · 46(c) · S31 · S16 · la lente pedida gobierna la prioridad de una `decision` sin universo; si no ordena el conjunto se declara; la foto declara lo que no trae");
+  { const prio = (E) => lineasR(E).find((l) => /^Prioridad del procedimiento, por /.test(l)) || "";
+    const lider = (E, dom) => (lineasR(E).find((l) => l.startsWith(`En ${dom}, quien más pesa es `)) || "").replace(/^En [a-záéíóú]+, quien más pesa es /, "").split(":")[0];
+    const com = (extra = {}) => entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["contribucion", "carga"] }], ...extra }).E;
+    { const E = com({ criterio: { lente: "contribucion" } }), p = prio(E);
+      ok(E.ok && /^Prioridad del procedimiento, por contribución: /.test(p) && p.includes(lider(E, "comercial")) && !/riesgo integrado/.test(p), "lente contribución: «Prioridad del procedimiento, por contribución: <quien más contribución deja sin capturar>»", p);
+      ok(!/Con otra lente/.test(textoDe(E)) && !/por riesgo integrado/.test(textoDe(E)), "con la lente pedida ya no dice «por riesgo integrado» ni «con otra lente cambia quién va primero»", lineasR(E).filter((l) => /riesgo integrado|otra lente/.test(l)).join(" | "));
+      const primero = (p.match(/^Prioridad del procedimiento, por contribución: ([^,]+),/) || [])[1];
+      ok(primero && lineasR(E).filter((l) => / va antes que /.test(l)).every((l) => l.startsWith(`${primero} va antes que `)), "el «va antes que» del riesgo integrado solo se sirve si pone primero a la MISMA cuenta que la lente pedida (nunca la contradice)", lineasR(E).filter((l) => / va antes que /.test(l)).join(" | ")); }
+    { const E = com(), p = lineasR(E).find((l) => /^Prioridad del procedimiento, por riesgo integrado/.test(l)) || "";
+      ok(E.ok && p && /Con otra lente \(por ejemplo, contribución o ventas\)/.test(p), "CONTROL NEGATIVO · sin criterio: sigue «por riesgo integrado» con la nota de que otra lente cambia quién va primero", p); }
+    { const E = com({ criterio: { lente: "riesgo" } }), p = prio(E);
+      ok(E.ok && /por riesgo integrado/.test(p), "CONTROL NEGATIVO · la lente «riesgo» explícita sigue siendo riesgo integrado", p); }
+    { const E = com({ criterio: { lente: "credito" } }), p = prio(E);
+      ok(E.ok && /por riesgo integrado/.test(p) && /El criterio pedido \(exposición de crédito\) no ordena este conjunto/.test(p), "una lente que NO ordena el conjunto (crédito sobre un tema solo comercial) se DECLARA: nunca sustituye en silencio", p); }
+    { const E = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido"] }, { id: "p2", tema: "comercial", cierre: "decision", conceptos: ["contribucion"] }], criterio: { lente: "credito" } }).E, p = prio(E);
+      ok(E.ok && /^Prioridad del procedimiento, por exposición de crédito: /.test(p) && p.includes(lider(E, "cobranza")), "dos temas con lente crédito: la prioridad es la de cobranza («por exposición de crédito»), con su cifra", p); }
+    { const E = com({ criterio: { lente: "contribucion" } });
+      const foto = universoDe(E, "p1"), conContrib = new Set((E.entrega.cifras.filas || []).map((f) => f.valores).filter((v) => /^Contribución$/.test(v["Métrica"])).map((v) => v["Entidad / grupo"]));
+      const limite = (E.entrega.limites || []).map((l) => `${l.titulo} ${l.motivo || ""}`).join(" ");
+      const sin = foto.filter((n) => !conContrib.has(n));
+      ok(foto.length >= 2 && foto.length < clientes.length && sin.length >= 1, "oráculo · la foto es una parte del eje y hay cuentas de la foto sin fila de Contribución", JSON.stringify({ foto, sin }));
+      ok(sin.every((n) => limite.includes(n)) && /la foto no trae contribución/.test(limite), "cada cuenta de la foto sin la cifra de un concepto pedido se NOMBRA en un límite (nunca se omite en silencio)", limite); }
+    { const E = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido", "dias_vencido"] }] }).E;
+      ok(E.ok && !(E.entrega.limites || []).some((l) => /la foto no trae/.test(`${l.titulo}`)), "CONTROL NEGATIVO · una foto que sí trae todos sus conceptos (cobranza) no declara ninguna cuenta sin cifra", JSON.stringify((E.entrega.limites || []).map((l) => l.titulo))); }
+  }
+
+  H("A19 · 39(c) · S03 · S04 · la pertenencia a un top sobre un empatado del filo EN CERO dice el cero con su cifra; un empate con valor no cambia");
+  {
+    const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital_frenado", "capital"], eje: "sku", universo: { eje: "sku", top: { metrica: "capital_frenado", k: 4 } } }], criterio: { lente: "capital" }, premisas: [{ id: "q1", tipo: "grupo", miembros: ["LG-WASH11KG"], universo: { eje: "sku", top: { metrica: "capital_frenado", k: 4 } } }] });
+    const l = lineaCon(E, "LG-WASH11KG", "pertenece");
+    ok(E.ok && /empatado con .* en el puesto \d/.test(l), "oráculo · la premisa de pertenencia sobre un empatado del filo declara el empate", l);
+    ok(/; no tiene capital inmovilizado crítico \(\$0\)\.$/.test(l), "el empate en CERO dice «no tiene capital inmovilizado crítico ($0)» (39c: un cero por ausencia del conjunto también lleva su cifra)", l);
+    const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["recuperado", "abonado"], universo: { eje: "cliente", top: { metrica: "recuperado", k: 8 } } }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Paris"], universo: { eje: "cliente", top: { metrica: "recuperado", k: 8 } } }] });
+    const l2 = lineaCon(E2, "Paris", "empatado");
+    ok(/Paris: recuperado [\d.]+%, empatado con Tottus en el puesto 8\.$/.test(l2) && !/no tiene/.test(l2), "CONTROL NEGATIVO · un empate en el filo con VALOR (recuperado) no agrega ningún cero", l2);
+    { const U = { eje: "sku", top: { metrica: "dias_sin_venta", k: 9 } };
+      const { E: E3 } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["dias_sin_venta", "capital"], eje: "sku", universo: U }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["PHI-SHAVER9"], universo: U }] });
+      const l3 = lineaCon(E3, "PHI-SHAVER9", "empatado");
+      ok(l3 && (l3.match(/no tiene días sin venta/g) || []).length === 1, "CONTROL NEGATIVO · si la oración ya dice el cero de su sujeto («no tiene días sin venta (0 días)») el empate en cero no lo repite", l3); }
+  }
+
+  H("A19 · 44(d) · S17 · S18 · S21 · la verdad propia de un conteo falso solo por el «de M» imprime el M más ajustado de la cadena del universo, el mismo de la premisa verdadera");
+  { const mesa = buildMesaFlujo(ESCENARIO_INICIAL);
+    const alDia = mesa.filas.filter((f) => f.vencidoK === 0).length;
+    const conteo = (universo, n, m) => ({ tipo: "conteo", conteo: { n, m }, de: universo });
+    const deM = (l) => { const x = /\b(\d+) de (\d+)\b/.exec(l); return x ? { n: +x[1], m: +x[2] } : null; };
+    { const U = { eje: "cliente", estados: ["al dia"], top: { metrica: "abonado", k: 3 } };
+      const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["abonado", "recuperado"], universo: U }], premisas: [{ id: "q1", ...conteo(U, 3, alDia) }, { id: "q2", ...conteo(U, 3, alDia - 1) }] });
+      const ls = lineasR(E).filter((l) => /premisa planteada/.test(l) && /de mayor abonado/.test(l) && deM(l));
+      ok(alDia === 7 && ls.length === 2, "oráculo · 7 cuentas al día (la mesa) y las dos premisas se juzgan", JSON.stringify(ls));
+      ok(ls.length === 2 && /es correcto/.test(ls[0]) && /no es así/.test(ls[1]) && deM(ls[0]).m === alDia && deM(ls[1]).m === alDia, `la premisa verdadera y la falsa por M dicen el MISMO M (${alDia}, las al día), no 7 y 13`, JSON.stringify(ls.map(deM))); }
+    { const nBase = clientesMargen.filter((c) => c.margen > 30.1).length;
+      const U = { eje: "cliente", base: "sobre el benchmark" };
+      const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "contribucion"], universo: U }], premisas: [{ id: "q1", ...conteo(U, nBase, clientes.length) }, { id: "q2", ...conteo(U, nBase, nBase + 3) }] });
+      const ls = lineasR(E).filter((l) => /premisa planteada/.test(l) && /sobre el benchmark/.test(l) && deM(l));
+      ok(nBase === 5 && ls.length === 2 && /no es así/.test(ls[1]) && deM(ls[1]).m === clientes.length && deM(ls[1]).m !== deM(ls[1]).n, `la falsa por M sobre «sobre el benchmark» dice «${nBase} de ${clientes.length}», nunca el vacuo «${nBase} de ${nBase}»`, JSON.stringify(ls.map(deM))); }
+    { const U = { eje: "cliente", estados: ["en mora"], filtros: [{ metrica: "dias_vencido", op: ">", valor: 100 }] };
+      const enMora = mesa.filas.filter((f) => f.vencidoK > 0).length, nFiltro = mesa.filas.filter((f) => f.vencidoK > 0 && f.diasVencido > 100).length;
+      const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["dias_vencido", "saldo_vencido"], universo: U }], premisas: [{ id: "q1", ...conteo(U, nFiltro, enMora) }, { id: "q2", ...conteo(U, nFiltro, alDia) }] });
+      const ls = lineasR(E).filter((l) => /premisa planteada/.test(l) && /en mora/.test(l) && deM(l));
+      ok(ls.length === 2 && /es correcto/.test(ls[0]) && /no es así/.test(ls[1]) && deM(ls[1]).m === enMora, `la falsa por M sobre «en mora con más de 100 días» dice M = ${enMora} (las en mora, antes del filtro), el mismo de la verdadera`, JSON.stringify(ls.map(deM))); }
+    { const U = { eje: "cliente", estados: ["al dia"], top: { metrica: "abonado", k: 3 } };
+      const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["abonado"], universo: U }], premisas: [{ id: "q1", ...conteo(U, 3, clientes.length) }] });
+      const l = lineasR(E).find((x) => /premisa planteada/.test(x) && deM(x)) || "";
+      ok(/es correcto/.test(l) && deM(l).m === clientes.length, "CONTROL NEGATIVO · un M verdadero de la cadena (el eje entero) se imprime tal cual lo planteó la consulta", l); }
+  }
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");

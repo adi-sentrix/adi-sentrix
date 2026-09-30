@@ -52,7 +52,7 @@ import { normalizar } from "../notario/afirmacion.js";
 // agente en vivo: «no escribas otra prioridad, sería una segunda verdad». Nada de esto se reescribe acá.
 import { partesDelEncargo, dominiosDelEncargo } from "../agente/partesDelEncargo.js";
 import { pasosDeDominios } from "../agente/contratoDeDominios.js";
-import { prioridadIntegrada, LENTES, CRITERIOS } from "../agente/prioridadIntegrada.js";
+import { prioridadIntegrada, ordenPorCriterio, LENTES, CRITERIOS } from "../agente/prioridadIntegrada.js";
 import { crearEntrega } from "./esquema.js";
 // CORTE 3b (Etapa 1, owner 2026-09-25, `_ADI_LLMBUSINESS_PLAN.md` §1 + `_ADI_CONTRATO_ENCARGO_V1.md`) — la Entrega
 // para CUALQUIER encargo válido: `lecturasDe` (corte 3a) decide QUÉ CORRE, este archivo decide CÓMO SE ESCRIBE.
@@ -60,7 +60,7 @@ import { crearEntrega } from "./esquema.js";
 // sentido: clave → `nombre` (el rótulo humano, "Venta"/"Margen"/…) que las figs YA traen ("Entidad · Venta"), la
 // MISMA convención que las 4 rutas fijas ya explotan a mano (`figVenta`, `figMargen`, …) — nunca una segunda tabla.
 import { lecturasDe, REGISTRO_LECTURAS, consultaDeFrenado as _consultaDeFrenado, estadosDeUniverso as _estadosDeUniverso, frenadoSinUmbral as _frenadoSinUmbral } from "../encargo/lecturasDe.js";
-import { AUSENTE_VALE_CERO, metricaPorClave, claveDeMetrica, dominioDeClave, unidadDeClave, conteoDeEje, conPreposicion, sintagmaDe, esCero, dichoElCero, diasEnPalabras } from "../notario/lexico.js";
+import { AUSENTE_VALE_CERO, metricaPorClave, claveDeMetrica, claveExactaDeMetrica, dominioDeClave, unidadDeClave, conteoDeEje, conPreposicion, sintagmaDe, esCero, dichoElCero, diasEnPalabras } from "../notario/lexico.js";
 import { objetivoPorMeta } from "../llm/voiceGuard.js";   // v21 (T12): el nombre del concepto que la Entrega imprime como título de su definición va en la voz de la casa («meta» → «objetivo»)
 import { ausenciaPorId } from "../../config/contract/ausencias.js";   // Etapa 2 §2 (owner 2026-09-23): las ausencias del dato, declaradas UNA vez
 // Etapa 2 §4 (owner 2026-09-23, plan §3 «cómo se pega al cliente») — EL PERFIL DEL CLIENTE viaja en el Marco,
@@ -387,6 +387,8 @@ const _nombreVisibleDeLente = (id) => {
   const cabeza = String(L.nombre).split(/\s+/)[0];
   return _planoDeLente(cabeza) === _planoDeLente(id) ? cabeza : L.nombre;
 };
+/* v22: el id de la lente que el USUARIO pidió (origen usuario, ≠ la de ADI), o null */
+const _lenteIdDelCriterio = (criterio) => (criterio && criterio.origen === "usuario" && criterio.lente && CRITERIOS[criterio.lente] ? criterio.lente : null);
 const _lenteDelCriterio = (criterio) => {
   if (criterio.lente) { const v = _nombreVisibleDeLente(criterio.lente); if (v) return v; const m = metricaPorClave(criterio.lente); return m ? m.nombre.toLowerCase() : criterio.lente; }
   const c = criterio.referencia && criterio.referencia.concepto;
@@ -1397,7 +1399,16 @@ const _figsDeEntidad = (figs, entidad) => _all(figs, new RegExp(`^${_esc(entidad
 /* el concepto de una fig «Entidad · Concepto» (la parte después del primer «·») — para pasarlo por la
  * canonización del Notario, nunca para adivinar el rótulo a mano. */
 const _conceptoDeLabel = (label) => { const p = String(label || "").split("·").map((s) => s.trim()); return p.length >= 2 ? p.slice(1).join(" · ") : String(label || ""); };
-const _claveDeFig = (fig) => claveDeMetrica(_conceptoDeLabel(_lab(fig)));
+/* v22 (S84 · «un rótulo no puede nombrar dos campos»): la clave TOLERANTE (`claveDeMetrica`: el sinónimo corto o la palabra dentro del rótulo) no vale contra la UNIDAD de la propia fig. «Venta diaria (unidades)» (0.8, `count`) casaba
+ * con «ventas» (`money`) por la palabra «venta» y, siendo la primera fig del SKU, se servía como «Venta 0.8» en lugar de «Ventas $13.3M». La clave EXACTA (el rótulo es la clave o uno de sus conceptos) nunca se descarta; la tolerante, solo si la unidad de la fig no contradice la de la métrica (pct ≡ pp). */
+const _unidadPlana = (u) => (u === "pp" ? "pct" : u);
+const _claveDeFig = (fig) => {
+  const concepto = _conceptoDeLabel(_lab(fig));
+  const c = claveDeMetrica(concepto);
+  if (!c || claveExactaDeMetrica(concepto) === c) return c;
+  const uc = unidadDeClave(c), uf = fig && fig.unit;
+  return uc && uf && _unidadPlana(uc) !== _unidadPlana(uf) ? null : c;
+};
 const _labelDeClave = (clave) => { const m = metricaPorClave(clave); return m ? m.nombre : clave; };
 const _filaDe = (figs, entidad, clave) => _figsDeEntidad(figs, entidad).find((f) => _claveDeFig(f) === clave) || null;
 const _todasLasFilasDeConcepto = (figs, clave) => {
@@ -2051,7 +2062,10 @@ function _fraseEmpateFilo(e) {
 }
 function _rotuloDeLaCasaDeH(H) {
   const r = _rotuloBaseDeLaCasaDeH(H);
-  return r && H && H.render && H.render.empateFilo ? `${r}, ${_fraseEmpateFilo(H.render.empateFilo)}` : r;
+  const _ef = H && H.render ? H.render.empateFilo : null;
+  /* v22 (S03 · S04, §7.3·39c): el empate en CERO dice su cifra con las palabras de la casa («no tiene capital inmovilizado crítico ($0)»); en plural, «no tienen»; si la oración ya dice el cero de su sujeto («no tiene … (0 días)»), no se repite */
+  const _cero = _ef && _ef.cero && !/\bno tiene\b/.test(r || "") ? `; ${dichoElCero(_ef.cero.nombre, _ef.cero.texto).replace(/^no tiene\b/, _ef.sujetos.length > 1 ? "no tienen" : "no tiene")}` : "";
+  return r && _ef ? `${r}, ${_fraseEmpateFilo(_ef)}${_cero}` : r;
 }
 function _rotuloBaseDeLaCasaDeH(H) {
   const r = _rotuloDeLaCasaLegado(H);
@@ -2590,7 +2604,23 @@ const _CONCEPTO_BASE_DOMINIO = {
   // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «Capital frenado» → «Capital inmovilizado crítico».
   inventario: /· (?:Capital (?:frenado|inmovilizado cr[ií]tico)|D[ií]as de inventario|D[ií]as sin venta)$/i,
 };
-function _planMultiTema(temas, figs, ref, declararRazon, declararDerivada, { conDecision }) {
+/* v22 (S31 · S16, «el criterio del usuario manda» — CLAUDE.md §2 ley 4): la lente que el usuario pidió (`criterio.lente` ≠ riesgo) GOBIERNA la prioridad de una `decision` sin universo. Antes la prioridad salía SIEMPRE «por riesgo integrado» y la Entrega
+ * decía «con otra lente (contribución o ventas) puede cambiar quién va primero» aunque la lente pedida fuera esa. El orden lo da la MISMA función que ya ordena «ahora por X» (`ordenPorCriterio`, `agente/prioridadIntegrada.js`); la cifra que lo sostiene
+ * es una fig de la boleta (con su hecho). Sin orden posible para esa lente con estas figs, no se sustituye en silencio: `lenteNoAplica` la declara y la prioridad de riesgo integrado lo dice. */
+function _prioridadPorLenteDelUsuario(temas, figs, ref, lente) {
+  if (!lente || lente === "riesgo" || !CRITERIOS[lente]) return { porLente: null, lenteNoAplica: null };
+  let O = null;
+  try { O = ordenPorCriterio(figs, temas, lente); } catch { O = null; }
+  const primero = O && Array.isArray(O.lista) ? O.lista[0] : null;
+  const c0 = primero && Array.isArray(primero.cifras) ? primero.cifras[0] : null;
+  if (primero && c0 && c0.metrica) {
+    const fig = _find(figs, new RegExp(`^${_esc(primero.entidad)} · ${_esc(c0.metrica)}$`, "i"));
+    const id = ref(fig);
+    if (id != null) return { porLente: { lente, entidad: primero.entidad, metrica: c0.metrica, id, dominio: CRITERIOS[lente].dominio || (temas.includes("comercial") ? "comercial" : temas[0]) }, lenteNoAplica: null };
+  }
+  return { porLente: null, lenteNoAplica: lente };
+}
+function _planMultiTema(temas, figs, ref, declararRazon, declararDerivada, { conDecision, lente = null }) {
   const P = prioridadIntegrada(figs, temas);
   if (!P || !Object.keys(P.porDominio).length) {
     // R-INICIATIVA-UNIVERSO-NO-ENTIDADES / V81 (diagnóstico v6, coordinador 2026-09-26/27) — con el universo YA
@@ -2649,7 +2679,8 @@ function _planMultiTema(temas, figs, ref, declararRazon, declararDerivada, { con
     }
   }
   const idBenchComercial = temas.includes("comercial") ? ref(_find(figs, /^Benchmark de margen$/i)) : null;
-  return { kind: "multitema", temas, conDecision, lideres, top, idsIntegrada, idsVersus, idShare, versusLider, idBenchComercial };
+  const { porLente, lenteNoAplica } = conDecision ? _prioridadPorLenteDelUsuario(temas, figs, ref, lente) : { porLente: null, lenteNoAplica: null };
+  return { kind: "multitema", temas, conDecision, lideres, top, idsIntegrada, idsVersus, idShare, versusLider, idBenchComercial, ...(porLente ? { porLente } : {}), ...(lenteNoAplica ? { lenteNoAplica } : {}) };
 }
 
 /* ── PLAN «comparacion» (2 entidades, mismo eje — `compareEntities`) ─────────────────────────────────────────── */
@@ -2913,7 +2944,7 @@ const _MARCADOR_CONCLUSION_INTEGRADA = /^(Prioridad del procedimiento|Quien m[a�
 function _entidadPrioritariaDeEntrega(entrega) {
   const concl = (entrega.respuesta || []).find((r) => _MARCADOR_CONCLUSION_INTEGRADA.test(r.texto || ""));
   if (!concl) return null;
-  const m = /(?:riesgo integrado|mayor contribuci[oó]n en juego|mayor capital frenado)\s*:\s*(?:abrir primero\s+)?([^,.:;—(]+)/i.exec(concl.texto || "");
+  const m = /(?:riesgo integrado|mayor contribuci[oó]n en juego|mayor capital frenado|Prioridad del procedimiento, por [^:]+?)\s*:\s*(?:abrir primero\s+)?([^,.:;—(]+)/i.exec(concl.texto || "");
   return m ? m[1].trim() : null;
 }
 // la ORACIÓN de guía de uso genérica del Marco (fallback de `_vacia`/simulación cuando `entrega.marco.
@@ -3198,7 +3229,7 @@ export function componerEntrega(resolucion) {
     // por defecto) deshacía en silencio el sentido «top dentro del filtro». Sin `indice` o si el universo no se
     // puede resolver, `figsEnAlcance` no restringe — mismo criterio de «nunca excluir a ciegas» de siempre.
     const figsDelGrupo = partesSinEntidadLecturaDecision.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }, { indice: I }));
-    const plan = _planMultiTema(temas, figsDelGrupo, ref, declararRazon, declararDerivadaOpcional, { conDecision });
+    const plan = _planMultiTema(temas, figsDelGrupo, ref, declararRazon, declararDerivadaOpcional, { conDecision, lente: _lenteIdDelCriterio(resolucion.criterio) });
     if (plan) { plan.partesIds = partesSinEntidadLecturaDecision.map((p) => p.id); planes.push(plan); }
     /* v20 (U06 · U42, §7.3·13 «la lectura TRAE el ranking completo del eje que la parte nombra»): el listado por el eje EXPLÍCITO (RC8, abajo) solo corría cuando `_planMultiTema` no armaba nada. Una lectura de inventario con eje `bodega` SIEMPRE
      * arma plan (la foto por SKU), así que el eje que la parte pidió se ignoraba en silencio: el ranking de las cuatro bodegas ni se servía. El plan del tema conserva su lugar (la foto del procedimiento) y el eje pedido se SIRVE además, por el mismo
@@ -3259,6 +3290,13 @@ export function componerEntrega(resolucion) {
         for (const e of planF.orden) for (const [clave, fig] of _mapaDe(planF.porEntidad, e)) _mapaDe(planF.porEntidad, e).set(clave, ref(fig));
         if (figA0F && figB0F) planF.idDiffOrden = declararDerivadaOpcional(figA0F, _mapaDe(planF.porEntidad, planF.orden[0]).get(planF.claveOrden), figB0F, _mapaDe(planF.porEntidad, planF.orden[1]).get(planF.claveOrden));
         planF.esFoto = true; planF.idUniverso = p.id;
+        /* v22 (S31): un concepto que la parte DECLARA y que la lectura del turno no publicó para alguna cuenta de la foto no se omite en silencio: se declara qué cuentas quedan sin esa cifra (nunca se rellena con otra). */
+        for (const c of p.conceptos) {
+          if (c === planF.claveOrden || !productorDe(c, sujetoDeTema(p.tema))) continue;
+          const conFila = planF.orden.filter((e) => _mapaDe(planF.porEntidad, e).has(c));
+          const sin = planF.orden.filter((e) => !_mapaDe(planF.porEntidad, e).has(c));
+          if (conFila.length && sin.length) limitesGap.push({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), la foto no trae ${String(_labelDeClave(c)).toLowerCase()} de ${_listaDeNombres(sin)}`, motivo: "La lectura de este turno no publicó esa cifra para esas cuentas; no se rellena con otra." });
+        }
         planes.push(planF);
         huboFoto = true;
       }
@@ -3324,7 +3362,7 @@ export function componerEntrega(resolucion) {
         if (partesGrupo.some((p) => tamanoUniversoPorParte.get(p.id) === 0)) continue;
         const temasGrupo = [...new Set(partesGrupo.map((p) => p.tema))];
         const figsDelGrupoCruce = partesGrupo.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }, { indice: I }));
-        const planCruce = _planMultiTema(temasGrupo, figsDelGrupoCruce, ref, declararRazon, declararDerivadaOpcional, { conDecision: true });
+        const planCruce = _planMultiTema(temasGrupo, figsDelGrupoCruce, ref, declararRazon, declararDerivadaOpcional, { conDecision: true });   /* v22: la prioridad CRUZADA entre dominios sigue siendo la de riesgo integrado (la lente de un solo dominio ordena DENTRO de cada parte); la lente gobierna la `decision` sin universo */
         // `_soloAgregado` (ver el render de `kind:"multitema"`, más abajo): estas partes YA tienen su contenido
         // propio (filas + «Prioridad del procedimiento dentro de este grupo») — este plan SOLO aporta la
         // prioridad cruzada y el límite «sin señal», nunca la línea «quien más pesa» por dominio.
@@ -4050,10 +4088,17 @@ export function componerEntrega(resolucion) {
         const prefijoDecision = plan.conDecision ? "Prioridad del procedimiento" : "Quien más pesa en el conjunto";
         // «con otra lente cambia quién va primero» (decision, criterio declarado) — CLÁUSULA de la MISMA oración,
         // no una oración aparte: una oración sin cifra propia rompe la regla «dueño + métrica + valor» del plan.
-        const cierreLente = plan.conDecision ? " Con otra lente (por ejemplo, contribución o ventas) puede cambiar quién va primero: esta es la lectura de riesgo integrado del procedimiento." : "";
-        entrega.respuesta.push({ texto: `${prefijoDecision}, por riesgo integrado: ${plan.top.entidad}${coincide} (${partesTop.join("; ")}).${cierreLente}`, hechos: Object.values(plan.idsIntegrada).flatMap((o) => Object.values(o)).filter(Boolean), prioridad: 0 });
+        /* v22 (S31 · S16): la lente que el usuario pidió gobierna la prioridad — «el criterio del usuario manda». Con `porLente` la oración es la de esa lente (cifra con su hecho) y NO se dice «por riesgo integrado» ni «con otra lente cambia»;
+         * sin orden posible para esa lente, la prioridad de riesgo integrado DECLARA que el criterio pedido no se pudo aplicar (nunca lo sustituye en silencio). */
+        const _nomLente = (id) => _nombreVisibleDeLente(id) || id;
+        const cierreLente = !plan.conDecision ? "" : plan.lenteNoAplica ? ` El criterio pedido (${_nomLente(plan.lenteNoAplica)}) no ordena este conjunto con la evidencia disponible: esta es la lectura de riesgo integrado del procedimiento.` : " Con otra lente (por ejemplo, contribución o ventas) puede cambiar quién va primero: esta es la lectura de riesgo integrado del procedimiento.";
+        if (plan.porLente) {
+          const PL = plan.porLente;
+          entrega.respuesta.push({ texto: `${prefijoDecision}, por ${_nomLente(PL.lente)}: ${PL.entidad}, con ${R(PL.id)} en ${String(PL.metrica).toLowerCase()}.`, hechos: [PL.id], prioridad: 0 });
+          _filaDedup(PL.entidad, PL.dominio, PL.metrica, PL.id);
+        } else entrega.respuesta.push({ texto: `${prefijoDecision}, por riesgo integrado: ${plan.top.entidad}${coincide} (${partesTop.join("; ")}).${cierreLente}`, hechos: Object.values(plan.idsIntegrada).flatMap((o) => Object.values(o)).filter(Boolean), prioridad: 0 });
       }
-      if (plan.top && plan.idsVersus && plan.idsVersus.length) {
+      if (plan.top && (!plan.porLente || plan.porLente.entidad === plan.top.entidad) && plan.idsVersus && plan.idsVersus.length) {   /* el «va antes que» es del riesgo integrado: solo se sirve si la lente pedida pone primero a la MISMA cuenta (nunca se contradice) */
         const comparativos = plan.idsVersus.map(({ it, idA, idB }) => `${it.nombre} (${R(idA)} contra ${R(idB)})`).join(", ");
         for (const { it, idA, idB } of plan.idsVersus) { _filaDedup(plan.top.entidad, it.dominio, it.nombre || it.metrica, idA); _filaDedup(plan.top.versus.contra, it.dominio, it.nombre || it.metrica, idB); }
         entrega.respuesta.push({ texto: `${plan.top.entidad} va antes que ${plan.top.versus.contra}: es peor en ${comparativos}.`, hechos: plan.idsVersus.flatMap((x) => [x.idA, x.idB]).filter(Boolean), prioridad: plan.temas.length + 1 });

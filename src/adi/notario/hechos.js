@@ -771,7 +771,11 @@ function _conteoTipado(H, h, I) {
     // `mAdmisibles` de arriba, así que no se agrega nada nuevo (nunca cambia el comportamiento de hoy).
     if (u.top && normalizar(u.top.sobre) === "eje" && _entero(u.top.k) && +u.top.k > 0) mAdmisibles.add(+u.top.k); }
   const mDicho = c.m != null && Number.isFinite(+c.m) ? +c.m : null;
-  const mRender = mDicho != null && mAdmisibles.has(mDicho) ? mDicho : mBase;
+  /* v22 (S17 · S18 · S21, §7.3·44d): cuando el «de M» que la consulta dijo NO es de la cadena del universo (falsa solo por el M), la verdad propia imprime el M MÁS AJUSTADO de esa cadena que aún supere al conteo —el mismo que una premisa verdadera de este universo diría—, nunca el eje entero
+   * ni un «5 de 5» vacuo: antes la Entrega decía «3 de 7» en la premisa verdadera y «3 de 13» en la falsa, sobre el MISMO universo. */
+  const _kDelTopSobreEje = u.top && normalizar(u.top.sobre) === "eje" && _entero(u.top.k) ? +u.top.k : null;   /* el `k` de un top SOBRE EL EJE es un «de M» admisible, pero es el tamaño del RESULTADO de una restricción, no una población de la cadena: no se elige como el M de la verdad propia */
+  const _mMasAjustado = (() => { const may = [...mAdmisibles].filter((x) => x > set.size && x !== _kDelTopSobreEje).sort((a, b) => a - b); return may.length ? may[0] : mBase; })();
+  const mRender = mDicho != null ? (mAdmisibles.has(mDicho) ? mDicho : _mMasAjustado) : mBase;
   H.universo = { set, fuente: U.fuente, texto: nombrarUniverso(u, I), restringido: !!U.set };
   H.render.universo = H.universo.texto; H.render.n = String(set.size); H.render.m = String(mRender);
   for (const k of set) H.entidades.add(k);
@@ -1012,7 +1016,10 @@ function _empateFiloDeGrupo(h, I, nombres) {
   const e = U && U.empateEnElFilo;
   if (!e || !Array.isArray(e.nombres)) return null;
   const propios = nombres.filter((n) => e.nombres.some((x) => normalizar(x) === normalizar(n)));
-  return propios.length ? { n: e.puesto, sujetos: propios, entidades: e.nombres } : null;
+  /* v22 (S03 · S04, §7.3·39c «un cero se dice junto a su cifra, medido o por ausencia del conjunto»): si el empate del filo es en CERO, la pertenencia lo dice con su cifra: «no tiene capital inmovilizado crítico ($0)» — sin ella, el «pertenece a los 4 de mayor …» leía como si el empatado tuviera algo. */
+  let cero = null;
+  if (propios.length && e.valor === 0) { const mp = _metricaPropia(I, propios[0], _claveDeMetricaDeUniverso(u.top.metrica)); if (mp && mp.raw === 0) cero = { nombre: mp.nombre, texto: mp.texto }; }
+  return propios.length ? { n: e.puesto, sujetos: propios, entidades: e.nombres, ...(cero ? { cero } : {}) } : null;
 }
 const _sujetoUnico = (s) => { const x = Array.isArray(s) ? (s.length === 1 ? s[0] : null) : s; return typeof x === "string" && x !== "negocio" ? x : null; };
 function _verdadPropiaDeOrden(h, H, I) {
@@ -1083,8 +1090,9 @@ function _fueraPorBodegaPedida(u, ent, key, eje, I) {
   const uSin = { ...u }; delete uSin.bodega;
   let A = null, B = null;
   try { A = conjuntoDeUniverso(uSin, I, eje, ""); B = conjuntoDeUniverso(u, I, eje, ""); } catch { return null; }
-  if (!A || A.error || !A.set || !B || B.error || !B.set) return null;
-  if (!A.set.has(key) || B.set.has(key)) return null;
+  /* v22 (S67): sin nada más que la bodega, el universo sin ella es el EJE ENTERO (`set: null`): toda entidad del eje entra, y la deja fuera su bodega. Antes `!A.set` devolvía null y la verdad caía a «en Antofagasta.» sin entidad ni bodega propia. */
+  if (!A || A.error || !B || B.error || !B.set) return null;
+  if ((A.set && !A.set.has(key)) || B.set.has(key)) return null;
   let propias = []; try { propias = [...new Set((I.estadosDe(ent.nombre) || []).map((x) => (x && x.bodega ? String(x.bodega) : "")).filter(Boolean))]; } catch { propias = []; }
   if (!propias.length) return null;
   return { propia: propias.join(" y "), pedida: pedidas.join(" y ") };
@@ -1152,12 +1160,15 @@ function _razonDeMiembro(u, ent, key, eje, I) {
   const preTop = ["base", "estados", "no_estados", "bodega", "filtros"].some((c) => u[c] != null);
   const fueraPorLaCondicionPrevia = !!(u.top && rkTop && iTop < 0 && preTop && normalizar(u.top.sobre) !== "eje");
   let clave = null, refConcepto = null;
+  let dentroDelExTop = false;
+  if (exTop && !u.top) { let ST = null; try { ST = conjuntoDeUniverso({ eje, top: { metrica: exTop.metrica, k: exTop.k, ...(exTop.direccion ? { direccion: exTop.direccion } : {}), sobre: "eje" } }, I, eje, ""); } catch { ST = null; } dentroDelExTop = !!(ST && !ST.error && ST.set && ST.set.has(key)); }
+  else dentroDelExTop = !!exTop;   /* con `top` propio y `excluir.top`, la precedencia de siempre no cambia */
   /* v21 (T46, §7.3·41c): con `top` SOBRE EL EJE y un ESTADO que la entidad no cumple («de las 3 que más venden, las al día»), si ESTÁ dentro del top el top NO la dejó fuera: la dejó fuera el estado, y su verdad es la cifra de ese estado («está en mora, saldo vencido $2.5M»), sin un «venta $19.4M, puesto 1 de 13» que leería como si estuviera adentro. Es la misma razón que ya rige para un conjunto con referencia (arriba) */
   const _estadoQueFalla = falla.find((c) => METRICA_DE_ESTADO[c.canon]);
   if (fRef && dentroDelTop) { clave = fRef.metrica; refConcepto = fRef.concepto; }
   else if (dentroDelTop && _estadoQueFalla && !fF) { clave = METRICA_DE_ESTADO[_estadoQueFalla.canon]; }
   else if (u.top && u.top.metrica && !fueraPorLaCondicionPrevia) clave = _claveDeMetricaDeUniverso(u.top.metrica);
-  else if (exTop) clave = _claveDeMetricaDeUniverso(exTop.metrica);
+  else if (exTop && dentroDelExTop) clave = _claveDeMetricaDeUniverso(exTop.metrica);   /* v22 (S42): el `excluir.top` es la razón SOLO si la entidad ESTÁ en ese top (sobre el eje entero); si no, la deja fuera otra condición (la base, el filtro, el estado) y esa es la cifra */
   else if (fF) { clave = _claveDeMetricaDeUniverso(fF.metrica); if (fF.ref) refConcepto = fF.ref; }
   else if (fRef) { clave = fRef.metrica; refConcepto = fRef.concepto; }   /* el conjunto que la deja fuera antes que la base que sí cumple (v17: «base carga alta» + «excluir bajo el benchmark») */
   else if (fBase && baseSinEvaluar) { clave = fBase.metrica; refConcepto = fBase.concepto; }   /* v19: la base solo si no se pudo evaluar: una base que la entidad SÍ cumple no es lo que la deja fuera */

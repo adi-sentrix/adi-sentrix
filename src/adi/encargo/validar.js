@@ -162,13 +162,22 @@ const _CRITERIOS_IDS = new Set(Object.keys(CRITERIOS));
 // `CRITERIOS` (más abajo, `alternativas` en la raíz) para que el LLM elija, nunca la alternativa de crédito, que
 // es específica de tesorería.
 const _LENTE_RESERVADA_TESORERIA = /^(?:caja|liquidez)$/i;
+// La referencia del usuario es válida cuando trae concepto (de REFERENCIAS_DE_LA_CASA), valor numérico y unidad (misma prueba que la rama «referencia sola»).
+function _referenciaDeUsuarioValida(r) {
+  return _es(r) && _str(r.concepto) && typeof r.valor === "number" && _str(r.unidad) && esReferencia(r.concepto) ? r : null;
+}
 function _resolverCriterio(criterio) {
   if (criterio == null) return { resuelto: { lente: "riesgo", origen: "adi", alternativa: null }, problema: null, avisoAdi: true };
   if (!_es(criterio)) return { resuelto: { lente: "riesgo", origen: "adi", alternativa: null }, problema: { motivo: "criterio_desconocido" }, avisoAdi: true };
   if (_str(criterio.lente)) {
-    if (_CRITERIOS_IDS.has(criterio.lente)) return { resuelto: { lente: criterio.lente, origen: "usuario", alternativa: criterio.lente === "riesgo" ? null : "riesgo" }, problema: null, avisoAdi: false };
+    // §7.3·46 (v22, S47) — la lente y la referencia del usuario CONVIVEN: la lente ordena la prioridad y la referencia (su vara para
+    // esta consulta) define el conjunto. Antes la lente ganaba y la referencia se DESCARTABA en silencio. Una referencia inválida
+    // junto a una lente válida no invalida la lente: se declara `criterio_desconocido` y la lente sigue.
+    const _refJunto = _referenciaDeUsuarioValida(criterio.referencia);
+    const _refInvalida = criterio.referencia != null && !_refJunto;
+    if (_CRITERIOS_IDS.has(criterio.lente)) return { resuelto: { lente: criterio.lente, origen: "usuario", alternativa: criterio.lente === "riesgo" ? null : "riesgo", ...(_refJunto ? { referencia: { ..._refJunto } } : {}) }, problema: _refInvalida ? { motivo: "criterio_desconocido" } : null, avisoAdi: false };
     const esTesoreria = _LENTE_RESERVADA_TESORERIA.test(String(criterio.lente).trim());
-    return { resuelto: { lente: "riesgo", origen: "adi", alternativa: null }, problema: { motivo: "criterio_desconocido", ...(esTesoreria ? { alternativaCredito: true } : {}) }, avisoAdi: true };
+    return { resuelto: { lente: "riesgo", origen: "adi", alternativa: null, ...(_refJunto ? { referencia: { ..._refJunto } } : {}) }, problema: { motivo: "criterio_desconocido", ...(esTesoreria ? { alternativaCredito: true } : {}) }, avisoAdi: true };
   }
   if (_es(criterio.referencia) && _str(criterio.referencia.concepto) && typeof criterio.referencia.valor === "number" && _str(criterio.referencia.unidad)) {
     // REFERENCIAS_DE_LA_CASA (§3) = las claves de lexico.js con `referencia: true` — `esReferencia` es exactamente esa marca.
