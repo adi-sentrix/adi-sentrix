@@ -578,7 +578,11 @@ function _construir(scenario, consulta = null) {
           rankings.cliente.brecha.filas.push({ entidad: c.nombre, valor: _brecha });
           // RAÍZ A4 gemela — mismo patrón: «no_capturada» también es dinero.
           // CRUDO_MONEY comercial (supervisor 2026-09-28, diagnóstico v11 · RAÍZ A1) — mismo patrón que «ventas» arriba.
-          if (_brecha > 0 && Number.isFinite(c.actual)) { const _noCap = Math.round(c.actual * _brecha / 100); rankings.cliente.no_capturada.filas.push({ entidad: c.nombre, valor: _noCap, texto: _moneyK(_noCap), raw: _noCap * _fxK }); }
+          if (_brecha > 0 && Number.isFinite(c.actual)) {
+            /* v19 (Y14, «una sola verdad por eje», ley owner 2026-09-09): la MISMA cuenta que `descomposicionDeBrecha.gapUsd` (specRetrieval.js: venta × benchmark − contribución, sin redondear el margen): Ripley $240.419 → «$240K», no los $240.669 → «$241K» que salían de la brecha ya redondeada a 1 decimal */
+            const _noCapK = Number.isFinite(m.contribucion) ? (c.actual * _vara / 100 - m.contribucion) : (c.actual * _brecha / 100);
+            rankings.cliente.no_capturada.filas.push({ entidad: c.nombre, valor: +_noCapK.toFixed(3), texto: _moneyK(_noCapK), raw: Math.round(_noCapK * _fxK) });
+          }
         }
       }
     }
