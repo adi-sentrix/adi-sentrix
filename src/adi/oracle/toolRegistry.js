@@ -51,6 +51,7 @@ import { METRICS } from "../../config/contract/metricRegistry.js";              
 // data-driven y su canon de alcance. `pnlRead` (abajo) los ENVUELVE — no reimplementa ni una suma.
 import { composePnl, buildPnlCascade, pnlDefined, pnlDisponibilidad, pnlEjesDisponibles, pnlEntidadCanon } from "../pnl.js";
 import { simboloMoneda } from "../../config/moneda.js";
+import { formatoDeLaCasa } from "../notario/hechos.js";   // §7.3·39(a): un % se escribe con el formato de la casa en toda superficie — ninguna tool arma el suyo
 import { CRUDO_MONEY } from "./ledger.js";   // el símbolo con el que se cuelga el crudo del $ formateado (ver la nota en _fmtMoneyFacts)
 
 const _loadSrc = (source, scenario) => { const s = SOURCES[source]; if (!s) return []; return (typeof s.scenarioLoad === "function" ? s.scenarioLoad(scenario) : s.load()) || []; };
@@ -898,14 +899,15 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
   if (volumenVar.money != null) {
     const { raw: r0 } = _filaDeSimulacion(dimension, entity, scenario);
     if (!r0 || typeof r0.venta !== "number" || !r0.venta) return { facts: null, boleta: [], coverage: { supported: false, reason: `no encuentro '${entity}' en el eje '${dimension}'` } };
-    volumenVar.pct = +((volumenVar.money / (r0.venta * _fxT())) * 100).toFixed(2);
+    /* §7.3·39(a): el % derivado se guarda EXACTO —la venta supuesta suma EXACTAMENTE el monto declarado (el Delta es $500K, no $501K)—; lo que se IMPRIME lo escribe `formatoDeLaCasa` (abajo, `_pVtxt`) */
+    volumenVar.pct = (volumenVar.money / (r0.venta * _fxT())) * 100;
   }
   if (precioVar.pct === 0 && volumenVar.pct === 0) {
     return { facts: null, boleta: [], coverage: { supported: false, reason: "0% en ambas variables no mueve nada — no hay supuesto que proyectar" } };
   }
   for (const [label, v] of [["precio", precioVar], ["volumen", volumenVar]]) {
     if (Math.abs(v.pct) > _SIM_DELTA_MAX) {
-      return { facts: null, boleta: [], coverage: { supported: false, reason: `un ${v.pct > 0 ? "+" : ""}${v.pct}% de ${label} ya no es un supuesto operable — prueba un rango realista (entre ±1% y ±${_SIM_DELTA_MAX}%) y lo corro sobre el dato real` } };
+      return { facts: null, boleta: [], coverage: { supported: false, reason: `un ${v.pct > 0 ? "+" : ""}${v.money != null ? formatoDeLaCasa(v.pct, "pct") : `${v.pct}%`} de ${label} ya no es un supuesto operable — prueba un rango realista (entre ±1% y ±${_SIM_DELTA_MAX}%) y lo corro sobre el dato real` } };
     }
   }
   const { dim, raw } = _filaDeSimulacion(dimension, entity, scenario);
@@ -913,19 +915,22 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
     return { facts: null, boleta: [], coverage: { supported: false, reason: `no encuentro '${entity}' en el eje '${dimension}'` } };
   }
 
+  /* lo que se IMPRIME del % de volumen: el que el usuario dijo, tal cual; el derivado de un monto, con el formato de la casa (§7.3·39a: `formatoDeLaCasa`, nunca un formato propio de la tool). La cuenta usa el crudo. */
+  const _pVtxt = volumenVar.money != null ? formatoDeLaCasa(volumenVar.pct, "pct") : `${volumenVar.pct}%`;
+  const _pVnum = volumenVar.money != null ? parseFloat(_pVtxt) : volumenVar.pct;
   const factorPrecio = 1 + precioVar.pct / 100;
   const factorVolumen = 1 + volumenVar.pct / 100;
   const ventaActual = raw.venta, ventaNueva = ventaActual * factorPrecio * factorVolumen;
   /* con un crecimiento en dinero, el contexto declara la conversión (el monto dicho, a precio constante, sobre la venta del período cerrado) — el supuesto de la simulación es el monto, no el % */
   const _convDinero = volumenVar.money != null ? ` (${_moneyK(volumenVar.money / _fxT())} de crecimiento a precio constante, sobre la venta del período cerrado)` : "";
-  const _ctx = `supuesto: precio ${precioVar.pct > 0 ? "+" : ""}${precioVar.pct}% · volumen ${volumenVar.pct > 0 ? "+" : ""}${volumenVar.pct}%${_convDinero} sobre ${entity} (dato real)`;
-  const _fVenta = `venta × (1${precioVar.pct >= 0 ? "+" : ""}${precioVar.pct}%) × (1${volumenVar.pct >= 0 ? "+" : ""}${volumenVar.pct}%)`;
+  const _ctx = `supuesto: precio ${precioVar.pct > 0 ? "+" : ""}${precioVar.pct}% · volumen ${volumenVar.pct > 0 ? "+" : ""}${_pVtxt}${_convDinero} sobre ${entity} (dato real)`;
+  const _fVenta = `venta × (1${precioVar.pct >= 0 ? "+" : ""}${precioVar.pct}%) × (1${volumenVar.pct >= 0 ? "+" : ""}${_pVtxt})`;
 
   // OJO: NO uses claves que matcheen /pct/i acá (ej. "precioPct") — enrichFromFacts (ledger.js) camina `facts`
   // recursivamente y auto-autoriza CUALQUIER número cuya CLAVE matchee ese patrón como fig "% suelto", generando
   // cifras fantasma sin la entidad correcta en el label (bug real cazado en este mismo desarrollo). El supuesto YA
   // viaja legible en el `context` de cada fig de la boleta — no hace falta duplicarlo acá con un nombre riesgoso.
-  const facts = { entidad: entity, dimension: dim, deltaPrecio: precioVar.pct, deltaVolumen: volumenVar.pct, ventaActual: _moneyK(ventaActual), ventaNueva: _moneyK(ventaNueva) };
+  const facts = { entidad: entity, dimension: dim, deltaPrecio: precioVar.pct, deltaVolumen: _pVnum, ventaActual: _moneyK(ventaActual), ventaNueva: _moneyK(ventaNueva) };
   // assumptions ESTRUCTURADAS (owner 2026-07-31, evidenceSpec) — el `_ctx` de arriba ya trae el supuesto en PROSA
   // (para el fig.context); esto es la MISMA información, {campo, delta} por variable, para que sentrixEvidence.js
   // la levante sin re-parsear el string. OJO (mismo landmine que el comentario de arriba, no alcanza con anidarlo
@@ -935,7 +940,7 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
   // comentario ya documentó). `delta` no matchea ningún patrón de `_KEYUNIT` → no genera fig fantasma.
   facts.assumptions = [
     { campo: precioVar.campo, delta: precioVar.pct },
-    { campo: volumenVar.campo, delta: volumenVar.pct },
+    { campo: volumenVar.campo, delta: _pVnum },
   ];
   // Precio/Volumen propuesto COMO FIG DE LA BOLETA (owner 2026-07-31, hallazgo EN VIVO, certificación integral) —
   // sin esto, el % del supuesto (8%, -2%…) SOLO vivía en `facts`/`context`, nunca como una cifra autorizada
@@ -956,7 +961,7 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
     // TODO el resto de figs pct de este archivo (Margen actual/supuesto, más abajo) — ninguna fuerza el "+".
     fig(`${entity} · Precio propuesto`, `${precioVar.pct}%`, { unit: "pct", raw: precioVar.pct, source: "actual", context: _ctx }),
     // con un crecimiento en dinero el % NO es lo que el usuario dijo: lo calculó la tool (monto ÷ venta del período cerrado, a precio constante) — se rotula derivado y con su fórmula
-    fig(`${entity} · Volumen propuesto`, `${volumenVar.pct}%`, volumenVar.money != null
+    fig(`${entity} · Volumen propuesto`, _pVtxt, volumenVar.money != null
       ? { unit: "pct", raw: volumenVar.pct, source: "computed", formula: "crecimiento en dinero / venta del período cerrado × 100 (a precio constante)", context: _ctx }
       : { unit: "pct", raw: volumenVar.pct, source: "actual", context: _ctx }),
   ];
@@ -974,7 +979,7 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
     facts.margenActual = `${margenActual}%`; facts.margenNuevo = `${margenNuevo}%`;
     boleta.push(
       fig(`${entity} · Costo actual`, _moneyK(costoActual), { unit: "money", raw: costoActual * _fxT(), source: "actual", context: _ctx }),
-      fig(`${entity} · Costo supuesto`, _moneyK(costoNuevo), { unit: "money", raw: costoNuevo * _fxT(), source: "computed", formula: `costo × (1${volumenVar.pct >= 0 ? "+" : ""}${volumenVar.pct}%)`, context: _ctx }),
+      fig(`${entity} · Costo supuesto`, _moneyK(costoNuevo), { unit: "money", raw: costoNuevo * _fxT(), source: "computed", formula: `costo × (1${volumenVar.pct >= 0 ? "+" : ""}${_pVtxt})`, context: _ctx }),
       fig(`${entity} · Contribución actual`, _moneyK(contribActual), { unit: "money", raw: contribActual * _fxT(), source: "actual", context: _ctx }),
       fig(`${entity} · Contribución supuesta`, _moneyK(contribNueva), { unit: "money", raw: contribNueva * _fxT(), mandatory: true, source: "computed", formula: "venta supuesta − costo supuesto", context: _ctx }),
       fig(`${entity} · Margen actual`, `${margenActual}%`, { unit: "pct", raw: margenActual, source: "actual", context: _ctx }),

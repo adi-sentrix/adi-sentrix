@@ -178,6 +178,21 @@ export function sujetoDeTema(tema) {
   return d ? d.sujeto : null;
 }
 
+/* ── ¿el universo de una parte declara una restricción PROPIA? (§7.3·17 y ·39d) ────────────────────────────────
+ * UNA sola prueba para las tres capas que la necesitan (`encargo/lecturasDe.js`, `entrega/componer.js`, `entrega/verificar.js`):
+ * antes eran tres copias que se desalineaban («un cambio en cualquiera se revisa en los otros dos»). Un universo es PROPIO si
+ * recorta el eje entero: `top`, `base`, `bodega`, `union`, `estados`/`no_estados`/`filtros`, o —§7.3·39(d)— una EXCLUSIÓN
+ * (`excluir`: entidades, conjuntos de la casa, estados, bodega o ranking). «Todas las cuentas menos las que tienen saldo vencido»
+ * restringe lo servido igual que un `base`; sin esta pregunta la parte caía a la lente multitema y el recorte se perdía en silencio. */
+export function universoTieneRestriccionPropia(u) {
+  if (!u || typeof u !== "object") return false;
+  const lista = (x) => Array.isArray(x) && x.length > 0;
+  const ex = u.excluir && typeof u.excluir === "object" ? u.excluir : null;
+  return !!(u.top || u.base || u.bodega
+    || lista(u.union) || lista(u.estados) || lista(u.no_estados) || lista(u.filtros)
+    || (ex && (lista(ex.entidades) || lista(ex.conjuntos) || lista(ex.estados) || ex.bodega || (Array.isArray(ex.top) ? ex.top.length > 0 : !!ex.top))));
+}
+
 /* ── constructores de las formas de salida (§2), sin ninguna lógica: solo la forma ─────────────────────────── */
 export function nuevoNoResuelto({ parte = null, campo, valor, motivo, detalle = "", alternativas = [] }) {
   return { parte, campo, valor, motivo, detalle, alternativas: alternativas || [] };

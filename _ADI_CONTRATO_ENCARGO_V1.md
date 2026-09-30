@@ -664,6 +664,16 @@ venta a crédito, ley del owner).
     («equivale a X % de su venta del año cerrado, a precio constante»). Nunca se pasa un monto como porcentaje.
     (d) Dos conceptos con clave exacta distinta nunca casan por vocabulario («Capital inmovilizado» ≠ «Capital inmovilizado
     crítico»).
+39. [2026-09-29, supervisor; diagnóstico v15]
+    (a) Un porcentaje se escribe con el formato de la casa (`formatoDeLaCasa`) en toda superficie; ninguna tool arma su
+    propio formato. La cuenta usa el valor CRUDO, nunca el redondeado.
+    (b) El `valor` numérico de una premisa `cifra` sin unidad toma la unidad de su métrica (el léxico).
+    (c) En el veredicto de una premisa, un cero se dice en palabras de negocio junto a su cifra («no tiene saldo vencido
+    ($0)», «no tiene capital inmovilizado ($0)»), sea cero medido o por ausencia del conjunto. Mismo criterio para toda
+    métrica.
+    (d) Un universo con solo `excluir` (entidades o conjuntos) es un universo PROPIO: restringe lo servido y lleva la
+    procedencia y la referencia de sus conjuntos.
+    (e) En una tabla que mezcla partes, toda fila tiene su dueño (entidad) y su tema.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

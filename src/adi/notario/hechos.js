@@ -18,7 +18,7 @@ import { verificarAfirmaciones, conjuntoDeUniverso, valorDeRanking, valorDeRefer
 import { indiceDeEvidencia, mismoValor, unidadCompatible } from "./evidencia.js";
 import { normalizar, menosAscii, leerValor, direccionPorDefecto } from "./afirmacion.js";
 import { parsearLineasDeBloque, MARCA_FIN } from "./declaracion.js";
-import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO, opDe, esReferencia, AUSENTE_VALE_CERO } from "./lexico.js";
+import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO, opDe, esReferencia, AUSENTE_VALE_CERO, diasEnPalabras } from "./lexico.js";
 import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn, estadoDeclarado, ejeCompatible, COMPLEMENTO_V3, estadosValidosPara, formaDeEstado, verificarEstadoDeLaCasa, ESTADOS_PROPIOS, METRICA_DE_ESTADO } from "./estados.js";
 import { referenciaDeBase, referenciaDeEstado, conjuntoConocido } from "./conjuntosDeLaCasa.js";   // §7.3, tarea 4 (supervisor 2026-09-27, diagnóstico v8/v9): la tabla base→referencia y estado→referencia viven en UN registro, compartida con notario/verificar.js — nunca dos tablas que puedan divergir
 import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // §7.3·28 (SUPERVISOR, ley de registro del owner): ÚNICA fuente de "qué palabra está vetada del registro" — la misma que usa `_registro_gate`/`entrega/verificar.js` (regla `registro-informal`)
@@ -311,7 +311,7 @@ export function formatoDeLaCasa(raw, unidad) {
     case "money": return _fmtMoney(raw);
     case "pct": return _fmtPct(raw);
     case "pp": return `${(Math.abs(raw - Math.round(raw)) < 0.05 ? String(Math.round(raw)) : raw.toFixed(1))} pp`;
-    case "days": return `${Math.round(raw)} días`;
+    case "days": return diasEnPalabras(Math.round(raw));
     case "ratio": return `${raw.toFixed(1)}x`;
     default: return String(Math.round(raw * 100) / 100);
   }
@@ -356,6 +356,8 @@ const _fmtUmbral = (f, I = null) => {
   if (f.op === "entre") { const v = Array.isArray(f.valor) ? f.valor : [f.valor, f.hasta]; return `${nombre} entre ${val(v[0])} y ${val(v[1])}`; }
   return `${nombre} ${_OPS[f.op] || "superior a"} ${val(f.valor)}`;
 };
+/* la forma negada de un conjunto de la casa: la que el catálogo declara (`negado`) o, si es un estado de la casa con otro nombre («con saldo vencido» = en mora), la de `FORMA_DE_ESTADO`; null si no tiene */
+const _negadoDeConjunto = (n) => { const c = conjuntoConocido(n); if (c && c.negado) return c.negado; const e = estadoDeclarado(String(n)); return e ? formaDeEstado(e).negado : null; };
 export function nombrarUniverso(u, I = null) {
   if (!_es(u)) return typeof u === "string" ? u : Array.isArray(u) ? u.join(", ") : "";
   const eje = normalizar(u.eje || "cliente");
@@ -380,6 +382,9 @@ export function nombrarUniverso(u, I = null) {
   }
   for (const e of _lista(u.estados)) partes.push(formaDeEstado(_canonDe(e)).plural);
   for (const e of _lista(u.no_estados)) partes.push(formaDeEstado(_canonDe(e)).negado);
+  /* §7.3·39(d): un conjunto de la casa que el universo EXCLUYE se dice con su forma NEGADA («los clientes sin mora», «los clientes sin carga comercial alta»), sin repetir el sustantivo del eje; el que no la tiene cae a «fuera de …» */
+  const _sinNegado = [];
+  if (_es(u.excluir)) for (const n of _lista(u.excluir.conjuntos)) { const neg = _negadoDeConjunto(n); if (neg) partes.push(neg); else _sinNegado.push(n); }
   if (u.bodega) partes.push(`de ${u.bodega}`);
   for (const f of Array.isArray(u.filtros) ? u.filtros : []) partes.push(`con ${_fmtUmbral(f, I)}`);
   if (u.top) { const dir = normalizar(u.top.direccion || "mayor"); partes.push(`${u.top.k} de ${dir === "menor" ? "menor" : dir === "peor" ? "peor" : dir === "mejor" ? "mejor" : "mayor"} ${metricaDeClave(u.top.metrica).toLowerCase()}`); }
@@ -389,11 +394,12 @@ export function nombrarUniverso(u, I = null) {
   if (u.excluir && typeof u.excluir === "object") {
     const ex = u.excluir; const fuera = [];
     for (const e of _lista(ex.entidades)) fuera.push(e);
-    for (const n of _lista(ex.conjuntos)) fuera.push(n);
+    /* un conjunto de la casa que se excluye se dice con su forma de la casa y su sustantivo («fuera de los clientes con saldo vencido»), nunca el identificador a secas («fuera de con saldo vencido») */
+    for (const n of _sinNegado) fuera.push(`${art} ${plural} ${_nombreDeBase(n)}`);
     for (const e of _lista(ex.estados)) fuera.push(formaDeEstado(_canonDe(e)).grupo);
     if (ex.bodega) fuera.push(ex.bodega);
     for (const t of _lista(ex.top)) if (_es(t)) fuera.push(`${art} ${t.k} de ${normalizar(t.direccion || "mayor") === "menor" ? "menor" : "mayor"} ${metricaDeClave(t.metrica).toLowerCase()}`);
-    texto += ` fuera de ${fuera.join(" y ")}`;
+    if (fuera.length) texto += ` fuera de ${fuera.join(" y ")}`;
   }
   if (Array.isArray(u.union) && u.union.length) {
     /* una unión SIN restricción propia («los SKU» + sus ramas) no lleva la cabeza vacía delante: «los SKU inmovilizados críticos y los SKU en riesgo de quiebre», no «los SKU y los SKU…» */
@@ -506,9 +512,23 @@ function _deFig(H, I, f, sujeto = null) {
 }
 
 /* la traducción de un hecho tipado a la afirmación que verificar.js juzga (la casa canoniza; nada se lee de la prosa) */
+/* §7.3·39(b): el `valor` de una premisa `cifra` escrito como NÚMERO A SECAS (`9800`) es la cifra en la unidad de SU métrica —el léxico: dinero, días, %…—, nunca un `count`: un `count` no casa
+ * con una fig de dinero y el veredicto decía «la boleta no trae X» siendo falso (la fig estaba). El texto conserva EXACTAMENTE lo escrito (la precisión de lo dicho es la del número, no un
+ * redondeo de la casa: 9.900 no vale por 9.800). Una cifra ya escrita con su unidad («$9.800», «24%») no cambia; una métrica sin unidad propia o «count» tampoco. */
+const _UNIDAD_ESCRITA = { money: (n) => `$${n}`, pct: (n) => `${n}%`, pp: (n) => `${n} pp`, days: (n) => `${n}d`, ratio: (n) => `${n}x` };
+function _valorDeCifra(h) {
+  const v = h.valor;
+  const esNumero = typeof v === "number" || (typeof v === "string" && /^\s*[+-]?\d+(?:\.\d+)?\s*$/.test(v));
+  if (!esNumero || normalizar(h.tipo) !== "cifra" || h.metrica == null) return v;
+  const un = unidadDeClave(_claveDeMetricaDeUniverso(h.metrica));
+  const escribir = _UNIDAD_ESCRITA[un];
+  if (!escribir) return v;
+  const raw = Number(v);
+  return { raw, unidad: un, texto: escribir(String(v).trim().replace(/^\+/, "")) };
+}
 function _aV2(h, I) {
   const tipo = normalizar(h.tipo);
-  const base = { id: h.id, tipo, texto: `«${h.id}»`, sujeto: h.sujeto, metrica: h.metrica != null ? metricaDeClave(h.metrica) : "", valor: h.valor, periodo: h.periodo != null ? _periodoV2(h.periodo) : "" };
+  const base = { id: h.id, tipo, texto: `«${h.id}»`, sujeto: h.sujeto, metrica: h.metrica != null ? metricaDeClave(h.metrica) : "", valor: _valorDeCifra(h), periodo: h.periodo != null ? _periodoV2(h.periodo) : "" };
   const universo = (u, sujeto) => { if (_es(u)) return u; if (Array.isArray(u)) return u; if (typeof u === "string" && u.trim() && !/^(?:todos|todas|todo)$/i.test(u.trim())) return u; const r = typeof sujeto === "string" && sujeto !== "negocio" ? I.resolverEntidad(sujeto) : (Array.isArray(sujeto) && sujeto.length ? I.resolverEntidad(sujeto[0]) : null); return { eje: r && r.eje ? r.eje : "cliente" }; };
   switch (tipo) {
     case "orden": {
@@ -758,7 +778,8 @@ function _conteoTipado(H, h, I) {
   // al nivel de `u`): antes este barrido solo miraba `u.base`/`u.estados`/`u.no_estados` de la RAÍZ, así que un
   // conteo sobre un universo declarado como `union` (nunca como `base`/`estados` a secas) no encontraba ninguna
   // referencia que citar, aunque sus miembros SÍ nombren una (piso de rotación, vía «rota bien»/«rota lento»).
-  for (const nCrudo of [u.base, ..._lista(u.estados), ..._lista(u.no_estados), ...(Array.isArray(u.union) ? u.union.flatMap((v) => (_es(v) ? [v.base, ..._lista(v.estados), ..._lista(v.no_estados)] : [])) : [])].filter(Boolean)) {
+  /* §7.3·39(d): la exclusión por conjunto o estado de la casa cita la MISMA referencia que si fuera el `base` («todas menos las de carga comercial alta» dice el nivel de carga) */
+  for (const nCrudo of [u.base, ..._lista(u.estados), ..._lista(u.no_estados), ...(_es(u.excluir) ? [..._lista(u.excluir.conjuntos), ..._lista(u.excluir.estados)] : []), ...(Array.isArray(u.union) ? u.union.flatMap((v) => (_es(v) ? [v.base, ..._lista(v.estados), ..._lista(v.no_estados)] : [])) : [])].filter(Boolean)) {
     const fam = referenciaDeBase(String(nCrudo)) || referenciaDeEstado(_canonDe(nCrudo));
     if (!fam) continue;
     const rRef = valorDeReferencia(fam.concepto, I);
@@ -905,6 +926,8 @@ function _clausulasDeEstado(u, acc = []) {
   if (typeof u.base === "string") { const c = estadoDeclarado(u.base); if (c) acc.push({ canon: c, modo: "en" }); }
   for (const e of _lista(u.no_estados)) { const c = estadoDeclarado(String(e).replace(/_/g, " ")) || _canonDe(e); if (ESTADOS_CANON.has(c)) acc.push({ canon: c, modo: "no" }); }
   if (_es(u.excluir)) for (const e of _lista(u.excluir.estados)) { const c = estadoDeclarado(String(e).replace(/_/g, " ")) || _canonDe(e); if (ESTADOS_CANON.has(c)) acc.push({ canon: c, modo: "excluir" }); }
+  /* §7.3·39(d): un conjunto de la casa que ES un estado con otro nombre («con saldo vencido» = en mora) y se EXCLUYE dice en qué estado SÍ está la entidad; el mismo `estadoDeclarado` que resuelve un `base` (sin tabla aparte) */
+  if (_es(u.excluir)) for (const n of _lista(u.excluir.conjuntos)) { const c = estadoDeclarado(String(n)); if (c && ESTADOS_CANON.has(c)) acc.push({ canon: c, modo: "excluir" }); }
   for (const v of _lista(u.union)) _clausulasDeEstado(v, acc);
   return acc;
 }
@@ -957,6 +980,14 @@ function _verdadPropiaDeOrden(h, H, I) {
   if (!po) return base;
   const ocupantes = po.afirmado.filter((n) => normalizar(n) !== normalizar(ent.nombre)).map((n) => ({ entidad: n, metrica: _metricaPropia(I, n, clave) }));
   return { ...base, puesto: { n: po.n, de: po.de, dir: po.dir }, ...(ocupantes.length ? { ocupantes } : {}) };
+}
+/* §7.3·37a/38a/39(b): la premisa `cifra` FALSA dice la entidad con SU cifra en ESA clave —en el mismo registro que el orden y la relación—, nunca la cifra errónea del usuario */
+function _verdadPropiaDeCifra(h, H, I) {
+  const sujeto = _sujetoUnico(h.sujeto);
+  const ent = sujeto ? I.resolverEntidad(sujeto) : null;
+  if (!ent) return null;
+  const metrica = _metricaPropia(I, ent.nombre, _claveDeMetricaDeUniverso(h.metrica));
+  return metrica ? { entidad: ent.nombre, eje: normalizar(ent.eje || ""), estado: null, metrica, puesto: null } : null;
 }
 function _verdadPropiaDeRelacion(h, H, I) {
   const r = _es(h.relacion) ? h.relacion : {};
@@ -1104,7 +1135,12 @@ export function libroDeHechos(hechos, ctx = {}) {
       if (a2.relacion && a2.relacion.vs) { const vsS = _lista(a2.relacion.vs.sujeto); H.roles.vs = vsS.map(String); for (const s of vsS) _addEnt(H, I, typeof s === "string" ? s : null); if (a2.relacion.vs.metrica) _addClave(H, a2.relacion.vs.metrica); }
       if (a2.grupo) { H.roles.miembros = _lista(a2.grupo.entidades).map(String); for (const s of H.roles.miembros) _addEnt(H, I, s); }
       if (a2.estado) { H.estado = _canonDe(a2.estado.estado); H.roles.bodega = a2.estado.bodega || null; if (a2.estado.bodega) _addEnt(H, I, a2.estado.bodega); H.dominio = H.dominio || dominioDeEstado(H.estado); H.render.estado = nombreDeEstado(H.estado); }
-      if (a2.valor != null) _addNum(H, a2.valor);
+      if (a2.valor != null) {
+        _addNum(H, a2.valor);
+        /* 39(b): el número a secas se JUZGA con su precisión exacta (`_valorDeCifra`) pero se DICE con el formato de la casa («$10K»), igual que la misma cifra en toda superficie */
+        const nv = H.numeros[H.numeros.length - 1];
+        if (nv && _valorDeCifra(h) !== h.valor) nv.texto = formatoDeLaCasa(nv.raw, nv.unidad) || nv.texto;
+      }
       if (a2.relacion) { if (a2.relacion.valor != null) _addNum(H, a2.relacion.valor); if (Number.isFinite(+a2.relacion.k)) { H.numeros.push({ raw: +a2.relacion.k, unidad: "ratio", texto: String(a2.relacion.k) }); H.render.k = String(a2.relacion.k); } H.render.rel = _renderRelacion(a2, I); H.matiz = a2.relacion.matiz || ""; H.direccion = a2.relacion.forma; }
       if (a2.orden) { H.forma = normalizar(String(a2.orden.forma || "")); if (Number.isFinite(+a2.orden.k)) { H.numeros.push({ raw: +a2.orden.k, unidad: "count", texto: String(a2.orden.k), dueno: "universo" }); H.render.k = String(a2.orden.k); } H.direccion = a2.orden.direccion || direccionPorDefecto(a2.orden.forma);   /* UNA SOLA definición (R-DIRECCION, diagnóstico v3): afirmacion.js:direccionPorDefecto — antes esta línea y la puerta de completitud de afirmacion.js discrepaban (acá ya trataba topk=mayor, allá solo max/min) */ H.forma = a2.orden.forma; }
       if (a2.variacion) { if (a2.variacion.valor != null) _addNum(H, a2.variacion.valor); H.direccion = a2.variacion.direccion; H.periodo = periodoDe(h.periodo || "anterior"); H.claves.add(H.periodo === "presupuesto" ? "vs_presupuesto" : "variacion"); }
@@ -1238,7 +1274,7 @@ export function libroDeHechos(hechos, ctx = {}) {
           H.verdad = `${H.verdad || ""}${H.verdad ? ", " : ""}${refTxtE}`;
           H.numeros.push({ raw: rRefE.raw, unidad: rRefE.unidad || "pct", texto: valTxtE, dueno: "referencia" });
         }
-        H.render.referencia = H.render.referencia ? `${H.render.referencia}, ${refTxtE}` : refTxtE;
+        if (!(H.render.referencia && H.render.referencia.includes(refTxtE))) H.render.referencia = H.render.referencia ? `${H.render.referencia}, ${refTxtE}` : refTxtE;   /* sin repetir la que el `base` ya dijo */
         if (!H.ok && H.roles.sujetos.length === 1 && H.roles.sujetos[0] !== "negocio" && ![...H.claves].some((c) => c === famE.metrica)) {
           const _fPropE = _figDe(I, H.roles.sujetos[0], famE.metrica);
           if (_fPropE) { H.numeros.unshift({ raw: _fPropE.raw, unidad: _fPropE.unidad, texto: _fPropE.texto || "", clave: famE.metrica }); H.claves.add(famE.metrica); }
@@ -1336,6 +1372,7 @@ export function libroDeHechos(hechos, ctx = {}) {
       /* decisión 38(a) (diagnóstico v14): el MISMO punto único para el orden y la relación falsos */
       if (H.tipo === "orden" && H.veredicto === "falsa") { const vp = _verdadPropiaDeOrden(h, H, I); if (vp) H.render.verdadPropia = vp; }
       if (H.tipo === "relacion" && H.veredicto === "falsa") { const vp = _verdadPropiaDeRelacion(h, H, I); if (vp) H.render.verdadPropia = vp; }
+      if (H.tipo === "cifra" && H.veredicto === "falsa") { const vp = _verdadPropiaDeCifra(h, H, I); if (vp) H.render.verdadPropia = vp; }   // 39(b): la cifra falsa dice la verdad propia
       // decisión del supervisor 2026-09-29 (v13, misma raíz que A2): una premisa de grupo VERDADERA nombra a sus entidades y dice el universo con las palabras de la casa (`FORMA_DE_ESTADO`), nunca la traza `estados «…»`
       if (H.tipo === "grupo" && H.veredicto === "verdadera" && _es(h.universo) && H.roles.sujetos.length && !H.roles.sujetos.includes("negocio")) {
         const nombres = H.roles.sujetos.map((s) => { const r = I.resolverEntidad(s); return r ? r.nombre : s; });

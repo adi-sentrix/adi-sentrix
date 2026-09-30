@@ -359,8 +359,9 @@
   {
    "id": "tr-017",
    "contexto": "ambos",
-   "esperado": "no-verificable",
-   "motivo": "sin-evidencia: la boleta no trae capital frenado para Concepción (solo Valparaíso y Antofagasta tienen la cifra)",
+   "esperado": "falsa",
+   "motivo": "cifra-distinta: la cifra propia de Concepción en capital inmovilizado crítico es $0 (la bodega no tiene capital en ese conjunto; el ranking solo publica Valparaíso y Antofagasta)",
+   "reetiquetado": "2026-09-29 · decisión 39(c) del supervisor (diagnóstico v15): antes «no-verificable» (sin-evidencia: la boleta no trae la cifra de Concepción). La métrica declara que ausente = 0 (`AUSENTE_VALE_CERO`: capital_frenado), así que la cifra propia de Concepción es $0 y $10K es falsa — la misma clase que Z12.q2 y Z14.q1 del catálogo v15. Reetiquetado con su motivo; el verificador no se ajustó a un rótulo falso.",
    "afirmacion": {
     "tipo": "cifra",
     "sujeto": "Concepción",

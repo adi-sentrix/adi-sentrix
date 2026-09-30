@@ -24,6 +24,7 @@ import { normalizar } from "../notario/afirmacion.js";
 // REGLA 18 (supervisor 2026-09-27, diagnóstico v8, §7.3·17) — `conjuntoDeUniverso` es LA MISMA primitiva pura
 // que ya usa el Notario y `entrega/componer.js` para resolver un universo tipado: nunca una segunda definición.
 import { conjuntoDeUniverso } from "../notario/verificar.js";
+import { universoTieneRestriccionPropia } from "../encargo/esquema.js";
 
 const _PALABRAS = (t) => String(t || "").trim().split(/\s+/).filter(Boolean);
 /** contarPalabras(texto) → cantidad de palabras — la MISMA cuenta que ya usa la regla 8, exportada para que
@@ -637,7 +638,7 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
   // reglas 11/12, para no cambiar el comportamiento de ningún llamador viejo (las 4 rutas fijas, los gates que
   // no declaran encargo).
   if (resolucion && Array.isArray(resolucion.partes) && indice) {
-    const _tieneUniversoPropio = (u) => !!(u && (u.top || u.base || u.bodega || (Array.isArray(u.union) && u.union.length) || (Array.isArray(u.estados) && u.estados.length) || (Array.isArray(u.no_estados) && u.no_estados.length) || (Array.isArray(u.filtros) && u.filtros.length)));
+    const _tieneUniversoPropio = universoTieneRestriccionPropia;   // la prueba única de `encargo/esquema.js` (§7.3·17 y ·39d)
     for (const p of resolucion.partes) {
       if (!p || !["lectura", "decision"].includes(p.cierre)) continue;
       if (p.entidades && p.entidades.length) continue;   // entidad puntual: no es esta ley (§7.3·17 es solo para "sin entidades")

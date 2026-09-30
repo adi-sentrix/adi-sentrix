@@ -900,6 +900,8 @@ function _cifra(a, I) {
     if (a.base) { let cb = null; try { cb = calcularConBase(a, I); } catch { cb = null; } if (cb) return cb.veredicto === "ok" ? _ok(cb.motivo, cb.evidencia, cb.verdad) : _falsa(cb.motivo, cb.verdad, cb.evidencia); }
     /* la proyección del dato (rankings sin escala ambigua) como evidencia cuando la boleta del turno no trae la fig */
     const rk = _delRanking(a, I);
+    /* §7.3·39(b): una entidad del eje que NO está en el ranking de una métrica de `AUSENTE_VALE_CERO` vale 0 (un hecho, no un hueco): la cifra dicha se juzga contra ese 0 —«no hay fig» nunca es «sin evidencia» cuando la métrica declara que ausente es cero— */
+    if (!rk && v) { const c0 = _ceroPorAusencia(a, I, v.unidad); if (c0) return _mismoValor(v, 0, c0.unidad, c0.texto) ? _ok(`coincide con ${c0.label} = ${c0.texto}`, [c0.label], `${c0.label} = ${c0.texto}`) : _falsa(`cifra-distinta: la proyección dice ${c0.label} = ${c0.texto}`, `${c0.label} = ${c0.texto}`, [c0.label]); }
     if (rk && (_u(rk.unidad) === _u(v.unidad) || (v.unidad === "count" && rk.unidad === "days"))) {
       if (v.unidad === "count" && rk.unidad === "days") v = { ...v, unidad: "days", canon: `days:${v.raw}d` };
       if (_mismoValor(v, rk.raw, rk.unidad, rk.texto)) { const jb = _juicioDeBase(a, null, I); if (jb) return jb; return _ok(`coincide con ${rk.label} = ${rk.texto}`, [rk.label], `${rk.label} = ${rk.texto}`); }
@@ -1045,7 +1047,7 @@ function _grupo(a, I) {
     const explicito = _uObj || _NEGACION_RE.test(sU) || _EXCLUSION_RE.test(sU) || !!_umbralDe(sU) || _conjuntosConocidos(I).some((c) => c.re && c.re.test(sU));
     let U = null; if (explicito) { try { U = _conjuntoDeUniverso(a.universo, I, ejeG, a.metrica); } catch { U = null; } }
     _Umembresia = U;
-    if (U && U.set) { const fuera = declaradas.filter((e) => !U.set.has(normalizar(e))); if (fuera.length) return _falsa(`grupo-fuera-del-universo: ${_lista(fuera)} no pertenece${fuera.length > 1 ? "n" : ""} a «${a.universo}» (${U.fuente})`, `${U.fuente}`, []); }
+    if (U && U.set) { const fuera = declaradas.filter((e) => !U.set.has(normalizar(e))); if (fuera.length) return _falsa(`grupo-fuera-del-universo: ${_lista(fuera)} no pertenece${fuera.length > 1 ? "n" : ""} a «${typeof a.universo === "string" ? a.universo : U.fuente}» (${U.fuente})`, `${U.fuente}`, []); }
   }
   /* MEMBRESÍA PURA (R-GRUPO-SIN-VALOR, diagnóstico v6): sin valor declarado, `afirmacion.js` ya no exige metrica ni
    * valor para un `grupo` — esta es la premisa de pertenencia sin cifra («Jumbo está entre los clientes en mora»).
@@ -1180,6 +1182,12 @@ function _filas(a, I, eje) {
   const U = _conjuntoDeUniverso(a.universo, I, eje, a.metrica);
   if (U.error) return { error: U.error };
   if (U.set) filas = filas.filter((x) => U.set.has(normalizar(x.entidad)));
+  /* §7.3·39 (diagnóstico v15): con el ranking de la proyección y un conjunto DECLARADO, el miembro que el ranking no publica vale 0 solo en las métricas que lo declaran (`AUSENTE_VALE_CERO`: la entidad no pertenece al
+   * conjunto que la métrica define, p. ej. una cuenta de carga alta que no está bajo el benchmark no tiene brecha no capturada); en las demás sigue siendo «universo-incompleto» (falla cerrado) */
+  if (rk && U.set && filas.length < U.set.size) {
+    const claveC = _claveDeMetricaLex(a.metrica);
+    if (claveC && AUSENTE_VALE_CERO.includes(claveC)) { const vistos = new Set(filas.map((x) => normalizar(x.entidad))); for (const k of U.set) if (!vistos.has(k)) { const ent = I.entidades.get(k); filas.push({ entidad: ent ? ent.nombre : k, valor: 0, ausente: true }); } }
+  }
   if (!rk && !U.set && total && filas.length < total) return { error: `universo-incompleto: la boleta trae «${a.metrica}» de ${filas.length} de ${total} ${eje}s; el orden sobre el eje entero no se puede verificar` };
   if (U.set && filas.length < U.set.size) return { error: `universo-incompleto: faltan cifras de «${a.metrica}» para ${U.set.size - filas.length} del conjunto declarado (${U.fuente})` };
   /* un ranking PARCIAL (trae a menos que el eje): lo ausente vale 0 solo en las métricas que lo declaran; si no, el orden queda marcado como parcial */

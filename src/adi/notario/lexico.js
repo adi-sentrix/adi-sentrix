@@ -290,6 +290,17 @@ export const SINONIMOS_DE_CONJUNTO = {
  * de acá hace que `_topTipado`/`notario/verificar.js` declare `ranking-parcial` (falla cerrado, mismo criterio
  * que cualquier otra métrica sin ranking completo) en vez de inventar un cero que el dato no prueba. */
 export const AUSENTE_VALE_CERO = ["capital_frenado", "capital_inmovilizado", "no_capturada", "carga_alta", "dias_sin_venta", "saldo_vencido", "saldo_pendiente"];
+/* §7.3·39(c): EL CERO SE DICE EN PALABRAS DE NEGOCIO, junto a su cifra, con UN criterio para toda métrica de CANTIDAD: una cifra que vale exactamente 0 —medida (Jumbo, al día: «Saldo vencido $0») o por
+ * ausencia del conjunto que la métrica define (`AUSENTE_VALE_CERO`)— es «no tiene …». La forma es un dato de la casa (el verbo), no una lista de métricas: el nombre y la cifra son los de la
+ * métrica misma. Nunca «(ausente = 0)» ni el cero a secas como si fuera una cifra medida cualquiera. */
+export const FORMA_DE_CERO = Object.freeze({ verbo: "no tiene" });
+/* el cero en palabras vale solo para CANTIDADES —montos, unidades, conteos y días—: una TASA en 0 (margen, carga, recuperado, pp, veces) es una cifra medida con otro significado («sin contribución» ≤ 0 ≠ «sin margen», CLAUDE.md) y se dice con su cifra («margen 0%»). Dato de la casa, por unidad. */
+export const UNIDADES_DE_CANTIDAD = Object.freeze(["money", "days", "count"]);
+export const esCero = (raw, unidad) => Number.isFinite(raw) && raw === 0 && UNIDADES_DE_CANTIDAD.includes(unidad);
+export const dichoElCero = (nombre, texto) => `${FORMA_DE_CERO.verbo} ${nombre} (${texto})`;
+/* la unidad «día» con su singular y su plural, como DATO de la casa: «1 día», «68 días» (una sola escritura de la unidad en toda superficie; nunca «1 días») */
+export const UNIDAD_DIAS = Object.freeze({ singular: "día", plural: "días" });
+export const diasEnPalabras = (n) => { const x = typeof n === "number" ? n : parseFloat(String(n).replace(",", ".")); return `${n} ${x === 1 ? UNIDAD_DIAS.singular : UNIDAD_DIAS.plural}`; };
 /* las métricas con que se habla de cada estado (dentro de un ancla de estado esas palabras no son «métrica ajena») */
 export const METRICAS_DE_ESTADO = {
   "al dia": ["saldo_vencido", "dias_vencido"], "en mora": ["saldo_vencido", "dias_vencido"], "sin deuda": ["saldo_pendiente", "saldo_vencido"], "sin pagos": ["abonado", "recuperado"],

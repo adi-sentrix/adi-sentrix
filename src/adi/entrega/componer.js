@@ -59,7 +59,7 @@ import { crearEntrega } from "./esquema.js";
 // sentido: clave → `nombre` (el rótulo humano, "Venta"/"Margen"/…) que las figs YA traen ("Entidad · Venta"), la
 // MISMA convención que las 4 rutas fijas ya explotan a mano (`figVenta`, `figMargen`, …) — nunca una segunda tabla.
 import { lecturasDe, REGISTRO_LECTURAS, consultaDeFrenado as _consultaDeFrenado, estadosDeUniverso as _estadosDeUniverso, frenadoSinUmbral as _frenadoSinUmbral } from "../encargo/lecturasDe.js";
-import { metricaPorClave, claveDeMetrica, dominioDeClave, unidadDeClave, conteoDeEje, conPreposicion, sintagmaDe } from "../notario/lexico.js";
+import { metricaPorClave, claveDeMetrica, dominioDeClave, unidadDeClave, conteoDeEje, conPreposicion, sintagmaDe, esCero, dichoElCero, diasEnPalabras } from "../notario/lexico.js";
 import { ausenciaPorId } from "../../config/contract/ausencias.js";   // Etapa 2 §2 (owner 2026-09-23): las ausencias del dato, declaradas UNA vez
 // Etapa 2 §4 (owner 2026-09-23, plan §3 «cómo se pega al cliente») — EL PERFIL DEL CLIENTE viaja en el Marco,
 // como los demás hechos: `getTenantData()` es el MISMO acceso que ya usa todo `oracle/` (datoProyectado.js,
@@ -93,7 +93,7 @@ import { alcanceDeParte, figsEnAlcance, recortarATop } from "./alcance.js";
 // desaparece»). `PROFUNDIDAD_VALORES`/`CAMPOS_RAIZ` son la MISMA fuente que ya valida `encargo/validar.js` —
 // nunca una segunda lista de profundidades válidas ni un segundo orden de campos del encargo.
 import { gobernarTamano } from "./tamano.js";
-import { PROFUNDIDAD_VALORES, CAMPOS_RAIZ, productorDe, sujetoDeTema } from "../encargo/esquema.js";
+import { PROFUNDIDAD_VALORES, CAMPOS_RAIZ, productorDe, sujetoDeTema, universoTieneRestriccionPropia } from "../encargo/esquema.js";
 import { dominioPorId } from "../../config/contract/dominios.js";
 import { createHash } from "node:crypto";
 // CORTE 3e (owner 2026-09-26, «la Entrega no le habla a nadie», REFINADO) — la pregunta abierta con función
@@ -1237,7 +1237,7 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
   // gobierna tamaño (`gobernarTamano` no la ejercita: `entrega.detalle`/`entrega.meta` quedan `null` siempre),
   // así que el «si el tope lo permite» del owner es hoy un SÍ incondicional — no hay tope de palabras que la
   // tabla de esta ruta pueda exceder por desabreviar una unidad.
-  const _desabreviarDiasTabla = (t) => String(t == null ? "" : t).replace(/\b(\d+(?:[.,]\d+)?)d\b/g, "$1 días");
+  const _desabreviarDiasTabla = (t) => String(t == null ? "" : t).replace(/\b(\d+(?:[.,]\d+)?)d\b/g, (_, n) => diasEnPalabras(n));   // singular/plural de la casa (lexico.js): «1 día», «68 días»
   for (const fila of filasMap.values()) {
     const hechosFila = [fila.materialidad, fila.severidad, fila.urgencia].filter(Boolean);
     if (!hechosFila.length) continue;
@@ -1834,7 +1834,9 @@ const _universoNoSoportado = _universoPorEstadoSinTop;
 // que recorta el eje entero (top, base, bodega, union, o estados/no_estados/filtros — con o sin top). Una parte
 // con AL MENOS uno de estos declarado tiene que componerse sobre ESE universo, nunca sobre la lente de negocio
 // del dominio (`_planMultiTema`), que queda reservada para la parte genuinamente sin restricción propia.
-const _tieneUniversoPropio = (u) => !!(u && (u.top || u.base || u.bodega || (Array.isArray(u.union) && u.union.length) || _tieneEstadoOFiltro(u)));
+// §7.3·39(d): una EXCLUSIÓN (`excluir`) también recorta. La prueba es UNA sola, en `encargo/esquema.js`, compartida con
+// `encargo/lecturasDe.js` y `entrega/verificar.js` (antes tres copias).
+const _tieneUniversoPropio = universoTieneRestriccionPropia;
 
 /* ═══ CORTE 3c · PIEZA 1 (owner 2026-09-25) — UNIVERSO POR ESTADO, con los CONJUNTOS que el Core ya calcula ═══════
  * «Sobre el nivel de carga», «bajo el benchmark», «en mora», «frenado»… no son un motor de estados nuevo: son
@@ -2034,7 +2036,8 @@ function _rotuloDeLaCasaLegado(H) {
   // DECISIÓN 38(a) (diagnóstico v14 · A3): el MISMO registro vale para el ORDEN y la RELACIÓN falsos —el libro arma `contra` (la otra entidad con su cifra: un comparativo o una relación dicen las DOS cifras),
   // `puesto` (el real del sujeto) y `ocupantes` (quién ocupa el puesto afirmado, con su cifra)—; una cifra 0 por ausencia (`metrica.ausente`: la entidad no pertenece al conjunto que la métrica define)
   // se dice «no tiene …», nunca «(ausente = 0)».
-  const _dice = (m) => (m ? (m.ausente ? `no tiene ${m.nombre} (${m.texto})` : `${m.nombre} ${m.texto}`) : "");
+  // 39(c) (diagnóstico v15): UN criterio para toda métrica —un cero, medido o por ausencia del conjunto, se dice «no tiene …» junto a su cifra (`dichoElCero`, la forma de la casa en el léxico)—.
+  const _dice = (m) => (m ? (m.ausente || esCero(m.raw, m.unidad) ? dichoElCero(m.nombre, m.texto) : `${m.nombre} ${m.texto}`) : "");
   const vp = H.render && H.render.verdadPropia;
   if (vp && vp.entidad) {
     const nombreM = vp.metrica ? vp.metrica.nombre : null;
@@ -2090,7 +2093,7 @@ function _rotuloDeLaCasaLegado(H) {
     const periodoTxt = H.periodo === "presupuesto" ? "contra el presupuesto" : "contra el año anterior";
     return `${entidad} ${verbo} ${valor}${conceptoTxt ? ` en ${conceptoTxt}` : ""} ${periodoTxt}${refTxt}`;
   }
-  if (conceptoTxt) return `${entidad}: ${conceptoTxt} ${valor}${refTxt}`;
+  if (conceptoTxt) return `${entidad}: ${esCero(cifraPropia.raw, cifraPropia.unidad) ? dichoElCero(conceptoTxt, valor) : `${conceptoTxt} ${valor}`}${refTxt}`;   // 39(c): el mismo criterio del cero en el rótulo genérico
   return null;
 }
 function _textoVerdadDerivada(H, libroPremisas) {
@@ -2100,6 +2103,8 @@ function _textoVerdadDerivada(H, libroPremisas) {
 function _basesDeUniverso(u, acc = new Set()) {
   if (!u || typeof u !== "object") return acc;
   if (typeof u.base === "string" && u.base.trim()) acc.add(u.base.trim());
+  /* §7.3·39(d): un conjunto de la casa que el universo EXCLUYE («todas menos las de carga comercial alta») pone en juego el MISMO umbral que si fuera el `base`: la exclusión lo cita igual */
+  if (u.excluir && typeof u.excluir === "object") for (const n of Array.isArray(u.excluir.conjuntos) ? u.excluir.conjuntos : []) if (typeof n === "string" && n.trim()) acc.add(n.trim());
   for (const v of Array.isArray(u.union) ? u.union : []) _basesDeUniverso(v, acc);
   return acc;
 }
@@ -2143,8 +2148,8 @@ function _textoDePremisa(H, libroPremisas, consulta = null) {
   // de carga — ver las apariciones de esa frase más abajo, sin tocar). Para una premisa, tercera persona con el
   // dueño correcto: «la premisa planteada en la consulta».
   if (H.veredicto === "verdadera") return `Sobre la premisa planteada en la consulta: es correcto — ${verdadCasa}.`;
-  // 38(a): con `contra` la oración ya dice las DOS cifras con su dueño; la traza de la verdad derivada («La verdad: …») repetiría lo mismo con la notación interna
-  if (H.veredicto === "falsa") { const vd = H.render && H.render.verdadPropia && H.render.verdadPropia.contra ? "" : _textoVerdadDerivada(H, libroPremisas); return `Sobre la premisa planteada en la consulta: no es así — ${verdadCasa}${vd ? `. La verdad: ${vd}` : ""}.`; }
+  // 38(a)/39(b): con `contra` la oración ya dice las DOS cifras con su dueño, y una `cifra` falsa ya dice la suya con su dueño; la traza de la verdad derivada («La verdad: …») repetiría lo mismo con la notación interna
+  if (H.veredicto === "falsa") { const vd = H.render && H.render.verdadPropia && (H.render.verdadPropia.contra || H.tipo === "cifra") ? "" : _textoVerdadDerivada(H, libroPremisas); return `Sobre la premisa planteada en la consulta: no es así — ${verdadCasa}${vd ? `. La verdad: ${vd}` : ""}.`; }
   return `Sobre la premisa planteada en la consulta, no se pudo verificar con este dato: ${H.motivo}.`;
 }
 
@@ -3622,7 +3627,12 @@ export function componerEntrega(resolucion) {
         // oraciones, ver más abajo), para que `gobernarTamano` recorte fila+oración del mismo bloque JUNTAS.
         const _filaSim = (entidadTxt, etiqueta, id, prioridad = 0) => {
           const procedencia = _procedenciaDeFila(libro, [id]);
-          return { valores: { Entidad: entidadTxt, "Simulación": simulacionTxt, Supuesto: supuestoTxt, Métrica: etiqueta, Valor: R(id), Tipo: _textoDeTipo(procedencia) }, hechos: [id], procedencia, entidad: entidadTxt === "Negocio" ? "negocio" : entidadTxt, escenarioId: plan.supuesto.id, supuestoId: plan.supuesto.id, prioridad };
+          // §7.3·39(e): en una Entrega MIXTA (la simulación comparte tabla con otro cierre) la tabla es la genérica —Entidad / grupo · Tema · Métrica · Valor · Tipo—: cada fila lleva SU dueño y su tema, y el
+          // rótulo de la métrica dice de qué simulación y supuesto es (la fila sigue siendo indivisible). Con SOLO simulación, la tabla propia de siempre (sin cambio).
+          const _valoresFila = _esSoloSimulacion
+            ? { Entidad: entidadTxt, "Simulación": simulacionTxt, Supuesto: supuestoTxt, Métrica: etiqueta, Valor: R(id), Tipo: _textoDeTipo(procedencia) }
+            : { "Entidad / grupo": entidadTxt, "Tema": _DOM_NOMBRE[plan.tema] || plan.tema, "Métrica": `${etiqueta} (simulación: ${String(supuestoTxt).charAt(0).toLowerCase()}${String(supuestoTxt).slice(1)})`, "Valor": R(id), "Tipo": _textoDeTipo(procedencia) };
+          return { valores: _valoresFila, hechos: [id], procedencia, entidad: entidadTxt === "Negocio" ? "negocio" : entidadTxt, escenarioId: plan.supuesto.id, supuestoId: plan.supuesto.id, prioridad };
         };
 
         // LÉXICO DE LA CASA (owner 2026-09-26, ronda final del corte) — la tabla de una simulación sirve SOLO
@@ -4274,7 +4284,7 @@ export function componerEntrega(resolucion) {
   // fijas (que arman su propio texto, nunca por acá) no se tocan. El número YA está registrado en
   // `cifrasImpresas` (vía `R`, antes de esta transformación de texto): la regla 1 lo sigue reconociendo porque
   // compara por SUBCADENA ("269".includes en "269d").
-  const _desabreviarDias = (t) => String(t || "").replace(/\b(\d+(?:[.,]\d+)?)d\b/g, "$1 días");
+  const _desabreviarDias = (t) => String(t || "").replace(/\b(\d+(?:[.,]\d+)?)d\b/g, (_, n) => diasEnPalabras(n));   // singular/plural de la casa (lexico.js): «1 día», «68 días»
   entrega.respuesta = entrega.respuesta.map((r) => ({ ...r, texto: _desabreviarDias(r.texto) }));
   entrega.paraSuJuicio = entrega.paraSuJuicio.map((p) => ({ ...p, texto: _desabreviarDias(p.texto) }));
 

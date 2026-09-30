@@ -41,14 +41,14 @@ export const NOMBRE_CARGA_ALTA = "carga comercial alta";
 export const NOMBRE_SOBRE_NIVEL_CARGA = "sobre el nivel declarado de carga";
 const _CARGA = [
   /* `precede` (owner 2026-09-29): la preposición con que el nombre califica a un grupo — «los clientes CON carga comercial alta» (el nombre a secas es un sustantivo: «los clientes carga comercial alta» no se dice). Dato de la casa, como `visible`; el nombre no cambia. */
-  { nombre: NOMBRE_CARGA_ALTA, eje: "cliente", familia: "carga", precede: "con" },
-  { nombre: NOMBRE_SOBRE_NIVEL_CARGA, eje: "cliente", familia: "carga" },
+  { nombre: NOMBRE_CARGA_ALTA, eje: "cliente", familia: "carga", precede: "con", negado: "sin carga comercial alta" },
+  { nombre: NOMBRE_SOBRE_NIVEL_CARGA, eje: "cliente", familia: "carga", negado: "que no están sobre el nivel declarado de carga" },
 ];
 
 /* la familia BENCHMARK: mismos nombres exactos que ya declara `notario/verificar.js:_conjuntosConocidos` */
 const _BENCHMARK = [
-  { nombre: "bajo el benchmark", eje: "cliente", familia: "benchmark" },
-  { nombre: "sobre el benchmark", eje: "cliente", familia: "benchmark" },
+  { nombre: "bajo el benchmark", eje: "cliente", familia: "benchmark", negado: "que no están bajo el benchmark" },
+  { nombre: "sobre el benchmark", eje: "cliente", familia: "benchmark", negado: "que no están sobre el benchmark" },
   { nombre: "margen supuesto sobre el benchmark", eje: "cliente", familia: "benchmark" },
   { nombre: "margen supuesto bajo el benchmark", eje: "cliente", familia: "benchmark" },
   { nombre: "SKU bajo el benchmark", eje: "sku", familia: "benchmark" },
@@ -72,9 +72,9 @@ export const NOMBRE_CON_CAPITAL_INMOVILIZADO_CRITICO = "con capital inmovilizado
 export const NOMBRE_CON_CAPITAL_FRENADO = NOMBRE_CON_CAPITAL_INMOVILIZADO_CRITICO;
 const _ESTADO_DEPENDIENTE_DE_EJE_FIJO = [
   { nombre: NOMBRE_CON_SALDO_VENCIDO, eje: "cliente", familia: "estado" },
-  /* `visible` (owner 2026-09-29): cómo se IMPRIME el nombre cuando califica a un grupo («los SKU con capital inmovilizado
+  /* `negado` (2026-09-29, §7.3·39d): la forma NEGADA del conjunto, para el universo que lo EXCLUYE («los clientes sin carga comercial alta»); un conjunto que es un estado de la casa toma la suya de `FORMA_DE_ESTADO`. `visible` (owner 2026-09-29): cómo se IMPRIME el nombre cuando califica a un grupo («los SKU con capital inmovilizado
    * crítico»); `nombre` es el identificador sin tilde y no se imprime. Solo lo llevan los que difieren. */
-  { nombre: NOMBRE_CON_CAPITAL_INMOVILIZADO_CRITICO, eje: "sku", familia: "estado", visible: "con capital inmovilizado crítico" },
+  { nombre: NOMBRE_CON_CAPITAL_INMOVILIZADO_CRITICO, eje: "sku", familia: "estado", visible: "con capital inmovilizado crítico", negado: "sin capital inmovilizado crítico" },
 ];
 
 /** CONJUNTOS_DE_LA_CASA → [{nombre, eje, familia}] · el catálogo ESTÁTICO completo (nombre + eje), sin membresía. */

@@ -56,7 +56,7 @@ import { cajaDelAgente } from "../agente/herramientasAgente.js";
 /* `pasosDelContratoComercial` NO se importa directo: `pasosDeDominios` (abajo) ya la llama por dentro cuando el
  * tema comercial participa sin eje explícito — importarla acá sería una segunda invocación que nadie usa. */
 import { pasosDeDominios } from "../agente/contratoDeDominios.js";
-import { sujetoDeTema, metricaCoreDe, productorDe } from "./esquema.js";
+import { sujetoDeTema, metricaCoreDe, productorDe, universoTieneRestriccionPropia } from "./esquema.js";
 import { dominioPorId } from "../../config/contract/dominios.js";
 import { dominioDeClave, polaridadDeClave, unidadDeClave } from "../notario/lexico.js";
 import { resolveEntityRef } from "../oracle/entityIndex.js";
@@ -134,17 +134,19 @@ const _FAM_COBRANZA = new Set(["venta_credito", "saldo_vencido", "saldo_pendient
  * viaja solo por el auto-walk de facts — reportado al supervisor, no cableado como productor de un concepto. */
 const _FAM_MARKUP = new Set(["markup"]);
 
-/* ¿esta parte declara una restricción PROPIA de universo? MISMA prueba (6 campos) que ya usan
- * `entrega/componer.js:_tieneUniversoPropio` y `entrega/verificar.js` regla 18 (§7.3·17) — copiada acá, nunca
- * importada, porque `lecturasDe.js` corre ANTES de que exista ninguna evidencia del turno y no depende de la
- * capa de composición (ver la cabecera del archivo: «cero lectura de `preguntaOriginal`», capas separadas). Un
- * cambio a esta prueba en cualquiera de los tres archivos se revisa en los otros dos. */
-function _tieneUniversoPropio(u) {
-  return !!(u && (u.top || u.base || u.bodega
-    || (Array.isArray(u.union) && u.union.length)
-    || (Array.isArray(u.estados) && u.estados.length)
-    || (Array.isArray(u.no_estados) && u.no_estados.length)
-    || (Array.isArray(u.filtros) && u.filtros.length)));
+/* ¿esta parte declara una restricción PROPIA de universo? La prueba es UNA sola, compartida con `entrega/componer.js` y
+ * `entrega/verificar.js` (regla 18, §7.3·17 y ·39d): vive en `encargo/esquema.js` (la forma del encargo, sin evidencia
+ * del turno; esta capa ya la importa) — antes eran tres copias que se desalineaban. */
+const _tieneUniversoPropio = universoTieneRestriccionPropia;
+
+/* la PRIMERA parte de COBRANZA con universo propio (o, si ninguna, la de otro dominio del grupo, V81) le pasa su universo COMPLETO a las llamadas de `cobranza` que aún no lo llevan: `herramientasAgente.js:cobranza`
+ * ensancha la mesa al conjunto entero solo cuando lo recibe (opt-in del Encargo; la boleta del agente vivo no lo manda y queda byte-idéntica). Se aplica DESPUÉS de agregar las llamadas por concepto (§7.3·39, A7):
+ * una llamada que pide «Saldo por vencer» sin él solo traía el top 8 fijo y las demás cuentas del conjunto se servían sin la cifra pedida. */
+function _conUniversoRequerido(calls, partes) {
+  const parteConUniverso = partes.find((p) => p.tema === "cobranza" && _tieneUniversoPropio(p.universo))
+    || partes.find((p) => _tieneUniversoPropio(p.universo));
+  if (!parteConUniverso) return calls;
+  return calls.map((c) => (c.tool === "cobranza" && !(c.args && c.args.universoRequerido) ? { ...c, args: { ...c.args, universoRequerido: parteConUniverso.universo } } : c));
 }
 
 /** los nombres (resueltos, únicos, en orden) de las entidades tipadas de una parte. */
@@ -453,9 +455,7 @@ function _pasosLecturaDecision(partes) {
     // completa); solo si NINGUNA parte de cobranza declara universo propio se conserva el comportamiento de
     // siempre (tomar prestado el de otro dominio del mismo grupo, V81 — `_necesitaMesaCompleta`, en
     // `herramientasAgente.js:cobranza`, sigue siendo la guarda que evita fabricar una señal de severidad falsa).
-    const parteConTop = partes.find((p) => p.tema === "cobranza" && _tieneUniversoPropio(p.universo))
-      || partes.find((p) => _tieneUniversoPropio(p.universo));
-    if (parteConTop) out = out.map((c) => (c.tool === "cobranza" ? { ...c, args: { ...c.args, universoRequerido: parteConTop.universo } } : c));
+    out = _conUniversoRequerido(out, partes);
     // RAÍZ A1 (diagnóstico v13) — la misma regla que `_pasosCifra`: la cuenta que una parte de COBRANZA nombra se trae aunque
     // quede fuera del top 8 (nunca las entidades de otro dominio: cada parte pide solo las de su propio tema).
     const nombradas = _nombresDeEntidades(partes.filter((p) => p.tema === "cobranza").flatMap((p) => p.entidades || []));
@@ -480,6 +480,7 @@ function _pasosLecturaDecision(partes) {
     const ejeP = (p.universo && p.universo.eje) || p.eje || sujetoDeTema(p.tema);
     for (const c of (p.conceptos || [])) out.push(..._callsDeConceptoEje(p.tema, c, ejeP));
   }
+  if (dominios.includes("cobranza")) out = _conUniversoRequerido(out, partes);   // A7: las llamadas por concepto (recién agregadas) llevan el MISMO universo que la llamada base
   // «DÍAS SIN VENTA» COMO CONCEPTO DE LA PARTE (owner 2026-09-29, cierre del inventario): el paquete fijo del dominio trae el tramo crítico,
   // no los días de TODOS los SKU — una parte que los declara los pide con su productor (el mismo foco, aditivo, deduplicado abajo).
   for (const p of partes) if ((p.conceptos || []).some((c) => _FAM_DIAS_SIN_VENTA.has(c))) out.push(_CALL_DIAS_SIN_VENTA("dias_sin_venta — declarado por la parte: los días sin venta de TODOS los SKU, un hecho histórico (mesaCapital)"));
