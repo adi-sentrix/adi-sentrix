@@ -730,6 +730,17 @@ venta a crédito, ley del owner).
     prioridad, no la cartera completa.
     (d) El «de M» de un conteo es el tamaño del universo de la PREMISA, el mismo que la premisa planteó, no el de otra base.
     (e) Cada premisa lleva UNA sola traza de su verdad; nunca se repite.
+45. [2026-09-30, supervisor; diagnóstico v21] Reemplaza la 44(c).
+    (a) LA FOTO. Una `lectura` o `decision` sin universo ni entidades sirve el universo que su productor publica, en su
+    orden, con la prioridad del procedimiento encima. Lo declarado ES lo servido; la cola se declara («8 de 13 cuentas») y
+    una cuenta sana lleva su cero. En cobranza son las cuentas de la mesa; en inventario y comercial, el eje que sus conceptos
+    sostienen.
+    (b) El orden exhibido de la 43(f) rige DENTRO de cada parte `cifra`; una tabla que comparten dos partes no fija un orden
+    común.
+    (c) Una BODEGA pedida acota el universo servido, también el del hecho histórico de los días sin venta cuando no hay
+    umbral de frenado: «los frenados de Valparaíso» sirve los SKU de Valparaíso, nunca los de todas las bodegas.
+    (d) Una verdad propia puede llevar, además del estado propio, la cifra que lo define («está en mora, saldo vencido $2.5M»).
+    (e) Una lente se nombra con su nombre visible («por exposición de crédito»), nunca con su id interno.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

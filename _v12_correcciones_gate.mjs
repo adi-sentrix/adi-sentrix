@@ -34,6 +34,9 @@
  *         la oración que declara un empate no la retira el tope de tamaño (T100) · la pertenencia en el filo nombra al sujeto (T02 T32) · una definición sin curar se declara, no toma la de otra parte (T14) y se titula «objetivo» (T12) ·
  *         la verdad propia dentro del top que falla el estado es la cifra del estado (T46) · la exclusión por bodega lleva la referencia (T47) · los ceros por ausencia de una cifra sin top se empatan y se declaran (T36).
  *
+ *   A18 · decisión 45 (§7.3·45; diagnóstico v21): una BODEGA pedida acota el universo servido también en el hecho histórico de los días sin venta sin umbral de frenado, con el límite que lo dice (c, T70) ·
+ *         una lente se nombra con su nombre visible, nunca con su id: «por credito» → «por exposición de crédito» (e).
+ *
  * Solo por `npm run gates:offline` (o con el candado: node --import ./scripts/offline-guard.mjs _v12_correcciones_gate.mjs). Cero red. */
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -54,6 +57,7 @@ import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
 import { cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
 import { buildMesaFlujo } from "./src/adi/sentrix/mesaFlujo.js";
 import { objetivoPorMeta } from "./src/adi/llm/voiceGuard.js";
+import { CRITERIOS } from "./src/adi/agente/prioridadIntegrada.js";
 import fs from "node:fs";
 
 let pass = 0, fail = 0;
@@ -1220,6 +1224,54 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     ok(new RegExp(`Empate en el orden servido: puesto ${puesto} compartido por`).test(l) && ceros.every((n) => l.includes(n)), `la línea del orden dice «puesto ${puesto} compartido por» y nombra a los ${ceros.length}`, l);
     const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital_inmovilizado", "capital"], eje: "sku", universo: { eje: "sku", top: { metrica: "capital_inmovilizado", k: 6 } } }] });
     ok(E2.ok && !lineas(E2).some((t) => /Empate en el orden servido/.test(t)), "CONTROL NEGATIVO · con `top` el corte puede partir el grupo en cero: no se declara un empate a medias (lo dice el empate del filo)", JSON.stringify(lineas(E2).slice(0, 4))); }
+}
+
+/* ═══ A18 · DECISIÓN 45 (§7.3·45, supervisor 2026-09-30; diagnóstico v21: T70 y el hallazgo lateral «por credito») ═══════════════════════════════════════════════
+ *   45(c) · T70 · una BODEGA pedida acota el universo servido, también el del HECHO histórico de los días sin venta cuando falta el umbral de «frenado»: «los frenados de Valparaíso» sirve los SKU de Valparaíso,
+ *           nunca los de todas las bodegas (antes: los 13). La bodega EXCLUIDA acota igual, y una unión de bodegas sirve la suma; una rama sin bodega es el eje entero. Con el límite que lo dice («de Valparaíso»).
+ *   45(e) · una lente se nombra con su NOMBRE VISIBLE (`CRITERIOS[id].nombre`, la declaración de la lente), nunca con su id: «por credito» → «por exposición de crédito». Para TODAS las lentes.
+ * Oráculos: la bodega de cada SKU en la proyección (`cifrasDelDato`), el tamaño del eje y la declaración de la lente; nunca el código que se corrige. */
+{
+  const skus = axisEntityNames("sku"), bodegaDe = (n) => _bodegaDeSku(n);
+  const deBodega = (b) => skus.filter((n) => bodegaDe(n) === b);
+  const filasServidas = (E) => { const s = new Set(); for (const f of [...((E.entrega.cifras && E.entrega.cifras.filas) || []), ...((E.entrega.detalle && E.entrega.detalle.filas) || [])]) { const n = f.valores && f.valores["Entidad / grupo"]; if (typeof n === "string" && skus.includes(n)) s.add(n); } return [...s]; };
+  const mismos = (a, b) => a.length === b.length && b.every((x) => a.includes(x));
+  const BOD = bodegaDe("LG-DRYER8KG"), OTRA = bodegaDe("SAM-TV55");
+  const enBodega = deBodega(BOD), enOtra = deBodega(OTRA);
+  const servido = (universo, extra = {}) => { const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["dias_sin_venta", "capital"], eje: "sku", universo }], ...extra }); return { E, filas: filasServidas(E), univ: ((E.entrega.universos || []).find((u) => u.id === "p1_dias_sin_venta") || {}).entidades || [] }; };
+
+  H("A18 · 45(c) · T70 · «los frenados de Valparaíso» SIN umbral sirve los días sin venta de los SKU de la BODEGA pedida (no los 13), y el límite lo dice");
+  ok(BOD && OTRA && BOD !== OTRA && enBodega.length >= 2 && enBodega.length < skus.length && enOtra.length >= 2, "oráculo · hay al menos dos bodegas con SKU y la bodega pedida no es todo el eje", JSON.stringify({ BOD, OTRA, enBodega, enOtra }));
+  { const r = servido({ eje: "sku", estados: ["frenado"], bodega: BOD });
+    ok(r.E.ok && mismos(r.filas, enBodega), `las filas servidas son EXACTAMENTE los ${enBodega.length} SKU de ${BOD}`, JSON.stringify({ filas: r.filas, esperado: enBodega }));
+    ok(mismos(r.univ, enBodega), "el universo declarado del hecho (`p1_dias_sin_venta`) es el mismo que las filas servidas: lo declarado ES lo servido", JSON.stringify(r.univ));
+    ok(!skus.filter((n) => bodegaDe(n) !== BOD).some((n) => (r.E.texto || "").includes(n)), "ningún SKU de otra bodega aparece en ningún lugar del texto servido", skus.filter((n) => bodegaDe(n) !== BOD && (r.E.texto || "").includes(n)).join(", "));
+    ok(_limitesDe(r.E).some((t) => /la venta frenada queda sin evaluar/.test(t)) && new RegExp(`Los días sin venta de cada SKU de ${BOD}, un hecho histórico`).test(((r.E.entrega.limites || []).map((l) => l.motivo || "").join(" "))), `el límite nombra la bodega: «los días sin venta de cada SKU de ${BOD}»`, JSON.stringify(r.E.entrega.limites)); }
+  { const r = servido({ eje: "sku", estados: ["frenado"], bodega: BOD, top: { metrica: "capital", k: 2, direccion: "mayor" } });
+    ok(r.E.ok && mismos(r.filas, enBodega), "con un `top` sobre el veredicto sin evaluar también se acota a la bodega (el top no se puede juzgar; el hecho sí)", JSON.stringify(r.filas)); }
+  { const r = servido({ eje: "sku", estados: ["frenado"], excluir: { bodega: BOD } }), esp = skus.filter((n) => bodegaDe(n) !== BOD);
+    ok(r.E.ok && mismos(r.filas, esp) && !r.filas.some((n) => bodegaDe(n) === BOD), `la bodega EXCLUIDA acota igual: sirve los ${esp.length} SKU que no son de ${BOD}`, JSON.stringify(r.filas)); }
+  { const r = servido({ eje: "sku", union: [{ eje: "sku", estados: ["frenado"], bodega: BOD }, { eje: "sku", estados: ["frenado"], bodega: OTRA }] });
+    ok(r.E.ok && mismos(r.filas, [...enBodega, ...enOtra]), `una unión de dos bodegas sirve la suma de sus SKU (${enBodega.length + enOtra.length})`, JSON.stringify(r.filas)); }
+  { const r = servido({ eje: "sku", union: [{ eje: "sku", estados: ["frenado"], bodega: BOD }, { eje: "sku", estados: ["inmovilizado"] }] });
+    ok(r.E.ok && mismos(r.filas, skus), "CONTROL NEGATIVO · una rama de la unión SIN bodega es el eje entero: la unión no acota nada (los 13)", JSON.stringify(r.filas)); }
+  { const r = servido({ eje: "sku", estados: ["frenado"] });
+    ok(r.E.ok && mismos(r.filas, skus), "CONTROL NEGATIVO · «los frenados» sin bodega sigue sirviendo los días sin venta de TODOS los SKU", JSON.stringify(r.filas));
+    ok(!/Los días sin venta de cada SKU (?:de|fuera de) /.test((r.E.entrega.limites || []).map((l) => l.motivo || "").join(" ")), "CONTROL NEGATIVO · sin bodega el límite conserva su texto de siempre (sin «de …»)", JSON.stringify(r.E.entrega.limites)); }
+  { const r = servido({ eje: "sku", estados: ["frenado"], bodega: BOD }, { criterio: { referencia: { concepto: "umbral_frenado", valor: 45, unidad: "days" } } });
+    ok(r.E.ok && r.filas.length >= 1 && r.filas.every((n) => bodegaDe(n) === BOD), "CONTROL NEGATIVO · con umbral planteado en la consulta el veredicto se evalúa y ya acotaba a la bodega: no cambia", JSON.stringify(r.filas)); }
+  for (const cierre of ["lectura", "decision"]) { const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre, conceptos: ["dias_sin_venta", "capital"], eje: "sku", universo: { eje: "sku", estados: ["frenado"], bodega: BOD } }] });
+    ok(E.ok && mismos(filasServidas(E), enBodega), `la misma acotación rige en una ${cierre} (no solo en la cifra)`, JSON.stringify(filasServidas(E))); }
+
+  H("A18 · 45(e) · una lente se nombra con su NOMBRE VISIBLE (la declaración de la lente), nunca con su id — «por credito» → «por exposición de crédito»");
+  { const lente = (id) => { const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido"], universo: { eje: "cliente", top: { metrica: "saldo_vencido", k: 3 } } }], ...(id ? { criterio: { lente: id } } : {}) }); const m = /Prioridad del procedimiento dentro de este grupo, por ([^:]+):/.exec(E.texto || ""); return m ? m[1] : null; };
+    ok(Object.keys(CRITERIOS).length >= 6 && CRITERIOS.credito.nombre === "exposición de crédito", "oráculo · la declaración de la lente (`CRITERIOS`) trae el nombre visible de cada lente", JSON.stringify(Object.keys(CRITERIOS)));
+    for (const id of Object.keys(CRITERIOS)) { const v = lente(id), nom = CRITERIOS[id].nombre; ok(v === nom || nom.split(" ")[0] === v, `la lente «${id}» se dice con su nombre visible «${nom}» (o la palabra que lo abre, si es su id), nunca con el id`, String(v)); }
+    ok(lente("contribucion") === "contribución" && lente("ventas") === "ventas" && lente("capital") === "capital" && lente("crecimiento") === "crecimiento", "las lentes cuyo id ya es una palabra de su nombre se dicen con ella, con su tilde («contribución»)", JSON.stringify(["contribucion", "ventas", "capital", "crecimiento"].map(lente)));
+    ok(lente("credito") === "exposición de crédito" && !/\bcredito\b/.test(lente("credito") || ""), "«por credito» ya no se imprime: dice «por exposición de crédito»", String(lente("credito")));
+    ok(lente(undefined) === "riesgo" && lente("riesgo") === "riesgo", "CONTROL NEGATIVO · la lente de riesgo (por defecto o fijada) sigue diciéndose «por riesgo» dentro del grupo de una parte: «riesgo integrado» es el criterio ENTRE dominios (la oración cruzada) y no se estampa en la oración de un grupo", JSON.stringify([lente(undefined), lente("riesgo")])); }
+  { const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital", "dias_sin_venta"], eje: "sku", universo: { eje: "sku", estados: ["frenado"] } }], criterio: { referencia: { concepto: "umbral_frenado", valor: 45, unidad: "days" } } });
+    ok(E.ok && /por umbral de venta frenada:/.test(E.texto || "") && !/umbral_frenado/.test(E.texto || ""), "CONTROL NEGATIVO · un criterio que es una REFERENCIA (no una lente) conserva su nombre de la casa, nunca la clave técnica", ((E.texto || "").split("\n").find((l) => /Prioridad del procedimiento/.test(l)) || "").slice(0, 160)); }
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");

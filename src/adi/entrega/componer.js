@@ -52,7 +52,7 @@ import { normalizar } from "../notario/afirmacion.js";
 // agente en vivo: «no escribas otra prioridad, sería una segunda verdad». Nada de esto se reescribe acá.
 import { partesDelEncargo, dominiosDelEncargo } from "../agente/partesDelEncargo.js";
 import { pasosDeDominios } from "../agente/contratoDeDominios.js";
-import { prioridadIntegrada, LENTES } from "../agente/prioridadIntegrada.js";
+import { prioridadIntegrada, LENTES, CRITERIOS } from "../agente/prioridadIntegrada.js";
 import { crearEntrega } from "./esquema.js";
 // CORTE 3b (Etapa 1, owner 2026-09-25, `_ADI_LLMBUSINESS_PLAN.md` §1 + `_ADI_CONTRATO_ENCARGO_V1.md`) — la Entrega
 // para CUALQUIER encargo válido: `lecturasDe` (corte 3a) decide QUÉ CORRE, este archivo decide CÓMO SE ESCRIBE.
@@ -340,11 +340,34 @@ function _correrPlaybook(playbook, { scenario, pregunta }) {
 /* (owner 2026-09-29, cierre del inventario) `consultaDeFrenado` / `estadosDeUniverso` / `frenadoSinUmbral` viven en `encargo/lecturasDe.js`: la LECTURA que pide los días sin venta y la ENTREGA que declara el límite juzgan «frenado sin umbral» con la MISMA función. */
 /* el límite de una parte cuyo universo no se pudo evaluar: el de negocio si falta el umbral de «frenado» (con el
  * ofrecimiento de fijarlo, sin proponer un número); el de siempre, con su motivo, en los demás casos. */
+/* §7.3·45(c) — el universo del HECHO histórico de los días sin venta cuando falta el umbral de «frenado»: el veredicto (estados, top, base) no se
+ * puede juzgar y se cae, pero la BODEGA pedida —o la excluida— sí acota el hecho: «los frenados de Valparaíso» sirve los SKU de Valparaíso, nunca los de
+ * todas las bodegas. Solo se conserva lo de bodega, con la misma forma tipada del universo (`bodega`, `excluir.bodega`, y una `union` cuyas ramas
+ * TODAS traen su bodega: si una rama no acota por bodega, esa rama es el eje entero y la unión no acota nada). */
+function _acoteDeBodega(u) {
+  const acote = { eje: "sku" };
+  if (!u || typeof u !== "object") return acote;
+  if (u.bodega) acote.bodega = u.bodega;
+  if (u.excluir && typeof u.excluir === "object" && u.excluir.bodega) acote.excluir = { bodega: u.excluir.bodega };
+  if (Array.isArray(u.union) && u.union.length) {
+    const ramas = u.union.map((v) => { const a = _acoteDeBodega(v); return a.bodega || a.excluir ? a : null; });
+    if (ramas.every(Boolean)) acote.union = ramas;
+  }
+  return acote;
+}
+const _txtBodegas = (b) => (Array.isArray(b) ? b : [b]).filter(Boolean).join(" y ");
+/* la frase de bodega del límite: «de Valparaíso» / «fuera de Valparaíso» (vacía si el universo no acota por bodega). */
+function _fraseDeBodegaDelHecho(u) {
+  const a = _acoteDeBodega(u);
+  if (a.bodega) return ` de ${_txtBodegas(a.bodega)}`;
+  if (a.excluir) return ` fuera de ${_txtBodegas(a.excluir.bodega)}`;
+  return "";
+}
 function _limiteDeUniverso(p, motivo, resolucion, conRanking = false) {
   const dom = _DOM_NOMBRE[p.tema] || p.tema;
   /* con `conRanking` (cierre del inventario, owner 2026-09-29) la Entrega YA trae los días sin venta de cada SKU, ordenados: el
    * límite lo dice en vez de mandar a otra pestaña; sin ranking (la lectura no trajo las cifras) queda el texto de siempre. */
-  if (_frenadoSinUmbral(p.universo, resolucion)) return { titulo: `Sobre la parte ${p.id} (${dom}), la venta frenada queda sin evaluar`, motivo: `La empresa no ha declarado desde cuántos días sin venta considera frenado un producto, y la consulta tampoco lo plantea. ${conRanking ? "Los días sin venta de cada SKU, un hecho histórico, van ordenados en esta Entrega, sin veredicto" : "Los días sin venta de cada SKU, un hecho histórico, están en la pestaña de inventario"}; si se indica un umbral en días, se puede evaluar cuáles lo superan y cuánto capital reúnen.` };
+  if (_frenadoSinUmbral(p.universo, resolucion)) { const deB = _fraseDeBodegaDelHecho(p.universo); return { titulo: `Sobre la parte ${p.id} (${dom}), la venta frenada queda sin evaluar`, motivo: `La empresa no ha declarado desde cuántos días sin venta considera frenado un producto, y la consulta tampoco lo plantea. ${conRanking ? `Los días sin venta de cada SKU${deB}, un hecho histórico, van ordenados en esta Entrega, sin veredicto` : `Los días sin venta de cada SKU${deB}, un hecho histórico, están en la pestaña de inventario`}; si se indica un umbral en días, se puede evaluar cuáles lo superan y cuánto capital reúnen.` }; }
   return { titulo: `Sobre la parte ${p.id} (${dom}), el universo declarado no se pudo evaluar`, motivo };
 }
 /* la frase del Marco para lo histórico (etapa 6, §7.3·35), armada SOLO de los campos tipados de `marco.historicos`
@@ -353,8 +376,19 @@ function _limiteDeUniverso(p, motivo, resolucion, conRanking = false) {
 const _textoDeHistoricos = (h) => (h && Array.isArray(h.hechos) ? h.hechos.map((x) => `${x.etiqueta.charAt(0).toUpperCase()}${x.etiqueta.slice(1)}: ${x.ventana}; ${h.limite}.`).join(" ") : "");
 /* el rótulo con que se NOMBRA el criterio de una decisión cuando no trae `lente`: la lente si la hay; si solo trae una
  * referencia (p. ej. el umbral de la consulta), su nombre de la casa — nunca la clave técnica («umbral_frenado»). */
+/* §7.3·45(e) — una lente se nombra con su NOMBRE VISIBLE, el que declara la lente (`CRITERIOS[id].nombre`, `agente/prioridadIntegrada.js`: la misma fuente que ya usa
+ * el agente en «ordenado bajo el criterio…»), nunca con su id interno («por credito» → «por exposición de crédito»). Solo una clave que no es lente (una referencia) cae al nombre de la métrica.
+ * Una lente cuyo id YA es la palabra que abre su nombre visible («riesgo» en «riesgo integrado», «contribución») se dice con esa palabra, con la tilde del nombre: «riesgo integrado» es el criterio ENTRE dominios (la oración cruzada del Marco lo dice así)
+ * y el grupo de UNA parte no lo integra; las demás («credito») se dicen con el nombre completo. */
+const _planoDeLente = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const _nombreVisibleDeLente = (id) => {
+  const L = CRITERIOS[id];
+  if (!L || !L.nombre) return null;
+  const cabeza = String(L.nombre).split(/\s+/)[0];
+  return _planoDeLente(cabeza) === _planoDeLente(id) ? cabeza : L.nombre;
+};
 const _lenteDelCriterio = (criterio) => {
-  if (criterio.lente) { const m = metricaPorClave(criterio.lente); return m ? m.nombre.toLowerCase() : criterio.lente; }
+  if (criterio.lente) { const v = _nombreVisibleDeLente(criterio.lente); if (v) return v; const m = metricaPorClave(criterio.lente); return m ? m.nombre.toLowerCase() : criterio.lente; }
   const c = criterio.referencia && criterio.referencia.concepto;
   if (!c) return c;
   const m = metricaPorClave(c);
@@ -3052,7 +3086,7 @@ export function componerEntrega(resolucion) {
    * queda solo el límite. */
   const _planDiasSinVentaDeFrenado = (p) => {
     if (!_frenadoSinUmbral(p.universo, resolucion)) return null;
-    const pDias = { ...p, cierre: "lectura", eje: "sku", conceptos: ["dias_sin_venta"], entidades: [], universo: { eje: "sku" } };
+    const pDias = { ...p, cierre: "lectura", eje: "sku", conceptos: ["dias_sin_venta"], entidades: [], universo: _acoteDeBodega(p.universo) };   // §7.3·45(c): la bodega pedida acota el hecho
     const plan = _planCifraGrupo(pDias, _figsDeParte(p.id), { ejesDelTenant, indice: I, direccionSinTop: "mayor" });
     if (!plan || plan.error || !plan.orden.length) return null;
     for (const e of plan.orden) for (const [clave, fig] of _mapaDe(plan.porEntidad, e)) _mapaDe(plan.porEntidad, e).set(clave, ref(fig));
