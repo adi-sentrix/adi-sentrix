@@ -30,6 +30,10 @@
  *   A16 · diagnóstico v20 (§7.3·44): un top cuyo filo cae dentro de un empate sirve a TODOS los empatados y lo declara, y la premisa de pertenencia sobre un empatado del filo es verdadera y lo declara (a, Y73 U10) ·
  *         el «de M» de un conteo es el de la premisa (d, U62) · cada premisa lleva UNA sola traza «La verdad: …» (e).
  *
+ *   A17 · diagnóstico v21 (§7.3·44): una lectura/decision sin universo sirve su FOTO completa (el universo del productor) con la prioridad encima (c, T15–T19 T28 T40 T99) · el top por recuperado trae las cuentas fuera de la mesa de 8 (T06) ·
+ *         la oración que declara un empate no la retira el tope de tamaño (T100) · la pertenencia en el filo nombra al sujeto (T02 T32) · una definición sin curar se declara, no toma la de otra parte (T14) y se titula «objetivo» (T12) ·
+ *         la verdad propia dentro del top que falla el estado es la cifra del estado (T46) · la exclusión por bodega lleva la referencia (T47) · los ceros por ausencia de una cifra sin top se empatan y se declaran (T36).
+ *
  * Solo por `npm run gates:offline` (o con el candado: node --import ./scripts/offline-guard.mjs _v12_correcciones_gate.mjs). Cero red. */
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -48,6 +52,8 @@ import { UMBRALES_DE_ESTADO, ESTADO_DE_CONCEPTO, ESTADOS_CANON, umbralesDeEstado
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
 import { cajaDelAgente } from "./src/adi/agente/herramientasAgente.js";
+import { buildMesaFlujo } from "./src/adi/sentrix/mesaFlujo.js";
+import { objetivoPorMeta } from "./src/adi/llm/voiceGuard.js";
 import fs from "node:fs";
 
 let pass = 0, fail = 0;
@@ -1082,6 +1088,138 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     const u18 = oracionesDe(entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "contribucion", "variacion"], eje: "canal", universo: { eje: "canal" } }], premisas: [{ id: "q1", tipo: "variacion", sujeto: "Retail", metrica: "ventas", variacion: { direccion: "sube", valor: "7.6%" }, periodo: "anterior" }] }).E)[0] || "";
     ok((u18.match(/La verdad:/g) || []).length === 1 && /La verdad: Retail · Variación vs año anterior = \+6\.6%/.test(u18), "CONTROL NEGATIVO · una traza que AGREGA la verdad (Retail +6.6% cuando la consulta dijo 7.6%) se conserva, una sola vez", u18);
   }
+}
+
+/* ═══ A17 · DIAGNÓSTICO v21 (medición ciega v21, catálogo sellado v21; §7.3·44) ═══════════════════════════════════════════════════════════════════════
+ * Siete raíces de la Entrega, cada una con su carnada en POSITIVO y su control en NEGATIVO:
+ *   44(c) · T15–T19 · T28 · T40 · T99 (90 de las 102 fallas) · una `lectura`/`decision` SIN universo ni entidades sirve su FOTO COMPLETA —el universo que el PRODUCTOR publica (cobranza: las cuentas de su mesa, con su «$0» las sanas;
+ *           inventario y comercial: el eje que sus conceptos sostienen)— y la prioridad del procedimiento ENCIMA; el universo declarado ES lo servido (antes: el líder y su rival, 2 o 3 entidades, mientras el texto hablaba de «toda la cartera»).
+ *   44(a) · T06 · el top por «recuperado» (y por «días vencidos») trae las cuentas que quedan fuera del top 8 por vencido, con su fila; el empate del orden servido se declara con el puesto y quiénes lo comparten.
+ *   44(a) · T100 · la oración que declara un empate (del filo o del orden servido) no la retira el tope de tamaño de un encargo de tres partes.
+ *   44(a) · T02 · T32 · la premisa de PERTENENCIA sobre un empatado del filo nombra al sujeto, su puesto compartido, su cifra y con quién empata (no lista otros SKU).
+ *   44(b) · T14 · una definición sin curar NO toma la definición de OTRA parte del turno: se declara como límite. · T12 · el título de una definición dice «objetivo», no «meta».
+ *   41(c) · T46 · con `top` sobre el eje y un estado que la entidad no cumple, la verdad propia de la entidad DENTRO del top es la cifra de ese estado (no un puesto que leería como si estuviera adentro). · T47 · la exclusión por bodega lleva la referencia del universo.
+ *   43(b) · T36 · en una métrica de `AUSENTE_VALE_CERO` la entidad sin fig vale 0: los ceros por ausencia de una cifra sin `top` se ordenan y su empate se declara.
+ * Oráculos: la mesa de cobranza (`buildMesaFlujo`, la lista que publica la herramienta), el tamaño de cada eje, el ranking de la proyección (`cifrasDelDato`) y los valores del propio texto; nunca el código que se corrige. */
+{
+  const mesa = buildMesaFlujo(ESCENARIO_INICIAL);
+  const fotoCob = mesa.filas.slice(0, 8).map((f) => f.nombre);
+  const nCli = axisEntityNames("cliente").length, nSku = axisEntityNames("sku").length;
+  const fueraDeLaFoto = axisEntityNames("cliente").filter((n) => !fotoCob.includes(n));
+  const filasServidas = (E) => { const s = new Set(); for (const f of [...((E.entrega.cifras && E.entrega.cifras.filas) || []), ...((E.entrega.detalle && E.entrega.detalle.filas) || [])]) { const n = f.valores && f.valores["Entidad / grupo"]; if (typeof n === "string" && !/ − |^Total \(/.test(n)) s.add(n); } return s; };
+  const universoDe = (E, id) => ((E.entrega.universos || []).find((u) => u.id === id) || {}).entidades || [];
+  const mismoConjunto = (a, b) => a.length === b.length && new Set(a).size === a.length && b.every((x) => a.includes(x));
+  const lineas = (E) => E.entrega.respuesta.map((r) => r.texto || "");
+  const enDetalle = (E) => ((E.entrega.detalle && E.entrega.detalle.oraciones) || []).map((o) => o.texto || "");
+
+  H("A17 · 44(c) · T15–T19 · T99 · una lectura de COBRANZA sin universo sirve su FOTO (las cuentas de su mesa) con fila de lo pedido en cada una, y la prioridad encima");
+  { const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "lectura", conceptos: ["saldo_vencido", "dias_vencido"] }] });
+    ok(fotoCob.length === 8 && nCli === 13 && fueraDeLaFoto.length === 5 && E.ok, "oráculo · la mesa de cobranza publica 8 de los 13 clientes; la Entrega compone", JSON.stringify(fotoCob));
+    ok(mismoConjunto(universoDe(E, "p1"), fotoCob), "el universo DECLARADO de la parte es la foto de la mesa (8), en su totalidad y sin nadie de más", JSON.stringify(universoDe(E, "p1")));
+    const filas = filasServidas(E);
+    ok(fotoCob.every((n) => filas.has(n)), "cada cuenta de la foto tiene su fila (Cifras o Detalle), también las SANAS de la mesa (su «Saldo vencido $0»)", JSON.stringify(fotoCob.filter((n) => !filas.has(n))));
+    ok(fueraDeLaFoto.every((n) => !filas.has(n)), "ninguna de las 5 cuentas fuera de la foto se sirve (no es la cartera completa)", JSON.stringify(fueraDeLaFoto.filter((n) => filas.has(n))));
+    const sanas = mesa.filas.slice(0, 8).filter((f) => !(f.vencidoK > 0)).map((f) => f.nombre);
+    const celdas = [...((E.entrega.cifras && E.entrega.cifras.filas) || []), ...((E.entrega.detalle && E.entrega.detalle.filas) || [])].filter((f) => sanas.includes(f.valores["Entidad / grupo"]) && /vencido/i.test(f.valores["Métrica"] || ""));
+    ok(sanas.length >= 1 && sanas.every((n) => celdas.some((f) => f.valores["Entidad / grupo"] === n && f.valores["Valor"] === "$0")), "la cuenta sana de la foto dice «Saldo vencido $0» (ausente ES cero), no queda sin cifra de lo pedido", JSON.stringify(sanas));
+    const L = lineas(E), iFoto = L.findIndex((t) => new RegExp(`la foto de cobranza \\(${fotoCob.length} de ${nCli} cuentas\\)`).test(t)), iPrio = L.findIndex((t) => /^(Quien más pesa en el conjunto|Prioridad del procedimiento)/.test(t));
+    ok(iFoto >= 0 && iPrio >= 0 && iPrio < iFoto, "la foto declara su cola («la foto de cobranza (8 de 13 cuentas)») y va DESPUÉS de la prioridad del procedimiento", JSON.stringify(L.slice(0, 8)));
+    ok(iFoto >= 0 && L[iFoto].includes(`ordenado por Saldo vencido: ${fotoCob[0]} (`), "la foto se ordena de MAYOR a menor (43f): abre la cuenta con más vencido de la mesa", L[iFoto]); }
+  { const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido", "recuperado"] }], criterio: { lente: "credito" }, profundidad: "breve" });
+    ok(E.ok && mismoConjunto(universoDe(E, "p1"), fotoCob) && fotoCob.every((n) => filasServidas(E).has(n)), "una `decision` BREVE sirve la misma foto (lo recortado por tamaño queda en el Detalle con los mismos ids)", JSON.stringify(universoDe(E, "p1")));
+    ok(!lineas(E).some((t) => /^Prioridad del procedimiento dentro de este grupo/.test(t)), "la foto no repite la prioridad del procedimiento (una sola conclusión: la del plan del tema)", JSON.stringify(lineas(E))); }
+  { const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"] }] });
+    ok(E.ok && universoDe(E, "p1").length === nCli, "CONTROL NEGATIVO · una `cifra` de cobranza sin universo sigue sirviendo la cartera COMPLETA (42c), no la foto", String(universoDe(E, "p1").length));
+    const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "lectura", conceptos: ["saldo_vencido"], universo: { eje: "cliente", top: { metrica: "saldo_vencido", k: 3 } } }] });
+    ok(E2.ok && universoDe(E2, "p1").length === 3 && !lineas(E2).some((t) => /la foto de cobranza/.test(t)), "CONTROL NEGATIVO · una lectura con universo PROPIO (top 3) sirve 3, sin foto", JSON.stringify(universoDe(E2, "p1")));
+    const { E: E3 } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "lectura", conceptos: ["saldo_vencido"], entidades: [{ nombre: "Lider" }] }] });
+    ok(E3.ok && !lineas(E3).some((t) => /la foto de cobranza/.test(t)), "CONTROL NEGATIVO · una lectura de UNA cuenta nombrada no es una foto", JSON.stringify(lineas(E3).slice(0, 3)));
+    const { E: E4 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura" }, { id: "p2", tema: "cobranza", cierre: "lectura" }] });
+    ok(E4.ok && !lineas(E4).some((t) => /la foto de cobranza/.test(t)) && lineas(E4).some((t) => /^Quien más pesa en el conjunto/.test(t)), "CONTROL NEGATIVO · dos lecturas SIN conceptos declarados sirven la prioridad del procedimiento (el plan del tema), no la foto: listar cada cuenta con todas las métricas del dominio no es lo pedido (y la iniciativa no desplaza lo pedido)", JSON.stringify(lineas(E4).slice(0, 4))); }
+  { const caja = cajaDelAgente(TOOLS), etiquetas = (r) => (r.boleta || []).map((f) => f.label);
+    const sin = etiquetas(caja.cobranza({})), con = etiquetas(caja.cobranza({ cerosDeLaFoto: true }));
+    const sana = mesa.filas.slice(0, 8).find((f) => !(f.vencidoK > 0)).nombre;
+    ok(!sin.includes(`${sana} · Saldo vencido`) && !sin.includes(`${sana} · Dias Vencido`), "CANDADO · la boleta del AGENTE (sin opt-in) no publica el «$0» ni los «0d» de la cuenta sana de la mesa", sana);
+    ok(con.includes(`${sana} · Saldo vencido`) && con.includes(`${sana} · Dias Vencido`) && !con.some((l) => l.startsWith(`${fueraDeLaFoto[0]} · `)), "con el opt-in del Encargo (`cerosDeLaFoto`) la cuenta sana de la foto publica su «$0» y su «0d», y la mesa NO se ensancha", sana); }
+
+  H("A17 · 44(c) · T28 · T40 · inventario y comercial sirven su foto = el eje que sus conceptos sostienen (los 13), con su prioridad encima");
+  { const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["dias_sin_venta", "capital"], eje: "sku" }], criterio: { lente: "capital" } });
+    ok(E.ok && universoDe(E, "p1").length === nSku && axisEntityNames("sku").every((n) => filasServidas(E).has(n)), `una decision de inventario sobre el eje completo sirve los ${nSku} SKU, cada uno con su fila`, JSON.stringify(universoDe(E, "p1"))); }
+  { const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen", "carga"] }] });
+    ok(E.ok && universoDe(E, "p1").length === nCli && axisEntityNames("cliente").every((n) => filasServidas(E).has(n)), `una lectura comercial sin universo sirve los ${nCli} clientes, cada uno con su fila`, JSON.stringify(universoDe(E, "p1")));
+    ok(lineas(E).findIndex((t) => /^(Quien más pesa en el conjunto|Prioridad del procedimiento)/.test(t)) >= 0, "y conserva la prioridad del procedimiento", JSON.stringify(lineas(E).slice(0, 6))); }
+
+  H("A17 · 44(a) · T06 · el top por RECUPERADO trae a las cuentas fuera del top 8 por vencido, con su fila; el empate del orden servido se declara");
+  { const rec = RK.cliente.recuperado.filas.slice().sort((x, y) => y.valor - x.valor), servidas = rec.filter((f, i) => i < 8 || f.valor === rec[7].valor).map((f) => f.entidad);
+    const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["recuperado", "saldo_vencido"], universo: { eje: "cliente", top: { metrica: "recuperado", k: 8 } } }], criterio: { lente: "credito" } });
+    const filas = filasServidas(E), fuera = servidas.filter((n) => !fotoCob.includes(n));
+    ok(servidas.length === 9 && fuera.length >= 3 && mismoConjunto(universoDe(E, "p1"), servidas), "oráculo · el top 8 de recuperado sirve 9 (el empate del filo) y varias no están en la mesa de 8", JSON.stringify({ servidas, fuera }));
+    ok(servidas.every((n) => filas.has(n)), "TODAS las servidas tienen fila (las que la mesa de 8 no publica, también)", JSON.stringify(servidas.filter((n) => !filas.has(n))));
+    const grupos = []; for (const f of rec.slice(0, servidas.length)) { const g = grupos.find((x) => x.v === f.valor); if (g) g.n.push(f.entidad); else grupos.push({ v: f.valor, p: rec.findIndex((x) => x.valor === f.valor) + 1, n: [f.entidad] }); }
+    const linea = lineas(E).find((t) => /^El top 8 de /.test(t)) || "";
+    for (const g of grupos.filter((x) => x.n.length > 1 && x.n.length < servidas.length && x.p + x.n.length - 1 <= 8)) ok(new RegExp(`puesto ${g.p} compartido por`).test(linea) && g.n.every((n) => linea.includes(n)), `el empate del orden servido dice «puesto ${g.p} compartido por» y nombra a TODOS (${g.n.join(", ")})`, linea); }
+  { const caja = cajaDelAgente(TOOLS), r = (a) => (caja.cobranza(a).boleta || []).map((f) => f.label);
+    ok(!r({}).includes("Ripley · Recuperado") && r({ universoRequerido: { eje: "cliente", top: { metrica: "recuperado", k: 8 } } }).includes("Ripley · Recuperado"), "CANDADO · la boleta del AGENTE no trae a Ripley; el universo tipado del Encargo (`universoRequerido`, top por recuperado) sí", ""); }
+
+  H("A17 · 44(a) · T100 · la oración que declara el empate no la retira el tope de tamaño de un encargo de tres partes");
+  { const { E } = entregaDe({ partes: [
+      { id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["dias_vencido", "saldo_vencido"], universo: { eje: "cliente", estados: ["en mora"], top: { metrica: "dias_vencido", k: 4 } } },
+      { id: "p2", tema: "comercial", cierre: "decision", conceptos: ["contribucion", "carga"], universo: { eje: "cliente", base: "carga comercial alta", top: { metrica: "contribucion", k: 2 } } },
+      { id: "p3", tema: "inventario", cierre: "decision", conceptos: ["dias_inventario", "capital"], eje: "sku", universo: { eje: "sku", estados: ["sobrestock"] } }], criterio: { lente: "riesgo" },
+      premisas: [
+        { id: "q1", tipo: "orden", sujeto: "Falabella", metrica: "dias_vencido", orden: { forma: "topk", k: 4 }, universo: { eje: "cliente", estados: ["en mora"] } },
+        { id: "q2", tipo: "grupo", miembros: ["Jumbo"], universo: { eje: "cliente", base: "carga comercial alta", top: { metrica: "contribucion", k: 2 } } },
+        { id: "q3", tipo: "conteo", conteo: { n: 1, m: 13 }, de: { eje: "sku", estados: ["sobrestock"] } },
+        { id: "q4", tipo: "estado", sujeto: "PHI-IRON-PRO", estado: "sobrestock" }] });
+    const declara = (t) => /^El top 4 de \d+ .*que sirve \d+ por el empate del filo/.test(t);
+    ok(E.ok && lineas(E).some(declara) && !enDetalle(E).some(declara), "el empate del filo del top 4 de días vencidos («que sirve N por el empate del filo») está en la Respuesta, no en el Detalle", JSON.stringify(enDetalle(E).map((t) => t.slice(0, 70))));
+    const verif = verificarEntrega({ texto: E.texto, entrega: E.entrega });
+    ok(!verif.violaciones.some((v) => v.regla === "tope-de-tamano") , "y el exceso sobre el tope, si lo hay, queda DECLARADO (`meta.excedeTope`), nunca un tope roto en silencio", JSON.stringify({ palabras: E.entrega.meta && E.entrega.meta.palabras, excede: E.entrega.meta && E.entrega.meta.excedeTope })); }
+
+  H("A17 · 44(a) · T02 · T32 · la premisa de PERTENENCIA sobre un empatado del filo nombra al sujeto, su puesto, su cifra y con quién empata");
+  { const mg = RK.sku.margen_venta.filas.slice().sort((x, y) => y.valor - x.valor), v4 = mg[3].valor, empatados = mg.filter((f) => f.valor === v4).map((f) => f.entidad), primero = mg.findIndex((f) => f.valor === v4) + 1;
+    const enc = (sujeto, forma, k) => ({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "contribucion"], eje: "sku", universo: { eje: "sku", top: { metrica: "margen", k: 4 } } }], premisas: [{ id: "q1", tipo: "orden", sujeto, metrica: "margen", orden: { forma, ...(k ? { k } : {}) }, universo: { eje: "sku" } }] });
+    const suj = empatados.includes("LG-AIR9000") ? "LG-AIR9000" : empatados[0], t = oracionesDe(entregaDe(enc(suj, "topk", 4)).E)[0] || "", otros = empatados.filter((n) => n !== suj);
+    ok(empatados.length >= 2 && primero <= 4 && primero + empatados.length - 1 > 4, "oráculo · el corte del top 4 de margen cae DENTRO de un empate", JSON.stringify({ empatados, primero }));
+    ok(/es correcto —/.test(t) && t.includes(`${suj}:`) && t.includes(`${v4}%`) && new RegExp(`en el puesto ${primero}(?!\\d)`).test(t) && otros.every((n) => t.includes(n)), "«está entre los 4»: VERDADERA y dice al sujeto con su cifra, con quién empata y el puesto compartido (no lista otros SKU)", t);
+    const max = oracionesDe(entregaDe(enc(mg[0].entidad, "max")).E)[0] || "";
+    ok(/es correcto —/.test(max) && max.includes(`(${mg[1].valor}%)`), "CONTROL NEGATIVO · «es el de más margen» (un máximo, fuera de un empate del filo) conserva el top de la casa con sus cifras", max); }
+
+  H("A17 · 44(b) · T14 · T12 · una definición sin curar se DECLARA como límite (no toma la de otra parte); el título de una definición va en la voz de la casa");
+  { const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "definicion", concepto: "peso_costo" }, { id: "p2", tema: "comercial", cierre: "definicion", concepto: "en_juego" }] });
+    const defs = lineas(E).filter((t) => /^en juego: /.test(t));
+    ok(E.ok && defs.length === 1, "«en juego» (curada) se sirve UNA vez: la parte sin definición curada no la toma", JSON.stringify(defs.map((t) => t.slice(0, 40))));
+    ok(_limitesDe(E).some((t) => /peso costo/.test(t) && /definición/.test(t) && /no está disponible/.test(t)) && !_limitesDe(E).some((t) => /_/.test(t)), "«peso costo» se declara como límite (sin la clave interna con guion bajo)", JSON.stringify(_limitesDe(E)));
+    const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "definicion", concepto: "en_juego" }] });
+    ok(E2.ok && lineas(E2).filter((t) => /^en juego: /.test(t)).length === 1 && !_limitesDe(E2).some((t) => /definición de/.test(t)), "CONTROL NEGATIVO · una definición curada sola se sirve una vez y no declara límite", JSON.stringify(_limitesDe(E2))); }
+  { const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "definicion", concepto: "meta" }, { id: "p2", tema: "comercial", cierre: "cifra", conceptos: ["margen"], entidades: [{ nombre: "Jumbo" }] }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Jumbo"], universo: { eje: "cliente", base: "bajo el benchmark" } }] });
+    const verif = verificarEntrega({ texto: E.texto, entrega: E.entrega });
+    ok(lineas(E).some((t) => /^objetivo: /.test(t)) && !lineas(E).some((t) => /^meta: /.test(t)), "la definición de «meta» se titula «objetivo» (la palabra de la casa)", JSON.stringify(lineas(E).map((t) => t.slice(0, 30))));
+    ok(!verif.violaciones.some((v) => v.regla === "registro-informal"), "y `verificarEntrega` no marca «registro-informal» junto al benchmark", JSON.stringify(verif.violaciones));
+    ok(objetivoPorMeta("meta") === "objetivo" && objetivoPorMeta("Meta") === "Objetivo" && objetivoPorMeta("metas") === "objetivos" && objetivoPorMeta("markup") === "markup" && objetivoPorMeta("en juego") === "en juego", "CONTROL NEGATIVO · `objetivoPorMeta` solo cambia «meta/target»; cualquier otro término sale intacto", ""); }
+
+  H("A17 · 41(c) · T46 · T47 · la verdad propia de una entidad dentro del top que falla el ESTADO es la cifra del estado; la exclusión por bodega lleva la referencia");
+  { const uni = { eje: "cliente", estados: ["al dia"], top: { metrica: "ventas", k: 3, sobre: "eje" } };
+    const gr = (m) => oracionesDe(entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido", "abonado"], universo: uni }], premisas: [{ id: "q1", tipo: "grupo", miembros: [m], universo: uni }] }).E)[0] || "";
+    const fv = RK.cliente.saldo_vencido.filas.find((f) => f.entidad === "Falabella"), venc = fv.raw, t = gr("Falabella");
+    ok(venc > 0 && t.includes("no es así") && t.includes("está en mora") && t.includes(fv.texto) && !/puesto \d+ de \d+/.test(t), "«Falabella está entre las 3 que más venden y al día» (falsa: está en mora): dice su estado CON su cifra (saldo vencido) y ningún puesto por venta", t);
+    const so = gr("Sodimac");
+    ok(/no es así — Sodimac: está en mora/.test(so) && /puesto \d+ de \d+/.test(so) && !/saldo vencido/i.test(so), "CONTROL NEGATIVO · una cuenta FUERA del top conserva su puesto (la razón que la deja fuera es el top)", so); }
+  { const uni = { eje: "sku", estados: ["rota bien"], excluir: { bodega: "Santiago" } };
+    const t = oracionesDe(entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["rotacion", "capital"], eje: "sku", universo: uni }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["SAM-TV55"], universo: uni }] }).E)[0] || "";
+    ok(/fuera del universo por su bodega \(Santiago\)/.test(t) && t.includes(valorDe("rotacionMin")), `el SKU excluido por su bodega dice el piso de rotación con que se juzga el universo (${valorDe("rotacionMin")})`, t);
+    const u2 = { eje: "cliente", base: "bajo el benchmark", excluir: { entidades: ["Unimarc"] } };
+    const t2 = oracionesDe(entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen"], universo: u2 }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Unimarc"], universo: u2 }] }).E)[0] || "";
+    ok(/fuera del universo por exclusión de la consulta\.?$/.test(t2), "CONTROL NEGATIVO · la exclusión por el NOMBRE de la entidad no agrega referencia", t2); }
+
+  H("A17 · 43(b) · T36 · los ceros por AUSENCIA de una cifra sin `top` se ordenan y su empate se declara con el puesto y todos los que lo comparten");
+  { const filas = RK.sku.capital_inmovilizado.filas, ceros = axisEntityNames("sku").filter((n) => !filas.some((f) => f.entidad === n)), puesto = filas.length + 1;
+    const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital_inmovilizado", "capital"], eje: "sku", universo: { eje: "sku" } }] });
+    const l = lineas(E).find((t) => /^Por sku, ordenado por Capital inmovilizado/.test(t)) || "";
+    ok(ceros.length >= 3 && puesto + ceros.length - 1 === nSku, "oráculo · los SKU sin capital inmovilizado (cero por ausencia) ocupan los últimos puestos, juntos", JSON.stringify({ ceros, puesto }));
+    ok(new RegExp(`Empate en el orden servido: puesto ${puesto} compartido por`).test(l) && ceros.every((n) => l.includes(n)), `la línea del orden dice «puesto ${puesto} compartido por» y nombra a los ${ceros.length}`, l);
+    const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital_inmovilizado", "capital"], eje: "sku", universo: { eje: "sku", top: { metrica: "capital_inmovilizado", k: 6 } } }] });
+    ok(E2.ok && !lineas(E2).some((t) => /Empate en el orden servido/.test(t)), "CONTROL NEGATIVO · con `top` el corte puede partir el grupo en cero: no se declara un empate a medias (lo dice el empate del filo)", JSON.stringify(lineas(E2).slice(0, 4))); }
 }
 
 H("CERO llamadas a un LLM · CERO red — solo por npm run gates:offline");

@@ -304,6 +304,8 @@ export function cobranza(_args = {}, ctx = {}) {
   // v18 (X51 · X84, §7.3·21): `mesaCompleta` lo pide SOLO la lectura del Encargo para una `cifra` de cobranza que sirve «la cartera» (el eje entero, sin restricción ni entidades): el conjunto declarado son TODOS los clientes de la mesa, no el top 8.
   // Mismo opt-in que `universoRequerido` (`cajaDelAgente` nunca lo pasa: la boleta del agente vivo queda byte-idéntica).
   const _pideMesaCompleta = !!(_args && _args.mesaCompleta === true);
+  /* v21 (T15–T19 · T99, §7.3·44c): `cerosDeLaFoto` lo pide SOLO la lectura del Encargo para una `lectura`/`decision` de cobranza SIN universo ni entidades: sirve su FOTO (las 8 cuentas de esta mesa, sin ensanchar). Las cuentas SANAS de esas 8 publican su «Saldo vencido $0» y sus «0d» (ausente ES cero, `AUSENTE_VALE_CERO`: un hecho real), para que la foto tenga fila de lo pedido en cada cuenta. NO ensancha la mesa (eso es `mesaCompleta`/`universoRequerido`) y, como ellos, `cajaDelAgente` nunca lo pasa: la boleta del agente vivo queda byte-idéntica. */
+  const _cerosDeLaFoto = !!(_args && _args.cerosDeLaFoto === true);
   const _necesitaMesaCompleta = _pideMesaCompleta || !!(_universoReq && _CAMPOS_UNIVERSO_SIN_TOP.some((c) => { const v = _universoReq[c]; return Array.isArray(v) ? v.length : !!v; }));
   let M = null;
   try { M = buildMesaFlujo(scenario); } catch { M = null; }
@@ -371,7 +373,7 @@ export function cobranza(_args = {}, ctx = {}) {
     // `union`/`estados`/`filtros` (W43: un `union` de dos bases, sin `top`) SÍ hace falta la mesa completa — «saldo
     // vencido» está en `AUSENTE_VALE_CERO» (notario/lexico.js): ausente ES cero, un hecho real.
     if (f.vencidoFmt != null) _fig(`${f.nombre} · Saldo vencido`, f.vencidoFmt, f.vencidoK);
-    else if (_necesitaMesaCompleta || _entidadesDeLaParte.includes(f.nombre)) _fig(`${f.nombre} · Saldo vencido`, _mKDeLaMesa(0), 0);
+    else if (_necesitaMesaCompleta || _cerosDeLaFoto || _entidadesDeLaParte.includes(f.nombre)) _fig(`${f.nombre} · Saldo vencido`, _mKDeLaMesa(0), 0);
   }
   /* «· Recuperado» Y «· Dias Vencido» POR CLIENTE, CON CRUDO REAL (owner 2026-09-23 — arreglo del verificador).
    * `mesaFlujo.js` YA calcula `recuperadoPct`/`diasVencido` por fila (los usa para `recuperadoFmt`/
@@ -387,7 +389,7 @@ export function cobranza(_args = {}, ctx = {}) {
     if (f.diasVencidoFmt && f.diasVencidoFmt !== "—" && Number.isFinite(f.diasVencido)) boleta.push(fig(`${f.nombre} · Dias Vencido`, f.diasVencidoFmt, { unit: "days", raw: f.diasVencido, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
     /* v17 (V-B): una cuenta sana DENTRO del top 8 que la parte de un encargo tipado nombra (opt-in `entidadesRequeridas`) publica sus 0 días — igual que su «Saldo vencido» de arriba; sin encargo, la boleta del agente no cambia */
     /* v19 (Y20, §7.3·42c): con la CARTERA COMPLETA (opt-in explícito del Encargo: `mesaCompleta`, «lo ausente vale cero») la cuenta sana DEL TOP 8 también publica sus 0 días — igual que su «Saldo vencido $0» de arriba; antes solo las de la lista `_entidadesDeLaParte` (las que salían del widening sí) y Jumbo y Mercado Libre quedaban sin par. Solo el opt-in de la cartera entera (no el de un universo con restricción propia: ahí el top 8 conserva su política de no publicar el 0 de la cuenta sana). Sin opt-in la boleta del agente no cambia. */
-    else if ((_pideMesaCompleta || _entidadesDeLaParte.includes(f.nombre)) && Number.isFinite(f.diasVencido) && f.diasVencido <= 0) boleta.push(fig(`${f.nombre} · Dias Vencido`, "0d", { unit: "days", raw: 0, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
+    else if ((_pideMesaCompleta || _cerosDeLaFoto || _entidadesDeLaParte.includes(f.nombre)) && Number.isFinite(f.diasVencido) && f.diasVencido <= 0) boleta.push(fig(`${f.nombre} · Dias Vencido`, "0d", { unit: "days", raw: 0, mandatory: false, gancho: true, source: "actual", context: _ctxCobranza }));
   }
   // Z09 (supervisor 2026-09-27, diagnóstico v8, tarea 5 del cierre) — «Saldo por vencer» (lo pendiente que TODAVÍA
   // no vence, `mesaFlujo.js:porVencerK` = saldo − vencido) ya lo usa el RANKING de la proyección
@@ -434,7 +436,8 @@ export function cobranza(_args = {}, ctx = {}) {
    * documentado, nunca silencioso (el llamador declina con un límite si la cifra sigue faltando, ver
    * `entrega/componer.js:_planCifraGrupo`). */
   /* RAÍZ A2 (diagnóstico v14) — `venta_credito` (la venta del flujo de cobranza, `ventaK`) es una clave de `top` que esta tool sabe publicar. */
-  const _CAMPO_DE_CLAVE_COBRANZA = { ventas: "ventaK", venta_credito: "ventaK", saldo_pendiente: "saldoK", saldo_vencido: "vencidoK", abonado: "abonadoK", saldo_por_vencer: "porVencerK" };
+  /* v21 (T06 · §7.3·44a): «recuperado» (`recuperadoPct`) y «dias_vencido» (`diasVencido`) también son claves de `top` que esta tool sabe publicar: el top 8 de MÁS RECUPERADO trae a Ripley, La Polar, Hites, ABC y Unimarc (fuera del top 8 por vencido) y su fila. Sin ellas el compositor conocía el conjunto (el Notario lo resuelve solo) y no tenía ninguna cifra que servir para 5 de las 9. */
+const _CAMPO_DE_CLAVE_COBRANZA = { ventas: "ventaK", venta_credito: "ventaK", saldo_pendiente: "saldoK", saldo_vencido: "vencidoK", abonado: "abonadoK", saldo_por_vencer: "porVencerK", recuperado: "recuperadoPct", dias_vencido: "diasVencido" };
   const _topRequerido = _universoReq ? _universoReq.top : null;   // `_universoReq` ya extraído al inicio de la función
   const _entidadesDelTopRequerido = (() => {
     const top = _topRequerido;
@@ -442,9 +445,11 @@ export function cobranza(_args = {}, ctx = {}) {
     const campo = _CAMPO_DE_CLAVE_COBRANZA[String(top.metrica).trim()];
     if (!campo) return [];
     const conValor = M.filas.filter((f) => Number.isFinite(f[campo]));
-    const dirMenor = String(top.direccion || "mayor") === "menor";
-    const orden = [...conValor].sort((a, b) => (dirMenor ? a[campo] - b[campo] : b[campo] - a[campo]));
-    return orden.slice(0, +top.k).map((f) => f.nombre);
+    /* «peor»/«mejor» dependen de la polaridad de la métrica (la resuelve el compositor y el Notario): acá se traen los DOS extremos, el compositor recorta al que es */
+    const dirTxt = String(top.direccion || "mayor");
+    const ext = (asc) => [...conValor].sort((a, b) => (asc ? a[campo] - b[campo] : b[campo] - a[campo])).slice(0, +top.k).map((f) => f.nombre);
+    if (dirTxt === "peor" || dirTxt === "mejor") return [...new Set([...ext(true), ...ext(false)])];
+    return ext(dirTxt === "menor");
   })();
   // RAÍZ A8 (supervisor 2026-09-27, diagnóstico v8, tarea 5 del cierre) — con `top.sobre:"eje"`, el compositor y
   // el Notario tienen que poder RECOMPUTAR el top-k de forma independiente contra la MISMA evidencia (nunca

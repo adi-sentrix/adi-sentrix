@@ -597,6 +597,15 @@ const _NOTAS_INTERNAS_RE = /\b(mix-?effect|drill\s?-?down|driver\s+interno|suger
  * GARANTÍA sobre el texto vivo —igual que con el voseo y el registro—, no la autoridad sobre el formato. */
 import { normalizarSeparadorDecimal } from "../../config/contract/figureType.js";
 
+/** objetivoPorMeta(termino) → el TÍTULO de un concepto en la voz de la casa: «meta» → «objetivo» (decisión del owner 2026-09-10; «meta»/«target» vetadas). Solo el término suelto —un título de definición—, sin la ventana de ámbito de `stripLanguageLeaks`: quien lo llama ya sabe que habla de negocio. Cualquier otro término sale intacto. */
+export function objetivoPorMeta(termino) {
+  const t = String(termino == null ? "" : termino);
+  const m = /^(metas?|targets?)$/i.exec(t.trim());
+  if (!m) return t;
+  const base = /s$/i.test(m[1]) ? "objetivos" : "objetivo";
+  return t === t.toUpperCase() ? base.toUpperCase() : t[0] === t[0].toUpperCase() ? base[0].toUpperCase() + base.slice(1) : base;
+}
+
 export function stripLanguageLeaks(text) {
   if (typeof text !== "string" || !text.trim()) return text;
   let s = text;

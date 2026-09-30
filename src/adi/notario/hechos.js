@@ -1152,7 +1152,10 @@ function _razonDeMiembro(u, ent, key, eje, I) {
   const preTop = ["base", "estados", "no_estados", "bodega", "filtros"].some((c) => u[c] != null);
   const fueraPorLaCondicionPrevia = !!(u.top && rkTop && iTop < 0 && preTop && normalizar(u.top.sobre) !== "eje");
   let clave = null, refConcepto = null;
+  /* v21 (T46, §7.3·41c): con `top` SOBRE EL EJE y un ESTADO que la entidad no cumple («de las 3 que más venden, las al día»), si ESTÁ dentro del top el top NO la dejó fuera: la dejó fuera el estado, y su verdad es la cifra de ese estado («está en mora, saldo vencido $2.5M»), sin un «venta $19.4M, puesto 1 de 13» que leería como si estuviera adentro. Es la misma razón que ya rige para un conjunto con referencia (arriba) */
+  const _estadoQueFalla = falla.find((c) => METRICA_DE_ESTADO[c.canon]);
   if (fRef && dentroDelTop) { clave = fRef.metrica; refConcepto = fRef.concepto; }
+  else if (dentroDelTop && _estadoQueFalla && !fF) { clave = METRICA_DE_ESTADO[_estadoQueFalla.canon]; }
   else if (u.top && u.top.metrica && !fueraPorLaCondicionPrevia) clave = _claveDeMetricaDeUniverso(u.top.metrica);
   else if (exTop) clave = _claveDeMetricaDeUniverso(exTop.metrica);
   else if (fF) { clave = _claveDeMetricaDeUniverso(fF.metrica); if (fF.ref) refConcepto = fF.ref; }

@@ -492,6 +492,8 @@ function _pasosLecturaDecision(partes) {
     for (const c of (p.conceptos || [])) out.push(..._callsDeConceptoEje(p.tema, c, ejeP));
   }
   if (dominios.includes("cobranza")) out = _conUniversoRequerido(out, partes);   // A7: las llamadas por concepto (recién agregadas) llevan el MISMO universo que la llamada base
+  /* v21 (T15–T19 · T99, §7.3·44c): una `lectura`/`decision` de COBRANZA sin universo ni entidades sirve su FOTO —las cuentas de la mesa de cobranza, sin ensanchar—; la cuenta sana de esa foto publica su «Saldo vencido $0» y sus «0d» (`cerosDeLaFoto`, opt-in del Encargo como `universoRequerido`: la boleta del agente vivo no lo manda y no cambia). */
+  if (partes.some((p) => p.tema === "cobranza" && !(p.entidades && p.entidades.length) && !_tieneUniversoPropio(p.universo) && p.conceptos && p.conceptos.length && !(p.eje && p.eje !== sujetoDeTema(p.tema)))) out = out.map((c) => (c.tool === "cobranza" && !(c.args && c.args.cerosDeLaFoto) ? { ...c, args: { ...c.args, cerosDeLaFoto: true } } : c));
   // «DÍAS SIN VENTA» COMO CONCEPTO DE LA PARTE (owner 2026-09-29, cierre del inventario): el paquete fijo del dominio trae el tramo crítico,
   // no los días de TODOS los SKU — una parte que los declara los pide con su productor (el mismo foco, aditivo, deduplicado abajo).
   for (const p of partes) if ((p.conceptos || []).some((c) => _FAM_DIAS_SIN_VENTA.has(c))) out.push(_CALL_DIAS_SIN_VENTA("dias_sin_venta — declarado por la parte: los días sin venta de TODOS los SKU, un hecho histórico (mesaCapital)"));
