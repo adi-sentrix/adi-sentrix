@@ -282,6 +282,8 @@ function _pasosCifra(p) {
         continue;
       }
       out.push({ tool: "entityRecord", args: { dimension: e.eje, entity: e.nombre }, para: `la fila completa de ${e.nombre} (entityRecord)` });
+      /* la carga comercial la declara el registro de métricas por cuenta, SKU, marca y familia, pero la fila completa la rotula «Rebate (%)» (otro nombre del mismo campo): sin su propia lectura la entidad quedaba «sin dato de carga comercial» con el dato publicado */
+      if ((p.conceptos || []).includes("carga")) out.push(..._callsDeConceptoEje(p.tema, "carga", e.eje));
     }
     return _dedupeCalls(out);
   }
@@ -442,7 +444,17 @@ function _pasosLecturaDecision(partes) {
   // `validar.js` en `ParteResuelta.eje`; nunca se relee una frase para encontrarlo.
   let eje = null;
   for (const p of partes) { if (p.eje && p.eje !== sujetoDeTema(p.tema)) { eje = p.eje; break; } }
-  let out = pasosDeDominios({ dominios, eje });
+  /* CONSOLIDACIÓN, SEGUNDA VUELTA — el eje es de cada PARTE, no del encargo: antes el primer eje explícito de CUALQUIER parte se le aplicaba a todos los dominios, así que una parte de inventario por BODEGA le
+   * quitaba a la parte comercial por cuenta su paquete entero (Comercial «no tiene venta por bodega»: una lectura de tres dominios servía dos). Cada dominio recibe los ejes de SUS partes: el eje por
+   * defecto del dominio (`null`: su paquete completo) si alguna de sus partes lo usa, y cada eje explícito que sus partes declaran. Con un solo eje en todo el encargo el resultado es el de siempre. */
+  const ejesPorDominio = {};
+  for (const d of dominios) {
+    const ps = partes.filter((p) => p.tema === d);
+    const explicito = (p) => !!(p.eje && p.eje !== sujetoDeTema(p.tema));
+    const explicitos = [...new Set(ps.filter(explicito).map((p) => p.eje))];
+    ejesPorDominio[d] = ps.some((p) => !explicito(p)) ? [null, ...explicitos] : explicitos;
+  }
+  let out = pasosDeDominios({ dominios, eje, ejesPorDominio });
   // R-INICIATIVA-UNIVERSO-NO-ENTIDADES / V81 (diagnóstico v6, cerrado del todo, owner 2026-09-26 · coordinador) —
   // `cobranza()` recorta su boleta a un TOP 8 fijo (vencido primero, después saldo); una parte de este grupo
   // (`lectura`/`decision` sin entidad, 1..N temas) puede declarar `universo.top` sobre OTRA métrica («los 3
@@ -491,11 +503,17 @@ function _pasosLecturaDecision(partes) {
   // que ya arma el group-by sin entidades (`_callsDeConceptoEje`, nunca una segunda tabla) — ADITIVO: nunca
   // reemplaza lo que el contrato del dominio ya trae, solo agrega lo que falta (dedupe por tool+args exacto,
   // `_dedupeCalls`, al final de esta función).
+  /* CONSOLIDACIÓN, SEGUNDA VUELTA (el eje es de la parte): lo mismo vale para una parte con EJE EXPLÍCITO (distinto del sujeto del tema) aunque no declare universo: sus conceptos se leen por SU eje —la rotación, los días de inventario y las unidades en stock de cada BODEGA, la venta por marca…—; el paquete fijo del dominio trae el capital por bodega y nada más, y la parte quedaba sin la cifra que el dato publica (declarada «sin dato») o sin foto. */
   for (const p of partes) {
-    if (!_tieneUniversoPropio(p.universo)) continue;
+    const ejeExplicito = !!(p.eje && p.eje !== sujetoDeTema(p.tema));
+    const propio = _tieneUniversoPropio(p.universo) || ejeExplicito;
     const ejeP = (p.universo && p.universo.eje) || p.eje || sujetoDeTema(p.tema);
-    for (const c of (p.conceptos || [])) out.push(..._callsDeConceptoEje(p.tema, c, ejeP));
+    /* una parte de eje por defecto y sin universo propio sirve su FOTO con los conceptos que declara: lo que el paquete fijo del dominio no publica (el costo y la carga por cuenta, el capital inmovilizado de los SKU) se lee
+     * con la lectura de SU productor (`queryMetric`/`inventoryStatus`: fuentes que el paquete no repite); las lecturas con foco (`salesRead`, `marginRead`, `diagnose`, `cobranza`…) ya las trae el paquete. */
+    for (const c of (p.conceptos || [])) for (const call of _callsDeConceptoEje(p.tema, c, ejeP)) if (propio || call.tool === "queryMetric" || call.tool === "inventoryStatus") out.push(call);
   }
+  /* «Saldo por vencer» lo publica la mesa de cobranza solo con `figsPorVencer`: si una parte lo declara, la llamada de cobranza del paquete lo pide */
+  if (partes.some((p) => p.tema === "cobranza" && (p.conceptos || []).includes("saldo_por_vencer"))) out = out.map((c) => (c.tool === "cobranza" && !(c.args && c.args.figsPorVencer) ? { ...c, args: { ...c.args, figsPorVencer: true } } : c));
   if (dominios.includes("cobranza")) out = _conUniversoRequerido(out, partes);   // A7: las llamadas por concepto (recién agregadas) llevan el MISMO universo que la llamada base
   /* v21 (T15–T19 · T99, §7.3·44c): una `lectura`/`decision` de COBRANZA sin universo ni entidades sirve su FOTO —las cuentas de la mesa de cobranza, sin ensanchar—; la cuenta sana de esa foto publica su «Saldo vencido $0» y sus «0d» (`cerosDeLaFoto`, opt-in del Encargo como `universoRequerido`: la boleta del agente vivo no lo manda y no cambia). */
   if (partes.some((p) => p.tema === "cobranza" && !(p.entidades && p.entidades.length) && !_tieneUniversoPropio(p.universo) && p.conceptos && p.conceptos.length && !(p.eje && p.eje !== sujetoDeTema(p.tema)))) out = out.map((c) => (c.tool === "cobranza" && !(c.args && c.args.cerosDeLaFoto) ? { ...c, args: { ...c.args, cerosDeLaFoto: true } } : c));

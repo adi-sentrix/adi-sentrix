@@ -22,6 +22,12 @@
  *   sin-dato-como-numero       un «sin dato» impreso como número (NaN, «null», «undefined») (52b).
  *   tasa-sin-denominador-como-cero una tasa impresa como 0 % cuyo denominador el dato no trae o vale cero (52b).
  *   fila-duplicada             la misma fila (entidad, rótulo y valor iguales) se imprime dos veces: una cifra se escribe una vez (40b · 52e, consolidación F5).
+ *   (segunda vuelta · el EJE y la FOTO; lee además `base.publica`: lo que el Core publica por cada eje que el registro de métricas declara, no solo la proyección)
+ *   eje-servido                una lectura/decision/cifra con eje X sirve entidades del eje X (51e): nunca una bodega servida como SKU.
+ *   foto-sin-servir            una lectura/decision sin universo ni entidades, con conceptos que el dato publica en su eje, sirve su foto (45a · 49c).
+ *   foto-incompleta            en comercial e inventario la foto es el eje entero (45a · 49c).
+ *   foto-ordenada-por-otro-concepto  la cabeza de la foto dice «ordenado por M» y M no es el primer concepto pedido que el dato publica (51a).
+ *   sin-dato-con-dato-publicado «sin dato de M para X» (o «la foto no trae M de X») cuando el Core publica M para X: un «sin dato» nunca acompaña a una cifra que el dato publica (52b · 51b).
  * (El margen por SKU ya no está exento: el Notario lo verifica como cifra de una entidad y el productor lo sirve; consolidación F5.) */
 import { COBERTURA_DE_FUENTES, coberturaDeLaMetrica } from "../../../src/config/contract/coberturaDeFuentes.js";
 
@@ -61,8 +67,17 @@ export const familia = {
     { const vistas = new Set(); for (const c of celdas) { const x = c.fila.valores || {}; const k = [c.ent, c.met, String(c.val).trim(), x.Tema, x["Simulación"], x.Supuesto].join("|"); if (vistas.has(k)) v("fila-duplicada", `«${c.ent} · ${c.met}» = ${c.val} (${x.Tema || "—"}) se imprime dos veces`); else vistas.add(k); } }
 
     /* ── el dato: qué publica la fuente para una entidad y un concepto ────────────────────────────────────────────── */
-    const filaDelRanking = (eje, clave, ent, tema) => { const rk = R[eje] && R[eje][_CLAVE_DE_RANKING(eje, clave, tema)]; return rk && Array.isArray(rk.filas) ? (rk.filas.find((f) => _norm(f.entidad) === _norm(ent) && Number.isFinite(f.valor)) || null) : null; };
-    const rankingPublicado = (eje, clave, tema) => { const rk = R[eje] && R[eje][_CLAVE_DE_RANKING(eje, clave, tema)]; return !!(rk && Array.isArray(rk.filas) && rk.filas.length); };
+    /* EL DATO PUBLICADO (`base.publica`): además de los rankings de la proyección, lo que el Core publica por cada eje que el registro de métricas declara (la rotación, los días de inventario y las
+     * unidades en stock de cada BODEGA no están en la proyección, pero el dato las publica: un «sin dato» sobre ellas es falso). Independiente de las piezas de composición. */
+    const publicadoPorElCore = (eje, clave) => (typeof base.publica === "function" ? base.publica(eje, clave) : null);
+    const filaDelRanking = (eje, clave, ent, tema) => {
+      const rk = R[eje] && R[eje][_CLAVE_DE_RANKING(eje, clave, tema)];
+      const f = rk && Array.isArray(rk.filas) ? (rk.filas.find((x) => _norm(x.entidad) === _norm(ent) && Number.isFinite(x.valor)) || null) : null;
+      if (f || rk) return f;   /* la proyección del contexto publica este ranking: manda ella (una fila ausente es ausente); solo si no lo publica se mira lo que publica el Core */
+      const pub = publicadoPorElCore(eje, _CLAVE_DE_RANKING(eje, clave, tema) === "margen_venta" ? "margen" : clave);
+      return pub && pub.has(_norm(ent)) ? { entidad: ent, valor: pub.get(_norm(ent)) } : null;
+    };
+    const rankingPublicado = (eje, clave, tema) => { const rk = R[eje] && R[eje][_CLAVE_DE_RANKING(eje, clave, tema)]; return !!((rk && Array.isArray(rk.filas) && rk.filas.length) || publicadoPorElCore(eje, clave)); };
     const esDelEje = (eje, ent) => Object.values(R[eje] || {}).some((rk) => rk && Array.isArray(rk.filas) && rk.filas.some((f) => _norm(f.entidad) === _norm(ent)));
     /* ¿el dato demuestra algo para (entidad, concepto)? → "medido" (la fila de la fuente) · "cobertura" (la fuente declara cubrir al grupo y la entidad es del grupo) · null (dato ausente) */
     const origenEnElDato = (eje, clave, ent, tema) => {
@@ -94,6 +109,78 @@ export const familia = {
           if (rankingPublicado(s.eje, c, p.tema) && esDelEje(s.eje, s.n) && !declarado(s.n, c)) v("ausente-sin-declarar", `${p.id} · «${s.n}» (${s.via}) no tiene dato de «${nombreDe(c)}» en la fuente y la Entrega no lo declara («sin dato de X para Y»)`);
         }
       }
+    }
+
+    /* ── EL EJE Y LA FOTO (51e · 45a · 49c, consolidación segunda vuelta) ───────────────────────────────────────────────────────────────────────
+     * eje-servido        una `lectura`/`decision`/`cifra` con eje X sirve entidades del eje X: ningún universo que su parte declara (el suyo o el de su prioridad) nombra a una entidad de otro eje (una bodega
+     *                    servida como SKU: «quien más pesa es LG-DRYER8KG» en una lectura por bodega).
+     * foto-sin-servir    una `lectura`/`decision` sin entidades ni universo propio, con conceptos que el dato publica en su eje, sirve su foto: un universo con el id de la parte.
+     * foto-incompleta    en comercial e inventario la foto es el EJE ENTERO (45a · 49c); cobranza sirve las cuentas de su mesa y declara la cola (52c), así que ahí solo se exige que haya foto.
+     * sin-dato-con-dato-publicado   «sin dato de M para X» (o «la foto no trae M de X») cuando el Core publica M para X: un «sin dato» nunca acompaña a una cifra que el dato publica. */
+    const ejesDeEntidad = (n) => { if (/\s[−-]\s/.test(String(n))) return []; const out = []; for (const e of esq.EJES) { let c = null; try { c = base.entityIndex.resolveCanonical(e, n); } catch { c = null; } if (c) out.push(e); } return out; };
+    const ejeDeParte = (p) => p.eje || (esq.sujetoDeTema ? esq.sujetoDeTema(p.tema) : null) || "cliente";
+    const ejePorParte = new Map(partes.map((p) => [p.id, ejeDeParte(p)]));
+    for (const p of partes) {
+      if (!["cifra", "lectura", "decision"].includes(p.cierre)) continue;
+      if (Array.isArray(p.entidades) && p.entidades.length) continue;   /* las entidades que la parte NOMBRA se sirven con el productor de cada una, de su propio eje (46b: una cifra con entidades de dos ejes) */
+      const vistas = new Set();
+      for (const u of entrega.universos || []) {
+        const idsP = String(u.id || "").split("_").filter((x) => /^p\d+$/.test(x));
+        if (!idsP.includes(p.id)) continue;
+        const admitidos = new Set(idsP.map((pid) => ejePorParte.get(pid)).filter(Boolean));
+        for (const n of u.entidades || []) {
+          const es = ejesDeEntidad(n);
+          if (es.length && !es.some((e) => admitidos.has(e)) && !vistas.has(`${n}`)) { vistas.add(`${n}`); v("eje-servido", `${p.id} (${p.cierre}, eje ${ejeDeParte(p)}) sirve «${n}», que es de ${es.join("/")} (universo «${u.id}»)`); }
+        }
+      }
+    }
+    for (const p of partes) {
+      if (!["lectura", "decision"].includes(p.cierre)) continue;
+      if ((Array.isArray(p.entidades) && p.entidades.length) || esq.universoTieneRestriccionPropia(p.universo)) continue;
+      const conceptos = Array.isArray(p.conceptos) ? p.conceptos : [];
+      if (!conceptos.length) continue;
+      const eje = ejeDeParte(p);
+      if (!conceptos.some((c) => publicadoPorElCore(eje, c) || (R[eje] && R[eje][_CLAVE_DE_RANKING(eje, c, p.tema)]))) continue;   /* el dato no publica ninguno de sus conceptos en ese eje: no hay foto que exigir */
+      const u = (entrega.universos || []).find((x) => x.id === p.id && !x.soloRanking);
+      if (!u || !(u.entidades || []).length) { v("foto-sin-servir", `${p.id} (${p.cierre} de ${p.tema} por ${eje}, sin universo ni entidades) pide ${conceptos.join(", ")} y la Entrega no sirve su foto (ningún universo «${p.id}»)`); continue; }
+      if (p.tema !== "cobranza") {
+        let todos = []; try { todos = base.entityIndex.axisEntityNames(eje) || []; } catch { todos = []; }
+        const dichas = new Set((u.entidades || []).map(_norm));
+        const faltan = todos.filter((n) => !dichas.has(_norm(n)));
+        if (faltan.length) v("foto-incompleta", `${p.id} (${p.tema} por ${eje}, sin universo) sirve ${(u.entidades || []).length} de ${todos.length}: faltan ${faltan.slice(0, 6).join(", ")}`);
+      }
+    }
+    /* foto-ordenada-por-otro-concepto: la lista de la foto se ordena por el PRIMER concepto pedido que su productor publica y la cabeza lo dice «ordenado por M: …» (51a) */
+    for (const p of partes) {
+      if (!["lectura", "decision"].includes(p.cierre) || p.tema === "cobranza") continue;   /* en cobranza la foto va en el orden de la mesa (52c) */
+      if ((Array.isArray(p.entidades) && p.entidades.length) || esq.universoTieneRestriccionPropia(p.universo)) continue;
+      if (partes.filter((q) => ['cifra', 'lectura', 'decision'].includes(q.cierre) && q.tema === p.tema && ejeDeParte(q) === ejeDeParte(p)).length > 1) continue;   /* otra parte del mismo dominio y eje: la oración no se puede atribuir a una sola */
+      const eje = ejeDeParte(p), conceptos = Array.isArray(p.conceptos) ? p.conceptos : [];
+      const u = (entrega.universos || []).find((x) => x.id === p.id && !x.soloRanking);
+      if (!u || !(u.entidades || []).length) continue;
+      const suyas = new Set((u.entidades || []).map(_norm));
+      for (const t of textos) {
+        const m = /^Por .*?ordenado por ([^:]+): (.+)$/.exec(t);
+        if (!m) continue;
+        const nombresDichos = [...suyas].filter((n) => _norm(m[2]).includes(n));
+        if (!nombresDichos.length || nombresDichos.length < Math.min(2, suyas.size)) continue;   /* la oración de otra parte u otra lista */
+        const dicho = claveDeRotulo(m[1].trim());
+        const dom = dicho ? lex.dominioDeClave(dicho) : null;
+        if (!dicho || (dom && dom !== p.tema)) continue;   /* una oración de otra parte (otro dominio) sobre las mismas entidades */
+        if (dicho !== "participacion" && !conceptos.includes(dicho)) continue;   /* una lista de otro concepto que la parte no pidió (los días sin venta de «frenado» sin umbral, la medida de una lente): no es la foto de esta parte */
+        /* el primer concepto pedido que la Entrega sirve (una fila de alguna entidad de la foto): la lista se ordena por ese; «participación» es derivada de lo que se sirva */
+        const servido = (c) => celdas.some((x) => suyas.has(_norm(x.ent)) && claveDeRotulo(x.met) === c);
+        const esperado = conceptos.filter((c) => c !== "participacion").find(servido) || conceptos[0];
+        if (dicho !== esperado && dicho !== "participacion") v("foto-ordenada-por-otro-concepto", `${p.id} (${p.tema} por ${eje}) pidió ${conceptos.join(", ")}: la foto debe ordenarse por «${nombreDe(esperado)}» y la cabeza dice «ordenado por ${m[1].trim()}»`);
+      }
+    }
+    for (const l of limites) {
+      const titulo = String(l.titulo || "");
+      let m, nombres = [], clave = null;
+      if ((m = /sin dato de (.+?) para (.+?)(?:\.| \(|$)/.exec(titulo))) { clave = claveDeRotulo(m[1].trim()); nombres = m[2].split(/, | y /).map((s) => s.trim()).filter(Boolean); }
+      else if ((m = /la foto no trae (.+?) de (.+?) \(\d+ de /.exec(titulo))) { clave = claveDeRotulo(m[1].trim()); nombres = m[2].split(/, | y /).map((s) => s.trim()).filter(Boolean); }
+      if (!clave) continue;
+      for (const n of nombres) { const es = ejesDeEntidad(n); const pub = es.map((e) => ({ e, p: publicadoPorElCore(e, clave) })).find((x) => x.p && x.p.has(_norm(n))); if (pub) v("sin-dato-con-dato-publicado", `«${titulo.slice(0, 110)}»: el dato publica ${nombreDe(clave)} de ${n} (${pub.p.get(_norm(n))}) en ${pub.e}`); }
     }
 
     /* ── lo anunciado en la cabeza: «ordenado por M: A (v), B (v)» ──────────────────────────────────────────────────── */

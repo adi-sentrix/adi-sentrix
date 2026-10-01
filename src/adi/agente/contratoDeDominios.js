@@ -130,21 +130,29 @@ const _hayInventario = () => { try { return ((getTenantData() || {}).skuInventar
 const _hayCobranza = () => { try { const M = buildMesaFlujo(); return !!(M && Array.isArray(M.filas) && M.filas.length); } catch { return false; } };
 const _hayAnteriorConUnidades = () => { try { return ((getTenantData() || {}).clientesVentas || []).some((c) => typeof c.anterior === "number" && typeof c.unidadesAnt === "number"); } catch { return false; } };
 
-/** pasosDeDominios({ dominios, eje }) → los pasos de todos los dominios que participan, en orden fijo. */
-export function pasosDeDominios({ dominios = [], eje = null } = {}) {
+/** pasosDeDominios({ dominios, eje, ejesPorDominio }) → los pasos de todos los dominios que participan, en orden fijo.
+ *  `eje` es UN solo eje para todos los dominios (el camino del agente: una pregunta, un eje). `ejesPorDominio` ({ comercial: [null, "marca"], inventario: ["bodega"] … }) es la forma del ENCARGO
+ *  (consolidación, segunda vuelta): el eje pertenece a cada PARTE, no al encargo entero — una parte de inventario por bodega no puede quitarle a la parte comercial por cuenta su lectura
+ *  (antes el primer eje explícito de cualquier parte se le aplicaba a todos los dominios, y Comercial «no tiene venta por bodega» dejaba SIN lectura a la parte comercial de una lectura
+ *  de tres dominios). Cada lista trae los ejes de ese dominio (`null` = el eje por defecto del dominio, su paquete completo); si el dominio no figura, rige `eje`. Sin `ejesPorDominio` el
+ *  resultado es el de siempre, byte a byte (la boleta del agente no cambia). */
+export function pasosDeDominios({ dominios = [], eje = null, ejesPorDominio = null } = {}) {
   const out = [];
   const multi = dominios.length >= 2;
+  const ejesDe = (d) => (ejesPorDominio && Array.isArray(ejesPorDominio[d]) && ejesPorDominio[d].length ? ejesPorDominio[d] : [eje]);
   if (dominios.includes("comercial")) {
-    if (eje === "bodega") { /* no hay venta por bodega en el archivo: Comercial no tiene qué aportar por ese eje — la doctrina de cruce lo dice */ }
-    else if (eje) { if (multi) out.push(..._COM_POR_EJE(eje)); }   // solo Comercial por otro eje: su lectura por eje es la realidad (lectura-por-eje), como hasta hoy
-    else {
-      out.push(...pasosDelContratoComercial(), ..._COM_UNIDADES);
-      if (_hayAnteriorConUnidades()) out.push(_COM_VOL_PRECIO);
+    for (const e of ejesDe("comercial")) {
+      if (e === "bodega") { /* no hay venta por bodega en el archivo: Comercial no tiene qué aportar por ese eje — la doctrina de cruce lo dice */ }
+      else if (e) { if (multi) out.push(..._COM_POR_EJE(e)); }   // solo Comercial por otro eje: su lectura por eje es la realidad (lectura-por-eje), como hasta hoy
+      else {
+        out.push(...pasosDelContratoComercial(), ..._COM_UNIDADES);
+        if (_hayAnteriorConUnidades()) out.push(_COM_VOL_PRECIO);
+      }
     }
   }
   if (dominios.includes("inventario") && _hayInventario()) {
     out.push(..._INV_BASE);
-    if (eje === "marca" || eje === "familia") out.push(_INV_POR_EJE(eje));
+    for (const e of ejesDe("inventario")) if (e === "marca" || e === "familia") out.push(_INV_POR_EJE(e));
     if (dominios.includes("comercial")) out.push(..._INV_CRUCE);
   }
   if (dominios.includes("cobranza")) out.push(..._PASOS_COBRANZA);

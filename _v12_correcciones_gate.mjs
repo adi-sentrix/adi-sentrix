@@ -972,10 +972,11 @@ H("A15 · lectura con eje EXPLÍCITO · una `lectura` de inventario por BODEGA s
   const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "lectura", conceptos: ["capital_frenado", "capital"], eje: "bodega", universo: { eje: "bodega" } }] });
   const filas = new Set(_filasDe(E));
   ok(E.ok && bodegas.length === 4 && bodegas.every((b) => filas.has(b)), "las cuatro bodegas están en la tabla de Cifras (la lectura pedía el eje bodega)", JSON.stringify([...filas]));
-  ok(E.entrega.respuesta.some((r) => /quien más pesa/.test(r.texto || "")), "la foto del procedimiento (el SKU que más pesa) se conserva: el eje pedido se SIRVE además, no en su lugar", E.entrega.respuesta.map((r) => r.texto).join(" | ").slice(0, 300));
+  /* CONSOLIDACIÓN, SEGUNDA VUELTA (§7.3·51(e) y 51(a), posteriores a esta corrección v20): una lectura sobre el eje BODEGA sirve las bodegas, no un SKU (la oración «quien más pesa» del SKU ya no acompaña a una parte por bodega), y la lista de la foto se ordena por el PRIMER concepto pedido que su productor publica (aquí «capital inmovilizado crítico», de mayor a menor; las bodegas que no figuran llevan su cero de cobertura declarada) y la Entrega lo dice. */
+  ok(!E.entrega.respuesta.some((r) => /quien más pesa/.test(r.texto || "")) && !/LG-DRYER8KG|BOS-SANDER/.test(E.texto), "§7.3·51(e): la lectura por BODEGA sirve las bodegas y NO un SKU (ninguna oración «quien más pesa» de un SKU)", E.entrega.respuesta.map((r) => r.texto).join(" | ").slice(0, 300));
   const linea = (E.entrega.respuesta.find((r) => /^Por bodega, ordenado por/.test(r.texto || "")) || {}).texto || "";
-  const esperada = rkCap.slice(0, 3).map((f) => `${f.entidad} (${formatoDeLaCasa(f.raw, "money")})`).join(", ");
-  ok(linea === `Por bodega, ordenado por Capital: ${esperada}.`, `el listado se ordena por «Capital» (el primer concepto con fig de las cuatro), cada nombre con su cifra: ${esperada}`, linea);
+  ok(/^Por bodega, ordenado por Capital inmovilizado crítico: Valparaíso \(\$25K\), Antofagasta \(\$8K\), Santiago \(\$0\)\./.test(linea), "§7.3·51(a): el listado se ordena por «Capital inmovilizado crítico» (el primer concepto pedido que su productor publica), de mayor a menor, cada nombre con su cifra", linea);
+  void rkCap;
   const solo = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital_frenado"], eje: "bodega", universo: { eje: "bodega" } }] });
   const lineaSolo = (solo.E.entrega.respuesta.find((r) => /ordenado por/.test(r.texto || "")) || {}).texto || "";
   ok(/ordenado por Capital inmovilizado crítico: Valparaíso \(\$25K\), Antofagasta \(\$8K\)/.test(lineaSolo), "CONTROL · con un solo concepto (solo dos bodegas lo traen) el orden es el de siempre, por ese concepto", lineaSolo);

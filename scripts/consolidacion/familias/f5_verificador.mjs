@@ -19,13 +19,15 @@ export const familia = {
   invariante(ctx) {
     const { entrega, texto, resolucion, base } = ctx;
     const vs = [];
-    const v = (regla, detalle) => vs.push({ regla, detalle: String(detalle).slice(0, 360) });
+    const v = (regla, detalle, abierta = false) => vs.push({ regla, detalle: String(detalle).slice(0, 360), ...(abierta ? { abierta: true } : {}) });
     const indice = (entrega.procedencia && entrega.procedencia.libro && entrega.procedencia.libro.indice) || null;
     const profundidad = resolucion && resolucion.encargo && resolucion.encargo.profundidad === "breve" ? "breve" : "completa";
     let r = null;
     try { r = base.verificar.verificarEntrega({ texto, entrega, resolucion, indice, profundidad }); } catch (e) { v("EXCEPCION-verificador", (e && e.message) || e); return vs; }
     for (const x of r.violaciones) {
-      v("verificador-rechaza-lo-servido", `regla «${x.regla}»: ${x.detalle}`);
+      /* ABIERTA (límite de diseño, a decisión del owner): una simulación en profundidad BREVE con más de 8 filas protegidas por su propio bloque. El gobernador de tamaño no parte un bloque de simulación (atomicidad, owner 2026-09-26: un encabezado sin su cuerpo no dice nada) y sus oraciones son de prioridad 0: queda en «mejor esfuerzo» (tamano.js). Cumplirlo exige comportamiento nuevo (partir el bloque o servir menos cifras). */
+      const abiertaBreve = x.regla === "filas-sobre-el-tope" && profundidad === "breve" && (entrega.respuesta || []).some((r) => r && r._bloqueId);
+      v("verificador-rechaza-lo-servido", `regla «${x.regla}»: ${x.detalle}`, abiertaBreve);
       const m = /respuesta\[(\d+)\]/.exec(x.detalle || "");
       if (m && (entrega.respuesta || [])[Number(m[1])]) v("oracion-rechazada-servida", `la oración respuesta[${m[1]}] (${x.regla}) está servida: «${String(entrega.respuesta[Number(m[1])].texto || "").slice(0, 120)}»`);
     }

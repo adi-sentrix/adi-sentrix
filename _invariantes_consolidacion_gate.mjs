@@ -19,13 +19,21 @@
  *       saldo por vencer ≠ saldo pendiente, las filas de señales conservan su rótulo, una fig sin clave se declara.)
  *   5 · INDEPENDENCIA Y CABLEADO (estático) — el control de la F1 no importa la pieza; ningún sitio de la F1 conserva su propia decisión
  *       (las helpers viven en `entrega/prioridad.js`) ni lee la oración de prioridad con una expresión regular sobre la prosa.
+ *   0b · LA COBERTURA (segunda vuelta, owner 2026-10-01): las mediciones ciegas v29 y v30 fallaron en el eje BODEGA, que el generador casi no producía —los controles
+ *       no probaban ese terreno—. El sub-azar de cobertura (`scripts/consolidacion/cobertura.mjs`, semilla derivada `<semilla>:cobertura`, sin mover las secuencias de la
+ *       F1–F3) ejerce cada combinación válida tema × cierre × eje × concepto × forma de universo × premisa × criterio (+ la foto, la simulación y las lecturas de varias
+ *       partes) y entra al corpus del §1; el §2 exige 0 violaciones también sobre él.
+ *   4f · carnadas de la segunda vuelta: una lectura o decision con eje X sirve entidades del eje X (`eje-servido`, `primero-fuera-del-eje`) · la foto se sirve, completa y por el
+ *       primer concepto pedido (`foto-sin-servir`, `foto-incompleta`, `foto-ordenada-por-otro-concepto`) · un «sin dato» nunca acompaña a una cifra que el dato publica
+ *       (`sin-dato-con-dato-publicado`, `servida-sin-fila`) — con los ocho casos de v29 y v30 (J16 J17 J18 J35 J50 K16 K17 K18) como base verde.
  *   6 · CERO red.
  *
  * Solo por `npm run gates:offline` o `node --import ./scripts/offline-guard.mjs _invariantes_consolidacion_gate.mjs`. */
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import { cargarBase } from "./scripts/consolidacion/base.mjs";
 import { cargarCatalogos, armarCorpus, entregaDe } from "./scripts/consolidacion/corpus.mjs";
-import { generarEncargos } from "./scripts/consolidacion/generador.mjs";
+import { generarEncargos, generarCobertura, especificacionesDeCeldas, auditarCobertura } from "./scripts/consolidacion/generador.mjs";
 import { cargarFamilias, correrCorpus, revisarEntrega } from "./scripts/consolidacion/marco.mjs";
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
 
@@ -39,7 +47,8 @@ const N_MUESTRA = 400;
 /* LAS ABIERTAS CONGELADAS (reglas vigentes cuyo cumplimiento es comportamiento nuevo, a decisión del owner; ver el informe de la F1):
  *   F1 · 48(b)/51(d) «riesgo» pedido sobre un solo dominio, o una lente pedida que no ordena el conjunto, y la prioridad se dice «por riesgo integrado».
  * Congeladas sobre ESTE corpus (catálogos + muestra fija): pueden bajar, nunca subir. */
-const ABIERTAS_CONGELADAS = {};   /* la F1 las cerró con la condición del §7.3·53: «por riesgo integrado: X» vale cuando X es el primero del plan de señales de ese dominio (107 de 107 la cumplen en el corpus completo, 0 violaciones reales) */
+/* F5 (segunda vuelta): una simulación en profundidad BREVE con más de 8 filas protegidas por su propio bloque (`filas-sobre-el-tope`): el gobernador de tamaño no parte un bloque de simulación (atomicidad, owner 2026-09-26) y sus oraciones son de prioridad 0 («mejor esfuerzo», `tamano.js`). Cumplirlo es comportamiento nuevo: a decisión del owner. El sub-azar de cobertura la ejerce 1 vez por semilla. */
+const ABIERTAS_CONGELADAS = { "F5:verificador-rechaza-lo-servido": 1 };   /* la F1 las cerró con la condición del §7.3·53: «por riesgo integrado: X» vale cuando X es el primero del plan de señales de ese dominio (107 de 107 la cumplen en el corpus completo, 0 violaciones reales) */
 
 const base = await cargarBase();
 const familias = await cargarFamilias();
@@ -59,12 +68,36 @@ ok(familias.every((f) => typeof f.invariante === "function" && f.nombre), "cada 
   ok(g.some((x) => x.encargo.criterio && x.encargo.criterio.lente) && g.some((x) => x.encargo.criterio && x.encargo.criterio.referencia && !x.encargo.criterio.lente) && g.some((x) => x.encargo.partes.some((p) => p.universo && (p.universo.top || p.universo.estados || p.universo.base || p.universo.filtros || p.universo.excluir))), "produce criterios con lente, con solo una referencia, y universos con top, estados, base, filtros y exclusiones");
 }
 
-H("1 · el corpus: los catálogos v13–v28 y la muestra fija del azar");
+H("0b · la COBERTURA del generador (segunda vuelta): cada combinación válida —tema × cierre × eje × concepto × forma de universo × premisa × criterio— se ejerce, con su propia semilla");
+const SEMILLA_COBERTURA = "adi-consolidacion-gate-cobertura";
+const espacio = especificacionesDeCeldas(base, { semilla: SEMILLA_COBERTURA });
+const cobertura = generarCobertura(base, { semilla: SEMILLA_COBERTURA, minimo: 1, espacio });
+{
+  /* el generador general NO se movió: las secuencias que usan la F1, la F2 y la F3 (y el sub-azar de la F3) son byte-idénticas a las de antes de la cobertura */
+  const g400 = (await generarEncargos(base, { semilla: SEMILLA_GATE, n: N_MUESTRA })).casos;
+  ok(createHash("sha256").update(JSON.stringify(g400)).digest("hex") === "93f9d5ce1c4c445b6d22f3c6b6c32baca2163ed80d62c2a8b791ad2aa0486329", "el sub-azar de cobertura tiene su propia semilla derivada: la secuencia del generador general (400 encargos de la semilla del gate) es byte-idéntica a la de antes");
+  const otra = generarCobertura(base, { semilla: SEMILLA_COBERTURA, minimo: 1, espacio });
+  ok(JSON.stringify(otra.casos) === JSON.stringify(cobertura.casos), "el sub-azar de cobertura es determinístico (misma semilla, mismos encargos)");
+  const dims = new Set([...espacio.validas.values()].map((c) => c.dim));
+  ok(["P", "C", "U", "F", "F2", "Q", "K", "D", "S", "M", "M3"].every((d) => dims.has(d)) && espacio.validas.size >= 1900, `el espacio válido cubre las once dimensiones (${espacio.validas.size} celdas que el validador acepta; ${espacio.noConstruibles.length} combinaciones que no, p. ej. la bodega de un SKU aplicada a una marca)`);
+  const aud = auditarCobertura(base, cobertura.casos, { espacio });
+  ok(aud.ceros.length === 0, `cada celda válida tiene al menos un encargo que la ejerce (${cobertura.casos.length} encargos del sub-azar; celdas en cero: ${aud.ceros.length})`, aud.ceros.slice(0, 8).join(" · "));
+  ok(cobertura.estadistica.sinCompletar.length === 0, "el sub-azar completó el mínimo de cada celda", cobertura.estadistica.sinCompletar.slice(0, 8).join(" · "));
+  /* el terreno donde fallaron v29 y v30: la FOTO por BODEGA (lectura y decision), las premisas sobre bodegas, las tres partes de tres dominios */
+  const tiene = (k) => (aud.conteo.get(k) || 0) >= 1;
+  ok(["rotacion", "dias_inventario", "unidades_stock", "capital"].every((c) => tiene(`F:inventario|lectura|bodega|${c}`) && tiene(`F:inventario|decision|bodega|${c}`)), "ejerce la foto por BODEGA en lectura y decision con cada concepto de la bodega (rotación · días de inventario · unidades en stock · capital)");
+  ok(["cifra", "orden", "relacion", "grupo", "conteo", "estado"].every((t) => !espacio.validas.has(`Q:inventario|decision|bodega|${t}`) || tiene(`Q:inventario|decision|bodega|${t}`)), "ejerce cada tipo de premisa sobre sujetos de bodega en una decision de inventario por bodega");
+  ok(tiene("M3:comercial|cliente+inventario|bodega+cobranza|cliente") && tiene("M:comercial|cliente+inventario|bodega"), "ejerce una lectura de tres dominios con la parte de inventario por BODEGA (la de J50)");
+  ok(["riesgo", "contribucion", "credito", "ventas", "crecimiento", "capital"].every((l) => tiene(`K:inventario|decision|bodega|lente:${l}`)), "ejerce cada lente sobre una decision de inventario por bodega");
+}
+
+H("1 · el corpus: los catálogos v13–v28, la muestra fija del azar y el sub-azar de cobertura");
 const catalogos = cargarCatalogos();
 ok(catalogos.length >= 1600, `los catálogos v13–v28: ${catalogos.length} encargos`);
 const { casos: corpusAzar } = await armarCorpus(base, { catalogos: false, azar: { semilla: SEMILLA_GATE, n: N_MUESTRA } });
-const corpus = [...catalogos, ...corpusAzar];
+const corpus = [...catalogos, ...corpusAzar, ...cobertura.casos];
 ok(corpusAzar.length === N_MUESTRA, `la muestra fija del azar: ${corpusAzar.length} encargos (semilla «${SEMILLA_GATE}»)`);
+ok(cobertura.casos.length >= 1000, `el sub-azar de cobertura: ${cobertura.casos.length} encargos (semilla «${SEMILLA_COBERTURA}:cobertura», mínimo 1 por celda válida)`);
 
 H("2 · cero violaciones firmes en todo el corpus (todas las familias)");
 let conPrioridad = 0;
@@ -407,6 +440,78 @@ H("4e · carnadas de la F5 (toda oración servida pasó su verificador), de la f
   } else ok(false, "existe v24:Q14 en los catálogos");
 }
 
+H("4f · carnadas de la segunda vuelta (el EJE y la FOTO): una lectura o decision con eje X sirve entidades del eje X · un «sin dato» nunca acompaña a una cifra que el dato publica");
+{
+  const F1 = familias.find((f) => f.id === "F1"), F2 = familias.find((f) => f.id === "F2");
+  const regla = (vs, r) => vs.some((v) => v.regla === r);
+  const v = (parte) => ({ version: "encargo/v1", ...parte });
+  /* LOS CASOS DE LAS MEDICIONES CIEGAS v29 y v30 (los que fallaron; el generador no producía el eje bodega, así que los controles no los probaban) */
+  const CASOS = {
+    "J16 (lectura por bodega, días de inventario y unidades en stock)": v({ partes: [{ id: "p1", tema: "inventario", cierre: "lectura", conceptos: ["dias_inventario", "unidades_stock"], eje: "bodega" }], premisas: [{ id: "q1", tipo: "orden", sujeto: "Antofagasta", metrica: "dias_inventario", orden: { forma: "max" }, universo: { eje: "bodega" } }, { id: "q2", tipo: "cifra", sujeto: "Santiago", metrica: "unidades_stock", valor: "310" }] }),
+    "J17 (decision por bodega con la lente riesgo)": v({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["unidades_stock", "dias_inventario"], eje: "bodega" }], criterio: { lente: "riesgo" }, premisas: [{ id: "q1", tipo: "relacion", sujeto: "Santiago", metrica: "rotacion", relacion: { forma: "mayor", vs: { sujeto: "Valparaíso" } } }, { id: "q2", tipo: "cifra", sujeto: "Concepción", metrica: "dias_inventario", valor: "58.5 días" }] }),
+    "J18 (decision por bodega con la lente crecimiento)": v({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital", "unidades_stock"], eje: "bodega" }], criterio: { lente: "crecimiento" }, premisas: [{ id: "q1", tipo: "cifra", sujeto: "Valparaíso", metrica: "capital", valor: "$39.0K" }, { id: "q2", tipo: "orden", sujeto: "Antofagasta", metrica: "unidades_stock", orden: { forma: "min" }, universo: { eje: "bodega" } }] }),
+    "J35 (decision con dos bodegas nombradas)": v({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["rotacion", "capital"], eje: "bodega", entidades: [{ nombre: "Santiago", eje: "bodega" }, { nombre: "Concepción", eje: "bodega" }] }], criterio: { lente: "riesgo" }, premisas: [{ id: "q1", tipo: "relacion", sujeto: "Santiago", metrica: "capital", relacion: { forma: "mayor", vs: { sujeto: "Concepción" } } }, { id: "q2", tipo: "cifra", sujeto: "Concepción", metrica: "rotacion", valor: "5.3x" }] }),
+    "J50 (tres lecturas: comercial por cuenta, inventario por bodega, cobranza)": v({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen", "ventas"] }, { id: "p2", tema: "inventario", cierre: "lectura", conceptos: ["capital", "rotacion"], eje: "bodega" }, { id: "p3", tema: "cobranza", cierre: "lectura", conceptos: ["abonado", "dias_vencido"] }], premisas: [{ id: "q1", tipo: "cifra", sujeto: "Valparaíso", metrica: "capital", valor: "$39.0K" }, { id: "q2", tipo: "cifra", sujeto: "Jumbo", metrica: "abonado", valor: "$12.2M" }] }),
+    "K16 (lectura por bodega, rotación y capital)": v({ partes: [{ id: "p1", tema: "inventario", cierre: "lectura", conceptos: ["rotacion", "capital"], eje: "bodega" }], premisas: [{ id: "q1", tipo: "relacion", sujeto: "Antofagasta", metrica: "rotacion", relacion: { forma: "menor", vs: { sujeto: "Santiago" } } }, { id: "q2", tipo: "cifra", sujeto: "Santiago", metrica: "capital", valor: "$63.8K" }] }),
+    "K17 (decision por bodega con la lente exposición de crédito)": v({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital", "rotacion"], eje: "bodega" }], criterio: { lente: "credito" }, premisas: [{ id: "q1", tipo: "relacion", sujeto: "Valparaíso", metrica: "capital", relacion: { forma: "mayor", vs: { sujeto: "Concepción" } } }, { id: "q2", tipo: "orden", sujeto: "Santiago", metrica: "rotacion", orden: { forma: "max" }, universo: { eje: "bodega" } }] }),
+    "K18 (decision por bodega sin criterio del usuario)": v({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["dias_inventario", "unidades_stock"], eje: "bodega" }], premisas: [{ id: "q1", tipo: "cifra", sujeto: "Antofagasta", metrica: "dias_inventario", valor: "111.5 días" }, { id: "q2", tipo: "relacion", sujeto: "Santiago", metrica: "unidades_stock", relacion: { forma: "mayor", vs: { sujeto: "Valparaíso" } } }] }),
+  };
+  const E = {};
+  for (const [id, enc] of Object.entries(CASOS)) {
+    E[id.slice(0, 3)] = entregaDe(base, { origen: "gate", id, encargo: enc });
+    const e = E[id.slice(0, 3)];
+    ok(e.ok && revisarEntrega(e, familias).length === 0, `${id}: la Entrega no tiene violaciones de F1–F5`, e.ok ? revisarEntrega(e, familias).slice(0, 3).map((x) => `${x.familia}:${x.regla} ${x.detalle}`).join(" | ") : (e.motivo || e.excepcion));
+  }
+  const bodegas = ["Santiago", "Valparaíso", "Concepción", "Antofagasta"];
+  const sirveLasBodegas = (e, parteId) => { const u = (e.entrega.universos || []).find((x) => x.id === parteId); return !!u && bodegas.every((b) => (u.entidades || []).includes(b)) && (u.entidades || []).length === 4; };
+  const fila = (e, ent, metrica) => (e.entrega.cifras.filas || []).concat((e.entrega.detalle && e.entrega.detalle.filas) || []).some((f) => f.valores["Entidad / grupo"] === ent && f.valores["Métrica"] === metrica);
+  ok(sirveLasBodegas(E.J16, "p1") && bodegas.every((b) => fila(E.J16, b, "Días de inventario") && fila(E.J16, b, "Unidades en stock")), "J16: sirve las cuatro bodegas (no un SKU) con la fila de días de inventario y de unidades en stock de cada una");
+  ok(!/LG-DRYER8KG|BOS-SANDER|quien más pesa/i.test(E.J16.texto) && !/sin dato de/.test(E.J16.texto), "J16: ningún SKU en la lectura por bodega y ningún «sin dato» sobre cifras que el dato publica");
+  ok(sirveLasBodegas(E.J17, "p1") && !/LG-DRYER8KG|por riesgo integrado: /.test(E.J17.texto), "J17: la decision por bodega con la lente riesgo sirve las cuatro bodegas y no corona a un SKU «por riesgo integrado»");
+  ok(sirveLasBodegas(E.J18, "p1") && bodegas.every((b) => fila(E.J18, b, "Capital") && fila(E.J18, b, "Unidades en stock")), "J18: las cuatro bodegas con su capital y sus unidades en stock");
+  ok(["Santiago", "Concepción"].every((b) => fila(E.J35, b, "Rotación") && fila(E.J35, b, "Capital")) && !/sin dato de rotaci/.test(E.J35.texto), "J35: las dos bodegas nombradas tienen su fila de rotación y de capital (el dato las publica)");
+  ok(sirveLasBodegas(E.K16, "p1") && bodegas.every((b) => fila(E.K16, b, "Rotación")) && !/sin dato de rotaci/.test(E.K16.texto), "K16: las cuatro bodegas con su rotación (antes: «sin dato de rotación» para bodegas que la tienen)");
+  ok(sirveLasBodegas(E.K17, "p1") && sirveLasBodegas(E.K18, "p1") && !/LG-DRYER8KG/.test(E.K17.texto + E.K18.texto), "K17 y K18: las cuatro bodegas, ningún SKU");
+  { const u1 = E.J50.entrega.universos.find((u) => u.id === "p1"); ok(!!u1 && u1.entidades.length === 13 && sirveLasBodegas(E.J50, "p2") && fila(E.J50, "Falabella", "Margen") && fila(E.J50, "Falabella", "Venta"), "J50: la parte comercial por cuenta sirve las 13 cuentas con margen y venta (antes: el eje bodega de otra parte le quitaba su lectura) y la de inventario las cuatro bodegas"); }
+
+  /* LAS CARNADAS: sobre la Entrega verde se rompe UNA propiedad y el control tiene que ponerse en rojo con la regla que corresponde */
+  const conUniversos = (e, f) => ({ ...e, entrega: { ...e.entrega, universos: e.entrega.universos.map(f) } });
+  const sinUniverso = (e, id) => ({ ...e, entrega: { ...e.entrega, universos: e.entrega.universos.filter((u) => u.id !== id) } });
+  ok(regla(revisarEntrega(conUniversos(E.J16, (u) => (u.id === "p1" ? { ...u, entidades: ["LG-DRYER8KG", "BOS-SANDER", "PHI-IRON-PRO"] } : u)), [F2]), "eje-servido"), "una bodega servida como SKU (el universo de la parte por bodega trae SKU) → eje-servido");
+  ok(regla(revisarEntrega(conUniversos(E.J50, (u) => (u.id === "p1_p3_prioridad" ? { ...u, entidades: [...(u.entidades || []), "LG-DRYER8KG"] } : u)), [F2]), "eje-servido") || regla(revisarEntrega({ ...E.J50, entrega: { ...E.J50.entrega, universos: [...E.J50.entrega.universos, { id: "p1_p2_p3_prioridad", top: null, entidades: ["LG-DRYER8KG"] }] } }, [F2]), "eje-servido"), "la prioridad de tres dominios que nombra a un SKU cuando ninguna parte es de SKU → eje-servido");
+  ok(regla(revisarEntrega(sinUniverso(E.J16, "p1"), [F2]), "foto-sin-servir"), "una lectura por bodega sin universo ni entidades cuya foto no se sirve → foto-sin-servir");
+  ok(regla(revisarEntrega(sinUniverso(E.J50, "p1"), [F2]), "foto-sin-servir"), "la parte comercial por cuenta de una lectura de tres dominios sin su foto (el caso de J50) → foto-sin-servir");
+  ok(regla(revisarEntrega(conUniversos(E.J16, (u) => (u.id === "p1" ? { ...u, entidades: u.entidades.slice(0, 3) } : u)), [F2]), "foto-incompleta"), "la foto de inventario por bodega con tres de las cuatro bodegas → foto-incompleta");
+  { const sd = { titulo: "Sobre la parte p1 (inventario), sin dato de rotación para Santiago y Valparaíso", motivo: "La lectura de este turno no publicó esa cifra para esas cuentas; no se rellena con otra." };
+    ok(regla(revisarEntrega({ ...E.K16, entrega: { ...E.K16.entrega, limites: [...E.K16.entrega.limites, sd] } }, [F2]), "sin-dato-con-dato-publicado"), "«sin dato de rotación para Santiago y Valparaíso» cuando el dato publica la rotación de cada bodega → sin-dato-con-dato-publicado");
+    const ft = { titulo: "Sobre la parte p1 (inventario), la foto no trae unidades en stock de Antofagasta (1 de 4 bodegas)", motivo: "x" };
+    ok(regla(revisarEntrega({ ...E.J16, entrega: { ...E.J16.entrega, limites: [...E.J16.entrega.limites, ft] } }, [F2]), "sin-dato-con-dato-publicado"), "«la foto no trae unidades en stock de Antofagasta» cuando el dato publica sus 39 unidades → sin-dato-con-dato-publicado"); }
+  { const sinFila = { ...E.K16, entrega: { ...E.K16.entrega, cifras: { ...E.K16.entrega.cifras, filas: E.K16.entrega.cifras.filas.filter((f) => !(f.valores["Entidad / grupo"] === "Santiago" && f.valores["Métrica"] === "Rotación")) } } };
+    ok(regla(revisarEntrega(sinFila, [F2]), "servida-sin-fila"), "quitar la fila de rotación de una bodega servida (el dato la publica) → servida-sin-fila"); }
+  { const i = E.J18.entrega.respuesta.findIndex((r) => /^Prioridad del procedimiento dentro de este grupo, por /.test(r.texto));
+    ok(i >= 0, "J18: la decision por bodega trae una oración de prioridad de su grupo");
+    if (i >= 0) {
+      const ent = { ...E.J18.entrega, respuesta: E.J18.entrega.respuesta.map((r, k) => (k === i ? { ...r, texto: r.texto.replace(/: Santiago, con/, ": LG-DRYER8KG, con"), _prioridad: { alcance: "grupo", primero: "LG-DRYER8KG" } } : r)) };
+      ok(regla(revisarEntrega({ ...E.J18, entrega: ent }, [F1]), "primero-fuera-del-eje"), "la prioridad de un grupo de bodegas que corona a un SKU (el «por riesgo integrado: LG-DRYER8KG» de J17) → primero-fuera-del-eje");
+    } }
+  /* 51(a): la foto se ordena por el PRIMER concepto pedido que el dato publica (v30·J15: pidió rotación y capital y salió «ordenado por Capital») */
+  { const e15 = entregaDe(base, { origen: "gate", id: "J15", encargo: v({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["rotacion", "capital"], eje: "sku" }] }) });
+    const i = e15.ok ? e15.entrega.respuesta.findIndex((r) => /^Por sku, ordenado por Rotación: /.test(r.texto)) : -1;
+    ok(e15.ok && i >= 0 && revisarEntrega(e15, [F2]).length === 0, "una decision de inventario por SKU que pide rotación y capital se ordena «por Rotación» (el primero pedido) y el control no marca nada");
+    if (i >= 0) ok(regla(revisarEntrega({ ...e15, entrega: { ...e15.entrega, respuesta: e15.entrega.respuesta.map((r, k) => (k === i ? { ...r, texto: r.texto.replace("ordenado por Rotación", "ordenado por Capital") } : r)) } }, [F2]), "foto-ordenada-por-otro-concepto"), "la foto que dice «ordenado por Capital» cuando el primer concepto pedido es la rotación → foto-ordenada-por-otro-concepto"); }
+  /* la pieza: el eje es de cada parte */
+  { const { pasosDeDominios } = await import("./src/adi/agente/contratoDeDominios.js");
+    const mismo = [["comercial", "inventario", "cobranza"], ["comercial", "inventario"], ["inventario"], ["comercial"], ["inventario", "cobranza"]].every((ds) => [null, "bodega", "marca", "familia", "canal", "sku", "cliente"].every((eje) => JSON.stringify(pasosDeDominios({ dominios: ds, eje })) === JSON.stringify(pasosDeDominios({ dominios: ds, eje, ejesPorDominio: Object.fromEntries(ds.map((d) => [d, [eje]])) }))));
+    ok(mismo, "pasosDeDominios: con el mismo eje en cada dominio, `ejesPorDominio` da exactamente lo de siempre (la boleta del agente, que pasa un solo `eje`, no cambia)");
+    const sinComercial = pasosDeDominios({ dominios: ["comercial", "inventario", "cobranza"], eje: "bodega" }), conComercial = pasosDeDominios({ dominios: ["comercial", "inventario", "cobranza"], eje: "bodega", ejesPorDominio: { comercial: [null], inventario: ["bodega"], cobranza: [null] } });
+    ok(!sinComercial.some((p) => p.tool === "salesRead") && conComercial.some((p) => p.tool === "salesRead"), "pasosDeDominios: con `ejesPorDominio`, la parte comercial por cuenta conserva su paquete aunque otra parte sea por bodega (con un solo `eje: bodega` lo perdía)");
+    const { lecturasDe } = await import("./src/adi/encargo/lecturasDe.js");
+    const l16 = lecturasDe(E.J16.resolucion).plan.calls.map((c) => `${c.tool}:${c.args.metric || ""}:${c.args.dimension || ""}`);
+    ok(["queryMetric:doh:bodega", "queryMetric:stock:bodega"].every((k) => l16.includes(k)), "lecturasDe: una parte con eje explícito lee SUS conceptos por SU eje (días de inventario y unidades en stock por bodega)", l16.join(" "));
+    const l50 = lecturasDe(E.J50.resolucion).plan.calls.map((c) => c.tool);
+    ok(l50.includes("salesRead") && l50.includes("cobranza") && l50.includes("inventoryStatus"), "lecturasDe: la lectura de tres dominios trae el paquete de cada uno aunque una parte sea por bodega"); }
+}
+
 H("5 · independencia del control y cableado de la pieza (estático)");
 {
   const f1 =fs.readFileSync("./scripts/consolidacion/familias/f1_prioridad.mjs", "utf8");
@@ -462,6 +567,14 @@ H("5 · independencia del control y cableado de la pieza (estático)");
   ok(/export function textoOracionRetirada/.test(aus) && /export const MOTIVO_ORACION_RETIRADA/.test(aus) && /textoOracionRetirada\(/.test(comp) && !/no pasó la verificación/.test(comp), "el límite de una oración retirada sale de `config/contract/ausencias.js` (la pieza no escribe su texto)");
   const ver = fs.readFileSync("./src/adi/entrega/verificar.js", "utf8");
   ok(/\{ oraciones \}|oraciones = null/.test(ver) && !/respuesta\\\[\(\\d\+\)\\\]/.test(comp), "la pieza lee de la ESTRUCTURA qué oraciones rechaza el verificador (`violacion.oraciones`), nunca parsea la prosa del detalle");
+}
+
+{
+  /* segunda vuelta · el eje es de cada parte: el cableado de las piezas (estático) */
+  const lec = fs.readFileSync("./src/adi/encargo/lecturasDe.js", "utf8"), comp = fs.readFileSync("./src/adi/entrega/componer.js", "utf8"), cdd = fs.readFileSync("./src/adi/agente/contratoDeDominios.js", "utf8"), f2 = fs.readFileSync("./scripts/consolidacion/familias/f2_servido.mjs", "utf8"), f1 = fs.readFileSync("./scripts/consolidacion/familias/f1_prioridad.mjs", "utf8");
+  ok(/ejesPorDominio/.test(lec) && /pasosDeDominios\(\{ dominios, eje, ejesPorDominio \}\)/.test(lec) && /ejesPorDominio = null/.test(cdd), "lecturasDe le pasa a `pasosDeDominios` el eje de CADA dominio (`ejesPorDominio`), no el primer eje explícito de cualquier parte para todos");
+  ok(/partesDelPlanDelTema/.test(comp) && /_planMultiTema\(temas, figsDelGrupo/.test(comp), "componer.js: el plan del tema (quién más pesa) solo recibe las partes de eje por defecto; una parte con eje explícito tiene su propio grupo");
+  ok(!/from\s+["'][^"']*entrega\/(?:servidas|prioridad|rotulos|referencias)/.test(f2) && /base\.publica/.test(f2) && /primero-fuera-del-eje/.test(f1), "los controles nuevos (eje-servido, foto, sin-dato-con-dato-publicado) leen el dato publicado por el Core (`base.publica`), no las piezas de composición");
 }
 
 H("6 · cero red");

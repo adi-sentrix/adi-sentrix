@@ -8,7 +8,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { RAIZ_POR_DEFECTO } from "./base.mjs";
-import { generarEncargos } from "./generador.mjs";
+import { generarEncargos, generarCobertura } from "./generador.mjs";
 
 export const RUTA_CATALOGOS = join(RAIZ_POR_DEFECTO, "fixtures", "consolidacion", "catalogos-v13-v28.json");
 
@@ -18,13 +18,15 @@ export function cargarCatalogos(ruta = RUTA_CATALOGOS) {
   return (J.casos || []).map((c) => ({ origen: "catalogo", id: c.id, encargo: c.encargo }));
 }
 
-/** armarCorpus(base, { catalogos, azar: { semilla, n } }) → { casos, estadistica } */
-export async function armarCorpus(base, { catalogos = true, azar = null, rutaCatalogos = RUTA_CATALOGOS } = {}) {
+/** armarCorpus(base, { catalogos, azar: { semilla, n }, cobertura: { semilla, minimo, dims } }) → { casos, estadistica, coberturaEstadistica }
+ *  `cobertura` es el sub-azar de cobertura (`cobertura.mjs`): un mínimo de encargos por cada combinación válida, con su propia semilla derivada. */
+export async function armarCorpus(base, { catalogos = true, azar = null, cobertura = null, rutaCatalogos = RUTA_CATALOGOS } = {}) {
   const casos = [];
-  let estadistica = null;
+  let estadistica = null, coberturaEstadistica = null;
   if (catalogos) casos.push(...cargarCatalogos(rutaCatalogos));
   if (azar && azar.n > 0) { const g = await generarEncargos(base, { semilla: azar.semilla || "adi-consolidacion-1", n: azar.n }); casos.push(...g.casos); estadistica = g.estadistica; }
-  return { casos, estadistica };
+  if (cobertura && cobertura.minimo > 0) { const c = generarCobertura(base, { semilla: cobertura.semilla || "adi-consolidacion-1", minimo: cobertura.minimo, dims: cobertura.dims || null }); casos.push(...c.casos); coberturaEstadistica = c.estadistica; }
+  return { casos, estadistica, coberturaEstadistica };
 }
 
 /** entregaDe(base, caso) → { ok, entrega, texto, resolucion, encargo, dato, base } | { ok:false, motivo } — nunca lanza */

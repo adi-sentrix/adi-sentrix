@@ -21,7 +21,8 @@
  *   por-lente-cruzada-primero         la prioridad cruzada por una lente nombra a quien más pesa por la medida de esa lente (47a).
  *   prioridad-sin-marca               toda oración de prioridad lleva su marca estructural `_prioridad` (la que leen el tamaño gobernado y
  *                                     la pregunta abierta de «breve»; nadie lee ya el texto con una expresión regular).
- *   marca-primero-distinto            el `primero` de la marca es el que nombra la oración. */
+ *   marca-primero-distinto            el `primero` de la marca es el que nombra la oración.
+ *   primero-fuera-del-eje             quien va primero es una entidad del eje de la parte que prioriza (51e · 53, segunda vuelta): «por riesgo integrado: LG-DRYER8KG» en una decision por BODEGA corona a un SKU que no es del grupo. */
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 const CAB = /^(Prioridad del procedimiento|Quien más pesa en el conjunto)(?: (dentro de este grupo))?, por (.+?): (.*)$/s;
 const MARCADOR = /^(Prioridad del procedimiento|Quien más pesa en el conjunto)/;
@@ -126,12 +127,21 @@ export const familia = {
     /* los dominios sobre los que la Entrega prioriza (las partes decision y lectura): con uno solo no hay prioridad ENTRE dominios */
     const temasQuePrioriza = new Set(partes.filter((p) => p.cierre === "decision" || p.cierre === "lectura").map((p) => p.tema));
 
+    /* los ejes sobre los que prioriza la Entrega: el eje efectivo de cada parte decision o lectura (una bodega no se corona con un SKU: 51(e) · 53) */
+    const ejesDe = (n) => { if (/\s[−-]\s/.test(String(n))) return []; const out = []; for (const e of esq.EJES) { let c = null; try { c = base.entityIndex.resolveCanonical(e, n); } catch { c = null; } if (c) out.push(e); } return out; };
+    const ejesQuePrioriza = new Set(partes.filter((p) => (p.cierre === "decision" || p.cierre === "lectura") && p.estado !== "no_resuelta").map((p) => p.eje || (esq.sujetoDeTema ? esq.sujetoDeTema(p.tema) : null)).filter(Boolean));
+
     for (const r of respuesta) {
       const texto = String((r && r.texto) || "");
       const esPrioridad = MARCADOR.test(texto);
       if (esPrioridad && !r._prioridad) v("prioridad-sin-marca", `la oración de prioridad no lleva su marca estructural: «${texto.slice(0, 90)}»`);
       const S = analizarOracion(texto);
       if (!S) continue;
+      /* 51(e) · 53: quien va primero es del eje de la parte que prioriza; «por riesgo integrado: LG-DRYER8KG» en una decision por BODEGA corona a quien no es del grupo */
+      if (S.primero != null && !S.sinPrimero && ejesQuePrioriza.size) {
+        const es = ejesDe(S.primero);
+        if (es.length && !es.some((e) => ejesQuePrioriza.has(e))) v("primero-fuera-del-eje", `«${S.primero}» es de ${es.join("/")} y la Entrega prioriza sobre ${[...ejesQuePrioriza].join("/")}: «${texto.slice(0, 100)}»`);
+      }
       const nom = S.nombre != null ? _norm(S.nombre) : null;
       /* un nombre que es EL NOMBRE DE LA MEDIDA de la misma oración («por contribución: X, con $4.3M en contribución») es la medida, no la lente homónima */
       const esLaMedida = nom != null && S.medida != null && nom === _norm(S.medida) && !(lentePedida && visiblesDe(lentePedida).includes(nom));

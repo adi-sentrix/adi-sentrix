@@ -2575,6 +2575,12 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
   // "frenado" para ninguna entidad del eje», el caso de un umbral no declarado por la empresa).
   /* v21 (§7.3·44c): la FOTO de una `lectura`/`decision` sin universo son las cuentas que el PRODUCTOR publica (`soloEntidades`, las de su mesa), no todo lo que otra parte del mismo turno haya ensanchado en la boleta compartida */
   if (soloEntidades && soloEntidades.size) { const _solo = new Set([...soloEntidades].map(normalizar)); entidadesEnJuego = entidadesEnJuego.filter((e) => _solo.has(normalizar(e))); }
+  /* CONSOLIDACIÓN, SEGUNDA VUELTA (§7.3·45a · 49c): la foto no depende de que la lectura del turno haya traído UNA fig. Si ningún productor de la boleta publicó el concepto (el margen de inventario de los SKU: solo lo publica la fila completa de cada SKU) pero
+   * la proyección SÍ lo publica para el eje, la foto es el eje entero con la cifra de la proyección (medido) de cada miembro: nunca «ninguna evidencia» sobre una cifra que el dato publica. */
+  if (foto && !top && !soloEntidades && indice && universoResuelto === false && !entidadesEnJuego.length && !errorUniverso) {
+    const miembros = ejesDelTenant && Array.isArray(ejesDelTenant[eje]) ? ejesDelTenant[eje] : null;
+    if (miembros && miembros.length && conceptos.some((c) => miembros.some((n) => figDeLaProyeccion(indice, n, c)))) entidadesEnJuego = miembros.slice();
+  }
   if (!entidadesEnJuego.length && !universoResuelto) return errorUniverso ? { error: errorUniverso } : null;
   /* §7.3·49(c) LA FOTO: una `lectura`/`decision` sin universo ni entidades sirve el EJE ENTERO que sus conceptos sostienen (comercial e inventario; cobranza sirve las cuentas de su mesa y declara la cola). Un productor que publica menos que el eje (el capital frenado solo de los SKU con capital crítico, la brecha solo de las cuentas bajo el benchmark) NO recorta la foto: cada miembro del eje sin cifra del productor lleva su cero de cobertura declarada o el valor del ranking que la proyección publica, y lo que ningún productor trae se DECLARA (`_declararCifraFaltanteDeFoto`). \`entidadesConFig\` son las que trajeron cifra (la clave de orden se elige sobre ellas, como siempre) */
   const entidadesConFig = entidadesEnJuego.slice();
@@ -2607,7 +2613,10 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
   /* v20 (U06): en una `lectura`/`decision` (que no exigen orden exhibido: la 43(f) habla de la `cifra`, cuyo orden es el del PRIMER concepto pedido) se prefiere, entre los conceptos declarados que el eje sostiene, el PRIMERO que trae fig para TODAS las entidades en juego: «capital inmovilizado crítico» por bodega solo trae las dos bodegas con crítico y la línea de orden quedaba
    * «Antofagasta ($8K), Valparaíso ($25K), Santiago» (Santiago sin cifra pegada al nombre, Concepción fuera), mientras el concepto siguiente («capital») las trae a las cuatro. Sin un concepto completo, el criterio de siempre. */
   const claveOrden = conceptoTop
-    || (parte.cierre === "cifra" ? null : conceptos.find((c) => entidadesConFig.length > 1 && entidadesConFig.every((e) => porEntidad.has(e) && porEntidad.get(e).has(c))))
+    /* §7.3·51(a) (segunda vuelta): la LISTA de una foto se ordena por el primer concepto pedido que su productor publica, aunque lo publique solo para algunas cuentas (el capital inmovilizado crítico solo de los SKU críticos: las demás llevan su cero de cobertura declarada); la preferencia por un concepto «completo» (v20 · U06) es de la lectura que no es foto */
+    || ((parte.cierre === "cifra" || foto) ? null : conceptos.find((c) => entidadesConFig.length > 1 && entidadesConFig.every((e) => porEntidad.has(e) && porEntidad.get(e).has(c))))
+    /* …y lo publique la boleta del turno o la proyección del dato (el margen de inventario de los SKU solo lo trae la proyección): la foto no salta al concepto siguiente porque la lectura no haya registrado el primero */
+    || (foto ? conceptos.find((c) => entidadesConFig.some((e) => porEntidad.has(e) && porEntidad.get(e).has(c)) || (indice && ejesDelTenant && Array.isArray(ejesDelTenant[eje]) && ejesDelTenant[eje].some((n) => figDeLaProyeccion(indice, n, c)))) : null)
     || conceptos.find((c) => entidadesConFig.some((e) => porEntidad.has(e) && porEntidad.get(e).has(c))) || conceptos[0];
   /* FAMILIA 2 (§7.3·49(c) · 51(b) · 52(b)): cada miembro en juego que la boleta no trajo en la clave que ordena lleva la cifra que la proyección publica (medido, aunque valga 0) o su cero de cobertura declarada, ANTES de ordenar: la entidad sin dato no se ordena como cero (un comparador con NaN dejaba el orden sin definir) y lo que ningún productor trae se declara aparte. La fila de cada otro concepto pedido se completa abajo, sobre lo que el grupo sirve. */
   if (indice && claveOrden) completarGrupo({ nombres: entidadesEnJuego, conceptos: [claveOrden], porEntidad, eje, I: indice });
@@ -3316,6 +3325,8 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
   const _declinarUniverso = (p, motivo) => {
     const plan = _planDiasSinVentaDeFrenado(p);
     limitesGap.push(_limiteDeUniverso(p, motivo, resolucion, !!plan));
+    /* FAMILIA 5 (segunda vuelta): el motivo del Notario puede decir cuántas entidades trae un ranking («solo trae a 4 del eje»): ese número lo imprime la Entrega en el límite, así que es una cifra impresa declarada, no una cifra desnuda */
+    numerosDeLimitesGap.push(...(String(motivo || "").match(/\d+(?:[.,]\d+)?/g) || []));
     if (plan) { planes.push(plan); limitesGap.push({ _faltantesDe: plan }); }
   };
   const _limiteUniversoNoSoportado = (p) => ({ titulo: `Sobre la parte ${p.id} (${_DOM_NOMBRE[p.tema] || p.tema}), el filtro del universo no se aplica todavía en este corte`, motivo: "Filtrar por estado o por un umbral numérico exige evaluar cada entidad contra el dato real; ese motor no está construido en este corte (queda señalado para el corte 3c). Se declina esta parte en vez de servir un listado sin filtrar o adivinar el criterio." });
@@ -3395,8 +3406,13 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
   const partesSinEntidadLecturaDecision = _candidatasSinEstadoSinTop.filter((p) => !partesUniversoPropio.includes(p));
   const partesYaAgrupadas = new Set([...partesSinEntidadLecturaDecision, ...partesUniversoPropio, ...partesUniversoPorEstado].map((p) => p.id));
   if (partesSinEntidadLecturaDecision.length) {
-    const temas = [...new Set(partesSinEntidadLecturaDecision.map((p) => p.tema))];
-    const conDecision = partesSinEntidadLecturaDecision.some((p) => p.cierre === "decision");
+    /* CONSOLIDACIÓN, SEGUNDA VUELTA (el eje es de la parte · §7.3·51e): el plan del TEMA (`_planMultiTema`: quién más pesa, la prioridad del procedimiento) es el del eje por defecto del dominio —los SKU en inventario, las
+     * cuentas en comercial y cobranza—. Una parte con EJE EXPLÍCITO (una lectura de inventario por BODEGA) NO entra a él: su prioridad es la de su propio grupo (`_planCifraGrupo`, más abajo). Antes entraba, y la Entrega
+     * servía «quien más pesa es LG-DRYER8KG» (un SKU) y «por riesgo integrado: LG-DRYER8KG» sobre un grupo de bodegas. */
+    const _ejeExplicitoDeParte = (p) => !!(p.eje && p.eje !== sujetoDeTema(p.tema));
+    const partesDelPlanDelTema = partesSinEntidadLecturaDecision.filter((p) => !_ejeExplicitoDeParte(p));
+    const temas = [...new Set(partesDelPlanDelTema.map((p) => p.tema))];
+    const conDecision = partesDelPlanDelTema.some((p) => p.cierre === "decision");
     // R2 (diagnóstico v2, supervisor 2026-09-26 — MATERIAL: la entidad EXCLUIDA por el usuario volvía como
     // protagonista) — `universo.excluir` es un alcance declarado POR PARTE; se acota ANTES de fusionar (cada
     // parte puede excluir algo distinto) con la MISMA pieza central que usa el resto de este corte
@@ -3420,9 +3436,9 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
     // segundo filtro acá (antes: siempre «top sobre el eje entero», ignorando `estados`/`filtros` y el sentido
     // por defecto) deshacía en silencio el sentido «top dentro del filtro». Sin `indice` o si el universo no se
     // puede resolver, `figsEnAlcance` no restringe — mismo criterio de «nunca excluir a ciegas» de siempre.
-    const figsDelGrupo = partesSinEntidadLecturaDecision.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }, { indice: I }));
-    const plan = _planMultiTema(temas, figsDelGrupo, ref, declararRazon, declararDerivadaOpcional, { conDecision, lente: lenteIdDelCriterio(resolucion.criterio) });
-    if (plan) { plan.partesIds = partesSinEntidadLecturaDecision.map((p) => p.id); planes.push(plan); }
+    const figsDelGrupo = partesDelPlanDelTema.flatMap((p) => figsEnAlcance(_figsDeParte(p.id), { ...alcanceDeParte(p), eje: null }, { indice: I }));
+    const plan = partesDelPlanDelTema.length ? _planMultiTema(temas, figsDelGrupo, ref, declararRazon, declararDerivadaOpcional, { conDecision, lente: lenteIdDelCriterio(resolucion.criterio) }) : null;
+    if (plan) { plan.partesIds = partesDelPlanDelTema.map((p) => p.id); planes.push(plan); }
     /* v20 (U06 · U42, §7.3·13 «la lectura TRAE el ranking completo del eje que la parte nombra»): el listado por el eje EXPLÍCITO (RC8, abajo) solo corría cuando `_planMultiTema` no armaba nada. Una lectura de inventario con eje `bodega` SIEMPRE
      * arma plan (la foto por SKU), así que el eje que la parte pidió se ignoraba en silencio: el ranking de las cuatro bodegas ni se servía. El plan del tema conserva su lugar (la foto del procedimiento) y el eje pedido se SIRVE además, por el mismo
      * camino «grupo por eje» de `cifra`; sin plan del tema, todo sigue igual que antes (fallback y «no se pudo componer»). */
@@ -3438,6 +3454,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
       // más abajo): un listado por el eje pedido, por cada parte del grupo con un eje explícito propio (distinto
       // del sujeto por defecto del tema) — nunca se inventa un eje que la parte no declaró.
       let huboFallback = false;
+      const servidasPorEjeExplicito = new Set(), declaradasSinDato = new Set();
       for (const p of partesSinEntidadLecturaDecision) {
         if (!(p.eje && p.eje !== sujetoDeTema(p.tema))) continue;
         // `_planCifraGrupo` solo lista `parte.conceptos` (los VALIDADOS, §1: vacío = "lo que el procedimiento del
@@ -3451,7 +3468,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
           if (!conceptosConProductor.length) continue;
           pParaGrupo = { ...p, conceptos: conceptosConProductor };
         }
-        const planG = _planCifraGrupo(pParaGrupo, _figsDeParte(p.id), { ejesDelTenant, indice: I, criterio: resolucion.criterio, foto: true });
+        const planG = _planCifraGrupo(pParaGrupo, _figsDeParte(p.id), { ejesDelTenant, indice: I, criterio: resolucion.criterio, foto: true, deMayorAMenor: true });   /* segunda vuelta: la foto por un eje explícito se exhibe como la del eje por defecto (§7.3·44c · 50a): de MAYOR a menor, aunque el concepto sea de los que «más es peor» (un capital inmovilizado crítico que lista primero los ceros esconde al que pesa) */
         // RAÍZ A (supervisor 2026-09-29) — `plan.error` (universo declarado no-resoluble) se trata igual que
         // `null` en este fallback: mismo comportamiento de siempre (la parte no entra a este camino, cae más
         // abajo a su propio «no se pudo componer»), solo que ahora nunca se le pasa un objeto `{error}` a código
@@ -3473,6 +3490,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         planes.push(planG);
         partesYaAgrupadas.add(p.id);
         huboFallback = true;
+        servidasPorEjeExplicito.add(p.id);
       }
       /* v21 (T15–T19 · T28 · T40 · T99, §7.3·44c, decisión del supervisor): una `lectura`/`decision` SIN universo ni entidades sirve su FOTO completa —el universo que el PRODUCTOR publica (cobranza: las cuentas de su mesa; inventario y comercial: el eje que sus conceptos sostienen), con su orden— y la prioridad del procedimiento ENCIMA (el plan del tema, arriba). Antes servía solo al líder y a su rival (2 o 3 entidades) y el Entrega hablaba del «conjunto» y de «toda la cartera» sin mostrarlo: declaraba una foto mayor que la servida. El universo se declara con el id de la parte (lo servido ES lo declarado); el eje explícito ya lo sirvió el fallback de arriba. */
       let huboFoto = false;
@@ -3492,7 +3510,16 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         planes.push(planF);
         huboFoto = true;
       }
-      if (!huboFallback && !huboFoto && !hayPlanDelGrupo) for (const p of partesSinEntidadLecturaDecision) partesYaAgrupadas.delete(p.id);   // sin evidencia suficiente: cada parte cae en su propio "no se pudo componer" abajo
+      /* CONSOLIDACIÓN, SEGUNDA VUELTA: una parte con EJE EXPLÍCITO ya no entra al plan del tema (que servía a otro eje). Si su propio grupo tampoco se pudo armar —ninguna lectura trajo cifra de lo que pide por ese eje—, no queda callada ni sale una Entrega vacía: se declara con la forma de siempre («sin dato de X para A, B», §7.3·52b), para cada miembro del eje. */
+      for (const p of partesSinEntidadLecturaDecision) {
+        if (!_ejeExplicitoDeParte(p) || servidasPorEjeExplicito.has(p.id) || !(p.conceptos && p.conceptos.length)) continue;
+        const miembros = ejesDelTenant && Array.isArray(ejesDelTenant[p.eje]) ? ejesDelTenant[p.eje] : [];
+        if (!miembros.length) continue;
+        const faltantes = []; for (const c of p.conceptos) for (const m of miembros) faltantes.push({ entidad: m, clave: c });
+        limitesGap.push({ _faltantesDe: { _servido: true, parteId: p.id, tema: p.tema, eje: p.eje, faltantes, sinCifra: [], orden: [], miembros: [] } });
+        declaradasSinDato.add(p.id);
+      }
+      if (!huboFallback && !huboFoto && !hayPlanDelGrupo) for (const p of partesSinEntidadLecturaDecision) { if (!declaradasSinDato.has(p.id)) partesYaAgrupadas.delete(p.id); }   // sin evidencia suficiente: cada parte cae en su propio "no se pudo componer" abajo
     }
   }
   // §7.3·22 (supervisor 2026-09-27, diagnóstico v9) — la prioridad CRUZADA entre dominios se AGREGA aparte,
