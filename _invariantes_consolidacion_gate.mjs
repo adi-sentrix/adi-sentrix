@@ -43,7 +43,7 @@ const base = await cargarBase();
 const familias = await cargarFamilias();
 
 H("0 · la infraestructura: marco, familias, generador");
-ok(familias.length >= 2 && familias.some((f) => f.id === "F1") && familias.some((f) => f.id === "F2"), `el marco carga las familias registradas (${familias.map((f) => f.id).join(", ")})`);
+ok(familias.length >= 3 && familias.some((f) => f.id === "F1") && familias.some((f) => f.id === "F2") && familias.some((f) => f.id === "F3"), `el marco carga las familias registradas (${familias.map((f) => f.id).join(", ")})`);
 ok(familias.every((f) => typeof f.invariante === "function" && f.nombre), "cada familia declara su nombre y su función invariante");
 {
   const a = (await generarEncargos(base, { semilla: "g0", n: 60 })).casos, b = (await generarEncargos(base, { semilla: "g0", n: 60 })).casos, c = (await generarEncargos(base, { semilla: "g1", n: 60 })).casos;
@@ -248,6 +248,61 @@ H("4b · carnadas de la F2 (lo anunciado es lo servido · la regla del cero): el
   }
 }
 
+H("4c · carnadas de la F3 (la referencia de la consulta, declarada en cada parte que usa el conjunto): el control TIENE que ponerse en rojo");
+{
+  const F3 = familias.find((f) => f.id === "F3");
+  const caso = (id) => { const c = catalogos.find((x) => x.id === id); return c ? entregaDe(base, c) : { ok: false }; };
+  const regla = (vs, r) => vs.some((v) => v.regla === r);
+  const conLimites = (e, limites, extra = {}) => ({ ...e, entrega: { ...e.entrega, limites, ...extra } });
+  const esDecl = (l) => /referencia planteada en la consulta \(/.test(String(l.titulo));
+  ok(!!F3, "el marco carga la familia F3 (la referencia de la consulta)");
+  if (F3) {
+    /* la base verde: v28:L40 (la causa de la F3: una parte SKU con «SKU bajo el benchmark» que no recibía su evidencia y cuyo error se callaba) */
+    const l40 = caso("v28:L40");
+    ok(l40.ok && revisarEntrega(l40, [F3]).length === 0, "v28:L40 (partes de cuenta y de SKU sobre el conjunto del benchmark): el control no marca nada tras la pieza");
+    if (l40.ok) {
+      const decl = l40.entrega.limites.filter(esDecl);
+      ok(decl.length === 2 && decl.some((l) => /^Sobre las partes p1 y p3 \(comercial\), con la referencia/.test(l.titulo)) && decl.some((l) => /^Con la referencia planteada/.test(l.titulo) && /SKU bajo esa referencia/.test(l.motivo)), "L40: UNA declaración por (conjunto, eje): la de cuentas nombra las dos partes que la usan (p1 y p3); la de SKU, de una sola parte, no hace falta nombrarla");
+      const sinSku = l40.entrega.limites.filter((l) => !(esDecl(l) && /SKU bajo esa referencia/.test(l.motivo)));
+      ok(regla(revisarEntrega(conLimites(l40, sinSku), [F3]), "referencia-sin-declarar"), "quitar la declaración del conjunto SKU que usa la parte p2 (el error callado) → referencia-sin-declarar");
+      const sinPartes = l40.entrega.limites.map((l) => (esDecl(l) && /^Sobre las partes/.test(l.titulo) ? { ...l, titulo: l.titulo.replace(/^Sobre las partes [^,]+, c/, "C") } : l));
+      ok(regla(revisarEntrega(conLimites(l40, sinPartes), [F3]), "referencia-sin-partes"), "una declaración usada por DOS partes que no las nombra → referencia-sin-partes");
+      const redondeada = l40.entrega.limites.map((l) => (esDecl(l) ? { ...l, titulo: l.titulo.replace("(27.5%)", "(28%)") } : l));
+      ok(regla(revisarEntrega(conLimites(l40, redondeada), [F3]), "referencia-valor-inexacto"), "el valor de la consulta escrito redondeado (27.5% → 28%) → referencia-valor-inexacto");
+      const otroConteo = l40.entrega.limites.map((l) => (esDecl(l) && /cuentas bajo/.test(l.motivo) ? { ...l, motivo: l.motivo.replace("Serían 6 cuentas", "Serían 5 cuentas") } : l));
+      ok(regla(revisarEntrega(conLimites(l40, otroConteo), [F3]), "referencia-no-coincide"), "un conteo que el dato no da → referencia-no-coincide");
+      const sinNombres = l40.entrega.limites.map((l) => (esDecl(l) && /cuentas bajo/.test(l.motivo) ? { ...l, motivo: l.motivo.replace(/\): .+ — calculado/, "):  — calculado") } : l));
+      ok(regla(revisarEntrega(conLimites(l40, sinNombres), [F3]), "referencia-no-coincide"), "una lista de entidades en blanco (sin «ninguno») → referencia-no-coincide");
+      const repetida = [...l40.entrega.limites, ...l40.entrega.limites.filter((l) => esDecl(l) && /cuentas bajo/.test(l.motivo))];
+      ok(regla(revisarEntrega(conLimites(l40, repetida), [F3]), "referencia-repetida"), "el mismo (conjunto, eje) declarado dos veces → referencia-repetida");
+      const marcoCon = (texto) => ({ ...l40.entrega.marco, referenciaDeclarada: { texto, hechoId: null } });
+      ok(regla(revisarEntrega({ ...l40, entrega: { ...l40.entrega, marco: marcoCon("Benchmark de margen: 27.5%, declarado por la empresa.") } }, [F3]), "referencia-reemplaza-a-la-oficial"), "el Marco con la referencia de la consulta donde va la oficial → referencia-reemplaza-a-la-oficial");
+      ok(regla(revisarEntrega({ ...l40, entrega: { ...l40.entrega, marco: { ...l40.entrega.marco, referenciaDeclarada: null } } }, [F3]), "oficial-omitida-del-marco"), "un Marco sin la referencia oficial del conjunto en juego → oficial-omitida-del-marco");
+      /* el error de evidencia se DECLARA, nunca se calla: sin el ranking de margen por SKU la pieza no puede contar el conjunto y lo dice, con la parte */
+      const { referenciasDeLaConsulta } = await import("./src/adi/entrega/referencias.js");
+      const I0 = l40.entrega.procedencia.libro.indice;
+      const sinRk = { ...I0, rankings: { ...I0.rankings, sku: { ...I0.rankings.sku, margen_venta: undefined } } };
+      const ctx0 = (I) => ({ resolucion: l40.resolucion, partesUtiles: l40.resolucion.partes.filter((p) => p.estado === "resuelta" || p.estado === "parcial"), I, scenario: null, consultaDeFrenado: null, basesDeUniverso: (u) => new Set([...(u && typeof u.base === "string" ? [u.base] : [])]), indiceDelTenant: () => ({ I }), dominioNombre: (t) => t, listaDeNombres: (xs) => xs.join(" y ") });
+      let r0 = null; try { r0 = referenciasDeLaConsulta(ctx0(sinRk)); } catch (e) { r0 = { error: String(e && e.message) }; }
+      ok(r0 && Array.isArray(r0.limites) && r0.limites.some((l) => /^Sobre la parte p2 \(comercial\), el universo declarado no se pudo evaluar$/.test(l.titulo)), "sin la evidencia del conjunto SKU, la pieza DECLARA que la parte p2 no se pudo evaluar (nunca lo calla)", JSON.stringify(r0 && (r0.limites || r0.error)).slice(0, 300));
+    }
+    /* cero miembros: se dice «ninguno» (la forma que ya usaba la ruta de estados), y las partes se nombran solo si son dos o más */
+    const z43 = caso("v14:Z43");
+    ok(z43.ok && z43.entrega.limites.some((l) => esDecl(l) && /: ninguno — calculado/.test(l.motivo)) && revisarEntrega(z43, [F3]).length === 0, "v14:Z43 (cero SKU con la referencia): la lista dice «ninguno»");
+    const m44 = caso("v27:M44");
+    ok(m44.ok && m44.entrega.limites.some((l) => /^Sobre las partes p1, p2 y p3 \(comercial y cobranza\), con la referencia planteada/.test(l.titulo)) && revisarEntrega(m44, [F3]).length === 0, "v27:M44 (tres partes sobre el mismo conjunto): UNA declaración que nombra las tres partes");
+    /* la operativa: «frenado» sin umbral oficial va exacta en el Marco (41b); sin ella, rojo */
+    const z11 = caso("v13:Z11");
+    ok(z11.ok && revisarEntrega(z11, [F3]).length === 0, "v13:Z11 (umbral de venta frenada planteado en la consulta, sin oficial): el control no marca nada");
+    if (z11.ok) ok(regla(revisarEntrega({ ...z11, entrega: { ...z11.entrega, marco: { ...z11.entrega.marco, referenciaDeclarada: null, definiciones: [] } } }, [F3]), "operativa-sin-declarar"), "la operativa sin su valor exacto en el Marco → operativa-sin-declarar");
+    /* la evidencia de la parte: lecturasDe pide el conjunto de la casa de las PARTES (no solo el de las premisas) y no se lo atribuye a ninguna parte (no agrega cifras a lo servido) */
+    const { lecturasDe } = await import("./src/adi/encargo/lecturasDe.js");
+    const lec = l40.ok ? lecturasDe(l40.resolucion) : null;
+    const callsSku = lec ? lec.plan.calls.filter((c) => JSON.stringify(c.args || {}).includes("sku")) : [];
+    ok(callsSku.length > 0, "lecturasDe trae la evidencia del conjunto SKU de la parte p2 en el plan general");
+  }
+}
+
 H("5 · independencia del control y cableado de la pieza (estático)");
 {
   const f1 = fs.readFileSync("./scripts/consolidacion/familias/f1_prioridad.mjs", "utf8");
@@ -264,6 +319,16 @@ H("5 · independencia del control y cableado de la pieza (estático)");
   ok(!/_figDeRankingOCero|_declararCifraFaltanteDeFoto = \(p, planF, ejeDeProductor\)/.test(comp) && !/AUSENTE_VALE_CERO/.test(comp), "componer.js ya no completa filas ni cuenta ceros por su cuenta (la pieza y la declaración de cobertura por fuente)");
   const hay = (r) => { const out = []; const rec = (d) => { for (const n of fs.readdirSync(d, { withFileTypes: true })) { const p = d + "/" + n.name; if (n.isDirectory()) rec(p); else if (/\.(js|jsx|mjs)$/.test(n.name) && /AUSENTE_VALE_CERO\s*[=\[.]|AUSENTE_VALE_CERO\.includes|import[^;]*AUSENTE_VALE_CERO/.test(fs.readFileSync(p, "utf8"))) out.push(p); } }; rec(r); return out; };
   ok(hay("./src").length === 0, "AUSENTE_VALE_CERO ya no existe en el código: la lista por métrica pasó a ser la declaración de cobertura por fuente (config/contract/coberturaDeFuentes.js)", hay("./src").join(", "));
+}
+
+{
+  const f3 = fs.readFileSync("./scripts/consolidacion/familias/f3_referencia.mjs", "utf8"), ref = fs.readFileSync("./src/adi/entrega/referencias.js", "utf8");
+  const comp = fs.readFileSync("./src/adi/entrega/componer.js", "utf8"), lec = fs.readFileSync("./src/adi/encargo/lecturasDe.js", "utf8");
+  ok(!/from\s+["'][^"']*entrega\/referencias/.test(f3) && !/^\s*import[^\n]*referencias\.js/m.test(f3), "el control de la F3 NO importa la pieza (`entrega/referencias.js`): lee la Entrega, la resolución y el dato");
+  ok(/from "\.\/referencias\.js"/.test(comp) && /referenciasDeLaConsulta\(/.test(comp) && /referenciasOficiales\(/.test(comp), "componer.js le pregunta a la pieza de la referencia de la consulta (las declaraciones y las oficiales del Marco)");
+  ok(!/_REFERENCIA_FAMILIAS/.test(comp) && /export const REFERENCIA_FAMILIAS/.test(ref), "la tabla de familias de referencia vive UNA vez, en la pieza (no en componer.js)");
+  ok(!/no se declara nada a medias/.test(ref), "la pieza no calla un error de evidencia: ningún `catch` que descarte sin declarar");
+  ok(/_callsDeConjuntosDePartes/.test(lec) && /_conceptosDeConjuntos\(/.test(lec), "lecturasDe pide la evidencia del conjunto de la casa para las PARTES con la misma función que para las premisas");
 }
 
 H("6 · cero red");

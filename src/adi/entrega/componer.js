@@ -98,6 +98,8 @@ import { alcanceDeParte, figsEnAlcance, recortarATop } from "./alcance.js";
 import { gobernarTamano } from "./tamano.js";
 // FAMILIA 2 (consolidación, paso 2) — «lo anunciado es lo servido» y LA REGLA DEL CERO (§7.3·52b): la fila de cada entidad servida en cada concepto pedido, su origen (medido · cobertura declarada) y lo que falta («sin dato de X para Y») se deciden en `servidas.js`; acá solo se redacta.
 import { figDeLaProyeccion, filasDeEntidad, completarGrupo, declararLoQueFalta, origenDeLaFig, ORIGEN } from "./servidas.js";
+// FAMILIA 3 (consolidación, paso 2) — la referencia de la consulta: qué conjuntos pone en juego, con qué conteo y qué partes cubre, al lado de la oficial.
+import { referenciasDeLaConsulta, referenciasOficiales } from "./referencias.js";
 import { FILAS_BREVE_MAX, FILAS_COMPLETA_MAX } from "./verificar.js";
 import { PROFUNDIDAD_VALORES, CAMPOS_RAIZ, productorDe, sujetoDeTema, universoTieneRestriccionPropia } from "../encargo/esquema.js";
 import { dominioPorId } from "../../config/contract/dominios.js";
@@ -4429,14 +4431,12 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
   // que ya usa la oración (`valorDeReferencia`, notario/verificar.js) contra el MISMO índice `I`: no depende de
   // que exista una fig de LEDGER con `id` (el KPI de `datoProyectado` que resuelve el valor no lo tiene), así que
   // se declara sin `hechoId` (campo opcional, `esquema.js:41`, no lo lee ningún otro consumidor).
-  if (!entrega.marco.referenciaDeclarada && libroPremisas) {
-    let refCitada = null;
-    for (const H of libroPremisas.porId.values()) { const fs = H && H.universoTipado && Array.isArray(H.universoTipado.filtros) ? H.universoTipado.filtros : []; const f = fs.find((x) => x && x.ref); if (f) { refCitada = f.ref; break; } }
-    if (refCitada) {
-      const r = valorDeReferencia(refCitada, I);
-      const m = metricaPorClave(refCitada);
-      if (r && Number.isFinite(r.raw) && m) { const fmtRef = formatoDeReferencia(r.raw, r.unidad || m.unidad); cifrasImpresas.push(fmtRef); /* §7.3·49(d): el valor que el Marco declara es una cifra DECLARADA aunque la premisa que cita la referencia no se pueda juzgar (su oración no lo imprime) */ entrega.marco.referenciaDeclarada = { texto: `${m.nombre}: ${fmtRef}, declarado por la empresa.`, hechoId: null }; }
-    }
+  /* FAMILIA 3 (§7.3·42b · 42d): la referencia OFICIAL de cada conjunto que un filtro con `ref` (de una parte o de una premisa) cita — TODAS, no solo la primera — la lleva la pieza; el Marco la declara si aún no está. §7.3·49(d): el valor que el Marco declara es una cifra DECLARADA aunque la premisa que cita la referencia no se pueda juzgar. */
+  for (const o of referenciasOficiales({ partesUtiles, premisas: resolucion.premisas, I })) {
+    const ya = entrega.marco.referenciaDeclarada;
+    if (ya && String(ya.texto || "").includes(o.texto)) continue;
+    cifrasImpresas.push(o.cifra);
+    entrega.marco.referenciaDeclarada = ya ? { ...ya, texto: `${ya.texto} ${o.texto}` } : { texto: o.texto, hechoId: null };
   }
   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6, MEDIA) — un `universo.base` que NOMBRA una cohorte derivada
   // del benchmark («bajo el benchmark», «sobre el benchmark», su forma «margen supuesto» de la simulación de
@@ -4515,190 +4515,13 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
     }
   }
 
-  // §7.3·12/·19 (decisión del owner 2026-09-27, «con el benchmark de la empresa, como recomiendas»; generalizada
-  // por el supervisor el mismo día, diagnóstico v8, raíz A5) — una referencia declarada por el USUARIO
-  // (`resolucion.criterio.referencia`, §7.1·6) NUNCA recalcula un conjunto de la casa que la Entrega ya usa: la
-  // Entrega sigue contando con la referencia OFICIAL de la EMPRESA (arriba) y declara AL LADO, como límite,
-  // cuánto daría con la referencia del usuario — la cifra Y LOS NOMBRES de las cuentas, calculados por la MISMA
-  // función de la casa (`conjuntoDeUniverso`, con un `filtros` sintético sobre la métrica real del conjunto,
-  // nunca una segunda cuenta a mano) contra ESE valor. Nunca reemplaza a la oficial en silencio ni se presenta
-  // como objetivo de la empresa (ley «de quién es la vara»). Tres huecos cerrados de la versión anterior:
-  // (1) cubría SOLO `concepto:"benchmark"` — ahora una tabla concepto→familia, toda referencia que define un
-  //     conjunto de la casa (§7.3·19: benchmark, nivel declarado de carga; nunca se inventa la familia que
-  //     falte — un concepto sin entrada en la tabla, como `piso_rotacion`, sigue sin disparar nada, documentado);
-  // (2) miraba SOLO el universo de las PARTES — ahora también el universo de cada PREMISA (§7.3·19);
-  // (3) nunca enumeraba los NOMBRES del conjunto alternativo — ahora los une desde `I.entidades`, igual que
-  //     `_lista()` en el resto de este archivo.
-  // «carga comercial alta» es el DETECTOR (`datoProyectado.conjuntos`, no un filtro simple sobre la métrica
-  // «carga»): declara solo el conteo oficial, nunca una alternativa recalculada con una fórmula que no es la
-  // suya (`sinAlternativa` en la tabla).
-  const _REFERENCIA_FAMILIAS = {
-    benchmark: { eje: "cliente", metrica: "margen", nombreDeLaEmpresa: { articulo: "el", nucleo: "benchmark de la empresa" }, direcciones: { bajo: { base: "bajo el benchmark", op: "<" }, sobre: { base: "sobre el benchmark", op: ">=" } } },
-    nivel_carga: { eje: "cliente", metrica: "carga", nombreDeLaEmpresa: { articulo: "el", nucleo: "nivel declarado de carga" }, direcciones: { sobre: { base: "sobre el nivel declarado de carga", op: ">" } }, sinAlternativa: ["carga comercial alta"] },
-    // §7.3·19 (SUPERVISOR, residual del diagnóstico v10 — X78/X79) — la TERCERA referencia que la propia decisión
-    // ya nombra («benchmark, nivel declarado de carga, piso de rotación»): sin esta entrada, una referencia de
-    // rotación declarada por el usuario (`criterio.referencia.concepto:"piso_rotacion"`) nunca disparaba nada —
-    // el hueco que el comentario de arriba ya documentaba («un concepto sin entrada, como piso_rotacion, sigue
-    // sin disparar nada»). Sus conjuntos se nombran por ESTADO («rota bien»/«rota lento», notario/estados.js), no
-    // por `base` (un conjunto de `conjuntosDeLaCasa.js`): `estado` en vez de `base` en cada dirección se lee más
-    // abajo con el MISMO valor (ambos son solo la clave que `basesEnJuego` tiene que contener).
-    piso_rotacion: { eje: "sku", metrica: "rotacion", umbral: "rotacionMin", nombreDeLaEmpresa: { articulo: "el", nucleo: "piso de rotación declarado" }, direcciones: { bajo: { estado: "rota lento", op: "<" }, sobre: { estado: "rota bien", op: ">=" } } },
-    // ETAPA 6 (owner 2026-09-29, §7.3·35) — el umbral de venta frenada (días sin venta) planteado en la consulta: la CUARTA
-    // referencia que define un conjunto de la casa («frenado», notario/estados.js). Mismo patrón de §7.3·12/·19: si la
-    // EMPRESA declaró su umbral, el veredicto oficial es el suyo y aquí se declara AL LADO cuántos SKU serían con el de la
-    // consulta (`op:">"`, el mismo «sobre el umbral» de `jerarquiaInventario`). Si la empresa NO lo declaró
-    // (`operativaSinOficial`), no hay oficial que contrastar: el de la consulta sostiene el veredicto de ESTA respuesta —
-    // `componerEntrega` lo pasó al índice (`_consultaDeFrenado`) — y se declara en el Marco como criterio de quien consulta.
-    umbral_frenado: { eje: "sku", metrica: "dias_sin_venta", nombreDeLaEmpresa: { articulo: "el", nucleo: "umbral de venta frenada declarado" }, direcciones: { sobre: { estado: "frenado", op: ">" } }, operativaSinOficial: true },
-    // §7.3·36c (SUPERVISOR, diagnóstico v12, Z98 = Y96 de v11) — la QUINTA referencia que define un conjunto de la casa: el techo de
-    // cobertura (días de inventario máximo, `REFERENCIAS_DE_LA_CASA`). Sin esta entrada el validador aceptaba `criterio.referencia{techo_cobertura}`
-    // y la Entrega la ignoraba en silencio (la cara opuesta de «nunca reemplaza a la oficial en silencio»). Su conjunto no se nombra
-    // por `base` ni por estado sino por el FILTRO que cita la referencia (`filtros[].ref`): la dirección se dispara por `ref`.
-    techo_cobertura: { eje: "sku", metrica: "dias_inventario", umbral: "dohMax", nombreDeLaEmpresa: { articulo: "el", nucleo: "techo de cobertura de la empresa" }, direcciones: { sobre: { ref: "techo_cobertura", op: ">" } } },
-    // v17 (W27, §7.3·19 «la referencia del usuario vale para TODA referencia que define un conjunto de la casa»): la SEXTA — el piso de materialidad (`materialidadFocoPctVenta`, % de la venta) que decide
-    // «carga comercial alta» (`UMBRALES_DE_BASE`). Sin esta entrada, `criterio.referencia{umbral_materialidad}` se ignoraba en silencio. Se declara AL LADO del piso oficial (su origen sale de `umbral().origen`:
-    // criterio general de ADI o declarado por la empresa) y nunca lo reemplaza: el conjunto alternativo lo calculan las MISMAS filas del detector (`descomposicionDeBrecha`) con el otro piso. Ni `direcciones` ni `umbral`: no pasan por la ruta de las demás.
-    umbral_materialidad: { eje: "cliente", pisoDePolicy: "materialidadFocoPctVenta", detector: NOMBRE_CARGA_ALTA, direcciones: {} },
-  };
+  // FAMILIA 3 (consolidación, paso 2) — LA REFERENCIA DE LA CONSULTA (§7.3·12/·19/·49a/·52e): UNA pieza (`entrega/referencias.js`) decide qué referencias de la consulta están en juego, en qué conjunto y eje, qué partes cubren y qué daría el
+  // conjunto con ellas, AL LADO de la oficial; nunca la reemplaza (el Marco la lleva aparte) y un error de evidencia se declara. Este archivo solo pone en la Entrega lo que la pieza devuelve.
   {
-    const refUsuario = resolucion.criterio && resolucion.criterio.referencia;
-    const familiaRef = refUsuario && _REFERENCIA_FAMILIAS[refUsuario.concepto];
-    if (familiaRef && Number.isFinite(refUsuario.valor) && I) {
-      const _baseCasa = (u) => (u && typeof u.base === "string" ? u.base.trim() : "");
-      // las referencias de la casa que un universo CITA en sus filtros (`filtros[].ref`, también en las ramas de una `union`): un campo tipado.
-      const _refsCasa = (u, acc = []) => { if (!u || typeof u !== "object") return acc; for (const x of Array.isArray(u.filtros) ? u.filtros : []) if (x && typeof x.ref === "string") acc.push(x.ref.trim()); for (const v of Array.isArray(u.union) ? u.union : []) _refsCasa(v, acc); return acc; };
-      // los estados («rota bien»/«rota lento») declarados en un universo, por su nombre CANÓNICO — la misma
-      // fuente (`estadoDeclarado`, notario/estados.js) que ya valida estos campos en `validarUniverso`.
-      const _estadosCasa = (u) => [...(Array.isArray(u && u.estados) ? u.estados : []), ...(Array.isArray(u && u.no_estados) ? u.no_estados : [])].map((e) => estadoDeclarado(e)).filter(Boolean);
-      // (2) PARTES y PREMISAS, unidas — nunca solo partesUtiles.
-      const basesEnJuego = new Set();
-      /* v23 (R40 · R45, §7.3·19 + ley del universo): la referencia de la consulta se declara en el EJE del universo que la pone en juego (una parte por familia cuenta familias, por marca cuenta marcas), nunca en el eje fijo de la familia de referencia (clientes). `ejesDeClave` recuerda, por clave en juego (base · estado · ref), el eje de cada universo que la cita; sin eje propio, el de la familia de referencia (lo de siempre). */
-      const ejesDeClave = new Map();
-      const _ponerEnJuego = (u) => { if (!u || typeof u !== "object") return; const ejeU = (typeof u.eje === "string" && u.eje.trim()) || familiaRef.eje; const claves = [..._basesDeUniverso(u), ...[..._basesDeUniverso(u)].map(formaDeConjunto), _baseCasa(u), ..._estadosCasa(u), ..._refsCasa(u)]; for (const c of claves) { if (!c) continue; const k = normalizar(c); basesEnJuego.add(k); if (!ejesDeClave.has(k)) ejesDeClave.set(k, new Set()); ejesDeClave.get(k).add(ejeU); } };
-      for (const p of partesUtiles) _ponerEnJuego(p.universo);
-      for (const pr of resolucion.premisas || []) _ponerEnJuego(pr.universo != null ? pr.universo : pr.de);
-      // una PREMISA de estado («¿LG está frenado?») también pone en juego el estado de la familia con `operativaSinOficial`:
-      // sin esto, el umbral que planteó quien consulta se ignoraría en silencio cuando solo aparece en una premisa.
-      if (familiaRef.operativaSinOficial || familiaRef.umbral) for (const pr of resolucion.premisas || []) { const e = typeof pr.estado === "string" ? estadoDeclarado(pr.estado) : null; if (e) basesEnJuego.add(normalizar(e)); }
-      const valFmt = formatoDeReferencia(refUsuario.valor, refUsuario.unidad || "pct");   /* §7.3·40(d): la referencia que la consulta planteó es un valor DECLARADO — exacto, nunca redondeado */
-      const _nombreDeLasEntidades = (set) => [...set].map((k) => (I.entidades && I.entidades.get ? (I.entidades.get(k) || { nombre: k }).nombre : k));
-      // ETAPA 6 (§7.3·35) — la referencia de la consulta es la OPERATIVA (la empresa no declaró la suya): no hay oficial
-      // contra el cual declarar «serían N»; el veredicto de ESTA respuesta ya se calculó con ella (índice) y lo que
-      // falta es DECLARAR su procedencia, en el Marco, como criterio de quien consulta. Solo si «frenado» está en juego
-      // (una parte, un universo de premisa o una premisa de estado lo nombran), como en las demás familias.
-      const operativaDeLaConsulta = !!(familiaRef.operativaSinOficial && consultaDeFrenado);
-      if (operativaDeLaConsulta) {
-        const claveOp = Object.values(familiaRef.direcciones).map((d) => d.base || d.estado);
-        if (claveOp.some((c) => basesEnJuego.has(normalizar(c)))) {
-          const m = metricaPorClave(refUsuario.concepto);
-          cifrasImpresas.push(valFmt);
-          const txt = `${m ? m.nombre : refUsuario.concepto}: ${valFmt} sin venta, ${ETIQUETA_ORIGEN.consulta}; vale solo para esta respuesta y no es un criterio de la empresa.`;
-          entrega.marco.referenciaDeclarada = entrega.marco.referenciaDeclarada
-            ? { ...entrega.marco.referenciaDeclarada, texto: `${entrega.marco.referenciaDeclarada.texto} ${txt}` }
-            : { texto: txt, hechoId: null };
-        }
-      }
-      // v18 (X33, §7.3·12/·19): un FILTRO que CITA la referencia de la casa (`filtros[].ref === concepto`, en una parte o en una premisa, también en las ramas de una unión) pone en juego esa referencia igual que una `base`: la
-      // dirección sale del `op` del filtro. Antes solo se disparaba por `base`/estado/`ref` propio de la tabla, y una consulta que planteaba SU referencia sobre un filtro con `ref` se perdía en silencio. Un `op` que la tabla ya
-      // cubre con su propia `ref` (techo_cobertura) no se repite; sin `metrica` (el piso de materialidad, que va por su detector) no hay filtro que citar.
-      const ejesDeOp = new Map();   /* v23: el eje de los universos que citan la referencia con ese `op` */
-      const _opsDeRefCitada = (u, acc, ejePadre = familiaRef.eje) => { if (!u || typeof u !== "object") return acc; const ejeU = (typeof u.eje === "string" && u.eje.trim()) || ejePadre; for (const x of Array.isArray(u.filtros) ? u.filtros : []) if (x && typeof x.ref === "string" && x.ref.trim() === refUsuario.concepto && typeof x.op === "string") { const op = x.op.trim(); acc.add(op); if (!ejesDeOp.has(op)) ejesDeOp.set(op, new Set()); ejesDeOp.get(op).add(ejeU); } for (const v of Array.isArray(u.union) ? u.union : []) _opsDeRefCitada(v, acc, ejeU); return acc; };
-      const opsCitadas = new Set();
-      if (familiaRef.metrica) { for (const p of partesUtiles) _opsDeRefCitada(p.universo, opsCitadas); for (const pr of resolucion.premisas || []) _opsDeRefCitada(pr.universo != null ? pr.universo : pr.de, opsCitadas); }
-      const _direccionesDeLaReferencia = operativaDeLaConsulta ? [] : [
-        ...Object.entries(familiaRef.direcciones),
-        ...[...opsCitadas].filter((o) => !Object.values(familiaRef.direcciones).some((d) => d.ref === refUsuario.concepto && d.op === o)).map((o) => [/^>/.test(o) ? "sobre" : "bajo", { ref: refUsuario.concepto, op: o }]),
-      ];
-      const _pushLimiteUnico = (l) => { if (!entrega.limites.some((x) => x.titulo === l.titulo && x.motivo === l.motivo)) entrega.limites.push(l); };   // una `base` y un filtro con `ref` pueden decir lo mismo: una sola declaración
-      for (const [dir, { base, estado, ref: refCasa, op }] of _direccionesDeLaReferencia) {
-        const claveDireccion = base || estado || refCasa;
-        if (!basesEnJuego.has(normalizar(claveDireccion))) continue;
-        /* v23: los ejes donde esta dirección está en juego: el del universo que cita la `base`/el estado, o el del universo que cita la referencia con este `op` (sin eje propio, el de la familia de referencia) */
-        const ejesEnJuego = [...(refCasa && !base && !estado && ejesDeOp.has(op) ? ejesDeOp.get(op) : (ejesDeClave.get(normalizar(claveDireccion)) || new Set([familiaRef.eje])))];
-        for (const ejeDeLaParte of ejesEnJuego) {
-        try {
-          // el conjunto OFICIAL: el de la `base` de la casa, el del estado, o el del filtro que cita la referencia oficial (`ref`)
-          const universoOficial = base ? { eje: ejeDeLaParte, base: conjuntoDeFormaEnEje(base, ejeDeLaParte) || base } : estado ? { eje: ejeDeLaParte, estados: [estado] } : { eje: ejeDeLaParte, filtros: [{ metrica: familiaRef.metrica, op, ref: refCasa }] };
-          const oficial = conjuntoDeUniverso(universoOficial, I, ejeDeLaParte, "");
-          const conReferencia = conjuntoDeUniverso({ eje: ejeDeLaParte, filtros: [{ metrica: familiaRef.metrica, op, valor: refUsuario.valor }] }, I, ejeDeLaParte, "");
-          if (oficial && oficial.set && conReferencia && conReferencia.set) {
-            const nombresAlt = _nombreDeLasEntidades(conReferencia.set);
-            cifrasImpresas.push(valFmt, String(conReferencia.set.size), String(oficial.set.size));
-            _pushLimiteUnico({
-              titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez ${conPreposicion("de", familiaRef.nombreDeLaEmpresa)}`,
-              motivo: `${conteoDeEje(ejeDeLaParte, conReferencia.set.size).condicional} ${conteoDeEje(ejeDeLaParte, conReferencia.set.size).texto} ${dir} esa referencia (contra ${oficial.set.size} con ${sintagmaDe(familiaRef.nombreDeLaEmpresa)}): ${nombresAlt.join(", ")} — calculado con la misma cuenta; no reemplaza la referencia oficial ni es un objetivo de la empresa.`,
-            });
-          }
-        } catch { /* la referencia del usuario no se pudo evaluar contra el dato: no se declara nada a medias */ }
-        }
-      }
-      // DECISIÓN 37d (supervisor 2026-09-29, diagnóstico v13 A4; la 19 y la 36c): los estados de la Mesa Capital (inmovilizado crítico, inmovilizado, sobrestock, capital sano…) son
-      // conjuntos que define UNA referencia —el piso de rotación o el techo de cobertura—: la de quien consulta se declara AL LADO, con su cifra y sus nombres, igual que la de un
-      // conjunto por `base`/filtro. Los estados que dependen del umbral salen de la tabla de datos `UMBRALES_DE_ESTADO` (nunca una lista aparte), y el conjunto alternativo lo calcula
-      // la MISMA función de la casa (`jerarquiaInventario` bajo ese umbral, vía la proyección con el umbral planteado) — nunca una cuenta a mano.
-      if (familiaRef.umbral && !operativaDeLaConsulta) {
-        const yaPorDireccion = new Set(Object.values(familiaRef.direcciones).map((d) => d.estado).filter(Boolean));
-        for (const [canonEstado, llaves] of Object.entries(UMBRALES_DE_ESTADO)) {
-          if (!llaves.includes(familiaRef.umbral) || yaPorDireccion.has(canonEstado) || !basesEnJuego.has(normalizar(canonEstado))) continue;
-          try {
-            const Ialt = _indiceDelTenant([], scenario, { ...(consultaDeFrenado || {}), [familiaRef.umbral]: refUsuario.valor }).I;
-            const oficial = conjuntoDeUniverso({ eje: familiaRef.eje, estados: [canonEstado] }, I, familiaRef.eje, "");
-            const conReferencia = conjuntoDeUniverso({ eje: familiaRef.eje, estados: [canonEstado] }, Ialt, familiaRef.eje, "");
-            if (oficial && oficial.set && conReferencia && conReferencia.set) {
-              const nombresAlt = _nombreDeLasEntidades(conReferencia.set);
-              const cnt = conteoDeEje(familiaRef.eje, conReferencia.set.size);
-              cifrasImpresas.push(valFmt, String(conReferencia.set.size), String(oficial.set.size));
-              entrega.limites.push({
-                titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez ${conPreposicion("de", familiaRef.nombreDeLaEmpresa)}`,
-                motivo: `${cnt.condicional} ${cnt.texto} ${formaDeEstado(canonEstado).plural} con esa referencia (contra ${oficial.set.size} con ${sintagmaDe(familiaRef.nombreDeLaEmpresa)}): ${nombresAlt.length ? nombresAlt.join(", ") : "ninguno"} — calculado con la misma cuenta; no reemplaza la referencia oficial ni es un objetivo de la empresa.`,
-              });
-            }
-          } catch { /* la referencia del usuario no se pudo evaluar contra el dato: no se declara nada a medias */ }
-        }
-      }
-      // v17 (W27): el piso de materialidad planteado en la consulta se declara AL LADO del oficial, con la cifra Y los nombres que daría el MISMO detector con ese piso. Solo si el piso está en juego
-      // (una parte o premisa nombra «carga comercial alta» o pide su concepto) y la referencia es un % de la venta; si el detector no se puede leer o no cierra con el conjunto oficial de la Entrega, no se declara nada a medias.
-      if (familiaRef.pisoDePolicy && (refUsuario.unidad || "pct") === "pct" && refUsuario.valor > 0) {
-        const kPiso = familiaRef.pisoDePolicy;
-        const enJuego = umbralesDeBases([...basesEnJuego]).includes(kPiso) || umbralesDeConceptos(partesUtiles.flatMap((p) => p.conceptos || [])).includes(kPiso);
-        if (enJuego) {
-          try {
-            const pisoOficial = umbral(kPiso);
-            const D = descomposicionDeBrecha(scenario);
-            const oficial = conjuntoDeUniverso({ eje: familiaRef.eje, base: familiaRef.detector }, I, familiaRef.eje, "");
-            if (pisoOficial && pisoOficial.valor > 0 && D && Array.isArray(D.filas) && D.piso > 0 && oficial && oficial.set) {
-              const delDetector = new Set(D.filas.filter((f) => f.cargaMaterial).map((f) => normalizar(f.entidad)));
-              const coincide = delDetector.size === oficial.set.size && [...delDetector].every((k) => oficial.set.has(k));
-              if (coincide) {
-                const pisoAlterno = D.piso * (refUsuario.valor / pisoOficial.valor);   // el mismo % de la venta real, con el otro porcentaje
-                const nombresAlt = D.filas.filter((f) => f.cargaUsd >= pisoAlterno).map((f) => f.entidad);
-                const cnt = conteoDeEje(familiaRef.eje, nombresAlt.length);
-                const nombreOficial = { articulo: "el", nucleo: `umbral de materialidad ${pisoOficial.origen === "empresa" ? "declarado por la empresa" : "general de ADI"}` };
-                cifrasImpresas.push(valFmt, String(nombresAlt.length), String(oficial.set.size));
-                entrega.limites.push({
-                  titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez ${conPreposicion("de", nombreOficial)}`,
-                  motivo: `${cnt.condicional} ${cnt.texto} con «${familiaRef.detector}» con esa referencia (contra ${oficial.set.size} con ${sintagmaDe(nombreOficial)}): ${nombresAlt.length ? nombresAlt.join(", ") : "ninguno"} — calculado con el mismo detector y las mismas filas, solo con otro piso; no reemplaza el criterio oficial ni es un objetivo de la empresa.`,
-                });
-              }
-            }
-          } catch { /* la referencia del usuario no se pudo evaluar contra el dato: no se declara nada a medias */ }
-        }
-      }
-      // «carga comercial alta»: solo el conteo OFICIAL del detector — nunca una alternativa con una fórmula que no es la suya.
-      for (const baseDetector of familiaRef.sinAlternativa || []) {
-        if (!basesEnJuego.has(normalizar(baseDetector))) continue;
-        try {
-          const oficial = conjuntoDeUniverso({ eje: familiaRef.eje, base: baseDetector }, I, familiaRef.eje, "");
-          if (oficial && oficial.set) {
-            cifrasImpresas.push(valFmt, String(oficial.set.size));
-            entrega.limites.push({
-              titulo: `Con la referencia planteada en la consulta (${valFmt}), en vez ${conPreposicion("de", familiaRef.nombreDeLaEmpresa)}`,
-              motivo: `«${baseDetector}» ${conteoDeEje(familiaRef.eje, oficial.set.size).presente} ${conteoDeEje(familiaRef.eje, oficial.set.size).texto} con la referencia de la empresa; el detector no se recalcula con una referencia distinta — no reemplaza la oficial ni es un objetivo de la empresa.`,
-            });
-          }
-        } catch { /* la referencia del usuario no se pudo evaluar contra el dato: no se declara nada a medias */ }
-      }
-    }
+    const rc = referenciasDeLaConsulta({ resolucion, partesUtiles, I, scenario, consultaDeFrenado, basesDeUniverso: _basesDeUniverso, indiceDelTenant: _indiceDelTenant, dominioNombre: (t) => _DOM_NOMBRE[t] || t, listaDeNombres: _listaDeNombres });
+    for (const n of rc.cifras) cifrasImpresas.push(n);
+    if (rc.marcoOperativa) entrega.marco.referenciaDeclarada = entrega.marco.referenciaDeclarada ? { ...entrega.marco.referenciaDeclarada, texto: `${entrega.marco.referenciaDeclarada.texto} ${rc.marcoOperativa}` } : { texto: rc.marcoOperativa, hechoId: null };
+    for (const l of rc.limites) entrega.limites.push(l);
   }
 
   /* FAMILIA 2: los marcadores de «lo que falta» (puestos al armar cada plan, en su lugar) se resuelven AHORA, con la Entrega ya impresa: la pieza declara lo que ninguna fuente demuestra y NUNCA lo que la Entrega imprime */

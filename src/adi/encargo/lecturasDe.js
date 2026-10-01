@@ -77,7 +77,7 @@ export const REGISTRO_LECTURAS = cajaDelAgente(TOOLS);
  * `concepto:"umbral_frenado"` (días) lo trae el encargo TIPADO — nunca un regex sobre la pregunta. Devuelve los umbrales
  * de la consulta en la forma que `umbral()` entiende (`{ frenadoDiasSinVenta }`) o null. Mismo patrón de §7.3·12/·19:
  * la referencia de la EMPRESA manda — si la empresa ya declaró su umbral, el de la consulta NO reemplaza el veredicto
- * oficial (queda declarado aparte por `_REFERENCIA_FAMILIAS`); solo cuando la empresa no lo declaró, el de la consulta
+ * oficial (queda declarado aparte por `REFERENCIA_FAMILIAS` (`entrega/referencias.js`)); solo cuando la empresa no lo declaró, el de la consulta
  * es el que sostiene el veredicto «frenado» de ESTA respuesta, con origen «planteado en la consulta». */
 export function consultaDeFrenado(resolucion) {
   const r = resolucion && resolucion.criterio && resolucion.criterio.referencia;
@@ -619,12 +619,19 @@ function _metricaDeConjunto(nombre) {
   return r.metrica === "margen_venta" ? "margen" : r.metrica;
 }
 const _EJE_NATIVO_DE_REFERENCIA = { benchmark: "cliente", nivel_carga: "cliente", piso_rotacion: "sku", techo_cobertura: "sku" };
+/** FAMILIA 3 (consolidación): la evidencia del conjunto de la casa que un universo nombra (`base` o excluido, también en las ramas de una unión) — una sola función para las PREMISAS y para las PARTES (§7.3·49(a)/(d)): una parte con «SKU bajo el benchmark» necesita el margen por SKU igual que una premisa. */
+function _conceptosDeConjuntos(u, add, ejeHeredado = null) {
+  if (!u || typeof u !== "object" || Array.isArray(u)) return;
+  const eje = u.eje || ejeHeredado;
+  const bases = [...(typeof u.base === "string" && u.base.trim() ? [u.base] : []), ...(u.excluir && typeof u.excluir === "object" && Array.isArray(u.excluir.conjuntos) ? u.excluir.conjuntos.filter((n) => typeof n === "string") : [])];
+  for (const b of bases) { const m = _metricaDeConjunto(b); const c = conjuntoConocido(b); if (m) add(m, eje || (c && c.eje) || null); }
+  for (const v of Array.isArray(u.union) ? u.union : []) _conceptosDeConjuntos(v, add, eje);
+}
 function _conceptosDeUniverso(u, add, ejeHeredado = null, conBase = false) {
   if (!u || typeof u !== "object" || Array.isArray(u)) return;
   const eje = u.eje || ejeHeredado;
   /* §7.3·49(d): el conjunto de la casa que el universo nombra (`base` o excluido) trae la evidencia de SU métrica en el eje del conjunto, aunque ninguna parte la pida */
-  if (conBase) { const bases = [...(typeof u.base === "string" && u.base.trim() ? [u.base] : []), ...(u.excluir && typeof u.excluir === "object" && Array.isArray(u.excluir.conjuntos) ? u.excluir.conjuntos.filter((n) => typeof n === "string") : [])];
-    for (const b of bases) { const m = _metricaDeConjunto(b); const c = conjuntoConocido(b); if (m) add(m, eje || (c && c.eje) || null); } }
+  if (conBase) _conceptosDeConjuntos(u, add, ejeHeredado);
   if (u.top && u.top.metrica) add(u.top.metrica, eje);
   /* §7.3·49(d): el filtro que cita una referencia de la casa (`ref`) necesita la evidencia de su métrica en los ejes donde la proyección NO resuelve el conjunto (la proyección lo resuelve en el eje nativo de la referencia: benchmark y nivel de carga por cuenta, piso de rotación y techo de cobertura por SKU); en marca, familia o el otro eje la premisa la carga aunque ninguna parte pida el concepto */
   for (const f of Array.isArray(u.filtros) ? u.filtros : []) if (f && f.metrica && (f.ref == null || _EJE_NATIVO_DE_REFERENCIA[String(f.ref).trim()] !== eje)) add(f.metrica, eje);
@@ -672,6 +679,17 @@ function _callsDePremisas(premisas, criterio = null) {
       if (!productorDe(concepto, eje)) continue;   // sin productor: nada que agendar, la premisa sigue sin-evidencia
       out.push(..._callsDeConceptoEje(dominioDeClave(concepto) || "", concepto, eje));
     }
+  }
+  return out;
+}
+/** FAMILIA 3 (consolidación, §7.3·12/·19/·49(a)): las llamadas ➕ de la evidencia de los conjuntos de la casa que las PARTES nombran, SOLO cuando la consulta plantea su propia referencia (hay un conjunto alternativo que contar en el eje de cada parte). Igual que las de las premisas: viajan en el plan general y NUNCA se atribuyen a ningún `porParte[id]` (no agregan cifras a lo servido). Una parte con «SKU bajo el benchmark» recibe el margen por SKU: sin esto el conjunto alternativo de su eje no se podía contar y el error se callaba. */
+function _callsDeConjuntosDePartes(partes, criterio = null) {
+  if (!(criterio && criterio.referencia)) return [];
+  const out = [];
+  for (const p of Array.isArray(partes) ? partes : []) {
+    if (!p || p.estado === "no_resuelta" || !p.universo) continue;
+    const add = (concepto, eje) => { if (!concepto || !eje || !productorDe(concepto, eje)) return; out.push(..._callsDeConceptoEje(dominioDeClave(concepto) || "", concepto, eje)); };
+    _conceptosDeConjuntos(p.universo, add, p.eje || sujetoDeTema(p.tema));
   }
   return out;
 }
@@ -734,7 +752,7 @@ export function lecturasDe(resolucion) {
 
   // R-EVIDENCIA-PREMISA: se agregan DESPUÉS de fijar `porParte` (arriba) — nunca entran a esa traza, así que
   // ninguna parte las hereda como "lo servido" (ver la nota de `_callsDePremisas`).
-  const premisaCalls = _callsDePremisas(resolucion.premisas, resolucion.criterio);
+  const premisaCalls = [..._callsDePremisas(resolucion.premisas, resolucion.criterio), ..._callsDeConjuntosDePartes(resolucion.partes, resolucion.criterio)];
 
   const todas = _dedupeCalls([...lecturaCalls, ...sueltas, ...premisaCalls]);
   return {

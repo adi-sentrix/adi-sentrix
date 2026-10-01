@@ -15,6 +15,24 @@ const BODEGAS = ["Santiago", "Valparaíso", "Antofagasta", "Concepción"];
 /* las referencias del léxico (`referencia: true`) con su unidad y el rango de valores razonable (el valor lo pone el «usuario») */
 const RANGO_REFERENCIA = { benchmark: ["pct", 20, 32], nivel_carga: ["pct", 3, 8], umbral_materialidad: ["pct", 0.05, 0.3], piso_rotacion: ["ratio", 0.5, 4], techo_cobertura: ["days", 40, 120], umbral_frenado: ["days", 3, 120] };
 const OPS = ["<", ">", "<=", ">="];
+/* FAMILIA 3 (consolidación): los conjuntos de la casa que una referencia de la consulta DEFINE, con el eje y el universo tipado que los pone en juego (el generador general rara vez junta una referencia con su conjunto). Lo usa el SUB-AZAR de la F3: una referencia + UNO O VARIOS usos del mismo conjunto, en partes nuevas (de cliente, SKU, marca o familia) y a veces en una premisa. */
+const CONJUNTOS_F3 = [
+  { ref: "benchmark", tema: "comercial", usos: [
+    { eje: "cliente", u: { base: "bajo el benchmark" } }, { eje: "cliente", u: { base: "sobre el benchmark" } }, { eje: "sku", u: { base: "SKU bajo el benchmark" } }, { eje: "sku", u: { base: "SKU sobre el benchmark" } },
+    { eje: "cliente", u: { filtros: [{ metrica: "margen", op: "<", ref: "benchmark" }] } }, { eje: "marca", u: { filtros: [{ metrica: "margen", op: "<", ref: "benchmark" }] } }, { eje: "marca", u: { filtros: [{ metrica: "margen", op: ">=", ref: "benchmark" }] } }, { eje: "familia", u: { filtros: [{ metrica: "margen", op: "<", ref: "benchmark" }] } },
+  ] },
+  { ref: "nivel_carga", tema: "comercial", usos: [
+    { eje: "cliente", u: { base: "sobre el nivel declarado de carga" } }, { eje: "cliente", u: { base: "carga comercial alta" } }, { eje: "marca", u: { filtros: [{ metrica: "carga", op: ">", ref: "nivel_carga" }] } },
+  ] },
+  { ref: "umbral_materialidad", tema: "comercial", usos: [{ eje: "cliente", u: { base: "carga comercial alta" } }] },
+  { ref: "piso_rotacion", tema: "inventario", usos: [
+    { eje: "sku", u: { estados: ["rota lento"] } }, { eje: "sku", u: { estados: ["rota bien"] } }, { eje: "sku", u: { estados: ["inmovilizado critico"] } },
+  ] },
+  { ref: "techo_cobertura", tema: "inventario", usos: [
+    { eje: "sku", u: { filtros: [{ metrica: "dias_inventario", op: ">", ref: "techo_cobertura" }] } }, { eje: "sku", u: { estados: ["sobrestock"] } }, { eje: "sku", u: { estados: ["inmovilizado critico"] } },
+  ] },
+  { ref: "umbral_frenado", tema: "inventario", usos: [{ eje: "sku", u: { estados: ["frenado"] } }] },
+];
 
 export async function crearGenerador(base, { semilla = "adi-consolidacion-1", validar = true } = {}) {
   const { esquema, lexico, estados, conjuntos, entityIndex, prioridadIntegrada, dominios, proyeccion } = base;
@@ -101,6 +119,35 @@ export async function crearGenerador(base, { semilla = "adi-consolidacion-1", va
     return out;
   }
 
+  /* ── EL SUB-AZAR DE LA F3: su propia semilla (`<semilla>:f3-referencia`), que NO toca la secuencia del generador general. Sobre un encargo ya VÁLIDO, con probabilidad 0.3 le agrega una referencia de la consulta y partes nuevas que usan el MISMO conjunto que ella define (1 a 3 partes), y a veces una premisa de conteo sobre ese conjunto; el resultado se valida: si el validador lo rechaza, queda el encargo original. ── */
+  const R3 = crearAzar(semilla + ":f3-referencia");
+  function refinarConReferencia(enc) {
+    if (!R3.bool(0.3)) return null;
+    const fam = R3.pick(CONJUNTOS_F3);
+    const [unidad, a, b] = RANGO_REFERENCIA[fam.ref];
+    const out = JSON.parse(JSON.stringify(enc));
+    out.criterio = { ...(out.criterio || {}), referencia: { concepto: fam.ref, valor: Math.round((a + (b - a) * R3.next()) * 100) / 100, unidad } };
+    const uso = R3.pick(fam.usos);
+    const k = Number(R3.pesos({ 1: 0.4, 2: 0.4, 3: 0.2 }));
+    const otro = R3.bool(0.25) ? R3.pick(fam.usos) : null;
+    let n = out.partes.length;
+    for (let i = 0; i < k && n < 6; i++) {
+      const u = i === k - 1 && otro ? otro : uso; n++;
+      const conceptos = conceptosDe(fam.tema, u.eje);
+      if (!conceptos.length) continue;
+      const cierre = R3.pesos({ cifra: 0.4, decision: 0.3, lectura: 0.3 });
+      const p = { id: `p${n}`, tema: fam.tema, cierre, conceptos: R3.muestra(conceptos, R3.int(1, 2)) };
+      if (u.eje !== esquema.sujetoDeTema(fam.tema)) p.eje = u.eje;
+      p.universo = { eje: u.eje, ...JSON.parse(JSON.stringify(u.u)) };
+      out.partes.push(p);
+    }
+    if (R3.bool(0.4)) {
+      const nn = nombresDe(uso.eje);
+      if (nn.length) { const id = `q${(out.premisas || []).length + 1}`; (out.premisas = out.premisas || []).push({ id, tipo: "conteo", conteo: { n: R3.int(0, Math.min(8, nn.length)), m: nn.length }, de: { eje: uso.eje, ...JSON.parse(JSON.stringify(uso.u)) } }); }
+    }
+    return out;
+  }
+
   function candidato() {
     const nPartes = Number(R.pesos({ 1: 0.62, 2: 0.24, 3: 0.1, 4: 0.04 }));
     const partes = []; for (let i = 1; i <= nPartes; i++) partes.push(parteDe(i));
@@ -117,9 +164,8 @@ export async function crearGenerador(base, { semilla = "adi-consolidacion-1", va
     for (let i = 0; i < 200; i++) {
       const enc = candidato(); estadistica.intentos++;
       if (!validar) return enc;
-      let res = null;
-      try { res = base.validar.validarEncargo(enc, {}); } catch { res = null; }
-      if (res && Array.isArray(res.partes) && res.partes.length && (!Array.isArray(res.noResuelto) || res.noResuelto.length === 0)) return enc;
+      const valido = (e) => { let r = null; try { r = base.validar.validarEncargo(e, {}); } catch { r = null; } return !!(r && Array.isArray(r.partes) && r.partes.length && (!Array.isArray(r.noResuelto) || r.noResuelto.length === 0)); };
+      if (valido(enc)) { const f3 = refinarConReferencia(enc); return f3 && valido(f3) ? f3 : enc; }
       estadistica.rechazados++;
     }
     throw new Error("el generador no logró un encargo válido en 200 intentos");
