@@ -830,6 +830,12 @@ venta a crédito, ley del owner).
         · una oración que el verificador rechaza se retira de la Entrega y se declara el límite;
         · las filas de la tabla de señales de la prioridad conservan el rótulo de su señal;
         · una fig sin clave en el léxico se declara, no se imprime con un rótulo crudo.
+53. [2026-10-01, supervisor; consolidación F1] Corrige la 48(b) y la 51(d) a la luz de la ley del owner sobre la prioridad
+    integrada («tres lentes por dominio con señales; dentro del dominio cada lente ordena»). «Por riesgo integrado: X» sobre
+    un grupo de UN dominio es válido cuando X es el primero del plan de señales de ese dominio (materialidad + severidad +
+    urgencia): es la prioridad del procedimiento, no un criterio inventado. Lo que se prohíbe es nombrar riesgo cuando el
+    plan de señales no ordenó esa lista, o coronar a alguien distinto del primero del plan. Cuando la lente pedida no ordena el
+    grupo, se declara y sigue la lectura de riesgo con la misma condición.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
