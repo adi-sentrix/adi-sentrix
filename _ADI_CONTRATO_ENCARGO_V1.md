@@ -809,6 +809,27 @@ venta a crédito, ley del owner).
     crítico; saldo por vencer ≠ saldo pendiente; venta a crédito se rotula «Venta a crédito».
     (g) La 49(a) sobre una parte que EXCLUYE un conjunto: la referencia se declara sobre el conjunto de la casa (forma de la
     12), con su conteo contra el oficial.
+52. [2026-09-30, OWNER; consolidación, inventario del paso 1]
+    (a) LA VENTA EN COBRANZA (owner): en cobranza el único dato de venta es la venta a crédito; la lente «ventas» se dice
+    «por venta a crédito», nunca «ventas» a secas.
+    (b) EL CERO SOLO SI EL DATO LO DEMUESTRA (owner). Hay dos ceros reales: el MEDIDO (la fuente tiene la fila de la entidad
+    y el valor es 0) y el de COBERTURA DECLARADA (la fuente declara que cubre a todo el grupo; no figurar = nada, y se dice
+    por qué: «no figura en la cartera de crédito»). Todo lo demás es DATO AUSENTE: «sin dato de X para Y», nunca un número;
+    no se ordena, no se cuenta ni se suma como 0, y se declara aparte. Una tasa sin denominador es «sin dato», nunca 0 %.
+    Cada cifra lleva su origen (medido · cobertura declarada · ausente). «Ausente = cero» deja de ser una lista por métrica:
+    pasa a ser la declaración de cobertura de cada fuente. El verificador rechaza un 0 sin uno de los dos orígenes.
+    Reemplaza a AUSENTE_VALE_CERO y precisa la 39(c), la 45(a), la 49(c) y la 51(b).
+    (c) COBRANZA (owner): la foto de una lectura o decision de cobranza son las cuentas de la mesa, en el orden de la mesa,
+    con la cola «N de 13» declarada; una `cifra` sin restricción cubre las 13 (42c). Las cuentas fuera de la foto que la
+    mesa sí mide pueden darse con su cero medido.
+    (d) LA 47(e) (owner): la lente «contribución» sobre un grupo sin brecha dice «ninguna queda primera», declarado.
+    (e) Técnicas (supervisor):
+        · un criterio que solo trae una referencia nombra la medida que ordenó y la referencia como tal;
+        · la referencia de la consulta se declara una vez por conjunto y eje, nombrando las partes que cubre (precisa la 49a);
+        · la decisión 30 (miembro sin la cifra) rige en todos los temas;
+        · una oración que el verificador rechaza se retira de la Entrega y se declara el límite;
+        · las filas de la tabla de señales de la prioridad conservan el rótulo de su señal;
+        · una fig sin clave en el léxico se declara, no se imprime con un rótulo crudo.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
