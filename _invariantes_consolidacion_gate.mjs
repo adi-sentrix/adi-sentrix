@@ -15,6 +15,8 @@
  *   4 · CARNADAS — un control que nunca falla no prueba nada: sobre Entregas reales se rompe UNA propiedad a la vez (primero que no
  *       pide atención, referencia como criterio, «ventas» en cobranza, «por riesgo integrado» sobre un grupo, oración de prioridad sin marca,
  *       «no trae X» con X impreso, marca que nombra a otro) y el control TIENE que ponerlas en rojo, con la regla que corresponde.
+ *       (4b · F2 lo servido · 4c · F3 la referencia de la consulta · 4d · F4 el rótulo de cada cifra: «Venta a crédito» ≠ «Venta», capital inmovilizado ≠ crítico,
+ *       saldo por vencer ≠ saldo pendiente, las filas de señales conservan su rótulo, una fig sin clave se declara.)
  *   5 · INDEPENDENCIA Y CABLEADO (estático) — el control de la F1 no importa la pieza; ningún sitio de la F1 conserva su propia decisión
  *       (las helpers viven en `entrega/prioridad.js`) ni lee la oración de prioridad con una expresión regular sobre la prosa.
  *   6 · CERO red.
@@ -43,7 +45,7 @@ const base = await cargarBase();
 const familias = await cargarFamilias();
 
 H("0 · la infraestructura: marco, familias, generador");
-ok(familias.length >= 3 && familias.some((f) => f.id === "F1") && familias.some((f) => f.id === "F2") && familias.some((f) => f.id === "F3"), `el marco carga las familias registradas (${familias.map((f) => f.id).join(", ")})`);
+ok(familias.length >= 4 && familias.some((f) => f.id === "F1") && familias.some((f) => f.id === "F2") && familias.some((f) => f.id === "F3") && familias.some((f) => f.id === "F4"), `el marco carga las familias registradas (${familias.map((f) => f.id).join(", ")})`);
 ok(familias.every((f) => typeof f.invariante === "function" && f.nombre), "cada familia declara su nombre y su función invariante");
 {
   const a = (await generarEncargos(base, { semilla: "g0", n: 60 })).casos, b = (await generarEncargos(base, { semilla: "g0", n: 60 })).casos, c = (await generarEncargos(base, { semilla: "g1", n: 60 })).casos;
@@ -303,9 +305,52 @@ H("4c · carnadas de la F3 (la referencia de la consulta, declarada en cada part
   }
 }
 
+H("4d · carnadas de la F4 (el rótulo de cada cifra según su concepto): el control TIENE que ponerse en rojo");
+{
+  const F4 = familias.find((f) => f.id === "F4");
+  const caso = (id) => { const c = catalogos.find((x) => x.id === id); return c ? entregaDe(base, c) : { ok: false }; };
+  const regla = (vs, r) => vs.some((v) => v.regla === r);
+  /* una Entrega con otro rótulo en las filas de Cifras / en una oración (se rompe UNA propiedad a la vez) */
+  const conFilas = (e, f) => ({ ...e, entrega: { ...e.entrega, cifras: { ...e.entrega.cifras, filas: e.entrega.cifras.filas.map(f) } } });
+  const conRespuesta = (e, f) => ({ ...e, entrega: { ...e.entrega, respuesta: e.entrega.respuesta.map(f) } });
+  const rotula = (viejo, nuevo) => (fila) => (fila.valores && fila.valores["Métrica"] === viejo ? { ...fila, valores: { ...fila.valores, "Métrica": nuevo } } : fila);
+  ok(!!F4, "el marco carga la familia F4 (el rótulo de cada cifra)");
+  if (F4) {
+    /* las bases verdes: la venta a crédito en cobranza (el rótulo cerrado de la F1), la comparación de cobranza, la de inventario y la tabla de señales */
+    const q14 = caso("v24:Q14"), w31 = caso("v17:W31"), z23 = caso("v13:Z23"), z63 = caso("v13:Z63"), q18 = caso("v24:Q18");
+    ok(q14.ok && revisarEntrega(q14, [F4]).length === 0 && q14.entrega.cifras.filas.some((f) => f.valores["Métrica"] === "Venta a crédito") && q14.entrega.respuesta.some((r) => /con \$[\d.]+M en venta a crédito\.$/.test(r.texto)), "v24:Q14 (la lente «ventas» en cobranza): la cifra se rotula «Venta a crédito» en la fila y en la oración, y el control no marca nada");
+    ok(q18.ok && revisarEntrega(q18, [F4]).length === 0 && q18.entrega.cifras.filas.some((f) => f.valores["Métrica"] === "Variación vs año anterior en $") && q18.entrega.respuesta.some((r) => /en variación vs año anterior en \$\.$/.test(r.texto)), "v24:Q18 (crecimiento): «YoY» se rotula con el nombre del léxico, «Variación vs año anterior en $»");
+    ok(w31.ok && revisarEntrega(w31, [F4]).length === 0 && /en venta a crédito, Ripley/.test(w31.texto) && !/Venta \(flujo\)/.test(w31.texto), "v17:W31 (comparación de cobranza): «Venta a crédito», nunca «Venta (flujo)»");
+    ok(z23.ok && revisarEntrega(z23, [F4]).length === 0 && !/Cobertura \(DOH\)|cobertura \(doh\)/i.test(z23.texto) && (z23.texto.match(/Días de inventario/g) || []).length >= 3, "v13:Z23 (comparación de inventario): «Días de inventario», la misma cifra no sale con dos rótulos");
+    ok(z63.ok && revisarEntrega(z63, [F4]).length === 0 && z63.entrega.cifras.filas.some((f) => f.valores["Métrica"] === "vencido") && z63.entrega.cifras.filas.some((f) => f.valores["Métrica"] === "distancia al benchmark"), "v13:Z63 (la tabla de señales): conserva el rótulo de su señal («vencido», «distancia al benchmark»): el control no la marca");
+    if (w31.ok) {
+      ok(regla(revisarEntrega(conFilas(w31, rotula("Venta a crédito", "Venta (flujo)")), [F4]), "rotulo-fuera-del-lexico"), "una fila «Venta (flujo)» donde va «Venta a crédito» → rotulo-fuera-del-lexico");
+      ok(regla(revisarEntrega(conFilas(w31, rotula("Venta a crédito", "Ventas")), [F4]), "rotulo-fuera-del-lexico"), "una fila «Ventas» → rotulo-fuera-del-lexico");
+      const w29 = caso("v17:W29");
+      ok(w29.ok && revisarEntrega(w29, [F4]).length === 0 && regla(revisarEntrega(conFilas(w29, rotula("Saldo vencido", "Saldo pendiente")), [F4]), "rotulo-no-corresponde-al-dato") && regla(revisarEntrega(conFilas(w29, rotula("Saldo vencido", "Saldo por vencer")), [F4]), "rotulo-no-corresponde-al-dato"), "el saldo vencido de Lider dicho «saldo pendiente» o «saldo por vencer» (el dato trae esa cifra bajo otra clave) → rotulo-no-corresponde-al-dato");
+      ok(regla(revisarEntrega(conFilas(w31, rotula("Recuperado", "Cosa que el léxico no conoce")), [F4]), "fig-sin-clave-sin-declarar"), "una cifra con un rótulo sin clave en el léxico → fig-sin-clave-sin-declarar");
+      ok(regla(revisarEntrega(conRespuesta(w31, (r) => ({ ...r, texto: r.texto.replace("en venta a crédito,", "en venta (flujo),") })), [F4]), "oracion-rotula-crudo"), "una oración que dice la cifra «en venta (flujo)» → oracion-rotula-crudo");
+    }
+    if (z23.ok) ok(regla(revisarEntrega(conRespuesta(z23, (r) => ({ ...r, texto: r.texto.replace("en días de inventario,", "en cobertura (doh),") })), [F4]), "oracion-rotula-crudo"), "una comparación que dice «cobertura (doh)» → oracion-rotula-crudo");
+    if (q14.ok) ok(regla(revisarEntrega(conRespuesta(q14, (r) => ({ ...r, texto: r.texto.replace(/en venta a crédito\.$/, "en ventas.") })), [F4]), "oracion-rotula-crudo"), "una oración de prioridad que dice «en ventas» → oracion-rotula-crudo");
+    /* la pieza: el rótulo de cada concepto es el suyo; una fig sin clave se DECLARA con el texto de las ausencias */
+    const { rotuloDeLaCasa, rotuloEnOracion, rotuloDeDiferencia, filaDeCifra, declaracionDeFigSinClave } = await import("./src/adi/entrega/rotulos.js");
+    const { textoFigSinClave, MOTIVO_FIG_SIN_CLAVE } = await import("./src/config/contract/ausencias.js");
+    ok(rotuloDeLaCasa({ concepto: "Venta (flujo)" }).rotulo === "Venta a crédito" && rotuloDeLaCasa({ concepto: "Ventas" }).rotulo === "Venta" && rotuloDeLaCasa({ concepto: "Ventas" }).clave === "ventas" && rotuloDeLaCasa({ concepto: "Venta (flujo)" }).clave === "venta_credito", "la pieza: «Venta (flujo)» es la venta a crédito y «Ventas» es la venta; nunca el rótulo de uno para el otro");
+    ok(rotuloDeLaCasa({ clave: "capital_inmovilizado" }).rotulo === "Capital inmovilizado" && rotuloDeLaCasa({ clave: "capital_frenado" }).rotulo === "Capital inmovilizado crítico" && rotuloDeLaCasa({ clave: "saldo_por_vencer" }).rotulo === "Saldo por vencer" && rotuloDeLaCasa({ clave: "saldo_pendiente" }).rotulo === "Saldo pendiente", "la pieza: capital inmovilizado ≠ capital inmovilizado crítico · saldo por vencer ≠ saldo pendiente");
+    ok(rotuloEnOracion({ concepto: "Cobertura (DOH)" }) === "días de inventario" && rotuloEnOracion({ concepto: "Dias Vencido" }) === "días vencido" && rotuloDeDiferencia({ clave: "venta_credito" }) === "Diferencia · Venta a crédito", "la pieza: «Cobertura (DOH)» y «Dias Vencido» se dicen con el nombre del léxico, en la oración y en la diferencia");
+    const sc = rotuloDeLaCasa({ label: "Lider · Una cifra que el léxico no conoce" });
+    ok(sc.sinClave === true && sc.clave === null, "la pieza: una fig sin clave en el léxico se marca (`sinClave`), no se rotula con la clave de otra");
+    const d = declaracionDeFigSinClave(["Lider", "Falabella"]);
+    ok(d.titulo === textoFigSinClave(["Lider", "Falabella"]) && d.motivo === MOTIVO_FIG_SIN_CLAVE && /Lider y Falabella/.test(d.titulo), "la declaración de una fig sin clave sale de `config/contract/ausencias.js` (la pieza no escribe su texto)");
+    const fila = filaDeCifra({ entidad: "Lider", tema: "cobranza", rotulo: "Saldo vencido", valor: "$4.6M", tipo: "medido", id: "e1", procedencia: "medido", origen: "medido" });
+    ok(JSON.stringify(Object.keys(fila)) === JSON.stringify(["valores", "hechos", "procedencia", "origen"]) && JSON.stringify(Object.keys(fila.valores)) === JSON.stringify(["Entidad / grupo", "Tema", "Métrica", "Valor", "Tipo"]), "filaDeCifra: el único constructor de la fila de Cifras, con la forma de siempre");
+  }
+}
+
 H("5 · independencia del control y cableado de la pieza (estático)");
 {
-  const f1 = fs.readFileSync("./scripts/consolidacion/familias/f1_prioridad.mjs", "utf8");
+  const f1 =fs.readFileSync("./scripts/consolidacion/familias/f1_prioridad.mjs", "utf8");
   ok(!/from\s+["'][^"']*entrega\/prioridad/.test(f1) && !/^\s*import[^\n]*prioridad\.js/m.test(f1), "el control de la F1 NO importa la pieza (`entrega/prioridad.js`): lee la Entrega y el dato");
   const comp = fs.readFileSync("./src/adi/entrega/componer.js", "utf8"), tam = fs.readFileSync("./src/adi/entrega/tamano.js", "utf8"), ini = fs.readFileSync("./src/adi/entrega/iniciativa.js", "utf8"), lec = fs.readFileSync("./src/adi/encargo/lecturasDe.js", "utf8");
   ok(/from "\.\/prioridad\.js"/.test(comp) && /from "\.\/prioridad\.js"/.test(tam) && /from "\.\/prioridad\.js"/.test(ini) && /from "\.\.\/entrega\/prioridad\.js"/.test(lec), "componer, tamano, iniciativa y lecturasDe le preguntan a la pieza");
@@ -325,10 +370,28 @@ H("5 · independencia del control y cableado de la pieza (estático)");
   const f3 = fs.readFileSync("./scripts/consolidacion/familias/f3_referencia.mjs", "utf8"), ref = fs.readFileSync("./src/adi/entrega/referencias.js", "utf8");
   const comp = fs.readFileSync("./src/adi/entrega/componer.js", "utf8"), lec = fs.readFileSync("./src/adi/encargo/lecturasDe.js", "utf8");
   ok(!/from\s+["'][^"']*entrega\/referencias/.test(f3) && !/^\s*import[^\n]*referencias\.js/m.test(f3), "el control de la F3 NO importa la pieza (`entrega/referencias.js`): lee la Entrega, la resolución y el dato");
-  ok(/from "\.\/referencias\.js"/.test(comp) && /referenciasDeLaConsulta\(/.test(comp) && /referenciasOficiales\(/.test(comp), "componer.js le pregunta a la pieza de la referencia de la consulta (las declaraciones y las oficiales del Marco)");
+  ok(/from "\.\/referencias\.js"/.test(comp) && /referenciasDeLaConsulta\(/.test(comp) && /referenciaDelMarco\(/.test(comp) && /referenciasOficiales\(\{ partesUtiles, premisas, I \}\)/.test(ref), "componer.js le pregunta a la pieza de la referencia de la consulta (las declaraciones) y de la referencia oficial del Marco (que a su vez usa `referenciasOficiales`)");
   ok(!/_REFERENCIA_FAMILIAS/.test(comp) && /export const REFERENCIA_FAMILIAS/.test(ref), "la tabla de familias de referencia vive UNA vez, en la pieza (no en componer.js)");
   ok(!/no se declara nada a medias/.test(ref), "la pieza no calla un error de evidencia: ningún `catch` que descarte sin declarar");
   ok(/_callsDeConjuntosDePartes/.test(lec) && /_conceptosDeConjuntos\(/.test(lec), "lecturasDe pide la evidencia del conjunto de la casa para las PARTES con la misma función que para las premisas");
+}
+
+{
+  /* F4 · el control no importa la pieza; los sitios del rótulo le preguntan a ella (y ya no escriben el rótulo crudo ni uno a mano) */
+  const f4 = fs.readFileSync("./scripts/consolidacion/familias/f4_rotulo.mjs", "utf8"), rot = fs.readFileSync("./src/adi/entrega/rotulos.js", "utf8");
+  const comp = fs.readFileSync("./src/adi/entrega/componer.js", "utf8"), pri = fs.readFileSync("./src/adi/entrega/prioridad.js", "utf8"), ini = fs.readFileSync("./src/adi/entrega/iniciativa.js", "utf8"), ref = fs.readFileSync("./src/adi/entrega/referencias.js", "utf8");
+  ok(!/from\s+["'][^"']*entrega\/rotulos/.test(f4) && !/^\s*import[^\n]*rotulos\.js/m.test(f4), "el control de la F4 NO importa la pieza (`entrega/rotulos.js`): lee la Entrega y el dato");
+  ok(/from "\.\/rotulos\.js"/.test(comp) && /from "\.\/rotulos\.js"/.test(pri) && /from "\.\/rotulos\.js"/.test(ini), "componer, prioridad e iniciativa le preguntan a la pieza del rótulo");
+  ok(/export function filaDeCifra/.test(rot) && /filaDeCifra\(\{/.test(comp) && !/valores: \{ "Entidad \/ grupo": entidad, "Tema"/.test(comp), "la fila de Cifras la construye UNA función de la pieza (`filaDeCifra`), no `componer.js`");
+  ok(!/^const _conceptoDeLabel = \(label\)/m.test(comp) && !/^const _claveDeFig = \(fig\) => \{/m.test(comp) && !/^const _labelDeClave = \(clave\) => \{/m.test(comp) && !/^const _conceptoDeLabel = \(label\)/m.test(pri), "ni componer.js ni prioridad.js definen su propio concepto-de-rótulo, clave de fig o rótulo de clave: son los de la pieza");
+  ok(!/String\(PL\.metrica\)\.toLowerCase/.test(comp) && !/"Participación del vencido total"/.test(comp) && !/"Diferencia · materialidad"/.test(comp) && !/`Diferencia · \$\{p\.concepto\}`/.test(comp), "la oración y la fila de la medida de la lente, la concentración y la diferencia de la tabla de señales ya no escriben su rótulo a mano");
+  ok(!/nombre: "(?:saldo vencido|capital inmovilizado crítico|contribución no capturada|venta)"/.test(pri) && !/_conceptoDeLabel\(_lab\(f\)\)\.toLowerCase\(\)/.test(pri), "prioridad.js no escribe a mano el nombre de la medida de cada lente ni el rótulo crudo de la cifra: los pide a la pieza");
+  ok(!/columnas = \["Cliente", "(?:Venta|Saldo pendiente)"/.test(comp) && !/columnas = \["SKU", "Bodega", "Capital inmovilizado"/.test(comp), "los encabezados de las tablas de las rutas fijas son los rótulos del léxico (la pieza), no literales");
+  ok(!/etiqueta: clave \? null : _conceptoDeLabel/.test(comp), "una fig sin clave en el léxico ya no se imprime con su rótulo crudo (se declara)");
+  /* F3 · cierre dentro del compositor: la referencia oficial del Marco y la procedencia de los umbrales son de la pieza */
+  ok(/referenciaDelMarco\(/.test(comp) && /procedenciaDeLosUmbrales\(/.test(comp) && /export function referenciaDelMarco/.test(ref) && /export function procedenciaDeLosUmbrales/.test(ref), "componer.js le pregunta a la pieza por la referencia oficial del Marco y por la procedencia de los umbrales");
+  ok(!/_BASE_BENCHMARK_RE/.test(comp) && !/const nivelEnJuego/.test(comp) && !/umbralesDeEstados\(\[\.\.\.estadosEnJuego\]\)/.test(comp), "componer.js ya no decide por su cuenta cuándo el Marco declara el benchmark, el nivel de carga o la procedencia de un umbral");
+  ok(!/`Benchmark de margen(?: \(comercial\))?: \$\{/.test(comp) && !/Umbral de materialidad de la empresa/.test(comp), "ni las rutas fijas ni el multitema escriben a mano la frase del benchmark o del piso de materialidad: salen de la pieza");
 }
 
 H("6 · cero red");

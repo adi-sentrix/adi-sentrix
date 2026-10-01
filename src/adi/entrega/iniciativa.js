@@ -49,6 +49,7 @@ import { LENTES } from "../agente/prioridadIntegrada.js";
 import { prioridadCruzada, primeroPorMedida } from "./prioridad.js";   // FAMILIA 1 (consolidación): quién es la entidad destacada lo decide la pieza de la prioridad
 import { sujetoDeTema } from "../encargo/esquema.js";
 import { alcanceDeParte } from "./alcance.js";
+import { rotuloEnOracion } from "./rotulos.js";   // FAMILIA 4 (consolidación): el rótulo de cada concepto que una frase dice lo decide la pieza del rótulo, no una palabra escrita acá
 
 const _lab = (f) => String((f && f.label) || "");
 const _find = (figs, re) => (Array.isArray(figs) ? figs : []).find((f) => re.test(_lab(f))) || null;
@@ -112,7 +113,7 @@ function _particionBrecha(figs, D) {
   if (idResto == null) return null;
   return {
     catalogo: "particion-brecha", tema: "comercial", hechos: [idTotal, idCargaTotal, idResto],
-    render: (R) => `De la brecha comercial total, ${R(idTotal)}, la carga comercial alta explica ${R(idCargaTotal)}; los ${R(idResto)} restantes son precio y costo, que los datos no separan.`,
+    render: (R) => `De la brecha comercial total, ${R(idTotal)}, la ${rotuloEnOracion({ clave: "carga_alta" })} explica ${R(idCargaTotal)}; los ${R(idResto)} restantes son precio y costo, que los datos no separan.`,
   };
 }
 function _participacionLider(figs, D) {
@@ -196,7 +197,7 @@ function _recuperado(figs, D) {
   if (idPct == null) return null;
   return {
     catalogo: "recuperado", tema: "cobranza", hechos: [idAbonado, idVenta, idPct],
-    render: (R) => `De la venta a crédito del período (${R(idVenta)}), ya se recuperó ${R(idAbonado)}, el ${R(idPct)}.`,
+    render: (R) => `De la ${rotuloEnOracion({ clave: "venta_credito" })} del período (${R(idVenta)}), ya se recuperó ${R(idAbonado)}, el ${R(idPct)}.`,
   };
 }
 
@@ -217,7 +218,7 @@ function _participacionFrenado(figs, D) {
   if (idShare == null) return null;
   return {
     catalogo: "participacion-frenado", tema: "inventario", hechos: [idTop, idTotal, idShare],
-    render: (R) => `${lider.entidad} concentra el ${R(idShare)} del capital inmovilizado crítico total (${R(idTotal)}).`,
+    render: (R) => `${lider.entidad} concentra el ${R(idShare)} del ${rotuloEnOracion({ clave: "capital_frenado" })} total (${R(idTotal)}).`,
   };
 }
 

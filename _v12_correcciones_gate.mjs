@@ -492,10 +492,10 @@ H("A10 · V-B · una comparación en cobranza no pierde el par de días vencido 
 {
   const cmp = (a, b) => entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "comparacion", conceptos: ["saldo_vencido", "dias_vencido"], entidades: [{ nombre: a }, { nombre: b }] }] }).E;
   const E = cmp("Easy", "Unimarc");
-  ok(/en dias vencido, Easy 270 días contra Unimarc/.test(E.texto) && E.entrega.cifras.filas.some((f) => f.valores["Entidad / grupo"] === "Unimarc" && /dias vencido/i.test(f.valores["Métrica"] || "")), "Easy 270 días contra Unimarc 0 días (fuera del top 8): el par SÍ sale, con la fila de Unimarc", E.texto.split("\n").find((l) => /Comparando/.test(l)));
+  ok(/en días vencido, Easy 270 días contra Unimarc/.test(E.texto) && E.entrega.cifras.filas.some((f) => f.valores["Entidad / grupo"] === "Unimarc" && /días vencido/i.test(f.valores["Métrica"] || "")), "Easy 270 días contra Unimarc 0 días (fuera del top 8): el par SÍ sale, con la fila de Unimarc", E.texto.split("\n").find((l) => /Comparando/.test(l)));
   const sin = [];
   const ents = ["Falabella", "Lider", "Jumbo", "Easy", "Sodimac", "Ripley", "La Polar", "Unimarc", "Tottus", "Hites", "Paris"];
-  for (const a of ["Jumbo", "Ripley", "La Polar"]) for (const b of ents) { if (a === b) continue; if (!/dias vencido/i.test(cmp(a, b).texto)) sin.push(`${a}~${b}`); }
+  for (const a of ["Jumbo", "Ripley", "La Polar"]) for (const b of ents) { if (a === b) continue; if (!/días vencido/i.test(cmp(a, b).texto)) sin.push(`${a}~${b}`); }
   ok(sin.length === 0, "las 27 comparaciones de una cuenta sana (Jumbo —dentro del top 8—, Ripley, La Polar) contra cada otra traen su par de días", sin.join(" "));
   const caja = cajaDelAgente(TOOLS);
   const dias = (args) => ((caja.cobranza({ scenario: ESCENARIO_INICIAL, ...args }).boleta) || []).filter((x) => /Dias Vencido/.test(x.label)).map((x) => `${x.label}=${x.value}`);
@@ -570,9 +570,9 @@ H("A10 · P-C · un lado de una comparación que vale 0 se dice en palabras junt
   const cmp = (a, b, conceptos) => entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "comparacion", conceptos, entidades: [{ nombre: a }, { nombre: b }] }] }).E;
   const l = (E) => E.texto.split("\n").find((x) => /Comparando/.test(x)) || "";
   const E1 = cmp("La Polar", "Ripley", ["saldo_pendiente", "dias_vencido"]);
-  ok(/La Polar no tiene dias vencido \(0 días\) contra Ripley no tiene dias vencido \(0 días\)/.test(l(E1)), "La Polar 0 días contra Ripley 0 días: «no tiene dias vencido (0 días)» de cada lado", l(E1));
+  ok(/La Polar no tiene días vencido \(0 días\) contra Ripley no tiene días vencido \(0 días\)/.test(l(E1)), "La Polar 0 días contra Ripley 0 días: «no tiene días vencido (0 días)» de cada lado (con el rótulo del léxico, §7.3·49f)", l(E1));
   const E2 = cmp("Easy", "Unimarc", ["saldo_vencido", "dias_vencido"]);
-  ok(/Easy 270 días contra Unimarc no tiene dias vencido \(0 días\)/.test(l(E2)) && !/Easy no tiene/.test(l(E2)), "Easy 270 días (no es 0: plano) contra Unimarc 0 días (en palabras)", l(E2));
+  ok(/Easy 270 días contra Unimarc no tiene días vencido \(0 días\)/.test(l(E2)) && !/Easy no tiene/.test(l(E2)), "Easy 270 días (no es 0: plano) contra Unimarc 0 días (en palabras)", l(E2));
   ok(/Unimarc no tiene saldo vencido \(\$0\)/.test(l(E2)), "el mismo criterio para el dinero: «no tiene saldo vencido ($0)»", l(E2));
   const E3 = cmp("Falabella", "Lider", ["saldo_pendiente", "dias_vencido"]);
   ok(!/no tiene/.test(l(E3)), "CONTROL NEGATIVO · dos cuentas con cifra distinta de cero: ningún «no tiene»", l(E3));
@@ -1712,7 +1712,7 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     const cob = grupo("cobranza", ["abonado", "recuperado"], "cliente", { estados: ["al dia"], top: { metrica: "abonado", k: 2 } }, "ventas").E;
     const venta = (n) => Mflujo.find((f) => f.nombre === n).ventaK;
     const servidos = universoDe(cob, "p1"), primeroEsp = servidos.slice().sort((a, b) => venta(b) - venta(a))[0];
-    ok(new RegExp(`^Prioridad del procedimiento dentro de este grupo, por venta a crédito: ${primeroEsp}, con \\$[\\d.]+M en venta \\(flujo\\)\\.$`).test(prio(cob)), "Q70 · «ventas» ordena el grupo de cobranza con SU medida (la venta a crédito, la venta del flujo: §7.3·52a, «por venta a crédito», nunca «ventas» a secas): el primero es el de mayor venta del grupo (la mesa de flujo)", `${primeroEsp} :: ${prio(cob)}`);
+    ok(new RegExp(`^Prioridad del procedimiento dentro de este grupo, por venta a crédito: ${primeroEsp}, con \\$[\\d.]+M en venta a crédito\\.$`).test(prio(cob)), "Q70 · «ventas» ordena el grupo de cobranza con SU medida (la venta a crédito, la venta del flujo: §7.3·52a, «por venta a crédito», nunca «ventas» a secas; con el rótulo del léxico «venta a crédito», §7.3·49f): el primero es el de mayor venta del grupo (la mesa de flujo)", `${primeroEsp} :: ${prio(cob)}`);
     const com = grupo("comercial", ["contribucion", "margen"], "cliente", { base: "sobre el benchmark", top: { metrica: "contribucion", k: 2 } }, "ventas").E;
     ok(/^Prioridad del procedimiento dentro de este grupo, por ventas: [^,]+, con \$[\d.]+M en venta\.$/.test(prio(com)), "Q70 · también un grupo COMERCIAL (la lee aunque los conceptos pedidos no la incluyan)", prio(com));
     ok(/\(el criterio pedido, ventas, no ordena este grupo\)/.test(prio(grupo("inventario", ["rotacion", "capital"], "sku", { estados: ["rota lento"] }, "ventas").E)), "CONTROL NEGATIVO · «ventas» sobre SKU de inventario se declara (la venta comercial y el inventario son universos que no reconcilian)", inv("ventas"));

@@ -31,11 +31,13 @@
 import { CRITERIOS, LENTES, prioridadIntegrada, ordenPorCriterio } from "../agente/prioridadIntegrada.js";
 import { ceroPorCobertura, metricaPorClave, claveExactaDeMetrica, dominioDeClave } from "../notario/lexico.js";
 import { normalizar } from "../notario/afirmacion.js";
+/* FAMILIA 4 (§7.3·49f · 51f · 52a): el rótulo de cada medida («saldo vencido», «venta a crédito», «en yoy»→«en variación vs año anterior en $») lo decide `./rotulos.js`; acá solo se le pregunta */
+import { rotuloDeLaCasa, rotuloDeClave, rotuloEnOracion, conceptoDeLaFig } from "./rotulos.js";
 
 const _lab = (f) => String((f && f.label) || "");
 const _entidadDe = (label) => { const p = String(label || "").split("·").map((s) => s.trim()); return p.length >= 2 ? p[0] : null; };
-const _conceptoDeLabel = (label) => { const p = String(label || "").split("·").map((s) => s.trim()); return p.length >= 2 ? p.slice(1).join(" · ") : String(label || ""); };
-const _labelDeClave = (clave) => { const m = metricaPorClave(clave); return m ? m.nombre : clave; };
+const _conceptoDeLabel = conceptoDeLaFig;
+const _labelDeClave = rotuloDeClave;
 const _planoDeLente = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /* ── LA TABLA lente → medida ────────────────────────────────────────────────────────────────────────────────────────
@@ -43,13 +45,13 @@ const _planoDeLente = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").
  * `nombre`: la medida dicha con palabras de la casa. «ventas» no tiene dominio propio (es la venta del período de la cuenta):
  * aplica a todo grupo de cuentas que TRAE su venta (comercial; en cobranza es la venta a crédito, 52a). */
 export const MEDIDAS_DE_LENTE = {
-  credito: { tema: "cobranza", concepto: "saldo_vencido", nombre: "saldo vencido" },
-  capital: { tema: "inventario", concepto: "capital_frenado", nombre: "capital inmovilizado crítico" },
-  contribucion: { tema: "comercial", concepto: "no_capturada", nombre: "contribución no capturada" },
-  ventas: { tema: "comercial", concepto: "ventas", nombre: "venta" },
+  credito: { tema: "cobranza", concepto: "saldo_vencido", nombre: rotuloEnOracion({ clave: "saldo_vencido" }) },
+  capital: { tema: "inventario", concepto: "capital_frenado", nombre: rotuloEnOracion({ clave: "capital_frenado" }) },
+  contribucion: { tema: "comercial", concepto: "no_capturada", nombre: rotuloEnOracion({ clave: "no_capturada" }) },
+  ventas: { tema: "comercial", concepto: "ventas", nombre: rotuloEnOracion({ clave: "ventas" }) },
 };
 /* la señal propia de una lente SIN dominio (para reconocerla en las figs de un grupo de cuentas): «ventas» ordena con la venta que el grupo trae */
-const _MEDIDA_SIN_DOMINIO = { ventas: { re: /· Ventas?(?: \(flujo\)| a crédito)?$/i, nombre: "venta", peor: "mayor" } };
+const _MEDIDA_SIN_DOMINIO = { ventas: { re: /· Ventas?(?: \(flujo\)| a crédito)?$/i, nombre: rotuloEnOracion({ clave: "ventas" }), peor: "mayor" } };
 /* 52(a): en cobranza la venta de la cuenta es la venta A CRÉDITO; su nombre sale del léxico (nunca escrito a mano acá) */
 const _ventaACredito = () => String(_labelDeClave("venta_credito")).toLowerCase();
 const _esVentaDeCobranza = (id, tema) => id === "ventas" && tema === "cobranza";
@@ -115,7 +117,7 @@ function _lenteDelGrupo(criterio, tema, cierre, entidades, figs, porEntidad, cla
   const base = { id, nombreVisible, medida, entidades: entidades.slice() };
   /* dónde vive la fig en el mapa del plan (entidad · clave): su id ya está en la tabla de Cifras, y se reusa (un mismo hecho no se declara dos veces: doble colocación) */
   const ubicar = (fig) => { for (const [e, m] of (porEntidad && porEntidad.entries ? porEntidad.entries() : [])) for (const [c, v] of (m && m.entries ? m.entries() : [])) if (v === fig) return { e, c }; return null; };
-  const conceptoDe = (f) => _conceptoDeLabel(_lab(f)).toLowerCase();
+  const conceptoDe = (f) => rotuloEnOracion({ fig: f });   /* FAMILIA 4: «en venta a crédito», «en venta», «en variación vs año anterior en $» — el rótulo del léxico de la cifra, nunca el del productor («venta (flujo)», «ventas», «yoy») */
   const mapaDe = (n) => (porEntidad && porEntidad.get ? porEntidad.get(n) : null) || new Map();
   /* la lente YA ordenó la lista (su clave es la del grupo): solo falta no coronar a nadie cuando esa medida vale cero en todas */
   if (claveOrden && lenteOrdenaLaClave(id, claveOrden)) {
@@ -229,6 +231,7 @@ export function prioridadPorLente(temas, figs, lente) {
   const primero = O && Array.isArray(O.lista) ? O.lista[0] : null;
   const c0 = primero && Array.isArray(primero.cifras) ? primero.cifras[0] : null;
   if (!(primero && c0 && c0.metrica)) return null;
+  if (rotuloDeLaCasa({ concepto: c0.metrica }).sinClave) return null;   /* FAMILIA 4 (52e): una medida que el léxico no conoce no se imprime con el rótulo crudo del productor: la lente no ordena (se declara) */
   /* `dominioDeLaMedida`: el dominio de la MEDIDA con que ordenó (en cobranza el único dato de venta es la venta a crédito, «Venta (flujo)»: 52a) — con él se NOMBRA la lente; `dominio` es el de siempre (la fila de la tabla) */
   const claveMedida = claveExactaDeMetrica(c0.metrica);
   return { lente, entidad: primero.entidad, metrica: c0.metrica, dominio: CRITERIOS[lente].dominio || (temas.includes("comercial") ? "comercial" : temas[0]), dominioDeLaMedida: (claveMedida && dominioDeClave(claveMedida)) || null };

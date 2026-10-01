@@ -11,12 +11,12 @@
  *     se pudo evaluar»), con la parte que lo usa.
  * Puro: devuelve datos; el compositor los pone en la Entrega. Sin red. */
 import { normalizar } from "../notario/afirmacion.js";
-import { estadoDeclarado, formaDeEstado, UMBRALES_DE_ESTADO } from "../notario/estados.js";
-import { umbralesDeBases, umbralesDeConceptos, NOMBRE_CARGA_ALTA, formaDeConjunto, conjuntoDeFormaEnEje } from "../notario/conjuntosDeLaCasa.js";
+import { estadoDeclarado, formaDeEstado, UMBRALES_DE_ESTADO, estadoDeLaPremisa, umbralesDeEstados, ESTADO_DE_CONCEPTO } from "../notario/estados.js";
+import { umbralesDeBases, umbralesDeConceptos, NOMBRE_CARGA_ALTA, formaDeConjunto, conjuntoDeFormaEnEje, referenciaDeBase } from "../notario/conjuntosDeLaCasa.js";
 import { conjuntoDeUniverso, valorDeReferencia } from "../notario/verificar.js";
 import { formatoDeReferencia } from "../notario/hechos.js";
 import { conteoDeEje, conPreposicion, sintagmaDe, metricaPorClave } from "../notario/lexico.js";
-import { ETIQUETA_ORIGEN, umbral } from "../../config/businessPolicy.js";
+import { ETIQUETA_ORIGEN, umbral, benchmarkOf, procedenciaDeUmbral, procedenciaDeUmbrales, procedenciaDeMaterialidad, valorDeUmbralEnTexto } from "../../config/businessPolicy.js";
 import { descomposicionDeBrecha } from "../specRetrieval.js";
 
 // §7.3·12/·19 (decisión del owner 2026-09-27, «con el benchmark de la empresa, como recomiendas»; generalizada
@@ -254,4 +254,122 @@ export function referenciasOficiales({ partesUtiles, premisas, I }) {
     if (r && Number.isFinite(r.raw) && m) { const cifra = formatoDeReferencia(r.raw, r.unidad || m.unidad); out.push({ concepto: ref, cifra, texto: `${m.nombre}: ${cifra}, declarado por la empresa.` }); }
   }
   return out;
+}
+
+/* ── LA REFERENCIA OFICIAL EN EL MARCO (consolidación, paso 2 · cierre de la FAMILIA 3 dentro del compositor) ──────────────────────────────────────────────
+ * Hasta ahora cada bloque del Marco (el camino general, el multitema, las rutas fijas de brecha, inventario y multidominio) decidía por su cuenta si declaraba el benchmark, el
+ * nivel de carga, el piso de materialidad y la procedencia de los umbrales, y escribía su frase a mano. Ahora la frase y la decisión son de esta pieza; el texto es EXACTAMENTE el de
+ * siempre (ningún texto cambia). Nunca reemplaza a la referencia de la consulta: esa va aparte (`referenciasDeLaConsulta`). */
+
+/** figDelBenchmarkOficial(figs) → la fig «Benchmark de margen» de la boleta del turno (el nombre del léxico de la clave `benchmark`), o null: el benchmark que viaja con una lectura comercial */
+export function figDelBenchmarkOficial(figs) {
+  const nombre = String((metricaPorClave("benchmark") || {}).nombre || "Benchmark de margen").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^${nombre}$`, "i");
+  return (Array.isArray(figs) ? figs : []).find((f) => re.test(String((f && f.label) || ""))) || null;
+}
+/** ¿este plan (de una parte comercial que no es una definición, o un multitema que incluye comercial) pone en juego el benchmark oficial? Entonces su fig viaja en el libro y el Marco la declara (regla 4, «comparables juntas») */
+export const planPoneElBenchmark = (plan) => !!plan && ((plan.tema === "comercial" && plan.kind !== "definicion") || (plan.kind === "multitema" && Array.isArray(plan.temas) && plan.temas.includes("comercial")));
+
+/** textoDeBenchmark(valor, { calificador?, nota? }) → «Benchmark de margen[ (calificador)]: V, declarado por la empresa.[ nota]» — la frase del benchmark oficial, escrita una sola vez */
+export const textoDeBenchmark = (valor, { calificador = null, nota = null } = {}) => `Benchmark de margen${calificador ? ` (${calificador})` : ""}: ${valor}, declarado por la empresa.${nota ? ` ${nota}` : ""}`;
+
+/** textoDeUmbralDeMaterialidad(pct, usd) → la frase del piso de materialidad con su origen (la empresa o el criterio general de ADI, `umbral().origen`), nunca «declarado por la empresa» a ciegas (§7.3·36b) */
+export const textoDeUmbralDeMaterialidad = (pct, usd) => `${umbral("materialidadFocoPctVenta").origen === "empresa" ? "Umbral de materialidad de la empresa" : "Umbral de materialidad"}: ${pct} de la venta (${usd}), ${procedenciaDeUmbral("materialidadFocoPctVenta")}.`;
+
+/** referenciaDelMarco({ ya, idBenchGlobal, R, partesUtiles, premisas, libroPremisas, I, basesDeUniverso }) → { referenciaDeclarada, cifras }
+ *  La referencia OFICIAL que el Marco declara, en este orden (cada una solo si aún no está): (1) el benchmark de una fig que viaja en la boleta (`idBenchGlobal`); (2) la oficial de cada conjunto que un
+ *  filtro con `ref` cita (`referenciasOficiales`, TODAS: 42b · 42d); (3) el benchmark cuando una parte comercial se sirve, un `base` o un `excluir` lo nombra o una premisa habla de la brecha (la misma
+ *  fuente que juzga el margen, `benchmarkOf`: 40d · 43e · 49d); (4) el nivel de carga declarado cuando un filtro lo cita o «carga comercial alta» se define por él (41b · 42b). `ya` es lo que el Marco
+ *  ya trae (el benchmark del multitema, p. ej.); `R` renderiza el hecho de una fig (y la registra como cifra impresa); las `cifras` que devuelve son las declaradas sin hecho (regla 1, cero cifras desnudas). */
+export function referenciaDelMarco({ ya = null, idBenchGlobal = null, R, partesUtiles, premisas, libroPremisas = null, I, basesDeUniverso }) {
+  const cifras = [];
+  let ref = ya;
+  /* (1) el benchmark de la fig que viaja en la boleta */
+  if (idBenchGlobal && !ref) ref = { texto: textoDeBenchmark(R(idBenchGlobal)), hechoId: idBenchGlobal };
+  /* (2) la referencia OFICIAL de cada conjunto que un filtro con `ref` (de una parte o de una premisa) cita (§7.3·42b · 42d); §7.3·49(d): una cifra DECLARADA aunque la premisa no se pueda juzgar */
+  for (const o of referenciasOficiales({ partesUtiles, premisas, I })) {
+    if (ref && String(ref.texto || "").includes(o.texto)) continue;
+    cifras.push(o.cifra);
+    ref = ref ? { ...ref, texto: `${ref.texto} ${o.texto}` } : { texto: o.texto, hechoId: null };
+  }
+  /* (3) el benchmark: un `base`/`excluir` que lo nombra (también en las ramas de una unión: A4b), una premisa sobre la brecha (49d) o una parte comercial servida (43e), con el valor que juzga el margen (`benchmarkOf`) */
+  {
+    const _BASE_BENCHMARK_RE = /\bbenchmark\b/i;
+    const _baseNombraBenchmark = (u) => {
+      if (!u || typeof u !== "object") return false;
+      if (typeof u.base === "string" && _BASE_BENCHMARK_RE.test(u.base)) return true;
+      /* §7.3·39(d): un universo SOLO-EXCLUIR que nombra el benchmark en `excluir.conjuntos` lo cita igual que un `base` */
+      if (u.excluir && typeof u.excluir === "object" && (Array.isArray(u.excluir.conjuntos) ? u.excluir.conjuntos : []).some((n) => typeof n === "string" && _BASE_BENCHMARK_RE.test(n))) return true;
+      if (Array.isArray(u.union)) return u.union.some((v) => _baseNombraBenchmark(v));
+      return false;
+    };
+    const partesConBaseBenchmark = partesUtiles.some((p) => _baseNombraBenchmark(p.universo));
+    let premisaConBaseBenchmark = false;
+    if (!partesConBaseBenchmark && libroPremisas) { for (const H of libroPremisas.porId.values()) { if (_baseNombraBenchmark(H && H.universoTipado)) { premisaConBaseBenchmark = true; break; } } }
+    /* v20 (§7.3·43e): el Marco comercial cita el benchmark con que se juzga el margen AUNQUE la consulta no lo nombre: la regla es del tema, no de la herramienta que sirvió la parte */
+    const parteComercialServida = partesUtiles.some((p) => p.tema === "comercial" && p.cierre !== "definicion");
+    /* §7.3·49(d): una premisa sobre la BRECHA al benchmark pone en juego el benchmark igual que un `base` (composer y verificador no se contradicen, 48d) */
+    const premisaConBrecha = !!libroPremisas && [...libroPremisas.porId.values()].some((H) => H && H.claves && [...H.claves].some((c) => c === "brecha"));
+    if (partesConBaseBenchmark || premisaConBaseBenchmark || premisaConBrecha || parteComercialServida) {
+      const benchRaw = benchmarkOf();
+      if (Number.isFinite(benchRaw)) {
+        const benchFmt = formatoDeReferencia(benchRaw, "pct");   /* §7.3·40(d): el benchmark es un valor DECLARADO — exacto */
+        const _txtB = textoDeBenchmark(benchFmt);
+        /* v19 (Y14, §7.3·42b): `referenciaDeclarada` es UN campo: el benchmark se ANTEPONE al texto que ya hay (todas las referencias oficiales con que se juzgó, no solo la primera) */
+        if (!ref) { cifras.push(benchFmt); ref = { texto: _txtB, hechoId: null }; }
+        else if (!/benchmark de margen/i.test(String(ref.texto || ""))) { cifras.push(benchFmt); ref = { ...ref, texto: `${_txtB} ${ref.texto}` }; }
+      }
+    }
+  }
+  /* (4) el nivel de carga declarado: un filtro que lo cita (`filtros[].ref`) o «carga comercial alta», que también se define por el nivel oficial (v19: Y09 · Y13 · Y16 · Y40 · Y43, §7.3·42b) */
+  {
+    const nivelEnJuego = (u) => {
+      if (!u || typeof u !== "object") return false;
+      if (Array.isArray(u.union) && u.union.some(nivelEnJuego)) return true;
+      if ((Array.isArray(u.filtros) ? u.filtros : []).some((x) => x && typeof x.ref === "string" && x.ref.trim() === "nivel_carga")) return true;
+      return [...basesDeUniverso(u)].some((b) => { const fam = referenciaDeBase(b); return !!(fam && fam.concepto === "nivel_carga"); });
+    };
+    const enJuego = partesUtiles.some((p) => nivelEnJuego(p.universo)) || (premisas || []).some((pr) => nivelEnJuego(pr.universo != null ? pr.universo : pr.de));
+    if (enJuego && I) {
+      const r = valorDeReferencia("nivel_carga", I);
+      const m = metricaPorClave("nivel_carga");
+      if (r && Number.isFinite(r.raw) && m) {
+        const fmt = formatoDeReferencia(r.raw, r.unidad || m.unidad);
+        const txt = `${m.nombre}: ${fmt}, declarado por la empresa.`;
+        cifras.push(fmt);   /* §7.3·49(d): declarada aunque otro bloque ya escribiera la cláusula en el Marco */
+        if (!ref || !ref.texto.includes(txt)) ref = ref ? { ...ref, texto: `${ref.texto} ${txt}` } : { texto: txt, hechoId: null };
+      }
+    }
+  }
+  return { referenciaDeclarada: ref, cifras };
+}
+
+/** procedenciaDeLosUmbrales({ partesUtiles, premisas, consultaDeFrenado, estadosDeUniverso, basesDeUniverso }) → { definiciones, cifras }
+ *  LA PROCEDENCIA DE LOS UMBRALES (§7.3·32b · 36b · 37b · 40a): los estados que la Entrega usa (el universo de cada parte y de cada premisa, el estado de una premisa y el capital que un concepto sirve)
+ *  y los conjuntos de la casa que DEPENDEN de un umbral (`base`/`excluir`) declaran su origen —con el helper único de `businessPolicy`— en `marco.definiciones`, una cláusula por umbral y sin dígitos; el
+ *  VALOR de cada umbral que la cláusula imprime se devuelve en `cifras` (regla 1). El umbral de frenado planteado en la consulta se declara además en la referencia (aquí solo se nombra su origen). */
+export function procedenciaDeLosUmbrales({ partesUtiles, premisas, consultaDeFrenado, estadosDeUniverso, basesDeUniverso }) {
+  const estadosEnJuego = new Set();
+  for (const p of partesUtiles) {
+    estadosDeUniverso(p.universo, estadosEnJuego);
+    for (const c of p.conceptos || []) if (ESTADO_DE_CONCEPTO[c]) estadosEnJuego.add(ESTADO_DE_CONCEPTO[c]);
+  }
+  for (const pr of premisas || []) {
+    estadosDeUniverso(pr.universo != null ? pr.universo : pr.de, estadosEnJuego);
+    const e = estadoDeLaPremisa(pr.estado);
+    if (e) estadosEnJuego.add(e);
+  }
+  const llavesDeEstados = umbralesDeEstados([...estadosEnJuego]);
+  /* §7.3·40(a): un conjunto de la casa que ES un estado de inventario pone en juego los umbrales de ESE estado, esté en `base` o en `excluir.conjuntos` (`basesDeUniverso` suma los dos) */
+  const basesEnJuegoDeLaCasa = new Set();
+  for (const p of partesUtiles) basesDeUniverso(p.universo, basesEnJuegoDeLaCasa);
+  for (const pr of premisas || []) basesDeUniverso(pr.universo != null ? pr.universo : pr.de, basesEnJuegoDeLaCasa);
+  const llavesDeBases = [...new Set([...umbralesDeBases([...basesEnJuegoDeLaCasa]), ...umbralesDeConceptos(partesUtiles.flatMap((p) => p.conceptos || []))])];
+  const definiciones = [...procedenciaDeUmbrales([...new Set([...llavesDeEstados, ...llavesDeBases])], consultaDeFrenado)];
+  const cifras = [];
+  for (const k of llavesDeEstados) { const val = valorDeUmbralEnTexto(k, consultaDeFrenado); if (val) cifras.push(val); }
+  /* RAÍZ A5 (§7.3·36b «el piso de materialidad»): un conjunto que DEPENDE de un umbral (`UMBRALES_DE_BASE`) declara su origen en su propia oración */
+  definiciones.push(...procedenciaDeMaterialidad(llavesDeBases, consultaDeFrenado));
+  for (const k of llavesDeBases) { const val = valorDeUmbralEnTexto(k, consultaDeFrenado); if (val) cifras.push(val); }
+  return { definiciones, cifras };
 }

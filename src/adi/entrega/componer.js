@@ -99,7 +99,9 @@ import { gobernarTamano } from "./tamano.js";
 // FAMILIA 2 (consolidación, paso 2) — «lo anunciado es lo servido» y LA REGLA DEL CERO (§7.3·52b): la fila de cada entidad servida en cada concepto pedido, su origen (medido · cobertura declarada) y lo que falta («sin dato de X para Y») se deciden en `servidas.js`; acá solo se redacta.
 import { figDeLaProyeccion, filasDeEntidad, completarGrupo, declararLoQueFalta, origenDeLaFig, ORIGEN } from "./servidas.js";
 // FAMILIA 3 (consolidación, paso 2) — la referencia de la consulta: qué conjuntos pone en juego, con qué conteo y qué partes cubre, al lado de la oficial.
-import { referenciasDeLaConsulta, referenciasOficiales } from "./referencias.js";
+import { referenciasDeLaConsulta, referenciasOficiales, referenciaDelMarco, procedenciaDeLosUmbrales, textoDeBenchmark, textoDeUmbralDeMaterialidad, figDelBenchmarkOficial, planPoneElBenchmark } from "./referencias.js";
+// FAMILIA 4 (consolidación, paso 2) — el RÓTULO de cada cifra según su concepto (§7.3·49f · 51f · 52a · 52e): una pieza lo decide (el nombre del léxico de la clave de la cifra; las filas de señales conservan el de su señal; una fig sin clave se declara, nunca se imprime cruda); los planes y los renders le preguntan a ella.
+import { rotuloDeLaCasa, rotuloDeClave, rotuloEnOracion, rotuloDeDiferencia, rotuloDeSenal, rotuloDeDiferenciaDeSenal, rotuloDeConcentracion, rotuloDeSimulacion, filaDeCifra, claveDeLaFig, conceptoDeLaFig, declaracionDeFigSinClave } from "./rotulos.js";
 import { FILAS_BREVE_MAX, FILAS_COMPLETA_MAX } from "./verificar.js";
 import { PROFUNDIDAD_VALORES, CAMPOS_RAIZ, productorDe, sujetoDeTema, universoTieneRestriccionPropia } from "../encargo/esquema.js";
 import { dominioPorId } from "../../config/contract/dominios.js";
@@ -391,13 +393,19 @@ function _declararLenteDelGrupo(lg, ref, porEntidad) {
     if (!fig) return null;
     const ya = ubic && porEntidad && porEntidad.get && porEntidad.get(ubic.e) ? porEntidad.get(ubic.e).get(ubic.c) : null;
     if (typeof ya === "string") return ya;   /* la fig ya está en la tabla con su id: el mismo hecho, nunca dos */
+    /* FAMILIA 4 (§7.3·49f · «la misma cifra nunca con dos rótulos»): el productor de la medida de la lente la publica con SU rótulo («Ventas», «Venta (flujo)»), distinto del que el léxico da a ese concepto; si la tabla del grupo ya trae el CONCEPTO de esa entidad (su fila vino de la proyección y no es la misma fig de la boleta), es la misma cifra con el mismo rótulo: no se agrega una fila más (antes salía dos veces, con dos rótulos; con el rótulo del léxico saldría dos veces idéntica) */
+    const _rot = rotuloDeLaCasa({ fig }), _e = _entidadDe(_lab(fig));
+    const yaDelConcepto = _rot.clave && _rot.rotulo !== conceptoDeLaFig(_lab(fig)) && _e && porEntidad && porEntidad.get && porEntidad.get(_e) ? porEntidad.get(_e).get(_rot.clave) : null;
+    if (typeof yaDelConcepto === "string") return yaDelConcepto;
     const id = ref(fig);
-    if (id != null) lg.filasExtra.push({ entidad: _entidadDe(_lab(fig)) || "", concepto: _conceptoDeLabel(_lab(fig)), id });
+    if (id != null) lg.filasExtra.push({ entidad: _entidadDe(_lab(fig)) || "", concepto: rotuloDeLaCasa({ fig }).rotulo, id });   /* FAMILIA 4: la fila de la medida de la lente lleva el rótulo de SU concepto («Venta a crédito», nunca «Venta (flujo)») */
     return id;
   };
   lg.idFig = idDe(lg.fig, lg.ubicFig); lg.idCero = idDe(lg.figCero, lg.ubicCero); lg.idEmpate = idDe(lg.figEmpate, lg.ubicEmpate);
   return lg;
 }
+/* FAMILIA 4 (§7.3·52e): una cifra cuyo concepto el léxico no conoce no se imprime con el rótulo crudo del productor: se declara (el texto vive en `config/contract/ausencias.js`, vía `rotulos.js`) */
+const _limiteDeFigSinClave = (parte, entidades) => { const d = declaracionDeFigSinClave(entidades); return { titulo: `Sobre la parte ${parte.id} (${_DOM_NOMBRE[parte.tema] || parte.tema}), ${d.titulo}`, motivo: d.motivo }; };
 /* la oración de prioridad de un grupo cuando la lente que aplica NO coronó a nadie: nombra la lente PEDIDA y dice por qué no hay una cuenta primera (nunca se corona a la primera de la lista) */
 function _oracionLenteSinPrimero(lg, R, listaDe, cola = "") {
   const cab = `Prioridad del procedimiento dentro de este grupo, por ${lg.nombreVisible}: ninguna cuenta queda primera, porque `;
@@ -503,7 +511,7 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
     moneda: "$",     // el símbolo que la boleta ya imprime — la escala nunca se declara (regla de la casa)
     definiciones: ["Margen = contribución sobre venta neta.", "La brecha estimada es la diferencia contra el benchmark declarado, no dinero ya perdido."],
     // CORTE 3e (owner 2026-09-26) — «declarado por usted» → «declarado por la empresa» (tercera persona).
-    referenciaDeclarada: { texto: `Benchmark de margen: ${R(idBench)}, declarado por la empresa.`, hechoId: idBench },
+    referenciaDeclarada: { texto: textoDeBenchmark(R(idBench)), hechoId: idBench },   // FAMILIA 3: la frase del benchmark oficial es de `referencias.js`
     perfil,          // plan §3 «cómo se pega al cliente» — sector/tipoProducto/tamaño/país/modelo comercial, con procedencia
   };
   if (nClientes != null) cifrasImpresas.push(`${nClientes} clientes`);
@@ -537,12 +545,14 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
   entrega.respuesta = respuesta;
 
   // ── CIFRAS · la tabla — la unidad que no se puede partir (mecanismo 2): dueño + venta + margen + brecha + tipo ──
-  entrega.cifras.columnas = ["Cliente", "Venta", "Margen", "Contribución no capturada (brecha estimada)", "Tipo"];
+  /* FAMILIA 4: los encabezados de la tabla de la ruta fija son los rótulos del léxico de sus conceptos (`rotulos.js`), no literales */
+  const _cVenta = _RC("ventas"), _cMargen = _RC("margen"), _cBrecha = `${_RC("no_capturada")} (brecha estimada)`;
+  entrega.cifras.columnas = ["Cliente", _cVenta, _cMargen, _cBrecha, "Tipo"];
   const _filaCliente = (entidad, ids) => {
     const hechosFila = [ids.venta, ids.margen, ids.juego].filter(Boolean);
     const procedencia = _procedenciaDeFila(libro, hechosFila);
     return {
-      valores: { Cliente: entidad, Venta: R(ids.venta), Margen: R(ids.margen), "Contribución no capturada (brecha estimada)": R(ids.juego), Tipo: _textoDeTipo(procedencia) },
+      valores: { Cliente: entidad, [_cVenta]: R(ids.venta), [_cMargen]: R(ids.margen), [_cBrecha]: R(ids.juego), Tipo: _textoDeTipo(procedencia) },
       hechos: hechosFila,
       procedencia,
     };
@@ -550,7 +560,7 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
   entrega.cifras.filas.push(_filaCliente(top.entidad, idsTop));
   if (idsSeg) entrega.cifras.filas.push(_filaCliente(segundo.entidad, idsSeg));
   if (idTotal) { const procedencia = _procedenciaDeFila(libro, [idTotal]); entrega.cifras.filas.push({
-    valores: { Cliente: "Total (cuentas materiales)", Venta: "", Margen: "", "Contribución no capturada (brecha estimada)": R(idTotal), Tipo: _textoDeTipo(procedencia, { subtotal: true }) },
+    valores: { Cliente: "Total (cuentas materiales)", [_cVenta]: "", [_cMargen]: "", [_cBrecha]: R(idTotal), Tipo: _textoDeTipo(procedencia, { subtotal: true }) },
     hechos: [idTotal],
     procedencia,
   }); }
@@ -593,9 +603,9 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
   // antes un menú estático sin cifras; una oferta trae una cifra-gancho YA verificada — `_ofertasTexto`) ──
   entrega.queMasPuedoCalcular = {
     puedo: [
-      `Margen por producto dentro de ${top.entidad}`,
-      "Carga comercial alta, cuenta por cuenta",
-      "Ranking completo por contribución no capturada",
+      `${_RC("margen")} por producto dentro de ${top.entidad}`,
+      `${_RC("carga_alta")}, cuenta por cuenta`,
+      `Ranking completo por ${_RCo("no_capturada")}`,
       "Simular un cambio de carga o de precio en la cuenta prioritaria",
       ..._ofertasTexto(_refOficio1.ofertas),
     ],
@@ -754,12 +764,13 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
   entrega.respuesta = respuesta;
 
   // ── CIFRAS ──
-  entrega.cifras.columnas = ["Cliente", "Saldo pendiente", "Saldo vencido", "Tipo"];
+  const _cSaldo = _RC("saldo_pendiente"), _cVencido = _RC("saldo_vencido");   /* FAMILIA 4: encabezados = rótulos del léxico */
+  entrega.cifras.columnas = ["Cliente", _cSaldo, _cVencido, "Tipo"];
   const _filaCliente = (entidad, ids) => {
     const hechosFila = [ids.saldo, ids.vencido].filter(Boolean);
     const procedencia = _procedenciaDeFila(libro, hechosFila);
     return {
-      valores: { Cliente: entidad, "Saldo pendiente": R(ids.saldo), "Saldo vencido": ids.vencido ? R(ids.vencido) : "—", Tipo: _textoDeTipo(procedencia, { extra: ids.vencido ? null : "vencido no calculado" }) },
+      valores: { Cliente: entidad, [_cSaldo]: R(ids.saldo), [_cVencido]: ids.vencido ? R(ids.vencido) : "—", Tipo: _textoDeTipo(procedencia, { extra: ids.vencido ? null : "vencido no calculado" }) },
       hechos: hechosFila,
       procedencia,
     };
@@ -767,7 +778,7 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
   entrega.cifras.filas.push(_filaCliente(topEntidad, idsTop));
   if (idsSeg) entrega.cifras.filas.push(_filaCliente(segundoEntidad, idsSeg));
   { const hechosFila = [idSaldoTotal, idVencidoTotal].filter(Boolean); const procedencia = _procedenciaDeFila(libro, hechosFila); entrega.cifras.filas.push({
-    valores: { Cliente: "Total (cartera)", "Saldo pendiente": R(idSaldoTotal), "Saldo vencido": idVencidoTotal ? R(idVencidoTotal) : "—", Tipo: _textoDeTipo(procedencia, { subtotal: true }) },
+    valores: { Cliente: "Total (cartera)", [_cSaldo]: R(idSaldoTotal), [_cVencido]: idVencidoTotal ? R(idVencidoTotal) : "—", Tipo: _textoDeTipo(procedencia, { subtotal: true }) },
     hechos: hechosFila,
     procedencia,
   }); }
@@ -983,7 +994,7 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
     referenciaDeclarada: (idUmbralPct && idUmbralUsd)
       // A8 (diagnóstico v12, §7.3·36b): el origen sale del helper único (`procedenciaDeUmbral`), nunca «declarado por la empresa» a
       // ciegas — el umbral de materialidad puede ser el criterio general de ADI (y entonces NO es «de la empresa»).
-      ? { texto: `${umbral("materialidadFocoPctVenta").origen === "empresa" ? "Umbral de materialidad de la empresa" : "Umbral de materialidad"}: ${R(idUmbralPct)} de la venta (${R(idUmbralUsd)}), ${procedenciaDeUmbral("materialidadFocoPctVenta")}.`, hechoId: idUmbralPct }
+      ? { texto: textoDeUmbralDeMaterialidad(R(idUmbralPct), R(idUmbralUsd)), hechoId: idUmbralPct }   /* FAMILIA 3: la frase del piso de materialidad con su origen es de `referencias.js` */
       : null,
     perfil,
   };
@@ -1045,12 +1056,13 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
   // ── CIFRAS · una fila por SKU crítico (con evidencia de días/rotación), más el total ∪ (mecanismo 2: dueño +
   // cuánto + con qué evidencia, en la misma fila) — tabla de §4.3: SKU · Bodega · Capital · Situación · Días de
   // inventario · Rotación · (Venta si hay umbral evaluado). ──
-  entrega.cifras.columnas = ["SKU", "Bodega", "Capital inmovilizado", "Situación", "Días de inventario", "Rotación", "Tipo"];
+  const _cCapital = _RC("capital_inmovilizado"), _cDias = _RC("dias_inventario"), _cRot = _RC("rotacion");   /* FAMILIA 4: encabezados = rótulos del léxico */
+  entrega.cifras.columnas = ["SKU", "Bodega", _cCapital, "Situación", _cDias, _cRot, "Tipo"];
   const _filaSku = (s, ids, situacion) => {
     const hechosFila = [ids.monto, ids.dias, ids.rot].filter(Boolean);
     const procedencia = _procedenciaDeFila(libro, hechosFila);
     return {
-      valores: { SKU: s.sku, Bodega: s.bodega || "—", "Capital inmovilizado": R(ids.monto), Situación: situacion, "Días de inventario": ids.dias ? R(ids.dias) : "—", "Rotación": ids.rot ? R(ids.rot) : "—", Tipo: _textoDeTipo(procedencia) },
+      valores: { SKU: s.sku, Bodega: s.bodega || "—", [_cCapital]: R(ids.monto), Situación: situacion, [_cDias]: ids.dias ? R(ids.dias) : "—", [_cRot]: ids.rot ? R(ids.rot) : "—", Tipo: _textoDeTipo(procedencia) },
       hechos: hechosFila,
       procedencia,
     };
@@ -1058,7 +1070,7 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
   if (idsTop) entrega.cifras.filas.push(_filaSku(topSku, idsTop, "Crítico"));
   if (idsSeg) entrega.cifras.filas.push(_filaSku(segundoSku, idsSeg, "Crítico"));
   { const procedencia = _procedenciaDeFila(libro, [idTotal]); entrega.cifras.filas.push({
-    valores: { SKU: `Total (${J.inmovilizado.n} SKU inmovilizados)`, Bodega: "", "Capital inmovilizado": R(idTotal), Situación: "", "Días de inventario": "", "Rotación": "", Tipo: _textoDeTipo(procedencia, { subtotal: true }) },
+    valores: { SKU: `Total (${J.inmovilizado.n} SKU inmovilizados)`, Bodega: "", [_cCapital]: R(idTotal), Situación: "", [_cDias]: "", [_cRot]: "", Tipo: _textoDeTipo(procedencia, { subtotal: true }) },
     hechos: [idTotal],
     procedencia,
   }); }
@@ -1099,7 +1111,7 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
 
   // ── QUÉ MÁS PUEDO CALCULAR ──
   entrega.queMasPuedoCalcular = {
-    puedo: ["Capital inmovilizado por bodega", "Capital por familia y marca", "Detalle de riesgo de quiebre y sobrestock", "Simular el efecto de liberar los SKU inmovilizados", ..._ofertasTexto(_refOficio3.ofertas)],
+    puedo: [`${_RC("capital_inmovilizado")} por bodega`, `${_RC("capital")} por familia y marca`, "Detalle de riesgo de quiebre y sobrestock", "Simular el efecto de liberar los SKU inmovilizados", ..._ofertasTexto(_refOficio3.ofertas)],
     noPuedo: ["Por qué cada SKU quedó inmovilizado (no hay historial de compras ni causa declarada)", "Si conviene transferir stock entre bodegas (ningún SKU está en más de una)"],
   };
 
@@ -1243,7 +1255,7 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
   // la referencia declarada del dominio comercial (regla 4 del verificador, «comparables-juntas»): las señales
   // de severidad comercial dicen «bajo el benchmark» (LENTES.comercial.severidad.como) — sin esto el texto
   // hablaría de benchmark sin declarar cuál es
-  const idBenchComercial = dominios.includes("comercial") ? ref(_find(figs, /^Benchmark de margen$/i)) : null;
+  const idBenchComercial = dominios.includes("comercial") ? ref(figDelBenchmarkOficial(figs)) : null;   /* FAMILIA 3 */
 
   const libro = libroDeHechos(hechos, { indice: I });
   const rotos = libro.hechos.filter((h) => !h.ok);
@@ -1268,7 +1280,7 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
       "La prioridad integrada compara señal por señal dentro de cada dominio y entre los dominios que comparten cliente; nunca suma montos de dominios distintos.",
     ],
     // CORTE 3e (owner 2026-09-26) — «declarado por ti» → «declarado por la empresa».
-    referenciaDeclarada: idBenchComercial ? { texto: `Benchmark de margen (comercial): ${R(idBenchComercial)}, declarado por la empresa. Inventario y cobranza no comparan contra un benchmark en este dato.`, hechoId: idBenchComercial } : null,
+    referenciaDeclarada: idBenchComercial ? { texto: textoDeBenchmark(R(idBenchComercial), { calificador: "comercial", nota: "Inventario y cobranza no comparan contra un benchmark en este dato." }), hechoId: idBenchComercial } : null,   /* FAMILIA 3 */
     perfil,
   };
   cifrasImpresas.push(`${dominios.length} dominios (${domTxt})`);
@@ -1429,20 +1441,12 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
  * cubiertos por el léxico existente, sin alias nuevo. Si algún rótulo de fig NO casa con ninguna clave, esa fig
  * simplemente no entra a la parte (declara menos, nunca adivina) — se reporta al supervisor si aparece uno. */
 const _figsDeEntidad = (figs, entidad) => _all(figs, new RegExp(`^${_esc(entidad)} · `, "i"));
-/* el concepto de una fig «Entidad · Concepto» (la parte después del primer «·») — para pasarlo por la
- * canonización del Notario, nunca para adivinar el rótulo a mano. */
-const _conceptoDeLabel = (label) => { const p = String(label || "").split("·").map((s) => s.trim()); return p.length >= 2 ? p.slice(1).join(" · ") : String(label || ""); };
-/* v22 (S84 · «un rótulo no puede nombrar dos campos»): la clave TOLERANTE (`claveDeMetrica`: el sinónimo corto o la palabra dentro del rótulo) no vale contra la UNIDAD de la propia fig. «Venta diaria (unidades)» (0.8, `count`) casaba
- * con «ventas» (`money`) por la palabra «venta» y, siendo la primera fig del SKU, se servía como «Venta 0.8» en lugar de «Ventas $13.3M». La clave EXACTA (el rótulo es la clave o uno de sus conceptos) nunca se descarta; la tolerante, solo si la unidad de la fig no contradice la de la métrica (pct ≡ pp). */
-const _unidadPlana = (u) => (u === "pp" ? "pct" : u);
-const _claveDeFig = (fig) => {
-  const concepto = _conceptoDeLabel(_lab(fig));
-  const c = claveDeMetrica(concepto);
-  if (!c || claveExactaDeMetrica(concepto) === c) return c;
-  const uc = unidadDeClave(c), uf = fig && fig.unit;
-  return uc && uf && _unidadPlana(uc) !== _unidadPlana(uf) ? null : c;
-};
-const _labelDeClave = (clave) => { const m = metricaPorClave(clave); return m ? m.nombre : clave; };
+/* FAMILIA 4 (§7.3·49f · 51f · 52e): el concepto de una fig «Entidad · Concepto», su clave canónica (v22 · S84: la tolerante no vale contra la UNIDAD de la fig) y el RÓTULO del léxico de una clave los decide `./rotulos.js`; acá solo los nombres cortos con que los planes ya los llamaban. */
+const _conceptoDeLabel = conceptoDeLaFig;
+const _claveDeFig = claveDeLaFig;
+const _labelDeClave = rotuloDeClave;
+const _RC = (clave) => rotuloDeLaCasa({ clave }).rotulo;   /* el rótulo del léxico de una clave (encabezados y claves de las tablas de las rutas fijas, ofertas del menú) */
+const _RCo = (clave) => rotuloEnOracion({ clave });   /* … en minúscula, para decirlo dentro de una frase */
 const _filaDe = (figs, entidad, clave) => _figsDeEntidad(figs, entidad).find((f) => _claveDeFig(f) === clave) || null;
 const _todasLasFilasDeConcepto = (figs, clave) => {
   const out = [];
@@ -1575,6 +1579,7 @@ const _sinSufijoDolar = (etiqueta) => String(etiqueta || "").replace(/\s+en\s*\$
 function _planCifraEntidad(parte, figs, ref, I, declararDerivada = null, sinCifraOut = null, criterio = null) {
   const filasPorEntidad = [];
   const faltantes = [];   /* FAMILIA 2: los conceptos pedidos que ninguna fuente demuestra para una entidad nombrada (se declaran: «sin dato de X para Y») */
+  const sinClave = new Set();   /* FAMILIA 4: las entidades de las que el productor trajo una cifra que el léxico no conoce (se declara, no se imprime cruda) */
   const esLecturaODecision = parte.cierre === "lectura" || parte.cierre === "decision";
   for (const e of parte.entidades) {
     const universo = parte.conceptos && parte.conceptos.length ? parte.conceptos : null;
@@ -1599,18 +1604,19 @@ function _planCifraEntidad(parte, figs, ref, I, declararDerivada = null, sinCifr
         // pipeline»: si el validador declina el concepto (cero ejes con productor), el «dame todo» tampoco lo
         // sirve — nunca una tabla de excepciones a mano para «peso_costo»: es la MISMA función `productorDe` que
         // ya audita el pedido explícito, aplicada acá con el MISMO criterio (regla general, no un caso especial).
-        if (clave && !productorDe(clave, e.eje)) continue;
-        const llave = clave || `__sin_clave__:${_lab(f)}`;
-        if (vistos.has(llave)) continue;   // ★ dedup por clave canónica — «la misma cifra nunca con dos rótulos»
-        vistos.add(llave);
-        candidatas.push({ clave, fig: f, etiqueta: clave ? null : _conceptoDeLabel(_lab(f)) });
+        /* FAMILIA 4 (§7.3·52e): una fig sin clave en el léxico se DECLARA (`sinClave`, abajo), nunca se imprime con el rótulo crudo del productor */
+        if (!clave) { sinClave.add(e.nombre); continue; }
+        if (!productorDe(clave, e.eje)) continue;
+        if (vistos.has(clave)) continue;   // ★ dedup por clave canónica — «la misma cifra nunca con dos rótulos»
+        vistos.add(clave);
+        candidatas.push({ clave, fig: f });
       }
     }
     // ★ el rótulo de Cifras (columna "Métrica") queda CANÓNICO, con su "en $" si lo tiene — nunca se le quita
     // acá: dos claves distintas (ej. "variacion" % y "variacion_usd" $) pueden compartir casi el mismo nombre, y
     // recortar "en $" las volvería INDISTINGUIBLES en la tabla ("un rótulo no puede nombrar dos campos",
     // CLAUDE.md §4). El recorte de "en $" es SOLO para la ORACIÓN (ver el volcado en la fase 2, más abajo).
-    const filas = candidatas.map((c) => ({ clave: c.clave, etiqueta: c.etiqueta || _labelDeClave(c.clave) || c.clave, id: ref(c.fig), _fig: c.fig, origen: c.origen || origenDeLaFig(c.fig) })).filter((f) => f.id);
+    const filas = candidatas.map((c) => ({ clave: c.clave, etiqueta: rotuloDeLaCasa({ clave: c.clave }).rotulo, id: ref(c.fig), _fig: c.fig, origen: c.origen || origenDeLaFig(c.fig) })).filter((f) => f.id);   /* FAMILIA 4: el rótulo de cada fila es el del léxico de SU clave */
     // RAÍZ A1 (supervisor 2026-09-29, diagnóstico v13, Z78) — una entidad nombrada que quedó SIN ninguna cifra ya no se
     // descarta en silencio: el llamador la declara como límite («nunca omite en silencio», §7.3·29-30).
     if (!filas.length) { if (Array.isArray(sinCifraOut)) sinCifraOut.push(e.nombre); continue; }
@@ -1631,10 +1637,10 @@ function _planCifraEntidad(parte, figs, ref, I, declararDerivada = null, sinCifr
       const figA = _filaDe(figs, pA.entidad, claveComun), figB = _filaDe(figs, pB.entidad, claveComun);
       const idA = pA.filas.find((f) => f.clave === claveComun).id, idB = pB.filas.find((f) => f.clave === claveComun).id;
       const idDiffEntidad = declararDerivada(figA, idA, figB, idB);
-      if (idDiffEntidad) return _conPrioridadEntrePedidas({ kind: "entidad", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, filasPorEntidad, idDiffEntidad, faltantes, sinCifra: sinCifraOut });
+      if (idDiffEntidad) return _conPrioridadEntrePedidas({ kind: "entidad", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, filasPorEntidad, idDiffEntidad, faltantes, sinCifra: sinCifraOut, sinClave: [...sinClave] });
     }
   }
-  return _conPrioridadEntrePedidas({ kind: "entidad", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, filasPorEntidad, faltantes, sinCifra: sinCifraOut });
+  return _conPrioridadEntrePedidas({ kind: "entidad", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, filasPorEntidad, faltantes, sinCifra: sinCifraOut, sinClave: [...sinClave] });
   /* §7.3·49(b): una `decision` con entidades nombradas DECIDE entre ellas. Cuando la prioridad no sale del plan de señales de riesgo (los ejes sin señales —marca, familia, bodega, canal— o un grupo sin señal), el grupo de las pedidas se ordena como cualquier grupo de una decisión: por la lente pedida si aplica a su dominio (con su medida; si no distingue a nadie se declara, sin coronar a la primera) o por la medida propia del grupo, NOMBRADA; una lente que no lo ordena se declara (46d · 47a · 47d). Las cifras son las de las filas de cada entidad: ninguna cifra nueva salvo la medida de la lente cuando no era un concepto pedido. */
   function _conPrioridadEntrePedidas(out) {
     if (parte.cierre !== "decision" || filasPorEntidad.length < 2) return out;
@@ -1677,7 +1683,7 @@ function _idDeClave(filas, figs, entidad, clave, ref) {
   const fig = _filaDe(figs, entidad, clave);
   if (!fig) return null;
   const id = ref(fig);
-  if (id != null) filas.push({ clave, etiqueta: _labelDeClave(clave) || clave, id });   // rótulo canónico — ver la nota de `_planCifraEntidad`
+  if (id != null) filas.push({ clave, etiqueta: rotuloDeLaCasa({ clave }).rotulo, id });   // FAMILIA 4: el rótulo del léxico de SU clave — ver la nota de `_planCifraEntidad`
   return id;
 }
 /* ranking de la PROYECCIÓN (universo completo), ordenado de mayor a menor — `null` si el pack no lo publica. */
@@ -1773,7 +1779,7 @@ function _renderConclusionEntidad(c, R, cifrasImpresas) {
     if (c.idVenta != null) partes.push(`vende ${R(c.idVenta)}`);
     if (c.idMargen != null) partes.push(c.idBench != null ? `con un margen de ${R(c.idMargen)} contra el benchmark de ${R(c.idBench)}` : `con un margen de ${R(c.idMargen)}`);
     if (c.idJuego != null) partes.push(`brecha estimada ${R(c.idJuego)}`);
-    if (c.idCarga != null) partes.push(`carga comercial alta ${R(c.idCarga)}`);
+    if (c.idCarga != null) partes.push(`${_RCo("carga_alta")} ${R(c.idCarga)}`);   /* FAMILIA 4: el rótulo del léxico de SU concepto */
     return `${c.entidad}${posTxt}: ${partes.join(", ")}.`;
   }
   if (c.tipo === "cobranza") {
@@ -1808,8 +1814,8 @@ function _ofertasConcretas(planes, R) {
       for (const { entidad, conclusion } of plan.filasPorEntidad) {
         if (plan.tema === "comercial") {
           _push(conclusion && conclusion.tipo === "comercial" && conclusion.idJuego != null
-            ? `Carga comercial de ${entidad} frente al resto de la cartera (hoy, brecha estimada: ${R(conclusion.idJuego)})`
-            : `Detalle de margen y carga comercial de ${entidad}, cuenta por cuenta`);
+            ? `${_RC("carga")} de ${entidad} frente al resto de la cartera (hoy, brecha estimada: ${R(conclusion.idJuego)})`
+            : `Detalle de ${_RCo("margen")} y ${_RCo("carga")} de ${entidad}, cuenta por cuenta`);
         } else if (plan.tema === "cobranza") {
           _push(conclusion && conclusion.tipo === "cobranza" && conclusion.idVencido != null
             ? `Antigüedad del vencido de ${entidad} si se declara por tramos (hoy, vencido: ${R(conclusion.idVencido)})`
@@ -1819,9 +1825,9 @@ function _ofertasConcretas(planes, R) {
         }
       }
     } else if (plan.kind === "grupo" || plan.kind === "grupoUniverso") {
-      if (plan.tema === "comercial") _push("Ranking completo por contribución no capturada");
-      else if (plan.tema === "cobranza") _push("Ranking completo por saldo vencido");
-      else if (plan.tema === "inventario") _push("Capital inmovilizado crítico por bodega");
+      if (plan.tema === "comercial") _push(`Ranking completo por ${_RCo("no_capturada")}`);
+      else if (plan.tema === "cobranza") _push(`Ranking completo por ${_RCo("saldo_vencido")}`);
+      else if (plan.tema === "inventario") _push(`${_RC("capital_frenado")} por bodega`);
     } else if (plan.kind === "multitema") {
       for (const d of plan.temas) {
         if (d === "inventario") _push("El cruce por SKU entre venta e inventario");
@@ -2228,7 +2234,7 @@ function _rotuloDeLaCasaLegado(H) {
   const _claveDeLaFig = fig ? _claveDeFig({ label: fig }) : null;
   const _clavePedidaUnica = H.tipo !== "variacion" && _clavesPedidas.length === 1 && _claveDeLaFig && _claveDeLaFig !== _clavesPedidas[0] && metricaPorClave(_clavesPedidas[0]) ? _clavesPedidas[0] : null;
   const clave = (_numeroPropio && _numeroPropio.clave && H.tipo !== "variacion" ? _numeroPropio.clave : null) || _clavePedidaUnica || (fig ? _claveDeLaFig : ([...H.claves].find((c) => c !== "variacion" && c !== "vs_presupuesto") || null));
-  const conceptoTxt = clave ? _labelDeClave(clave).toLowerCase() : null;
+  const conceptoTxt = clave ? rotuloEnOracion({ clave }) : null;   /* FAMILIA 4: el rótulo del léxico de SU concepto (una premisa sobre «ventas» nunca dice «venta a crédito», aunque coincidan en valor) */
   // EL DUEÑO DE UNA CIFRA (owner 2026-09-26, diagnóstico v4 §5, MATERIAL) — el valor SOLO sale de `H.numeros`
   // (la estructura del hecho: `notario/hechos.js` ya resuelve, para el sujeto único de un `orden` sin fig propia,
   // SU valor por `_figDe`/`valorDeRanking` — la misma fuente que arma cualquier otra cifra del libro). Antes, sin
@@ -2712,7 +2718,7 @@ function _planMultiTema(temas, figs, ref, declararRazon, declararDerivada, { con
     // `_CONCEPTO_BASE_DOMINIO` arriba: «bajo el piso» o «sin evaluar», nunca un tercer «no ocurre»).
     const estadoPorDominio = {};
     for (const d of temas) { const re = _CONCEPTO_BASE_DOMINIO[d]; estadoPorDominio[d] = re && figs.some((f) => re.test(_lab(f))) ? "bajo_el_piso" : "sin_evaluar"; }
-    const idBenchComercial = temas.includes("comercial") ? ref(_find(figs, /^Benchmark de margen$/i)) : null;
+    const idBenchComercial = temas.includes("comercial") ? ref(figDelBenchmarkOficial(figs)) : null;   /* FAMILIA 3 */
     return { kind: "multitema", temas, conDecision, lideres: {}, top: null, idsIntegrada: null, idsVersus: null, idShare: null, versusLider: null, idBenchComercial, sinSenal: true, estadoPorDominio, prioridad: { modo: null, vaAntes: false } };
   }
   const idsPorClave = new Map();
@@ -2755,8 +2761,8 @@ function _planMultiTema(temas, figs, ref, declararRazon, declararDerivada, { con
       if (idDiff) { versusLider = { dominio: d, entidad: arr[0].entidad, segundo: arr[1].entidad, idDiff }; break; }
     }
   }
-  const idBenchComercial = temas.includes("comercial") ? ref(_find(figs, /^Benchmark de margen$/i)) : null;
-  const { porLente, lenteNoAplica } = conDecision ? _prioridadPorLenteDelUsuario(temas, figs, ref, lente) : { porLente: null, lenteNoAplica: null };
+  const idBenchComercial = temas.includes("comercial") ? ref(figDelBenchmarkOficial(figs)) : null;   /* FAMILIA 3 */
+const { porLente, lenteNoAplica } = conDecision ? _prioridadPorLenteDelUsuario(temas, figs, ref, lente) : { porLente: null, lenteNoAplica: null };
   /* FAMILIA 1: qué oración de prioridad cruzada se dice (por la lente pedida · el criterio pedido no ordena · «riesgo» sobre un dominio · riesgo integrado) y si se sirve el «va antes que» lo decide la pieza; los renders solo redactan */
   const prioridad = { modo: modoDeLaCruzada({ top, conDecision, porLente, lenteNoAplica, lenteRiesgoPedida: lente === "riesgo", temas, lideres }), vaAntes: vaAntesQue({ top, porLente, hayVersus: !!(idsVersus && idsVersus.length) }) };
   return { kind: "multitema", temas, conDecision, lideres, top, idsIntegrada, idsVersus, idShare, versusLider, idBenchComercial, prioridad, ...(porLente ? { porLente } : {}), ...(lenteNoAplica ? { lenteNoAplica } : {}), ...(lente === "riesgo" ? { lenteRiesgoPedida: true } : {}) };
@@ -2774,15 +2780,21 @@ function _planComparacion(parte, figs, ref, declararDerivada, I = null) {
   // ambas entidades comparten, como antes).
   const conceptosPedidos = parte.conceptos && parte.conceptos.length ? new Set(parte.conceptos) : null;
   const pares = [];
-  for (const [concepto, figA] of conceptosA) {
+  let sinClave = false;   /* FAMILIA 4: un par cuya cifra el léxico no conoce se declara, no se imprime con el rótulo crudo del productor */
+  for (const [conceptoDelProductor, figA] of conceptosA) {
     if (conceptosPedidos && !conceptosPedidos.has(_claveDeFig(figA))) continue;
-    const figB = figsB.find((f) => _conceptoDeLabel(_lab(f)) === concepto);
+    const figB = figsB.find((f) => _conceptoDeLabel(_lab(f)) === conceptoDelProductor);
     if (!figB) continue;
+    /* FAMILIA 4 (§7.3·49f · 51f): el par lleva el rótulo del léxico de SU clave («Venta a crédito» y no «Venta (flujo)»; «Venta» y no «Ventas»; «Días de inventario» y no «Cobertura (DOH)»), el mismo en la fila, en la diferencia y en la oración */
+    const rot = rotuloDeLaCasa({ fig: figA });
+    if (rot.sinClave) { sinClave = true; continue; }
+    if (pares.some((p) => p.clave === rot.clave)) continue;   /* «la misma cifra nunca con dos rótulos»: dos figs del productor que son el mismo concepto del léxico («Cobertura (DOH)» y «Días de inventario») dan UN par */
+    const concepto = rot.rotulo;
     const idA = ref(figA), idB = ref(figB);
     if (!idA || !idB) continue;
     const idDiff = declararDerivada(figA, idA, figB, idB);
     /* §7.3·39(c)/40(c) (v17, P-C): un lado que vale exactamente 0 (cantidad: dinero, días, unidades) se dice en palabras junto a su cifra, con el mismo criterio de toda superficie (`esCero`/`dichoElCero`) */
-    pares.push({ concepto, idA, idB, idDiff, ceroA: esCero(figA.raw, figA.unit), ceroB: esCero(figB.raw, figB.unit), clave: _claveDeFig(figA) });
+    pares.push({ concepto, idA, idB, idDiff, ceroA: esCero(figA.raw, figA.unit), ceroB: esCero(figB.raw, figB.unit), clave: rot.clave });
   }
   /* FAMILIA 2 (§7.3·51b · 52b): cada entidad comparada tiene su fila en cada concepto pedido que su productor publica (la boleta, la proyección o su cero de cobertura declarada). Un concepto que la boleta no trajo para los dos lados se completa con la misma pieza: si ambos lados lo tienen forma su par; si solo uno, su fila va sola; el lado sin dato se declara («sin dato de X para Y») */
   const sueltos = [], faltantes = [];
@@ -2803,8 +2815,8 @@ function _planComparacion(parte, figs, ref, declararDerivada, I = null) {
       }
     }
   }
-  if (!pares.length && !sueltos.length && !faltantes.length) return null;
-  return { kind: "comparacion", tema: parte.tema, parteId: parte.id, a: a.nombre, b: b.nombre, pares, sueltos, faltantes };
+  if (!pares.length && !sueltos.length && !faltantes.length && !sinClave) return null;
+  return { kind: "comparacion", tema: parte.tema, parteId: parte.id, a: a.nombre, b: b.nombre, pares, sueltos, faltantes, ...(sinClave ? { sinClave: [a.nombre, b.nombre] } : {}) };
 }
 
 /* CORTE 3d (owner 2026-09-26) — el CONCEPTO de negocio de un supuesto, nunca su `tipo` interno («custom» es
@@ -2812,7 +2824,8 @@ function _planComparacion(parte, figs, ref, declararDerivada, I = null) {
  * (`config/contract/assumptionRegistry.js`, §7.1): carga/costo/price/growth/margin — un supuesto sin concepto
  * nombrable (`custom` no migrado) ya NO llega acá (`validar.js:_resolverSupuestosRaiz` lo declina antes,
  * `supuesto_mal_formado`); el `null` de abajo es defensivo, para un caso legado que no pasó por esa validación. */
-const _CONCEPTO_DE_SUPUESTO = { carga: "la carga comercial", costo: "el costo", price: "el precio", growth: "el volumen", margin: "el margen" };
+/* FAMILIA 4: los conceptos que el léxico conoce (carga · costo · margen) se dicen con SU rótulo en minúscula (`rotulos.js`); «precio» y «volumen» no son conceptos del léxico y se dicen como siempre */
+const _CONCEPTO_DE_SUPUESTO = { carga: `la ${rotuloEnOracion({ clave: "carga" })}`, costo: `el ${rotuloEnOracion({ clave: "costo" })}`, price: "el precio", growth: "el volumen", margin: `el ${rotuloEnOracion({ clave: "margen" })}` };
 function _fraseDeSupuesto(s) {
   if (!s) return null;
   // «liberar el capital inmovilizado» (simulateCapital) es una acción SIN parámetro numérico — no hay «−1%» que
@@ -3081,7 +3094,7 @@ function _rotularCapitalPorFamilia(figs, plan) {
   for (const f of Array.isArray(figs) ? figs : []) {
     if (!f || !f.origin || f.origin.tool !== "inventoryStatus" || !/ · Familia$/.test(String(f.label || ""))) continue;
     const c = plan && Array.isArray(plan.calls) ? plan.calls[Number(String(f.origin.callId).slice(1))] : null;
-    if (c && c.args && c.args.focus === "frenado") f.label = String(f.label).replace(/ · Familia$/, " · Capital inmovilizado crítico");
+    if (c && c.args && c.args.focus === "frenado") f.label = String(f.label).replace(/ · Familia$/, ` · ${rotuloDeLaCasa({ clave: "capital_frenado" }).rotulo}`);   /* FAMILIA 4: el rótulo del léxico de SU concepto («Capital inmovilizado crítico»), no uno escrito acá */
   }
 }
 function _conTamanoGobernado(resultado, resolucion) {
@@ -3524,6 +3537,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
           if (!plan._prioridadPorSenales && plan.prioridadEntre) _declararLenteDelGrupo(plan.prioridadEntre.lenteGrupo, ref, plan.prioridadEntre.porEntidadId);   /* la medida de la lente se declara solo si la prioridad se sirve por este camino */
         }
         if (plan) limitesGap.push({ _faltantesDe: plan });   /* FAMILIA 2: lo que falta se declara DESPUÉS de saber qué se imprime (`servidas.js:declararLoQueFalta`, al armar los límites): un límite nunca niega una cifra que la Entrega imprime */
+        if (plan && plan.sinClave && plan.sinClave.length) limitesGap.push(_limiteDeFigSinClave(p, plan.sinClave));   /* FAMILIA 4 (§7.3·52e): una fig sin clave en el léxico se declara */
       }
       else if (p.cierre === "cifra") {
         // CORTE 3c · pieza 1 (D07): universo por estado/filtro SIN `top` — el mismo camino que arriba, para el
@@ -3564,7 +3578,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         }
       }
     } else if (p.cierre === "comparacion") {
-      const plan = _planComparacion(p, figsDeP, ref, declararDerivada, I); if (plan) { planes.push(plan); limitesGap.push({ _faltantesDe: plan }); }   /* FAMILIA 2 */
+      const plan = _planComparacion(p, figsDeP, ref, declararDerivada, I); if (plan) { planes.push(plan); limitesGap.push({ _faltantesDe: plan }); if (plan.sinClave) limitesGap.push(_limiteDeFigSinClave(p, plan.sinClave)); }   /* FAMILIA 2 · FAMILIA 4 (una cifra que el léxico no conoce se declara) */
     } else if (p.cierre === "simulacion") {
       // el/los id(s) que ESTA parte cita viven en `Parte.supuestos` del encargo CRUDO (`resolucion.encargo.partes`),
       // no en `ParteResuelta` (§1.1 del contrato: campo estructurado que `validarEncargo` no reproyecta — el mismo
@@ -3612,7 +3626,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
   // UNA vez, ANTES de saber si el texto la va a necesitar (se declara igual, sin costo: `ref()` de un hecho que
   // no se imprime no rompe nada). Mismo patrón que ya usan las 4 rutas fijas y la ruta multidominio de arriba.
   /* v24 (Q09, §7.3·44b): una DEFINICIÓN comercial sola no es un Marco comercial (§1.1: sin cifras): su plan no pone en juego el benchmark ni el período del año cerrado */
-  const idBenchComercialGlobal = planes.some((pl) => (pl.tema === "comercial" && pl.kind !== "definicion") || (pl.kind === "multitema" && pl.temas.includes("comercial"))) ? ref(_find(figs, /^Benchmark de margen$/i)) : null;
+  const idBenchComercialGlobal = planes.some(planPoneElBenchmark) ? ref(figDelBenchmarkOficial(figs)) : null;   /* FAMILIA 3: qué plan pone en juego el benchmark y cuál es su fig lo decide `referencias.js` */
   // CORTE 3c · pieza 1 — un `grupoUniverso` comercial puede nombrar «benchmark»/«nivel de carga» en el texto de su
   // universo (`nombrarUniverso`, vía `_fmtUmbral`): declararlo acá, ANTES de imprimir, es el mismo patrón que la
   // línea de arriba — un `ref()` de un hecho que el texto termina no usando no rompe nada.
@@ -3780,7 +3794,8 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
     const o = contador.origenes && contador.origenes.get(id);
     const cobertura = !!(o && o.origen === ORIGEN.COBERTURA);
     const temaFila = (o && o.clave && dominioDeClave(o.clave)) || tema;
-    return { valores: { "Entidad / grupo": entidad, "Tema": _DOM_NOMBRE[temaFila] || temaFila, "Métrica": etiqueta, "Valor": R(id), "Tipo": cobertura ? `cobertura declarada: ${o.porQue}` : _textoDeTipo(procedencia) }, hechos: [id], procedencia, ...((procedencia === "medido" || cobertura) ? { origen: cobertura ? ORIGEN.COBERTURA : ORIGEN.MEDIDO } : {}), ...(_histDeHecho(id) || {}) };
+    /* FAMILIA 4: la fila de Cifras la construye `rotulos.js:filaDeCifra` (el ÚNICO constructor); el rótulo (`etiqueta`) llega de la pieza, nunca escrito a mano */
+    return filaDeCifra({ entidad, tema: _DOM_NOMBRE[temaFila] || temaFila, rotulo: etiqueta, valor: R(id), tipo: cobertura ? `cobertura declarada: ${o.porQue}` : _textoDeTipo(procedencia), id, procedencia, origen: (procedencia === "medido" || cobertura) ? (cobertura ? ORIGEN.COBERTURA : ORIGEN.MEDIDO) : null, extra: _histDeHecho(id) });
   };
 
   // ═══ CORTE 3c · PIEZA 3 (owner 2026-09-25) — VEREDICTO DE PREMISAS ═══════════════════════════════════════════
@@ -3921,7 +3936,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
       // ninguna fig llegó para ella) — antes esto reventaba la Entrega ENTERA (Y26: "m is not iterable").
       for (const entidad of plan.orden) {
         const m = _mapaDe(plan.porEntidad, entidad);
-        for (const [clave, id] of m) { if (id == null) continue; entrega.cifras.filas.push(_fila(entidad, plan.tema, _labelDeClave(clave) || clave, id)); }
+        for (const [clave, id] of m) { if (id == null) continue; entrega.cifras.filas.push(_fila(entidad, plan.tema, rotuloDeLaCasa({ clave }).rotulo, id)); }
       }
       /* v24 (barrido familia iii · composer ↔ verificador): en «breve» con TRES o más partes de grupo la cabeza de cada una cita UNA cifra (no tres): las cifras que las oraciones citan son filas protegidas de la tabla y el tope de filas de «breve» (8) las desbordaba (`verificarEntrega`: «filas-sobre-el-tope»). Con menos partes o en «completa» la cabeza es la de siempre. */
       /* §7.3·49(g): las entidades que la cabeza cita tienen su fila protegida en Cifras (doble colocación) y el corte NUNCA parte una entidad: todas sus filas van con ella. Con el tope de filas de la profundidad repartido entre las partes de grupo, la cabeza cita las entidades cuyas filas ENTERAS caben en la cuota de su parte (máximo tres; al menos una). Con tres o más partes en «breve» son una (la regla de la v24); una sola parte de dos conceptos cita tres */
@@ -3992,11 +4007,11 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
       for (const p of plan.pares) {
         entrega.cifras.filas.push(_fila(plan.a, plan.tema, p.concepto, p.idA));
         entrega.cifras.filas.push(_fila(plan.b, plan.tema, p.concepto, p.idB));
-        if (p.idDiff) entrega.cifras.filas.push(_fila(`${plan.a} − ${plan.b}`, plan.tema, `Diferencia · ${p.concepto}`, p.idDiff));
+        if (p.idDiff) entrega.cifras.filas.push(_fila(`${plan.a} − ${plan.b}`, plan.tema, rotuloDeDiferencia({ clave: p.clave }), p.idDiff));   /* FAMILIA 4: «Diferencia · » + el rótulo del léxico del par */
       }
       for (const x of plan.sueltos || []) entrega.cifras.filas.push(_fila(x.entidad, plan.tema, x.concepto, x.id));   /* FAMILIA 2: la fila de un lado sin par */
       const _ladoCmp = (concepto, id, cero) => (cero ? dichoElCero(concepto.toLowerCase(), R(id)) : R(id));
-      const frases = plan.pares.slice(0, 4).map((p) => `en ${p.concepto.toLowerCase()}, ${plan.a} ${_ladoCmp(p.concepto, p.idA, p.ceroA)} contra ${plan.b} ${_ladoCmp(p.concepto, p.idB, p.ceroB)}`);
+      const frases = plan.pares.slice(0, 4).map((p) => `en ${rotuloEnOracion({ clave: p.clave })}, ${plan.a} ${_ladoCmp(p.concepto, p.idA, p.ceroA)} contra ${plan.b} ${_ladoCmp(p.concepto, p.idB, p.ceroB)}`);
       if (plan.pares.length) entrega.respuesta.push({ texto: `Comparando ${plan.a} y ${plan.b}: ${frases.join("; ")}.`, hechos: plan.pares.flatMap((p) => [p.idA, p.idB]) });
       _declararUniverso(entrega, I, { id: plan.parteId, eje: (resolucion.partes.find((p) => p.id === plan.parteId) || {}).eje || "cliente", entidades: [plan.a, plan.b] });
     } else if (plan.kind === "simulacion") {
@@ -4031,8 +4046,8 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
           // §7.3·39(e): en una Entrega MIXTA (la simulación comparte tabla con otro cierre) la tabla es la genérica —Entidad / grupo · Tema · Métrica · Valor · Tipo—: cada fila lleva SU dueño y su tema, y el
           // rótulo de la métrica dice de qué simulación y supuesto es (la fila sigue siendo indivisible). Con SOLO simulación, la tabla propia de siempre (sin cambio).
           const _valoresFila = _esSoloSimulacion
-            ? { Entidad: entidadTxt, "Simulación": simulacionTxt, Supuesto: supuestoTxt, Métrica: etiqueta, Valor: R(id), Tipo: _textoDeTipo(procedencia) }
-            : { "Entidad / grupo": entidadTxt, "Tema": _DOM_NOMBRE[plan.tema] || plan.tema, "Métrica": `${etiqueta} (simulación: ${String(supuestoTxt).charAt(0).toLowerCase()}${String(supuestoTxt).slice(1)})`, "Valor": R(id), "Tipo": _textoDeTipo(procedencia) };
+            ? { Entidad: entidadTxt, "Simulación": simulacionTxt, Supuesto: supuestoTxt, Métrica: rotuloDeSimulacion(etiqueta), Valor: R(id), Tipo: _textoDeTipo(procedencia) }   /* FAMILIA 4: el rótulo de la simulación es el de su productor (ningún artículo del contrato lo cubre) y pasa por `rotulos.js` sin cambio */
+            : { "Entidad / grupo": entidadTxt, "Tema": _DOM_NOMBRE[plan.tema] || plan.tema, "Métrica": `${rotuloDeSimulacion(etiqueta)} (simulación: ${String(supuestoTxt).charAt(0).toLowerCase()}${String(supuestoTxt).slice(1)})`, "Valor": R(id), "Tipo": _textoDeTipo(procedencia) };
           return { valores: _valoresFila, hechos: [id], procedencia, entidad: entidadTxt === "Negocio" ? "negocio" : entidadTxt, escenarioId: plan.supuesto.id, supuestoId: plan.supuesto.id, prioridad };
         };
 
@@ -4197,7 +4212,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
       // A2 (diagnóstico v7): `_mapaDe` (guarda de archivo), mismo criterio que `kind:"grupo"` más arriba.
       for (const nombre of plan.miembros) {
         const m = _mapaDe(plan.porEntidad, nombre);
-        for (const [clave, id] of m) { if (id == null) continue; entrega.cifras.filas.push(_fila(nombre, plan.tema, _labelDeClave(clave) || clave, id)); }
+        for (const [clave, id] of m) { if (id == null) continue; entrega.cifras.filas.push(_fila(nombre, plan.tema, rotuloDeLaCasa({ clave }).rotulo, id)); }
       }
       if (plan.idTotal) {
         const procedenciaTotal = _procedenciaDeFila(libro, [plan.idTotal]);
@@ -4272,8 +4287,8 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         const _itemDominio = { texto: `En ${_DOM_NOMBRE[d]}, quien más pesa es ${L.x.entidad}: ${partesFrase.join(", ")}${clausulaVs}.`, hechos: [...Object.values(L.ids).filter(Boolean), ...claveVs], prioridad: di + 1 };
         entrega.respuesta.push(_itemDominio);
         _ultimaLineaDeDominio = _itemDominio;
-        for (const [lente, id] of Object.entries(L.ids)) if (id != null) _filaDedup(L.x.entidad, d, LENTES[d][lente].nombre, id);
-        if (vs) _filaDedup(`${vs.entidad} − ${vs.segundo}`, d, "Diferencia · materialidad", vs.idDiff);
+        for (const [lente, id] of Object.entries(L.ids)) if (id != null) _filaDedup(L.x.entidad, d, rotuloDeSenal(LENTES[d][lente].nombre), id);   /* FAMILIA 4 (§7.3·52e): las filas de la tabla de señales conservan el rótulo de su señal */
+        if (vs) _filaDedup(`${vs.entidad} − ${vs.segundo}`, d, rotuloDeDiferenciaDeSenal("materialidad"), vs.idDiff);
       }
       if (plan._soloAgregado) for (const d of plan.temas) temasCubiertos.add(d);
       /* v24 (barrido familia ii · §7.3·46d + 47): un conjunto SIN prioridad cruzada (un solo dominio de SKU: «los SKU van aparte», `plan.top` nulo) también respeta el criterio del usuario: la lente que APLICA al dominio se nombra con su cifra («por capital: …»); la que no lo ordena se DECLARA (nunca se ignora en silencio) — la misma declaración de la prioridad cruzada */
@@ -4282,8 +4297,9 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         const _nomLente0 = (id, tema = (plan.temas.length === 1 ? plan.temas[0] : null)) => nombreVisibleDeLente(id, tema) || id;
         if (plan.prioridad.modo === "por-lente") {
           const PL = plan.porLente;
-          entrega.respuesta.push({ texto: `Prioridad del procedimiento, por ${_nomLente0(PL.lente, PL.dominioDeLaMedida || PL.dominio)}: ${PL.entidad}, con ${R(PL.id)} en ${String(PL.metrica).toLowerCase()}.`, hechos: [PL.id], prioridad: 0, _prioridad: marcaDePrioridad(ALCANCE_DE_PRIORIDAD.DOMINIO, PL.entidad) });
-          _filaDedup(PL.entidad, PL.dominio, PL.metrica, PL.id);
+          /* FAMILIA 4 (§7.3·49f · 52a): la medida de la lente se rotula con el rótulo del léxico de SU concepto («Venta a crédito», «Variación vs año anterior en $»), en la oración y en la fila; nunca el del productor («Venta (flujo)», «YoY») */
+          entrega.respuesta.push({ texto: `Prioridad del procedimiento, por ${_nomLente0(PL.lente, PL.dominioDeLaMedida || PL.dominio)}: ${PL.entidad}, con ${R(PL.id)} en ${rotuloEnOracion({ concepto: PL.metrica })}.`, hechos: [PL.id], prioridad: 0, _prioridad: marcaDePrioridad(ALCANCE_DE_PRIORIDAD.DOMINIO, PL.entidad) });
+          _filaDedup(PL.entidad, PL.dominio, rotuloDeLaCasa({ concepto: PL.metrica }).rotulo, PL.id);
         } else if (plan.prioridad.modo === "lente-no-aplica" && _ultimaLineaDeDominio) {
           _ultimaLineaDeDominio.texto = `${_ultimaLineaDeDominio.texto} El criterio pedido (${_nomLente0(plan.lenteNoAplica)}) no ordena este conjunto con la evidencia disponible: esta es la lectura de riesgo integrado del procedimiento.`;
         } else if (plan.prioridad.modo === "riesgo-pedido") {
@@ -4295,7 +4311,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
       }
       if (plan.top && plan.idsIntegrada) {
         const partesTop = [];
-        for (const d of Object.keys(plan.idsIntegrada)) for (const l of ["materialidad", "severidad", "urgencia"]) { const t = frase(d, l, plan.idsIntegrada[d]); if (t) partesTop.push(`${_DOM_NOMBRE[d]}: ${t}`); for (const [ll, id] of Object.entries(plan.idsIntegrada[d])) if (id != null) _filaDedup(plan.top.entidad, d, LENTES[d][ll].nombre, id); }
+        for (const d of Object.keys(plan.idsIntegrada)) for (const l of ["materialidad", "severidad", "urgencia"]) { const t = frase(d, l, plan.idsIntegrada[d]); if (t) partesTop.push(`${_DOM_NOMBRE[d]}: ${t}`); for (const [ll, id] of Object.entries(plan.idsIntegrada[d])) if (id != null) _filaDedup(plan.top.entidad, d, rotuloDeSenal(LENTES[d][ll].nombre), id); }
         const coincide = plan.top.dominios.length > 1 ? ` — coincide en ${plan.top.dominios.map((dd) => _DOM_NOMBRE[dd]).join(" y ")}` : "";
         const prefijoDecision = plan.conDecision ? "Prioridad del procedimiento" : "Quien más pesa en el conjunto";
         // «con otra lente cambia quién va primero» (decision, criterio declarado) — CLÁUSULA de la MISMA oración,
@@ -4306,21 +4322,21 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         const cierreLente = !plan.conDecision ? "" : plan.lenteNoAplica ? ` El criterio pedido (${_nomLente(plan.lenteNoAplica)}) no ordena este conjunto con la evidencia disponible: esta es la lectura de riesgo integrado del procedimiento.` : " Con otra lente (por ejemplo, contribución o ventas) puede cambiar quién va primero: esta es la lectura de riesgo integrado del procedimiento.";
         if (plan.prioridad.modo === "por-lente") {
           const PL = plan.porLente;
-          entrega.respuesta.push({ texto: `${prefijoDecision}, por ${_nomLente(PL.lente, PL.dominioDeLaMedida || PL.dominio)}: ${PL.entidad}, con ${R(PL.id)} en ${String(PL.metrica).toLowerCase()}.`, hechos: [PL.id], prioridad: 0, _prioridad: marcaDePrioridad(ALCANCE_DE_PRIORIDAD.CRUZADA, PL.entidad) });
-          _filaDedup(PL.entidad, PL.dominio, PL.metrica, PL.id);
+          entrega.respuesta.push({ texto: `${prefijoDecision}, por ${_nomLente(PL.lente, PL.dominioDeLaMedida || PL.dominio)}: ${PL.entidad}, con ${R(PL.id)} en ${rotuloEnOracion({ concepto: PL.metrica })}.`, hechos: [PL.id], prioridad: 0, _prioridad: marcaDePrioridad(ALCANCE_DE_PRIORIDAD.CRUZADA, PL.entidad) });   /* FAMILIA 4: el rótulo del léxico de la medida de la lente (en la oración y en la fila) */
+          _filaDedup(PL.entidad, PL.dominio, rotuloDeLaCasa({ concepto: PL.metrica }).rotulo, PL.id);
         } else entrega.respuesta.push({ texto: `${prefijoDecision}, por riesgo integrado: ${plan.top.entidad}${coincide} (${partesTop.join("; ")}).${cierreLente}`, hechos: Object.values(plan.idsIntegrada).flatMap((o) => Object.values(o)).filter(Boolean), prioridad: 0, _prioridad: marcaDePrioridad(ALCANCE_DE_PRIORIDAD.CRUZADA, plan.top.entidad) });
       }
       if (plan.prioridad.vaAntes) {   /* el «va antes que» es del riesgo integrado: solo se sirve si la lente pedida pone primero a la MISMA cuenta (nunca se contradice) */
         const comparativos = plan.idsVersus.map(({ it, idA, idB }) => `${it.nombre} (${R(idA)} contra ${R(idB)})`).join(", ");
-        for (const { it, idA, idB } of plan.idsVersus) { _filaDedup(plan.top.entidad, it.dominio, it.nombre || it.metrica, idA); _filaDedup(plan.top.versus.contra, it.dominio, it.nombre || it.metrica, idB); }
+        for (const { it, idA, idB } of plan.idsVersus) { _filaDedup(plan.top.entidad, it.dominio, rotuloDeSenal(it.nombre || it.metrica), idA); _filaDedup(plan.top.versus.contra, it.dominio, rotuloDeSenal(it.nombre || it.metrica), idB); }
         entrega.respuesta.push({ texto: `${plan.top.entidad} va antes que ${plan.top.versus.contra}: es peor en ${comparativos}.`, hechos: plan.idsVersus.flatMap((x) => [x.idA, x.idB]).filter(Boolean), prioridad: plan.temas.length + 1 });
       }
       if (plan.lideres.cobranza && plan.idShare) {
-        _filaDedup(plan.lideres.cobranza.x.entidad, "cobranza", "Participación del vencido total", plan.idShare);
+        _filaDedup(plan.lideres.cobranza.x.entidad, "cobranza", rotuloDeConcentracion(LENTES.cobranza.materialidad.nombre), plan.idShare);   /* FAMILIA 4 (52e): la concentración de la señal de materialidad de cobranza («Participación del vencido total») */
         entrega.respuesta.push({ texto: `De lo vencido en toda la cartera, ${plan.lideres.cobranza.x.entidad} concentra el ${R(plan.idShare)}.`, hechos: [plan.idShare], prioridad: plan.temas.length + 2 });
       }
       // CORTE 3e (owner 2026-09-26) — «declarado por usted» → «declarado por la empresa».
-      if (plan.idBenchComercial) entrega.marco.referenciaDeclarada = entrega.marco.referenciaDeclarada || { texto: `Benchmark de margen (comercial): ${R(plan.idBenchComercial)}, declarado por la empresa.`, hechoId: plan.idBenchComercial };
+      if (plan.idBenchComercial) entrega.marco.referenciaDeclarada = entrega.marco.referenciaDeclarada || { texto: textoDeBenchmark(R(plan.idBenchComercial), { calificador: "comercial" }), hechoId: plan.idBenchComercial };   /* FAMILIA 3: la frase del benchmark oficial es de `referencias.js` */
       if (entidadesMultitema.size) _declararUniverso(entrega, I, { id: `${plan.partesIds ? plan.partesIds.join("_") : "multitema"}_prioridad`, eje: "cliente", entidades: [...entidadesMultitema], criterio: "prioridad integrada por señales — materialidad, severidad y urgencia entre los dominios que comparten cliente, nunca por suma de montos" });
       // §7.3·22 (supervisor 2026-09-27, diagnóstico v9, precisa la 17 — cierra la raíz A1) — antes, acá se
       // declaraba OTRA VEZ el universo de cada parte de `plan.partesIds` con universo propio (§7.3·17, tarea 3,
@@ -4385,134 +4401,23 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
   // `umbral().origen`— del helper único de `businessPolicy.js`. Una oración por familia (inventario · venta frenada) en `marco.definiciones`, una cláusula por umbral
   // junto a su nombre, sin dígitos (las cifras van en la tabla con su hecho). El umbral de frenado planteado en la consulta
   // sigue declarándose además en `referenciaDeclarada`; aquí solo se nombra su origen, «planteado en la consulta».
+  /* FAMILIA 3 (cierre dentro del compositor): LA PROCEDENCIA DE LOS UMBRALES la decide `referencias.js:procedenciaDeLosUmbrales` (los estados en juego, los conjuntos de la casa que dependen de un umbral —§7.3·40a · 36b— y el origen de cada uno); acá solo se pone en el Marco y se registra el VALOR de cada umbral que la cláusula imprime en `cifrasImpresas` (regla 1, cero cifras desnudas) */
   {
-    const estadosEnJuego = new Set();
-    for (const p of partesUtiles) {
-      _estadosDeUniverso(p.universo, estadosEnJuego);
-      for (const c of p.conceptos || []) if (ESTADO_DE_CONCEPTO[c]) estadosEnJuego.add(ESTADO_DE_CONCEPTO[c]);
-    }
-    for (const pr of resolucion.premisas || []) {
-      _estadosDeUniverso(pr.universo != null ? pr.universo : pr.de, estadosEnJuego);
-      const e = estadoDeLaPremisa(pr.estado);
-      if (e) estadosEnJuego.add(e);
-    }
-    const llavesDeEstados = umbralesDeEstados([...estadosEnJuego]);
-    // §7.3·40(a) (diagnóstico v16): un conjunto de la casa que ES un estado de inventario («con capital inmovilizado critico», `UMBRALES_DE_BASE`) pone en juego los umbrales de ESE estado, esté en `base`
-    // o en `excluir.conjuntos` (`_basesDeUniverso` suma los dos): se declaran junto a los de los estados nombrados. Las bases en juego se calculan ANTES y sus llaves se suman a las de los estados.
-    const basesEnJuegoDeLaCasa = new Set();
-    for (const p of partesUtiles) _basesDeUniverso(p.universo, basesEnJuegoDeLaCasa);
-    for (const pr of resolucion.premisas || []) _basesDeUniverso(pr.universo != null ? pr.universo : pr.de, basesEnJuegoDeLaCasa);
-    const llavesDeBases = [...new Set([...umbralesDeBases([...basesEnJuegoDeLaCasa]), ...umbralesDeConceptos(partesUtiles.flatMap((p) => p.conceptos || []))])];
-    const procedencia = procedenciaDeUmbrales([...new Set([...llavesDeEstados, ...llavesDeBases])], consultaDeFrenado);
-    if (procedencia.length) entrega.marco.definiciones = [...entrega.marco.definiciones, ...procedencia];
-    // decisión del supervisor 2026-09-29, §7.3·37b: el VALOR de cada umbral que la cláusula imprime queda registrado en `cifrasImpresas` (regla 1, cero cifras desnudas)
-    for (const k of llavesDeEstados) { const val = valorDeUmbralEnTexto(k, consultaDeFrenado); if (val) cifrasImpresas.push(val); }
-    // RAÍZ A5 (supervisor 2026-09-29, diagnóstico v13; §7.3·36b «el piso de materialidad»): un conjunto de la casa que DEPENDE de un umbral (`UMBRALES_DE_BASE`: «carga comercial alta» lo
-    // decide el piso de materialidad) declara su origen igual que un estado de inventario — mismo helper (`umbral().origen`), en su propia oración. Los conjuntos en juego salen del
-    // campo tipado `base` de cada universo (partes y premisas, también en las ramas de una unión), nunca de una frase.
-    const procedenciaDeBase = procedenciaDeMaterialidad(llavesDeBases, consultaDeFrenado);
-    if (procedenciaDeBase.length) entrega.marco.definiciones = [...entrega.marco.definiciones, ...procedenciaDeBase];
-    for (const k of llavesDeBases) { const val = valorDeUmbralEnTexto(k, consultaDeFrenado); if (val) cifrasImpresas.push(val); }
+    const pu = procedenciaDeLosUmbrales({ partesUtiles, premisas: resolucion.premisas, consultaDeFrenado, estadosDeUniverso: _estadosDeUniverso, basesDeUniverso: _basesDeUniverso });
+    if (pu.definiciones.length) entrega.marco.definiciones = [...entrega.marco.definiciones, ...pu.definiciones];
+    for (const v of pu.cifras) cifrasImpresas.push(v);
   }
   // ETAPA 6 (§7.3·35) — lo histórico que esta Entrega sirve viaja TIPADO en el Marco: naturaleza, ventana (el período o
   // los días hasta la fecha de corte) y el límite «describe lo que pasó; no es un pronóstico», del `tipo` de las figs
   // servidas (`historiaDeFiguras`). Se imprime siempre (`_textoDeHistoricos`), no depende de la profundidad.
   { const historia = historiaDeFiguras(figsUsadas); if (historia) entrega.marco.historicos = historia; }
-  if (idBenchComercialGlobal && !entrega.marco.referenciaDeclarada) {
-    // CORTE 3e (owner 2026-09-26) — «declarado por usted» → «declarado por la empresa».
-    entrega.marco.referenciaDeclarada = { texto: `Benchmark de margen: ${R(idBenchComercialGlobal)}, declarado por la empresa.`, hechoId: idBenchComercialGlobal };
-  }
-  // R-ROTULO-CONTEO-FILTRO, cierre del guardrail SIN excepción (supervisor 2026-09-26, segunda vuelta: «las
-  // comparables viajan juntas» no se afloja) — `idBenchComercialGlobal` solo mira los PLANES de las partes: una
-  // premisa (W21, tema cobranza/`credito`) puede citar una referencia (benchmark, nivel de carga, techo) en su
-  // FILTRO sin que ningún plan del tema correspondiente haya corrido. La oración del veredicto YA imprime el
-  // VALOR de esa referencia (`nombrarUniverso`/`_fmtUmbral`, notario/hechos.js, vía `valorDeReferencia`) — pero
-  // el Marco tiene que declararla igual, sin excepción para el tipo de oración. Se resuelve con la MISMA función
-  // que ya usa la oración (`valorDeReferencia`, notario/verificar.js) contra el MISMO índice `I`: no depende de
-  // que exista una fig de LEDGER con `id` (el KPI de `datoProyectado` que resuelve el valor no lo tiene), así que
-  // se declara sin `hechoId` (campo opcional, `esquema.js:41`, no lo lee ningún otro consumidor).
-  /* FAMILIA 3 (§7.3·42b · 42d): la referencia OFICIAL de cada conjunto que un filtro con `ref` (de una parte o de una premisa) cita — TODAS, no solo la primera — la lleva la pieza; el Marco la declara si aún no está. §7.3·49(d): el valor que el Marco declara es una cifra DECLARADA aunque la premisa que cita la referencia no se pueda juzgar. */
-  for (const o of referenciasOficiales({ partesUtiles, premisas: resolucion.premisas, I })) {
-    const ya = entrega.marco.referenciaDeclarada;
-    if (ya && String(ya.texto || "").includes(o.texto)) continue;
-    cifrasImpresas.push(o.cifra);
-    entrega.marco.referenciaDeclarada = ya ? { ...ya, texto: `${ya.texto} ${o.texto}` } : { texto: o.texto, hechoId: null };
-  }
-  // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6, MEDIA) — un `universo.base` que NOMBRA una cohorte derivada
-  // del benchmark («bajo el benchmark», «sobre el benchmark», su forma «margen supuesto» de la simulación de
-  // carga, o su forma por SKU) menciona «benchmark» en el texto de la Entrega (la oración del veredicto ya imprime
-  // el valor vía `nombrarUniverso`/nombrarlo en el rótulo del subtotal) sin que los tres mecanismos de arriba lo
-  // capturen: (1) exige un plan de tema comercial con la fig «Benchmark de margen» YA publicada en la boleta de
-  // ESTE turno — con un único tool call que arma la cohorte por universo (`_cerrarGrupoUniverso`), esa fig
-  // independiente nunca se pide; (2) mismo problema, dominio distinto; (3) solo mira `filtros[].ref` de una
-  // PREMISA, nunca `base`. Comprobado con V14/V20 (`_dbg_v14.mjs`): la fig «Benchmark de margen» está AUSENTE de
-  // `figs` en ese turno — el conjunto «bajo el benchmark» se resuelve igual porque la proyección
-  // (`oracle/datoProyectado.js`) ya conoce el valor por otra vía, `businessPolicy.js:benchmarkOf`, la MISMA fuente
-  // que usa para armar la cohorte. Se declara desde ahí, sin `hechoId` (mismo patrón que el mecanismo de arriba:
-  // no hay una fig de LEDGER que citar) — nunca un número recalculado a mano, es la función que ya gobierna la
-  // cohorte, leída una vez más para declararla.
-  /* v19 (Y14, §7.3·42b): `referenciaDeclarada` es UN campo y el benchmark solo entraba si estaba vacío: el nivel de carga que un filtro con `ref` de una premisa ya había escrito lo dejaba sin el benchmark de su `base`. Ahora el benchmark se ANTEPONE al texto que ya hay (todas las referencias oficiales con que se juzgó, no solo la primera). */
+  /* FAMILIA 3 (cierre dentro del compositor): LA REFERENCIA OFICIAL EN EL MARCO la decide `referencias.js:referenciaDelMarco` — antes cuatro bloques de este archivo decidían cada uno por su cuenta (§7.3·40d · 41b · 42b · 42d · 43e · 49d): (1) el benchmark de la fig que viaja
+   * en la boleta (`idBenchComercialGlobal`); (2) la oficial de cada conjunto que un filtro con `ref` cita, TODAS; (3) el benchmark cuando una parte comercial se sirve, un `base`/`excluir` lo nombra o una premisa habla de la brecha (la misma fuente que juzga el margen, `benchmarkOf`);
+   * (4) el nivel de carga declarado. La pieza devuelve el campo único `referenciaDeclarada` y las cifras declaradas sin hecho (regla 1, cero cifras desnudas); acá solo se ponen en la Entrega. El texto es el de siempre. */
   {
-    const _BASE_BENCHMARK_RE = /\bbenchmark\b/i;
-    // A4b (diagnóstico v7, MATERIAL) — un universo `union` (§7.3·11) puede nombrar el benchmark en una de sus
-    // RAMAS (`u.union: [{base:"bajo el benchmark", ...}, {estados:[...]}]`, Y19) sin que `u.base` de nivel
-    // superior lo diga: la Entrega SÍ habla de "benchmark" en su prosa (la premisa de conteo/grupo lo verifica),
-    // así que el disparador tiene que mirar `union` recursivamente — misma función, sin segunda definición.
-    const _baseNombraBenchmark = (u) => {
-      if (!u || typeof u !== "object") return false;
-      if (typeof u.base === "string" && _BASE_BENCHMARK_RE.test(u.base)) return true;
-      /* §7.3·39(d): un universo SOLO-EXCLUIR que nombra el benchmark en `excluir.conjuntos` («todas menos las bajo el benchmark») lo cita igual que un `base`: la referencia se declara en el Marco */
-      if (u.excluir && typeof u.excluir === "object" && (Array.isArray(u.excluir.conjuntos) ? u.excluir.conjuntos : []).some((n) => typeof n === "string" && _BASE_BENCHMARK_RE.test(n))) return true;
-      if (Array.isArray(u.union)) return u.union.some((v) => _baseNombraBenchmark(v));
-      return false;
-    };
-    const partesConBaseBenchmark = partesUtiles.some((p) => _baseNombraBenchmark(p.universo));
-    let premisaConBaseBenchmark = false;
-    if (!partesConBaseBenchmark && libroPremisas) { for (const H of libroPremisas.porId.values()) { if (_baseNombraBenchmark(H && H.universoTipado)) { premisaConBaseBenchmark = true; break; } } }
-    /* v20 (§7.3·43e; U03 U04 U12 U14 U17 … 24 casos): el Marco comercial cita el benchmark con que se juzga el margen AUNQUE la consulta no lo nombre. Hasta v19 el benchmark solo llegaba al Marco si la fig «Benchmark de margen»
-     * casualmente viajaba en la boleta del turno (`idBenchComercialGlobal`: la publica `entityRecord`/`rolesCartera`, no `queryMetric`): la misma parte comercial declaraba el benchmark según QUÉ herramienta la sirvió. La regla es del tema, no de la
-     * herramienta: toda parte COMERCIAL servida (resuelta o parcial) que no es una definición (§1.1: sin cifras) lo pone en juego, con el mismo valor que juzga el margen (`benchmarkOf`, la fuente de la cohorte «bajo el benchmark»). */
-    const parteComercialServida = partesUtiles.some((p) => p.tema === "comercial" && p.cierre !== "definicion");
-    /* §7.3·49(d): una premisa sobre la BRECHA al benchmark (su métrica es la brecha) pone en juego el benchmark igual que un `base`: la oración del veredicto habla de la brecha y el Marco declara su referencia (composer y verificador no se contradicen, 48d) */
-    const premisaConBrecha = !!libroPremisas && [...libroPremisas.porId.values()].some((H) => H && H.claves && [...H.claves].some((c) => c === "brecha"));
-    if (partesConBaseBenchmark || premisaConBaseBenchmark || premisaConBrecha || parteComercialServida) {
-      const benchRaw = benchmarkOf();
-      if (Number.isFinite(benchRaw)) {
-        const benchFmt = formatoDeReferencia(benchRaw, "pct");   /* §7.3·40(d): el benchmark es un valor DECLARADO — exacto */
-        // regla 1 «cero cifras desnudas» (verificar.js): el dígito impreso en el Marco tiene que casar con algo
-        // que el compositor DECLARÓ como legítimo — sin `R()` (no hay hecho con id que citar, ver el comentario de
-        // arriba) hay que declararlo a mano en `cifrasImpresas`, el mismo registro que usa toda esta función.
-        const _txtB = `Benchmark de margen: ${benchFmt}, declarado por la empresa.`;
-        const _yaB = entrega.marco.referenciaDeclarada;
-        if (!_yaB) { cifrasImpresas.push(benchFmt); entrega.marco.referenciaDeclarada = { texto: _txtB, hechoId: null }; }
-        else if (!/benchmark de margen/i.test(String(_yaB.texto || ""))) { cifrasImpresas.push(benchFmt); entrega.marco.referenciaDeclarada = { ..._yaB, texto: `${_txtB} ${_yaB.texto}` }; }
-      }
-    }
-  }
-
-  // v18 (X12, §7.3·41b): el Marco lleva la referencia OFICIAL de cada conjunto de la casa que DEFINE una referencia numérica y que la Entrega usa: un `base` como «sobre el nivel declarado de carga» (el detector «carga comercial alta» se define
-  // por su piso de materialidad, no por el nivel) o un filtro que la CITA (`filtros[].ref`), en partes, premisas y `excluir`. `referenciaDeclarada` es UN solo campo: si otra referencia (el benchmark de las observaciones de controller) lo ocupó
-  // primero, el nivel se agrega a su texto en vez de quedar sin declarar. Se resuelve con la misma función que imprime el veredicto (`valorDeReferencia`); nunca una cifra a mano.
-  {
-    const nivelEnJuego = (u) => {
-      if (!u || typeof u !== "object") return false;
-      if (Array.isArray(u.union) && u.union.some(nivelEnJuego)) return true;
-      if ((Array.isArray(u.filtros) ? u.filtros : []).some((x) => x && typeof x.ref === "string" && x.ref.trim() === "nivel_carga")) return true;
-      /* v19 (Y09 · Y13 · Y16 · Y40 · Y43, §7.3·42b): «carga comercial alta» TAMBIÉN se define por el nivel oficial (el detector: carga > nivel Y exceso ≥ piso de materialidad) y su veredicto ya lo imprime: el Marco lo lleva junto al piso. La v18 lo excluía por leerlo solo como el piso. */
-      return [..._basesDeUniverso(u)].some((b) => { const fam = referenciaDeBase(b); return !!(fam && fam.concepto === "nivel_carga"); });
-    };
-    const enJuego = partesUtiles.some((p) => nivelEnJuego(p.universo)) || (resolucion.premisas || []).some((pr) => nivelEnJuego(pr.universo != null ? pr.universo : pr.de));
-    if (enJuego && I) {
-      const r = valorDeReferencia("nivel_carga", I);
-      const m = metricaPorClave("nivel_carga");
-      if (r && Number.isFinite(r.raw) && m) {
-        const fmt = formatoDeReferencia(r.raw, r.unidad || m.unidad);
-        const txt = `${m.nombre}: ${fmt}, declarado por la empresa.`;
-        const ya = entrega.marco.referenciaDeclarada;
-        cifrasImpresas.push(fmt);   /* §7.3·49(d): declarada aunque otro bloque ya escribiera la cláusula en el Marco */
-        if (!ya || !ya.texto.includes(txt)) { entrega.marco.referenciaDeclarada = ya ? { ...ya, texto: `${ya.texto} ${txt}` } : { texto: txt, hechoId: null }; }
-      }
-    }
+    const rm = referenciaDelMarco({ ya: entrega.marco.referenciaDeclarada, idBenchGlobal: idBenchComercialGlobal, R, partesUtiles, premisas: resolucion.premisas, libroPremisas, I, basesDeUniverso: _basesDeUniverso });
+    entrega.marco.referenciaDeclarada = rm.referenciaDeclarada;
+    for (const c of rm.cifras) cifrasImpresas.push(c);
   }
 
   // FAMILIA 3 (consolidación, paso 2) — LA REFERENCIA DE LA CONSULTA (§7.3·12/·19/·49a/·52e): UNA pieza (`entrega/referencias.js`) decide qué referencias de la consulta están en juego, en qué conjunto y eje, qué partes cubren y qué daría el

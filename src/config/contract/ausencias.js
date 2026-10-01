@@ -222,3 +222,13 @@ export function textoSinDato(metrica, sujetos) {
   const lista = xs.length > 1 ? `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}` : String(xs[0] || "");
   return `sin dato de ${String(metrica).toLowerCase()} para ${lista}`;
 }
+
+/* ── UNA FIG SIN CLAVE EN EL LÉXICO SE DECLARA (§7.3·52e, consolidación F4) ─────────────────────────────────────────────────────────
+ * Una cifra cuyo concepto el léxico de la casa no conoce no se imprime con el rótulo crudo del productor ni con el de otro concepto: se declara. Su redacción vive ACÁ, una vez
+ * (la pieza `entrega/rotulos.js` la pide; ningún composer la escribe a mano). `sujetos` son las entidades de las que el productor la trajo. */
+export const MOTIVO_FIG_SIN_CLAVE = "La cifra no tiene un concepto del léxico de la casa; no se imprime con un rótulo crudo ni con el de otro concepto.";
+export function textoFigSinClave(sujetos) {
+  const xs = (Array.isArray(sujetos) ? sujetos : [sujetos]).map((s) => String(s)).filter(Boolean);
+  const lista = xs.length > 1 ? `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}` : String(xs[0] || "");
+  return `una cifra de ${lista} sin concepto en el léxico de la casa`;
+}
