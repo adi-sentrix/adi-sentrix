@@ -29,7 +29,7 @@
  *
  * PURO: sin red, sin estado, sin lectura del tenant. Importa solo el léxico y los criterios de la casa. */
 import { CRITERIOS, LENTES, prioridadIntegrada, ordenPorCriterio } from "../agente/prioridadIntegrada.js";
-import { AUSENTE_VALE_CERO, metricaPorClave, claveExactaDeMetrica, dominioDeClave } from "../notario/lexico.js";
+import { ceroPorCobertura, metricaPorClave, claveExactaDeMetrica, dominioDeClave } from "../notario/lexico.js";
 import { normalizar } from "../notario/afirmacion.js";
 
 const _lab = (f) => String((f && f.label) || "");
@@ -120,12 +120,14 @@ function _lenteDelGrupo(criterio, tema, cierre, entidades, figs, porEntidad, cla
   /* la lente YA ordenó la lista (su clave es la del grupo): solo falta no coronar a nadie cuando esa medida vale cero en todas */
   if (claveOrden && lenteOrdenaLaClave(id, claveOrden)) {
     const fs = entidades.map((e) => mapaDe(e).get(claveOrden)).filter((f) => f && typeof f === "object" && Number.isFinite(f.raw));
-    const cero = AUSENTE_VALE_CERO.includes(claveOrden);
+    const cero = ceroPorCobertura(claveOrden);   /* §7.3·52(b): solo una fuente que declara cubrir al grupo hace de la ausencia un cero */
     const todasCero = entidades.every((e) => { const f = mapaDe(e).get(claveOrden); return f && typeof f === "object" && Number.isFinite(f.raw) ? f.raw === 0 : cero; });
     if (todasCero && fs.length) return { ...base, modo: "sin-discrimina", motivo: "cero", figCero: fs[0], ubicCero: ubicar(fs[0]), concepto: conceptoDe(fs[0]) };
     return null;
   }
-  const propias = (re) => { const m = new Map(); for (const f of Array.isArray(figs) ? figs : []) { const l = _lab(f); if (!re.test(l) || !Number.isFinite(f.raw)) continue; const e = _entidadDe(l); if (e && !m.has(normalizar(e))) m.set(normalizar(e), f); } return m; };
+  /* FAMILIA 2: las cifras que el grupo SIRVE (la boleta, la proyección o el cero de cobertura declarada de `servidas.js`) viven en `porEntidad`: la medida de la lente que la Entrega imprime cuenta, y «el grupo no trae X» nunca niega lo impreso (§7.3·51b) */
+  const _servidas = []; if (porEntidad && porEntidad.values) for (const mp of porEntidad.values()) if (mp && mp.values) for (const x of mp.values()) if (x && typeof x === "object" && x.label) _servidas.push(x);
+  const propias = (re) => { const m = new Map(); for (const f of [...(Array.isArray(figs) ? figs : []), ..._servidas]) { const l = _lab(f); if (!re.test(l) || !Number.isFinite(f.raw)) continue; const e = _entidadDe(l); if (e && !m.has(normalizar(e))) m.set(normalizar(e), f); } return m; };
   const deLente = propias(spec.re), deDesempate = des ? propias(des.re) : new Map();
   const filas = entidades.map((e) => ({ e, f: deLente.get(normalizar(e)) || null, d: deDesempate.get(normalizar(e)) || null })).filter((x) => x.f);
   if (!filas.length || (!C.dominio && filas.length !== entidades.length)) return { ...base, modo: "sin-discrimina", motivo: "sin-medida", concepto: medida };   /* una lente sin dominio solo corona si el grupo TRAE su medida en todas las cuentas */

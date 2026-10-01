@@ -25,6 +25,8 @@ import { normalizar } from "../notario/afirmacion.js";
 // que ya usa el Notario y `entrega/componer.js` para resolver un universo tipado: nunca una segunda definición.
 import { conjuntoDeUniverso } from "../notario/verificar.js";
 import { universoTieneRestriccionPropia } from "../encargo/esquema.js";
+// REGLA 19 (§7.3·52b, consolidación F2) — el cero solo si el dato lo demuestra: el MEDIDO o el de COBERTURA DECLARADA de la fuente.
+import { claveExactaDeMetrica, claveDeMetrica, unidadDeClave, metricaPorClave, coberturaDeLaMetrica } from "../notario/lexico.js";
 
 const _PALABRAS = (t) => String(t || "").trim().split(/\s+/).filter(Boolean);
 /** contarPalabras(texto) → cantidad de palabras — la MISMA cuenta que ya usa la regla 8, exportada para que
@@ -696,6 +698,35 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
       if (!(u && u.top) && servidas.size !== R.set.size) {
         v("universo-propio-no-coincide", `la parte "${p.id}" sirve ${servidas.size} entidad(es) pero su universo (sin "top", sin cola que declarar) resuelve ${R.set.size}`);
       }
+    }
+  }
+
+  /* REGLA 19 · EL CERO SOLO SI EL DATO LO DEMUESTRA (owner 2026-10-01, §7.3·52b). Hay dos ceros reales: el MEDIDO (la fuente trae la fila de la entidad y vale 0) y el de COBERTURA DECLARADA (una fuente declara cubrir a todo el grupo y la entidad, siendo del grupo, no figura: no figurar = nada, y se dice por qué). Todo lo demás es dato ausente, que nunca se imprime como un número.
+   * Cada fila de cantidad (dinero, días, unidades) impresa en 0, medida y con su dueño, lleva su ORIGEN (`fila.origen`) y el dato lo respalda: `medido` exige la fila de la fuente (ranking o fig) con valor 0; `cobertura` exige la declaración de la fuente para esa métrica y eje y una entidad del grupo que la fuente no trae. OPCIONAL: solo corre con el `indice` del turno (como la regla 18). */
+  if (indice && typeof indice.resolverEntidad === "function") {
+    const _esCeroDeCantidad = (t) => /^\$?\s*0(?:[.,]0+)?\s*(?:[KMB]|d|días?)?$/i.test(String(t == null ? "" : t).trim());
+    const filasCero = [...((entrega.cifras && entrega.cifras.filas) || []), ...((entrega.detalle && Array.isArray(entrega.detalle.filas)) ? entrega.detalle.filas : [])];
+    for (const f of filasCero) {
+      const x = f && f.valores ? f.valores : null;
+      if (!x || (f.procedencia !== "medido" && !/^cobertura declarada/.test(String(x.Tipo || "")))) continue;
+      const ent = x["Entidad / grupo"] != null ? x["Entidad / grupo"] : x.Entidad;
+      if (ent == null || /\s−\s|^Total\b|^Negocio$/i.test(String(ent)) || !_esCeroDeCantidad(x.Valor)) continue;
+      const clave = claveExactaDeMetrica(x["Métrica"]) || claveDeMetrica(x["Métrica"]);
+      const un = clave ? unidadDeClave(clave) : null;
+      if (!clave || !["money", "days", "count"].includes(un)) continue;
+      const e = indice.resolverEntidad(String(ent));
+      if (!e) continue;
+      const nombreM = (metricaPorClave(clave) || {}).nombre || clave;
+      const rk = typeof indice.rankingDe === "function" ? indice.rankingDe(e.eje, nombreM) : null;
+      const enRanking = rk && Array.isArray(rk.r.filas) ? rk.r.filas.find((y) => normalizar(y.entidad) === normalizar(e.nombre)) : null;
+      const figCero = (typeof indice.buscarFigs === "function" ? indice.buscarFigs(e.nombre, nombreM) : []).some((g) => Number.isFinite(g.raw) && g.raw === 0)
+        || (Array.isArray(indice.figs) ? indice.figs : []).some((g) => g && g.entidad && normalizar(g.entidad) === normalizar(e.nombre) && Number.isFinite(g.raw) && g.raw === 0 && (claveDeMetrica(String(g.concepto || "")) === clave));
+      const medido = (enRanking && Number(enRanking.valor) === 0) || figCero;
+      const cobertura = !!(coberturaDeLaMetrica(clave, e.eje) && rk && Array.isArray(rk.r.filas) && rk.r.filas.length && !enRanking);
+      const etiqueta = `${ent} · ${x["Métrica"]}`;
+      if (f.origen !== "medido" && f.origen !== "cobertura") v("cero-sin-origen", `la fila «${etiqueta}» imprime ${x.Valor} sin declarar su origen (medido o cobertura declarada)`);
+      else if (f.origen === "medido" && !medido) v("cero-sin-origen", `la fila «${etiqueta}» imprime ${x.Valor} como medido y la fuente no trae su fila con valor 0`);
+      else if (f.origen === "cobertura" && !cobertura) v("cero-sin-origen", `la fila «${etiqueta}» imprime ${x.Valor} por cobertura declarada y ninguna fuente declara cubrir a ${ent} en esa métrica`);
     }
   }
 

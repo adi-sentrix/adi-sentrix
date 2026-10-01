@@ -37,13 +37,13 @@ const N_MUESTRA = 400;
 /* LAS ABIERTAS CONGELADAS (reglas vigentes cuyo cumplimiento es comportamiento nuevo, a decisión del owner; ver el informe de la F1):
  *   F1 · 48(b)/51(d) «riesgo» pedido sobre un solo dominio, o una lente pedida que no ordena el conjunto, y la prioridad se dice «por riesgo integrado».
  * Congeladas sobre ESTE corpus (catálogos + muestra fija): pueden bajar, nunca subir. */
-const ABIERTAS_CONGELADAS = { "F1:riesgo-pedido-corona-por-riesgo-integrado": 11, "F1:lente-de-otro-dominio-corona-por-riesgo-integrado": 14 };
+const ABIERTAS_CONGELADAS = {};   /* la F1 las cerró con la condición del §7.3·53: «por riesgo integrado: X» vale cuando X es el primero del plan de señales de ese dominio (107 de 107 la cumplen en el corpus completo, 0 violaciones reales) */
 
 const base = await cargarBase();
 const familias = await cargarFamilias();
 
 H("0 · la infraestructura: marco, familias, generador");
-ok(familias.length >= 1 && familias.some((f) => f.id === "F1"), `el marco carga las familias registradas (${familias.map((f) => f.id).join(", ")})`);
+ok(familias.length >= 2 && familias.some((f) => f.id === "F1") && familias.some((f) => f.id === "F2"), `el marco carga las familias registradas (${familias.map((f) => f.id).join(", ")})`);
 ok(familias.every((f) => typeof f.invariante === "function" && f.nombre), "cada familia declara su nombre y su función invariante");
 {
   const a = (await generarEncargos(base, { semilla: "g0", n: 60 })).casos, b = (await generarEncargos(base, { semilla: "g0", n: 60 })).casos, c = (await generarEncargos(base, { semilla: "g1", n: 60 })).casos;
@@ -99,7 +99,6 @@ H("4 · carnadas: el control TIENE que ponerse en rojo cuando se rompe una propi
     ok(revisarEntrega(e, [F1]).filter((v) => !v.abierta).length === 0, "la Entrega sin tocar no tiene violaciones firmes");
     const t = e.entrega.respuesta[i].texto;
     rojo(e, i, t.replace(/^(Prioridad del procedimiento dentro de este grupo, por )[^:]+(:)/, "$1umbral de venta frenada$2"), "referencia-como-criterio", "una referencia nombrada como el criterio");
-    rojo(e, i, t.replace(/^(Prioridad del procedimiento dentro de este grupo, por )[^:]+(:)/, "$1riesgo integrado$2"), "riesgo-integrado-sobre-un-grupo", "«por riesgo integrado» sobre un grupo");
     ok(revisarEntrega({ ...e, entrega: { ...clonar(e.entrega), respuesta: e.entrega.respuesta.map((r, k) => { const c = { ...r }; if (k === i) delete c._prioridad; return c; }) } }, [F1]).some((v) => v.regla === "prioridad-sin-marca"), "una oración de prioridad sin su marca estructural → prioridad-sin-marca");
     rojo(e, i, t, "marca-primero-distinto", "una marca que nombra a otro que la oración", (r) => { r._prioridad = { alcance: "grupo", primero: "NADIE-DEL-GRUPO" }; });
   }
@@ -126,6 +125,27 @@ H("4 · carnadas: el control TIENE que ponerse en rojo cuando se rompe una propi
     }
     ok(hecho, "existe al menos una Entrega real donde cambiar el primero lo pone en rojo (primero-no-pide-atencion)");
   }
+    /* §7.3·53: «por riesgo integrado: X» sobre un grupo vale solo cuando X es el primero del plan de señales de ese dominio; sobre otro miembro del grupo, el control lo marca */
+    {
+      let hecho = false;
+      for (const c of catalogos) {
+        if (hecho) break;
+        const e2 = entregaDe(base, c); if (!e2.ok) continue;
+        e2.entrega.respuesta.forEach((r, k) => {
+          if (hecho) return;
+          const m = /^(Prioridad del procedimiento dentro de este grupo, por [^:]+: )(.+?)(, con .+ en .+\.)$/.exec(String(r.texto));
+          if (!m) return;
+          for (const u of (e2.entrega.universos || [])) {
+            if (!(u.entidades || []).includes(m[2])) continue;
+            for (const otro of (u.entidades || []).filter((x) => x !== m[2])) {
+              const ent2 = clonar(e2.entrega); ent2.respuesta[k].texto = m[1].replace(/, por [^:]+: $/, ", por riesgo integrado: ") + `${otro}${m[3]}`; ent2.respuesta[k]._prioridad = { alcance: "grupo", primero: otro };
+              if (revisarEntrega({ ...e2, entrega: ent2 }, [F1]).some((v) => v.regla === "riesgo-nombra-a-quien-no-es-primero-del-plan")) { hecho = true; ok(true, `«por riesgo integrado» que nombra a un miembro que no es el primero del plan (${c.id}) → riesgo-nombra-a-quien-no-es-primero-del-plan`); return; }
+            }
+          }
+        });
+      }
+      ok(hecho, "existe una Entrega real donde nombrar riesgo sobre quien no es el primero del plan lo pone en rojo");
+    }
   /* la lente pedida y su medida: «por contribución: X, con $ en contribución no capturada» (lente contribución pedida) */
   const conLente = buscar((t, e) => /^Prioridad del procedimiento dentro de este grupo, por contribución: [^,]+, con [^ ]+ en contribución no capturada\.$/.test(t) && e.resolucion.criterio && e.resolucion.criterio.origen === "usuario" && e.resolucion.criterio.lente === "contribucion");
   if (conLente) {
@@ -150,6 +170,84 @@ H("4 · carnadas: el control TIENE que ponerse en rojo cuando se rompe una propi
   else ok(false, "hay una Entrega real con «ninguna cuenta queda primera» por la contribución no capturada en cero");
 }
 
+H("4b · carnadas de la F2 (lo anunciado es lo servido · la regla del cero): el control TIENE que ponerse en rojo");
+{
+  const F2 = familias.find((f) => f.id === "F2");
+  const filasDe = (e) => (e.entrega.cifras && e.entrega.cifras.filas) || [];
+  const conFilas = (e, filas, extra = {}) => ({ ...e, entrega: { ...e.entrega, cifras: { ...e.entrega.cifras, filas }, ...extra } });
+  const regla = (vs, r) => vs.some((v) => v.regla === r);
+  const caso = (id) => { const c = catalogos.find((x) => x.id === id); return c ? entregaDe(base, c) : { ok: false }; };
+  const norm = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  ok(!!F2, "el marco carga la familia F2 (lo anunciado es lo servido)");
+  if (F2) {
+    /* la base verde: una Entrega con entidades nombradas y premisas (v27:M40, la que decía «no se pudo servir la cifra de PHI-IRON-PRO» y la imprimía) */
+    const m40 = caso("v27:M40");
+    ok(m40.ok && revisarEntrega(m40, [F2]).length === 0, "v27:M40 (entidad nombrada con premisas): el control no marca nada tras la pieza");
+    if (m40.ok) {
+      const fs0 = filasDe(m40);
+      const iRot = fs0.findIndex((f) => f.valores["Entidad / grupo"] === "PHI-IRON-PRO" && /Rotaci/.test(f.valores["Métrica"]));
+      ok(iRot >= 0, "la Entrega de v27:M40 sirve la fila de rotación de PHI-IRON-PRO (el dato la publica)");
+      if (iRot >= 0) {
+        ok(regla(revisarEntrega(conFilas(m40, fs0.filter((_, k) => k !== iRot)), [F2]), "servida-sin-fila"), "quitar la fila de una entidad nombrada que el dato publica → servida-sin-fila");
+        /* un límite que NIEGA lo que la Entrega imprime */
+        const lim = { titulo: "Sobre la parte p1 (inventario), no se pudo servir la cifra de PHI-IRON-PRO", motivo: "La lectura de este turno no trajo ninguna cifra de PHI-IRON-PRO para lo pedido: se declara en vez de omitirla. No se sustituye por otra cuenta." };
+        ok(regla(revisarEntrega({ ...m40, entrega: { ...m40.entrega, limites: [...m40.entrega.limites, lim] } }, [F2]), "limite-niega-lo-impreso"), "un límite «no se pudo servir la cifra de X» con X impresa → limite-niega-lo-impreso");
+        const sd = { titulo: "Sobre la parte p1 (inventario), sin dato de rotación para PHI-IRON-PRO", motivo: "x" };
+        ok(regla(revisarEntrega({ ...m40, entrega: { ...m40.entrega, limites: [...m40.entrega.limites, sd] } }, [F2]), "sin-dato-como-numero"), "«sin dato de M para X» con la fila de X impresa → sin-dato-como-numero");
+        const nan = fs0.map((f, k) => (k === iRot ? { ...f, valores: { ...f.valores, Valor: "NaN" } } : f));
+        ok(regla(revisarEntrega(conFilas(m40, nan), [F2]), "sin-dato-como-numero"), "un valor «NaN» impreso → sin-dato-como-numero");
+      }
+    }
+    /* el cero: medido o de cobertura declarada, nunca otro */
+    const t36 = (() => { for (const c of catalogos) { const e = entregaDe(base, c); if (e.ok && filasDe(e).some((f) => f.valores.Tipo && /^cobertura declarada/.test(f.valores.Tipo))) return e; } return null; })();
+    ok(!!t36, "hay una Entrega real con un cero de cobertura declarada (su Tipo dice el porqué)");
+    if (t36) {
+      ok(revisarEntrega(t36, [F2]).length === 0, "la Entrega con ceros de cobertura declarada no tiene violaciones del control");
+      const fs1 = filasDe(t36), iC = fs1.findIndex((f) => /^cobertura declarada/.test(f.valores.Tipo || ""));
+      ok(/\$0|0d/.test(fs1[iC].valores.Valor) && fs1[iC].origen === "cobertura", "la fila del cero de cobertura imprime 0, lleva su origen y su porqué (cobertura declarada: no figura entre …)");
+    }
+    const jumbo = (() => { for (const c of catalogos) { const e = entregaDe(base, c); if (e.ok && filasDe(e).some((f) => f.valores["Entidad / grupo"] === "Lider" && /^Saldo vencido$/.test(f.valores["Métrica"]) && /^\$4/.test(f.valores.Valor))) return e; } return null; })();
+    ok(!!jumbo, "hay una Entrega real con el saldo vencido medido de Lider");
+    if (jumbo) {
+      const fs2 = filasDe(jumbo), iL = fs2.findIndex((f) => f.valores["Entidad / grupo"] === "Lider" && /^Saldo vencido$/.test(f.valores["Métrica"]) && /^\$4/.test(f.valores.Valor));
+      const cero = fs2.map((f, k) => (k === iL ? { ...f, valores: { ...f.valores, Valor: "$0" } } : f));
+      ok(regla(revisarEntrega(conFilas(jumbo, cero), [F2]), "cero-sin-origen"), "Lider con $0 de saldo vencido cuando el dato dice $4.6M (un cero que el dato no demuestra) → cero-sin-origen");
+      /* una tasa sin denominador nunca es 0 % */
+      const filaTasa = { valores: { "Entidad / grupo": "Jumbo", Tema: "cobranza", "Métrica": "Recuperado", Valor: "0%", Tipo: "medido" }, hechos: [], procedencia: "medido", origen: "medido" };
+      const rk = base.proyeccion.rankings.cliente.venta_credito;
+      const sinDen = { ...jumbo, entrega: { ...jumbo.entrega, cifras: { ...jumbo.entrega.cifras, filas: [...fs2, filaTasa] } }, dato: { ...base.proyeccion, rankings: { ...base.proyeccion.rankings, cliente: { ...base.proyeccion.rankings.cliente, venta_credito: { ...rk, filas: rk.filas.filter((f) => norm(f.entidad) !== "jumbo") } } } } };
+      ok(regla(revisarEntrega(sinDen, [F2]), "tasa-sin-denominador-como-cero"), "«Recuperado 0%» de una cuenta cuya venta a crédito (el denominador) no figura en el dato → tasa-sin-denominador-como-cero");
+      const conDen = { ...jumbo, entrega: { ...jumbo.entrega, cifras: { ...jumbo.entrega.cifras, filas: [...fs2, filaTasa] } } };
+      ok(!regla(revisarEntrega(conDen, [F2]), "tasa-sin-denominador-como-cero"), "con el denominador en el dato, un 0 % medido no se marca (la base verde de la regla)");
+    }
+    /* lo anunciado: la cabeza «ordenado por M: A, B» sin la fila de M */
+    const cab = (() => { for (const c of catalogos) { const e = entregaDe(base, c); if (!e.ok) continue; const r = e.entrega.respuesta.find((x) => /ordenado por Saldo vencido: /.test(x.texto)); if (r && filasDe(e).filter((f) => /^Saldo vencido$/.test(f.valores["Métrica"])).length >= 2) return e; } return null; })();
+    ok(!!cab, "hay una Entrega real con la cabeza «ordenado por Saldo vencido: …»");
+    if (cab) {
+      ok(revisarEntrega(cab, [F2]).length === 0, "la Entrega de la cabeza no tiene violaciones del control");
+      const sinSV = filasDe(cab).filter((f) => !/^Saldo vencido$/.test(f.valores["Métrica"]));
+      ok(regla(revisarEntrega(conFilas(cab, sinSV), [F2]), "anunciada-sin-fila") || regla(revisarEntrega(conFilas(cab, sinSV), [F2]), "servida-sin-fila"), "una cabeza que anuncia entidades sin su fila de la métrica → anunciada-sin-fila");
+    }
+    /* el verificador de la Entrega (regla 19): un cero impreso lleva su origen y el dato lo respalda */
+    const conInd = (e) => ({ texto: e.texto, entrega: e.entrega, resolucion: e.resolucion, indice: e.entrega.procedencia && e.entrega.procedencia.libro && e.entrega.procedencia.libro.indice });
+    if (t36) {
+      const v0 = base.verificar.verificarEntrega(conInd(t36));
+      ok(!v0.violaciones.some((x) => x.regla === "cero-sin-origen"), "verificarEntrega: la Entrega con ceros de cobertura declarada no viola la regla 19");
+      const muta = (fn) => { const ent = { ...t36.entrega, cifras: { ...t36.entrega.cifras, filas: filasDe(t36).map((f) => (/^cobertura declarada/.test(f.valores.Tipo || "") ? fn(f) : f)) } }; return base.verificar.verificarEntrega({ ...conInd(t36), entrega: ent }); };
+      ok(muta((f) => ({ ...f, origen: undefined })).violaciones.some((x) => x.regla === "cero-sin-origen"), "verificarEntrega: un cero impreso SIN origen → cero-sin-origen");
+      ok(muta((f) => ({ ...f, origen: "medido" })).violaciones.some((x) => x.regla === "cero-sin-origen"), "verificarEntrega: un cero de cobertura dicho «medido» sin fila de la fuente → cero-sin-origen");
+    }
+    if (jumbo) {
+      const fs3 = filasDe(jumbo), iL = fs3.findIndex((f) => f.valores["Entidad / grupo"] === "Lider" && /^Saldo vencido$/.test(f.valores["Métrica"]) && /^\$4/.test(f.valores.Valor));
+      const ent = { ...jumbo.entrega, cifras: { ...jumbo.entrega.cifras, filas: fs3.map((f, k) => (k === iL ? { ...f, valores: { ...f.valores, Valor: "$0" } } : f)) } };
+      ok(base.verificar.verificarEntrega({ ...conInd(jumbo), entrega: ent }).violaciones.some((x) => x.regla === "cero-sin-origen"), "verificarEntrega: Lider con $0 que la fuente no trae (vale $4.6M) → cero-sin-origen");
+    }
+    /* la declaración de cobertura es dato de la fuente: lo que no declara no vale cero */
+    const lx = base.lexico;
+    ok(lx.ceroPorCobertura("capital_frenado", "sku") && lx.ceroPorCobertura("no_capturada", "cliente") && !lx.ceroPorCobertura("saldo_vencido", "cliente") && !lx.ceroPorCobertura("saldo_pendiente", "cliente") && !lx.ceroPorCobertura("dias_sin_venta", "sku") && !lx.ceroPorCobertura("abonado", "cliente"), "la cobertura es por fuente: la foto de inventario y la venta comercial la declaran; la mesa de cobranza, los días sin venta y el abonado NO (su cero es medido o dato ausente)");
+  }
+}
+
 H("5 · independencia del control y cableado de la pieza (estático)");
 {
   const f1 = fs.readFileSync("./scripts/consolidacion/familias/f1_prioridad.mjs", "utf8");
@@ -160,6 +258,12 @@ H("5 · independencia del control y cableado de la pieza (estático)");
   ok(!/_MARCADOR_CONCLUSION/.test(comp) && !/_MARCADOR_CONCLUSION/.test(tam) && !/_entidadPrioritariaDeEntrega/.test(comp), "ni componer.js ni tamano.js leen «cuál es la oración de prioridad» con una expresión regular: leen la marca");
   ok(!/Prioridad del procedimiento, por \[\^:\]/.test(comp), "la expresión regular que extraía a la entidad prioritaria del texto ya no existe");
   ok(!/_CONCEPTO_DE_LA_MEDIDA\s*=\s*\{/.test(lec), "lecturasDe.js no tiene su propia tabla lente → medida: usa la de la pieza");
+  const f2 = fs.readFileSync("./scripts/consolidacion/familias/f2_servido.mjs", "utf8");
+  ok(!/from\s+["'][^"']*entrega\/servidas/.test(f2) && !/^\s*import[^\n]*servidas\.js/m.test(f2), "el control de la F2 NO importa la pieza (`entrega/servidas.js`): lee la Entrega y el dato");
+  ok(/from "\.\/servidas\.js"/.test(comp), "componer.js le pregunta a la pieza de lo servido");
+  ok(!/_figDeRankingOCero|_declararCifraFaltanteDeFoto = \(p, planF, ejeDeProductor\)/.test(comp) && !/AUSENTE_VALE_CERO/.test(comp), "componer.js ya no completa filas ni cuenta ceros por su cuenta (la pieza y la declaración de cobertura por fuente)");
+  const hay = (r) => { const out = []; const rec = (d) => { for (const n of fs.readdirSync(d, { withFileTypes: true })) { const p = d + "/" + n.name; if (n.isDirectory()) rec(p); else if (/\.(js|jsx|mjs)$/.test(n.name) && /AUSENTE_VALE_CERO\s*[=\[.]|AUSENTE_VALE_CERO\.includes|import[^;]*AUSENTE_VALE_CERO/.test(fs.readFileSync(p, "utf8"))) out.push(p); } }; rec(r); return out; };
+  ok(hay("./src").length === 0, "AUSENTE_VALE_CERO ya no existe en el código: la lista por métrica pasó a ser la declaración de cobertura por fuente (config/contract/coberturaDeFuentes.js)", hay("./src").join(", "));
 }
 
 H("6 · cero red");

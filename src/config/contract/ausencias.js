@@ -212,3 +212,13 @@ export function limitesDeAusencias(dominios) {
 export function ausenciaPorId(id) {
   return AUSENCIAS_DEL_DATO.find((a) => a.id === id) || null;
 }
+
+/* ── EL DATO AUSENTE POR ENTIDAD (§7.3·52b, owner 2026-10-01 · «el cero solo si el dato lo demuestra») ─────────────────────
+ * Lo que la fuente no trae para una entidad NO es un cero: se dice «sin dato de X para Y» y se declara aparte. Es la ÚNICA forma nueva de la regla del cero;
+ * su redacción vive ACÁ, una vez (la Entrega la lee; ningún composer la escribe a mano). `metrica` es el nombre de la casa (léxico) y `sujetos` las entidades. */
+export const MOTIVO_SIN_DATO = "La lectura de este turno no publicó esa cifra para esas cuentas; no se rellena con otra.";   /* el motivo de siempre de la foto (v22, S31): una sola redacción */
+export function textoSinDato(metrica, sujetos) {
+  const xs = (Array.isArray(sujetos) ? sujetos : [sujetos]).map((s) => String(s)).filter(Boolean);
+  const lista = xs.length > 1 ? `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}` : String(xs[0] || "");
+  return `sin dato de ${String(metrica).toLowerCase()} para ${lista}`;
+}

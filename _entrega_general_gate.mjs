@@ -736,7 +736,8 @@ H("22 · CARNADA · el límite «sin señal de riesgo» es de negocio (sin nombr
     ok(!!limSinSenal, "★ se declaró el límite «sin señal de riesgo» (nunca un silencio ni una Entrega vacía)", JSON.stringify(Ev81.entrega.limites));
     const textoCompleto = `${Ev81.texto} ${JSON.stringify(Ev81.entrega.limites)}`;
     ok(!/\.js\b/i.test(textoCompleto), "★ CARNADA · ningún nombre de archivo (ningún «.js») llega al texto de la Entrega ni a sus límites", textoCompleto.match(/[a-zA-Z0-9_]+\.js\b/gi));
-    ok(!/no tiene saldo vencido|sin saldo vencido/i.test(textoCompleto), "★ CARNADA · nunca «no tiene saldo vencido» / «sin saldo vencido» — la ley de materialidad prohíbe el negativo no probado (señal · bajo el piso · sin evaluar)", textoCompleto);
+    /* §7.3·52(b): el cero MEDIDO (la mesa de cobranza trae la fila de la cuenta y vale $0) se dice con su cifra: «no tiene saldo vencido ($0)» es un hecho demostrado y está en la tabla; lo que se prohíbe es el negativo SIN cifra ni fila */
+    ok(!/no tiene saldo vencido(?! \(\$0\))|sin saldo vencido/i.test(textoCompleto),"★ CARNADA · nunca «no tiene saldo vencido» / «sin saldo vencido» — la ley de materialidad prohíbe el negativo no probado (señal · bajo el piso · sin evaluar)", textoCompleto);
     ok(!/ni tiene\b/i.test(limSinSenal && limSinSenal.motivo || ""), "★ el motivo del límite no afirma un negativo no probado", limSinSenal && limSinSenal.motivo);
     // las cifras de cobranza de esas cuentas (saldo pendiente, y su vencido si lo hay) siguen citables en la
     // Entrega — ninguna señal desaparece, aunque no arme una prioridad entre dominios.

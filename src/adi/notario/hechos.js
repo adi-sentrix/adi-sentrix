@@ -18,7 +18,7 @@ import { verificarAfirmaciones, conjuntoDeUniverso, valorDeRanking, valorDeRefer
 import { indiceDeEvidencia, mismoValor, unidadCompatible } from "./evidencia.js";
 import { normalizar, menosAscii, leerValor, direccionPorDefecto } from "./afirmacion.js";
 import { parsearLineasDeBloque, MARCA_FIN } from "./declaracion.js";
-import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO, opDe, esReferencia, AUSENTE_VALE_CERO, diasEnPalabras } from "./lexico.js";
+import { metricaDeClave, claveDeMetrica, metricaPorClave, dominioDeClave, polaridadDeClave, unidadDeClave, periodoDe, PLURAL_DE_EJE, ARTICULO_DE_EJE, diasDe, METRICAS_DE_ESTADO, opDe, esReferencia, ceroPorCobertura, diasEnPalabras } from "./lexico.js";
 import { estadoCanon, estadoDeLaCasa, complementoDe, ESTADOS_CANON, estadosEn, estadoDeclarado, ejeCompatible, COMPLEMENTO_V3, estadosValidosPara, formaDeEstado, verificarEstadoDeLaCasa, ESTADOS_PROPIOS, METRICA_DE_ESTADO } from "./estados.js";
 import { referenciaDeBase, referenciaDeEstado, conjuntoConocido, estadoDeConjunto, nombreDeMetricaDeReferencia } from "./conjuntosDeLaCasa.js";   // §7.3, tarea 4 (supervisor 2026-09-27, diagnóstico v8/v9): la tabla base→referencia y estado→referencia viven en UN registro, compartida con notario/verificar.js — nunca dos tablas que puedan divergir
 import { formatoPct, formatoDeUmbral } from "../../config/businessPolicy.js";   // §7.3·40(b): la forma de la casa del porcentaje, una sola definición (la comparte el valor de un umbral en pct)
@@ -973,7 +973,7 @@ function _primerFiltroDe(u) {
 }
 const _claveDeMetricaDeUniverso = (m) => claveDeMetrica(m) || normalizar(String(m || "")).replace(/\s+/g, "_");
 /* la cifra propia de la entidad en una métrica: su fig de la boleta (impresa como la boleta la trae) o, sin ella, la del ranking de la proyección con el formato de la casa;
- * en una métrica de `AUSENTE_VALE_CERO` que la proyección no publica para ella, cero (un hecho, no un hueco) */
+ * en una métrica cuya fuente DECLARA cubrir a su grupo (`coberturaDeFuentes.js`, §7.3·52b) que la proyección no publica para ella, cero de cobertura declarada (no un hueco); sin ninguna de las dos, dato ausente */
 function _cifraPropia(I, nombre, clave) {
   /* §7.3·13/·40: el margen de VENTA del SKU vive SOLO en el ranking estático `I.rankings.sku.margen_venta` (no está en el léxico: el SKU tiene dos márgenes y la casa exige la etiqueta completa) — se lee por su nombre exacto */
   if (clave === "margen_venta") {
@@ -988,7 +988,7 @@ function _cifraPropia(I, nombre, clave) {
   const rk = valorDeRanking({ sujeto: nombre, metrica: clave }, I);
   if (rk && Number.isFinite(rk.raw)) return { raw: rk.raw, unidad: rk.unidad, texto: formatoDeLaCasa(rk.raw, rk.unidad) };
   /* `ausente`: el cero NO es una cifra medida sobre la entidad, es que no pertenece al conjunto que la métrica define (§7.3·38a: se dice en palabras de negocio, nunca «(ausente = 0)») */
-  if (AUSENTE_VALE_CERO.includes(clave)) { const un = unidadDeClave(clave) || "money"; return { raw: 0, unidad: un, texto: formatoDeLaCasa(0, un), ausente: true }; }
+  if (ceroPorCobertura(clave, (I.resolverEntidad && I.resolverEntidad(nombre) || {}).eje || null)) { const un = unidadDeClave(clave) || "money"; return { raw: 0, unidad: un, texto: formatoDeLaCasa(0, un), ausente: true }; }
   return null;
 }
 /* DECISIÓN 38(a) (supervisor 2026-09-29, diagnóstico v14 · A3): la 37(a) vale para TODA premisa falsa, en el MISMO registro que el grupo (`H.render.verdadPropia`; `componer.js` solo lo escribe).

@@ -26,7 +26,7 @@ import { normalizarAfirmaciones, normalizar, menosAscii } from "./afirmacion.js"
 import { resolverDeclaraciones } from "./resolutor.js";
 import { ESTADOS_CANON, estadoDeLaCasa, verificarEstadoDeLaCasa, ejeCompatible } from "./estados.js";
 import { juzgarBase, calcularConBase } from "./tasas.js";
-import { AUSENTE_VALE_CERO, claveDeMetrica as _claveDeMetricaLex, metricaPorClave, polaridadDeClave, diasDe, opDe, esCero, dichoElCero, diasEnPalabras } from "./lexico.js";   // verdad finita (E1): el universo tipado se evalúa por claves, no por palabras   // la base de una tasa (ronda adversarial 3): valor + base, o no es esa tasa   // fase 4: la casa canoniza la forma de la declaración antes del veredicto
+import { ceroPorCobertura, claveDeMetrica as _claveDeMetricaLex, metricaPorClave, polaridadDeClave, diasDe, opDe, esCero, dichoElCero, diasEnPalabras } from "./lexico.js";   // verdad finita (E1): el universo tipado se evalúa por claves, no por palabras   // la base de una tasa (ronda adversarial 3): valor + base, o no es esa tasa   // fase 4: la casa canoniza la forma de la declaración antes del veredicto
 import { indiceDeEvidencia, tokens, numerosEn, ES_TODO, ES_TODO_FUERTE, estadoCanon, conceptosDe, mismoValor as _mismoValor, unidadCompatible as _u, necesitaUniverso as _necesitaUniverso, conDigitos } from "./evidencia.js";
 import { NOMBRE_CARGA_ALTA, NOMBRE_SOBRE_NIVEL_CARGA, referenciaDeBase } from "./conjuntosDeLaCasa.js";   // §7.3·11: el nombre de estos dos conjuntos vive en UN solo lugar (con oracle/datoProyectado.js y encargo/validar.js) — la lógica de membresía de abajo no cambia. `referenciaDeBase` (tarea 4 del cierre, §7.3): el MISMO registro que usa notario/hechos.js, para que la fuente de un `base` con referencia numérica también lleve su valor acá
 
@@ -519,13 +519,15 @@ function _filasTipadas(clave, I, eje) {
       if (Number.isFinite(x.raw)) { raw = x.raw; unidad = unidadEsperada || "money"; }
       else if (texto) { const p = parseFigures(menosAscii(texto))[0]; if (p && Number.isFinite(p.raw)) { raw = p.raw; unidad = p.unit; } }
       if (raw == null && Number.isFinite(+x.valor)) { const u = _UNIDAD_DE_RANKING[rkClave] || unidadEsperada; if (u && u !== "money") { raw = +x.valor; unidad = u; } }
+      /* §7.3·52(b): una fila del ranking que vale 0 ES la fila de la fuente —un cero MEDIDO— en cualquier unidad: el cero no tiene escala que inferir (el dinero sin texto solo se descartaba por esa escala). Sin esta fila, la mesa de cobranza (13 cuentas, 7 al día) parecería parcial y su cero dependería de una lista por métrica */
+      if (raw == null && Number.isFinite(+x.valor) && +x.valor === 0 && (_UNIDAD_DE_RANKING[rkClave] || unidadEsperada)) { raw = 0; unidad = _UNIDAD_DE_RANKING[rkClave] || unidadEsperada; }
       if (raw != null) out.push({ entidad: normalizar(x.entidad), nombre: x.entidad, raw, unidad, texto });
     }
     if (out.length) {
       const todos = _todosDelEje(I, eje);
       const parcial = !!(todos && out.length < todos.size);
-      if (parcial && AUSENTE_VALE_CERO.includes(clave)) { const vistos = new Set(out.map((x) => x.entidad)); const u0 = out[0].unidad; for (const k of todos) if (!vistos.has(k)) { const ent = I.entidades.get(k); out.push({ entidad: k, nombre: ent ? ent.nombre : k, raw: 0, unidad: u0, texto: "", ausente: true }); } }
-      return { filas: out, fuente: `ranking ${eje} · ${rkClave}`, peorEs: rk.peorEs || null, parcial: parcial && !AUSENTE_VALE_CERO.includes(clave) };
+      if (parcial && ceroPorCobertura(clave, eje)) { const vistos = new Set(out.map((x) => x.entidad)); const u0 = out[0].unidad; for (const k of todos) if (!vistos.has(k)) { const ent = I.entidades.get(k); out.push({ entidad: k, nombre: ent ? ent.nombre : k, raw: 0, unidad: u0, texto: "", ausente: true }); } }
+      return { filas: out, fuente: `ranking ${eje} · ${rkClave}`, peorEs: rk.peorEs || null, parcial: parcial && !ceroPorCobertura(clave, eje) };
     }
   }
   const nombre = m ? m.nombre : String(clave);
@@ -534,8 +536,8 @@ function _filasTipadas(clave, I, eje) {
   const vistos = new Map();
   for (const f of fs) if (f.entidad && Number.isFinite(f.raw) && !vistos.has(normalizar(f.entidad))) vistos.set(normalizar(f.entidad), { entidad: normalizar(f.entidad), nombre: f.entidad, raw: f.raw, unidad: f.unidad, texto: f.texto || "" });
   { const out2 = [...vistos.values()]; const todos = _todosDelEje(I, eje); const parcial = !!(todos && out2.length && out2.length < todos.size);
-    if (parcial && AUSENTE_VALE_CERO.includes(clave)) { const u0 = out2[0].unidad; for (const k of todos) if (!vistos.has(k)) { const ent = I.entidades.get(k); out2.push({ entidad: k, nombre: ent ? ent.nombre : k, raw: 0, unidad: u0, texto: "", ausente: true }); } }
-    return { filas: out2, fuente: `figs «${nombre}» por ${eje}`, peorEs: rk ? rk.peorEs || null : null, parcial: parcial && !AUSENTE_VALE_CERO.includes(clave) }; }
+    if (parcial && ceroPorCobertura(clave, eje)) { const u0 = out2[0].unidad; for (const k of todos) if (!vistos.has(k)) { const ent = I.entidades.get(k); out2.push({ entidad: k, nombre: ent ? ent.nombre : k, raw: 0, unidad: u0, texto: "", ausente: true }); } }
+    return { filas: out2, fuente: `figs «${nombre}» por ${eje}`, peorEs: rk ? rk.peorEs || null : null, parcial: parcial && !ceroPorCobertura(clave, eje) }; }
 }
 /** valorDeReferencia(ref, I) → { raw, unidad, label } | null · la cifra de una referencia de la casa («benchmark»,
  *  «nivel_carga», «techo_cobertura») contra la evidencia del turno — LA MISMA resolución que `_filtroTipado` ya usa
@@ -853,6 +855,9 @@ function _delRanking(a, I) {
   const fila = rk.r.filas.find((x) => normalizar(x.entidad) === normalizar(ent.nombre));
   if (!fila || !Number.isFinite(+fila.valor)) return null;
   let u = _UNIDAD_DE_RANKING[rk.clave], escala = 1;
+  if (!u && +fila.valor === 0 && !fila.texto) u = (metricaPorClave(rk.clave) || {}).unidad || u;
+  /* §7.3·52(b): una fila que DECLARA su crudo (`raw`, como el capital de la foto de inventario en dólares crudos) trae su escala: no hay nada que inferir de la boleta */
+  if (!u && !fila.texto && Number.isFinite(+fila.raw) && Number.isFinite(+fila.valor) && +fila.valor !== 0 && (metricaPorClave(rk.clave) || {}).unidad === "money") { u = "money"; escala = +fila.raw / +fila.valor; }   /* §7.3·52(b): la fila del ranking que vale 0 es un cero MEDIDO en cualquier unidad (sin escala que inferir) */
   /* la proyección trae la cifra FORMATEADA por la mesa («$9,8M», «269d», «45%»): esa es la verdad impresa, sin inferir escala */
   if (fila.texto) { const p = parseFigures(menosAscii(String(fila.texto)))[0]; if (p && Number.isFinite(p.raw)) return { raw: p.raw, unidad: p.unit, label: `ranking ${ent.eje} · ${rk.clave} · ${ent.nombre}`, texto: String(fila.texto) }; }
   if (!u) {
@@ -866,19 +871,19 @@ function _delRanking(a, I) {
 }
 /** valorDeRanking(a, I) → { raw, unidad, label, texto } | null · la cifra de una entidad en el ranking de la proyección (para el libro de hechos) */
 export function valorDeRanking(a, I) { return _delRanking(a, I); }
-/* una entidad válida del eje que NO está en el ranking publicado de una métrica de `AUSENTE_VALE_CERO` vale 0 (`ausente: true`); null si la métrica no lo permite, la entidad no
+/* una entidad válida del eje que NO está en el ranking publicado de una métrica de cobertura declarada de la fuente (`coberturaDeFuentes.js`, §7.3·52b) vale 0 (`ausente: true`); null si la métrica no lo permite, la entidad no
  * es del eje del ranking o el ranking no existe (nunca inventa un cero sobre lo que la proyección no publica). */
 function _ceroPorAusencia(a, I, unidad = null) {
   const ent = typeof a.sujeto === "string" && a.sujeto !== "negocio" ? I.resolverEntidad(a.sujeto) : null;
   if (!ent) return null;
   const rk = I.rankingDe(ent.eje, a.metrica);
-  /* §7.3·50(d): en un eje donde la proyección NO publica el ranking de la métrica (el capital inmovilizado crítico por familia), el conjunto lo hace la boleta del turno: las figs de esa métrica en el eje. Una entidad del eje que no está entre ellas vale 0 en una métrica de `AUSENTE_VALE_CERO`, igual que con el ranking de la proyección. */
+  /* §7.3·50(d): en un eje donde la proyección NO publica el ranking de la métrica (el capital inmovilizado crítico por familia), el conjunto lo hace la boleta del turno: las figs de esa métrica en el eje. Una entidad del eje que no está entre ellas vale 0 en una métrica de cobertura declarada de la fuente (`coberturaDeFuentes.js`, §7.3·52b), igual que con el ranking de la proyección. */
   let clave = rk ? rk.clave : null, publicadas = rk && Array.isArray(rk.r.filas) ? rk.r.filas.map((x) => x.entidad) : [];
   if (!rk) {
     clave = _claveDeMetricaLex(a.metrica);
-    publicadas = clave && AUSENTE_VALE_CERO.includes(clave) && typeof I.figsDeMetrica === "function" ? I.figsDeMetrica(a.metrica, ent.eje).filter((f) => Number.isFinite(f.raw)).map((f) => f.entidad) : [];
+    publicadas = clave && ceroPorCobertura(clave, ent.eje) && typeof I.figsDeMetrica === "function" ? I.figsDeMetrica(a.metrica, ent.eje).filter((f) => Number.isFinite(f.raw)).map((f) => f.entidad) : [];
   }
-  if (!clave || !AUSENTE_VALE_CERO.includes(clave) || !publicadas.length) return null;
+  if (!clave || !ceroPorCobertura(clave, ent.eje) || !publicadas.length) return null;
   if (publicadas.some((x) => normalizar(x) === normalizar(ent.nombre))) return null;   // está publicada: su valor no es una ausencia
   const rkClave = clave;
   const u = _UNIDAD_DE_RANKING[rkClave] || "money";
@@ -922,7 +927,7 @@ function _cifra(a, I) {
     if (a.base) { let cb = null; try { cb = calcularConBase(a, I); } catch { cb = null; } if (cb) return cb.veredicto === "ok" ? _ok(cb.motivo, cb.evidencia, cb.verdad) : _falsa(cb.motivo, cb.verdad, cb.evidencia); }
     /* la proyección del dato (rankings sin escala ambigua) como evidencia cuando la boleta del turno no trae la fig */
     const rk = _delRanking(a, I);
-    /* §7.3·39(b): una entidad del eje que NO está en el ranking de una métrica de `AUSENTE_VALE_CERO` vale 0 (un hecho, no un hueco): la cifra dicha se juzga contra ese 0 —«no hay fig» nunca es «sin evidencia» cuando la métrica declara que ausente es cero— */
+    /* §7.3·39(b): una entidad del eje que NO está en el ranking de una métrica de cobertura declarada de la fuente (`coberturaDeFuentes.js`, §7.3·52b) vale 0 (un hecho, no un hueco): la cifra dicha se juzga contra ese 0 —«no hay fig» nunca es «sin evidencia» cuando la métrica declara que ausente es cero— */
     if (!rk && v) { const c0 = _ceroPorAusencia(a, I, v.unidad); if (c0) return _mismoValor(v, 0, c0.unidad, c0.texto) ? _ok(`coincide con ${c0.label} = ${c0.texto}`, [c0.label], `${c0.label} = ${c0.texto}`) : _falsa(`cifra-distinta: la proyección dice ${c0.label} = ${c0.texto}`, `${c0.label} = ${c0.texto}`, [c0.label]); }
     if (rk && (_u(rk.unidad) === _u(v.unidad) || (v.unidad === "count" && rk.unidad === "days"))) {
       if (v.unidad === "count" && rk.unidad === "days") v = { ...v, unidad: "days", canon: `days:${v.raw}d` };
@@ -1204,16 +1209,16 @@ function _filas(a, I, eje) {
   const U = _conjuntoDeUniverso(a.universo, I, eje, a.metrica);
   if (U.error) return { error: U.error };
   if (U.set) filas = filas.filter((x) => U.set.has(normalizar(x.entidad)));
-  /* §7.3·39 (diagnóstico v15): con el ranking de la proyección y un conjunto DECLARADO, el miembro que el ranking no publica vale 0 solo en las métricas que lo declaran (`AUSENTE_VALE_CERO`: la entidad no pertenece al
+  /* §7.3·39 (diagnóstico v15): con el ranking de la proyección y un conjunto DECLARADO, el miembro que el ranking no publica vale 0 solo en las métricas que lo declaran (cobertura declarada de la fuente (`coberturaDeFuentes.js`, §7.3·52b): la entidad no pertenece al
    * conjunto que la métrica define, p. ej. una cuenta de carga alta que no está bajo el benchmark no tiene brecha no capturada); en las demás sigue siendo «universo-incompleto» (falla cerrado) */
   if (rk && U.set && filas.length < U.set.size) {
     const claveC = _claveDeMetricaLex(a.metrica);
-    if (claveC && AUSENTE_VALE_CERO.includes(claveC)) { const vistos = new Set(filas.map((x) => normalizar(x.entidad))); for (const k of U.set) if (!vistos.has(k)) { const ent = I.entidades.get(k); filas.push({ entidad: ent ? ent.nombre : k, valor: 0, ausente: true }); } }
+    if (claveC && ceroPorCobertura(claveC, eje)) { const vistos = new Set(filas.map((x) => normalizar(x.entidad))); for (const k of U.set) if (!vistos.has(k)) { const ent = I.entidades.get(k); filas.push({ entidad: ent ? ent.nombre : k, valor: 0, ausente: true }); } }
   }
-  /* §7.3·50(d): sin ranking de la proyección ni conjunto declarado, una boleta que trae la métrica de menos miembros que el eje solo deja el orden «universo-incompleto» cuando la ausencia es un hueco. En una métrica de `AUSENTE_VALE_CERO` la ausencia es un hecho (el miembro no pertenece al conjunto que la métrica define: la cuenta que el detector no marca no tiene «carga comercial alta», la familia sin capital inmovilizado crítico tiene $0): vale cero, la misma regla de las líneas de arriba y de abajo. */
+  /* §7.3·50(d): sin ranking de la proyección ni conjunto declarado, una boleta que trae la métrica de menos miembros que el eje solo deja el orden «universo-incompleto» cuando la ausencia es un hueco. En una métrica de cobertura declarada de la fuente (`coberturaDeFuentes.js`, §7.3·52b) la ausencia es un hecho (el miembro no pertenece al conjunto que la métrica define: la cuenta que el detector no marca no tiene «carga comercial alta», la familia sin capital inmovilizado crítico tiene $0): vale cero, la misma regla de las líneas de arriba y de abajo. */
   if (!rk && !U.set && total && filas.length < total) {
     const claveA = _claveDeMetricaLex(a.metrica);
-    const todos = claveA && AUSENTE_VALE_CERO.includes(claveA) ? _todosDelEje(I, eje) : null;
+    const todos = claveA && ceroPorCobertura(claveA, eje) ? _todosDelEje(I, eje) : null;
     if (todos && todos.size >= filas.length) { const vistos = new Set(filas.map((x) => normalizar(x.entidad))); for (const k of todos) if (!vistos.has(k)) { const ent = I.entidades.get(k); filas.push({ entidad: ent ? ent.nombre : k, valor: 0, ausente: true }); } }
     else return { error: `universo-incompleto: la boleta trae «${a.metrica}» de ${filas.length} de ${total} ${eje}s; el orden sobre el eje entero no se puede verificar` };
   }
@@ -1222,7 +1227,7 @@ function _filas(a, I, eje) {
   let parcial = false;
   if (rk && !U.set && total && filas.length < total) {
     const claveO = _claveDeMetricaLex(a.metrica);
-    if (claveO && AUSENTE_VALE_CERO.includes(claveO)) { const vistos = new Set(filas.map((x) => normalizar(x.entidad))); for (const k of _todosDelEje(I, eje) || []) if (!vistos.has(k)) { const ent = I.entidades.get(k); filas.push({ entidad: ent ? ent.nombre : k, valor: 0, ausente: true }); } }
+    if (claveO && ceroPorCobertura(claveO, eje)) { const vistos = new Set(filas.map((x) => normalizar(x.entidad))); for (const k of _todosDelEje(I, eje) || []) if (!vistos.has(k)) { const ent = I.entidades.get(k); filas.push({ entidad: ent ? ent.nombre : k, valor: 0, ausente: true }); } }
     else parcial = true;
   }
   return { filas, universo: U.set ? `${U.fuente} (${filas.length})` : universo, peorEs, rk, conjunto: U.set || null, parcial };
@@ -1281,7 +1286,7 @@ function _orden(a, I) {
   const fmtFila = (x) => { const f = I.buscarFigs(x.entidad, a.metrica)[0]; return `${x.entidad} (${f ? f.fig.value : x.valor})`; };
   /* v19 (Y06 · Y20, §7.3·39c): el cero de un empate se dice en palabras de negocio junto a su cifra («no tiene días vencido (0d)»), nunca «(0d)» a secas — el mismo criterio que toda premisa */
   const fmtEmpate = (x) => { const f = I.buscarFigs(x.entidad, a.metrica)[0]; const txt = f ? f.fig.value : x.valor; const un = f ? f.unidad : null; if (f && esCero(f.raw, un)) { const m = metricaPorClave(_claveDeMetricaLex(a.metrica)); return `${x.entidad}: ${dichoElCero(m ? m.nombre.toLowerCase() : String(a.metrica), txt)}`; }
-    /* v20 (U06): el cero POR AUSENCIA del conjunto que la métrica define (`AUSENTE_VALE_CERO`: Santiago no tiene capital inmovilizado crítico) no trae fig —vale 0 en la fila del ranking—; se dice igual en palabras de negocio con su cifra (39c), nunca «Santiago (0)». La cifra de un cero es la de la casa: $0 · 0 días · 0. */
+    /* v20 (U06): el cero POR AUSENCIA del conjunto que la métrica define (cobertura declarada de la fuente (`coberturaDeFuentes.js`, §7.3·52b): Santiago no tiene capital inmovilizado crítico) no trae fig —vale 0 en la fila del ranking—; se dice igual en palabras de negocio con su cifra (39c), nunca «Santiago (0)». La cifra de un cero es la de la casa: $0 · 0 días · 0. */
     if (!f && x.valor === 0) { const m = metricaPorClave(_claveDeMetricaLex(a.metrica)); if (m && esCero(0, m.unidad)) return `${x.entidad}: ${dichoElCero(m.nombre.toLowerCase(), m.unidad === "money" ? "$0" : m.unidad === "days" ? diasEnPalabras(0) : "0")}`; }
     return `${x.entidad} (${txt})`; };
   const ev = F.rk ? [`ranking ${eje} · ${F.rk.clave} · ${F.universo}`] : [`cifras de «${a.metrica}» por ${eje}`];
@@ -1365,7 +1370,7 @@ function _valorDe(sujeto, metrica, I, universo = "", unidad = null) {
   if (!c.length) {
     const rk = _delRanking({ sujeto, metrica }, I);
     if (rk && (!unidad || _u(rk.unidad) === _u(unidad))) return { label: rk.label, texto: rk.texto, raw: rk.raw, unidad: rk.unidad, entidad: sujeto, concepto: metrica, conceptoNorm: normalizar(metrica), agregado: false, deRanking: true, fig: { id: null, value: rk.texto } };
-    /* RAÍZ A6 (supervisor 2026-09-29, diagnóstico v13, Z23): en una métrica de `AUSENTE_VALE_CERO` («capital inmovilizado», «saldo vencido»…) el ranking publica a
+    /* RAÍZ A6 (supervisor 2026-09-29, diagnóstico v13, Z23): en una métrica de cobertura declarada de la fuente (`coberturaDeFuentes.js`, §7.3·52b) («capital inmovilizado», «saldo vencido»…) el ranking publica a
      * TODOS los miembros del conjunto que la define (los inmovilizados, los que deben) y lo que no está NO es un hueco: es cero — la MISMA regla que ya aplican `_filasTipadas`
      * y el orden (líneas de arriba). Una relación («BOS-SANDER tiene más capital inmovilizado que SAM-TV55») declinaba «sin evidencia» por el lado que vale 0. */
     if (!rk) { const cero = _ceroPorAusencia({ sujeto, metrica }, I, unidad); if (cero) return cero; }

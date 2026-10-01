@@ -13,7 +13,7 @@
  *   lente-nombrada-no-ordeno          la lente que la oración nombra es la que ordenó: su medida es la medida nombrada (46d).
  *   lente-pedida-callada              el usuario pidió una lente: la oración la nombra con su medida, o declara que no ordena (46d·47d).
  *   lente-no-pedida                   sin lente pedida, la oración nunca nombra una lente.
- *   riesgo-integrado-sobre-un-grupo   nunca «por riesgo integrado: X» sobre un grupo (48b · 51d).
+ *   riesgo-nombra-a-quien-no-es-primero-del-plan   si se dice «riesgo» (sobre un grupo o un dominio), lo nombrado es el primero del plan de señales de ese dominio (53, que corrige la 48b y la 51d).
  *   referencia-como-criterio          una referencia (umbral, piso, techo, benchmark) nunca se nombra como el criterio (52e).
  *   referencia-sin-nombrar            el criterio que solo trae una referencia nombra la medida que ordenó y la referencia como tal (52e).
  *   ventas-en-cobranza-sin-credito    en cobranza la lente «ventas» se dice «venta a crédito» (52a).
@@ -48,6 +48,8 @@ export function analizarOracion(texto) {
   return S;
 }
 
+/** las «abiertas» congeladas de la F1 (riesgo pedido sobre un dominio · lente de otro dominio) frente a la condición del 53: cuántas la cumplen y cuántas son violaciones reales (para el informe) */
+export const ESTADISTICA_53 = { pasan: 0, reales: 0 };
 export const familia = {
   id: "F1",
   nombre: "prioridad: quién va primero y qué lente o medida se nombra",
@@ -99,6 +101,25 @@ export const familia = {
       return !!(rk && rk.peorEs === "menor");
     };
 
+    /* la medida de la lente de MATERIALIDAD de cada dominio (la que ordena el plan de señales): `LENTES[dominio].materialidad` — eje y clave del dato */
+    /* las señales de cada dominio, del DATO: eje, clave del ranking y el rótulo con que el plan de señales (`prioridadIntegrada`, la prioridad del procedimiento del agente) las lee */
+    const SENALES_DEL_DOMINIO = { comercial: { cliente: [["no_capturada", "Contribución no capturada"], ["brecha", "Brecha al benchmark"]] }, cobranza: { cliente: [["saldo_vencido", "Saldo vencido"], ["recuperado", "Recuperado"], ["dias_vencido", "Dias Vencido"]] }, inventario: { sku: [["capital_frenado", "Capital inmovilizado crítico"], ["dias_inventario", "Días de inventario"], ["dias_sin_venta", "Días sin venta"]] } };
+    /* el PRIMERO del plan de señales de un dominio (materialidad + severidad + urgencia) sobre un alcance (null = la cartera): lo calcula el mismo procedimiento del agente con los valores del dato. En un dominio de clave cliente es la prioridad integrada; en los SKU, el de mayor materialidad. */
+    const primerosDelPlan = (dominio, alcance) => {
+      const figs = [];
+      for (const [eje, senales] of Object.entries(SENALES_DEL_DOMINIO[dominio] || {})) for (const [clave, rotulo] of senales) {
+        const vals = valoresDe(eje, clave); if (!vals) continue;
+        const rk = dato.rankings[eje][(CLAVE_DEL_RANKING[eje] && CLAVE_DEL_RANKING[eje][clave]) || clave];
+        for (const fila of rk.filas) if (Number.isFinite(fila.valor) && (!alcance || alcance.has(_norm(fila.entidad)))) figs.push({ label: `${fila.entidad} · ${rotulo}`, raw: fila.valor, value: String(fila.valor), eje });
+      }
+      let P = null; try { P = base.prioridadIntegrada.prioridadIntegrada(figs, [dominio]); } catch { P = null; }
+      if (!P) return null;
+      /* el primero del plan, y quienes EMPATAN con él en cada señal (con todo en cero el orden entre iguales es arbitrario: cualquiera de ellos es «el primero») */
+      const ns = (x) => { const sg = dominio === "inventario" ? x : ((x.senales || {})[dominio] || {}); return ["materialidad", "severidad", "urgencia"].map((l) => (sg[l] ? sg[l].n : null)).join("|"); };
+      const filas = dominio === "inventario" ? (P.porDominio[dominio] || []) : (P.integrada || []);
+      const lista = filas.length ? filas.filter((x) => ns(x) === ns(filas[0])).map((x) => x.entidad) : [];
+      return lista.map(_norm);
+    };
     const crit = resolucion && resolucion.criterio ? resolucion.criterio : null;
     const lentePedida = crit && crit.origen === "usuario" && crit.lente && CRITERIOS[crit.lente] ? crit.lente : null;
     const soloReferencia = !!(crit && crit.origen === "usuario" && !crit.lente && crit.referencia && crit.referencia.concepto);
@@ -118,12 +139,22 @@ export const familia = {
       const idLente = tipoNombre === "lente" ? idDeLente.get(nom) : null;
       if (r._prioridad && r._prioridad.primero != null && S.primero != null && _norm(r._prioridad.primero) !== _norm(S.primero)) v("marca-primero-distinto", `la marca dice «${r._prioridad.primero}» y la oración nombra «${S.primero}»`);
 
-      /* 48(b)/51(d): nunca «por riesgo integrado» sobre un grupo */
-      if (S.grupo && tipoNombre === "riesgo") v("riesgo-integrado-sobre-un-grupo", `«${texto.slice(0, 100)}»`);
-      /* 51(d): «riesgo» PEDIDO sobre un dominio (sin prioridad entre dominios) se declara como el criterio entre dominios y se nombra la medida que ordenó; una lente pedida que no ordena el conjunto tampoco se sustituye por «riesgo integrado». ABIERTAS: arreglarlas es escribir frases nuevas. */
-      if (!S.grupo && nom === "riesgo integrado" && temasQuePrioriza.size === 1) {
-        if (lentePedida === "riesgo") v("riesgo-pedido-corona-por-riesgo-integrado", `«riesgo» pedido sobre un solo dominio y la prioridad dice «por riesgo integrado»: «${texto.slice(0, 100)}»`, true);
-        else if (lentePedida && /no ordena este conjunto/.test(texto)) v("lente-de-otro-dominio-corona-por-riesgo-integrado", `la lente pedida (${CRITERIOS[lentePedida].nombre}) no ordena y la prioridad se dice «por riesgo integrado»: «${texto.slice(0, 100)}»`, true);
+      /* §7.3·53 (corrige la 48(b) y la 51(d)): «por riesgo integrado: X» sobre un grupo, o sobre UN dominio, vale cuando X es el PRIMERO del plan de señales de ese dominio (materialidad + severidad + urgencia: la prioridad del procedimiento); lo que se prohíbe es nombrar riesgo cuando el plan no ordenó esa lista, o coronar a alguien distinto del primero del plan. Se lee del dato: el primero del plan es quien más pesa por la medida de materialidad del dominio (dato.rankings). */
+      if (tipoNombre === "riesgo" && S.primero != null) {
+        const dominio = S.grupo ? ((grupos.find((g) => g.miembros.some((m) => _norm(m) === _norm(S.primero))) || {}).parte || {}).tema : (temasQuePrioriza.size === 1 ? [...temasQuePrioriza][0] : null);
+        /* el plan de señales se arma sobre el alcance de la parte: si el usuario nombró entidades o declaró un universo propio, el primero es el de ESE conjunto; sin restricción, el de la cartera */
+        const delDominio = partes.filter((p) => p.tema === dominio && (p.cierre === "decision" || p.cierre === "lectura"));
+        /* las partes de un mismo dominio pueden tener alcances distintos (una de cartera, otra con entidades nombradas): la oración vale si nombra al primero del plan de CUALQUIERA de esos alcances */
+        const alcances = [null];
+        for (const p of delDominio) if ((Array.isArray(p.entidades) && p.entidades.length) || esq.universoTieneRestriccionPropia(p.universo)) alcances.push(new Set(((miembrosDe(p) || { miembros: [] }).miembros).map(_norm)));
+        const candidatos = dominio ? alcances.map((al) => primerosDelPlan(dominio, al)).filter((x) => x && x.length) : [];
+        const primeros = candidatos.length ? candidatos[candidatos.length - 1] : null;
+        if (primeros && primeros.length) {
+          const esDelPlan = candidatos.some((c) => c.includes(_norm(S.primero)));
+          const abiertaDeLaF1 = !S.grupo && nom === "riesgo integrado" && temasQuePrioriza.size === 1 && (lentePedida === "riesgo" || (lentePedida && /no ordena este conjunto/.test(texto)));
+          if (abiertaDeLaF1) ESTADISTICA_53[esDelPlan ? "pasan" : "reales"]++;
+          if (!esDelPlan) v("riesgo-nombra-a-quien-no-es-primero-del-plan", `«por riesgo» nombra a «${S.primero}» y el primero del plan de señales de ${dominio} es ${primeros.join(" / ")}: «${texto.slice(0, 100)}»`);
+        }
       }
       /* 52(e): una referencia nunca es el criterio */
       if (tipoNombre === "referencia") v("referencia-como-criterio", `la oración nombra la referencia «${S.nombre}» como criterio`);

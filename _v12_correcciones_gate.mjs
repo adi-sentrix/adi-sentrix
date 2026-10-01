@@ -1392,8 +1392,9 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
       const foto = universoDe(E, "p1"), conContrib = new Set(((E.entrega.cifras.filas || []).concat((E.entrega.detalle && E.entrega.detalle.filas) || [])).map((f) => f.valores).filter((v) => /^Contribución$/.test(v["Métrica"])).map((v) => v["Entidad / grupo"]));   /* 49c: la foto es el eje entero: las filas de la cola van al Detalle */
       const limite = (E.entrega.limites || []).map((l) => `${l.titulo} ${l.motivo || ""}`).join(" ");
       const sin = foto.filter((n) => !conContrib.has(n));
-      ok(foto.length === clientes.length && sin.length >= 1, "oráculo · la foto es el eje ENTERO (49c) y hay cuentas de la foto sin fila de Contribución (el productor no la publica para ellas)", JSON.stringify({ foto, sin }));
-      ok(sin.every((n) => limite.includes(n)) && /la foto no trae contribución/.test(limite), "cada cuenta de la foto sin la cifra de un concepto pedido se NOMBRA en un límite (nunca se omite en silencio)", limite); }
+      /* §7.3·52(b)/51(b) (consolidación F2): la proyección publica la contribución de las 13 cuentas, así que cada cuenta de la foto TIENE su fila (antes se declaraba «la foto no trae contribución» de las que la boleta no traía: una declaración que el dato contradecía). Lo que ninguna fuente demuestre se sigue NOMBRANDO en un límite, nunca se omite */
+      ok(foto.length === clientes.length && sin.length === 0, "oráculo · la foto es el eje ENTERO (49c) y cada cuenta de la foto tiene su fila de Contribución (el dato la publica para todas)", JSON.stringify({ foto, sin }));
+      ok(sin.every((n) => limite.includes(n)) && !/la foto no trae contribución/.test(limite), "cada cuenta de la foto sin la cifra de un concepto pedido se NOMBRA en un límite (nunca se omite en silencio) y ningún límite niega una fila que la Entrega imprime", limite); }
     { const E = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido", "dias_vencido"] }] }).E;
       ok(E.ok && !(E.entrega.limites || []).some((l) => /la foto no trae/.test(`${l.titulo}`)), "CONTROL NEGATIVO · una foto que sí trae todos sus conceptos (cobranza) no declara ninguna cuenta sin cifra", JSON.stringify((E.entrega.limites || []).map((l) => l.titulo))); }
   }

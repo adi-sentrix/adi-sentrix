@@ -161,6 +161,10 @@ export const SINONIMOS = [
 ];
 
 /* los rankings de la proyección, por concepto (normalizado) → clave del ranking en cada eje */
+/* §7.3·52(b) (consolidación F2): el ranking de la variación vs el año anterior lo publica la proyección en cada eje comercial y la casa lo nombra «Variación vs año anterior». Se ubica por ese nombre EXACTO —nunca por los conceptos que lo rodean («YoY», «crecimiento»: el «YoY» de la boleta es la variación en $, otra métrica que este ranking en % no juzga)—, por eso vive aparte de `CLAVES_DE_RANKING` (que casa también por sinónimos). */
+export const RANKING_POR_NOMBRE_EXACTO = {
+  cliente: { variacion: ["variacion vs ano anterior"] }, marca: { variacion: ["variacion vs ano anterior"] }, familia: { variacion: ["variacion vs ano anterior"] }, canal: { variacion: ["variacion vs ano anterior"] },
+};
 export const CLAVES_DE_RANKING = {
   /* «ventas» del RANKING (no del léxico de figs) sigue aceptando «venta (flujo)» a propósito: el criterio de
    * prioridad `ordenPorCriterio(..., "ventas")` (prioridadIntegrada.js) cae a la venta del flujo de cobranza
@@ -385,6 +389,7 @@ export function indiceDeEvidencia({ figs = [], datoProyectado = null, ejesDelTen
     const tabla = CLAVES_DE_RANKING[eje] || {};
     for (const [clave, nombres] of Object.entries(tabla)) if (R[clave] && (nombres.includes(m) || sin.some((s) => nombres.includes(s)))) return { clave, r: R[clave] };
     for (const [clave, r] of Object.entries(R)) if (Array.isArray(r.terminos) && r.terminos.some((t) => { try { return new RegExp(`^(?:${t})$`, "i").test(m) || sin.some((s) => new RegExp(`^(?:${t})$`, "i").test(s)); } catch { return false; } })) return { clave, r };
+    for (const [clave, nombres] of Object.entries(RANKING_POR_NOMBRE_EXACTO[eje] || {})) if (R[clave] && nombres.includes(m)) return { clave, r: R[clave] };
     return null;
   };
   const tamanoDelEje = (eje) => (porEje[eje] || []).length || null;

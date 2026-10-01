@@ -8,6 +8,7 @@
 import { normalizar } from "./afirmacion.js";
 import { conceptosDe } from "./evidencia.js";
 import { idsActivos } from "../../config/contract/dominios.js";   // el registro único (owner 2026-09-24): DOMINIOS se deriva de acá
+import { coberturaDeLaMetrica } from "../../config/contract/coberturaDeFuentes.js";   // §7.3·52(b): la cobertura declarada de cada fuente
 
 /* polaridad: «mayor» = más es mejor (margen, venta, rotación) · «menor» = más es peor (vencido, brecha, días sin venta) · null = sin polaridad
  * (capital, stock, participación) · «referencia» = un umbral de la POLICY o del negocio (benchmark, nivel de carga, piso de rotación) */
@@ -276,22 +277,15 @@ export const SINONIMOS_DE_CONJUNTO = {
   "carga comercial alta": ["carga comercial alta", "carga alta"],
   materiales: ["materiales", "cuentas materiales", "sobre el umbral de materialidad", "sobre el umbral"],
 };
-/* métricas cuyo ranking solo trae a quien tiene valor: lo ausente vale 0 (capital frenado = 0 si el SKU no está frenado); en las demás, un mínimo sobre
- * un ranking parcial no se responde.
- * RAÍZ A8 (supervisor 2026-09-27, diagnóstico v8, tarea 5 del cierre) — «abonado» NO pertenece a esta lista: a
- * diferencia de `saldo_vencido`/`saldo_pendiente` (cuyo ranking real SOLO incluye cuentas que cumplen la
- * condición — ausente = de verdad cero), `abonado` es un monto que TODO cliente tiene, y estar «ausente» acá
- * solo significa que `cobranza()` no lo trajo a la boleta de este turno (su recorte es un top-8 por
- * vencido/saldo, más las cuentas que un `universo.top`/`_entidadesNombradas` pide aparte — Ripley/La Polar/Hites
- * en Z14, con «abonado» de verdad, nunca cero, simplemente no consultado). Con `abonado` en esta lista, un
- * `top.direccion:"menor"` (§7.3·8, "los que MENOS abonaron") tomaba a las cuentas NO CONSULTADAS por cero-abonado
- * en vez de a las que de verdad abonaron menos — `entrega/componer.js:_planCifraGrupo` terminaba sin evidencia
- * para el conjunto (raíz A8, Z14.p2: `top.sobre:"eje"` + `base:"con saldo vencido"` no componía nada). Sacarla
- * de acá hace que `_topTipado`/`notario/verificar.js` declare `ranking-parcial` (falla cerrado, mismo criterio
- * que cualquier otra métrica sin ranking completo) en vez de inventar un cero que el dato no prueba. */
-export const AUSENTE_VALE_CERO = ["capital_frenado", "capital_inmovilizado", "no_capturada", "carga_alta", "dias_sin_venta", "saldo_vencido", "saldo_pendiente"];
+/* §7.3·52(b) (owner 2026-10-01) — EL CERO SOLO SI EL DATO LO DEMUESTRA. `AUSENTE_VALE_CERO` (una lista de siete métricas donde «lo que no figura vale 0») dejó de existir:
+ * un cero es MEDIDO (la fuente trae la fila de la entidad y vale 0) o de COBERTURA DECLARADA (la fuente declara que cubre a todo el grupo y quien no figura no tiene nada, y se
+ * dice por qué); todo lo demás es dato ausente. La declaración vive POR FUENTE en `config/contract/coberturaDeFuentes.js`; acá solo se re-exporta para el Notario y las Entregas.
+ * `ceroPorCobertura(clave, eje?)` pregunta si una fuente declara cubrir a ese grupo para esa métrica; `coberturaDeLaMetrica` trae la declaración (con su «porqué»).
+ * RAÍZ A8 (diagnóstico v8): «abonado» nunca fue de cobertura — todo cliente abona algo o nada, y estar ausente solo significa «no consultado»; sigue siendo dato ausente. */
+export { coberturaDeLaMetrica };
+export const ceroPorCobertura = (clave, eje = null) => !!coberturaDeLaMetrica(clave, eje);
 /* §7.3·39(c): EL CERO SE DICE EN PALABRAS DE NEGOCIO, junto a su cifra, con UN criterio para toda métrica de CANTIDAD: una cifra que vale exactamente 0 —medida (Jumbo, al día: «Saldo vencido $0») o por
- * ausencia del conjunto que la métrica define (`AUSENTE_VALE_CERO`)— es «no tiene …». La forma es un dato de la casa (el verbo), no una lista de métricas: el nombre y la cifra son los de la
+ * cobertura declarada de la fuente (`coberturaDeFuentes.js`)— es «no tiene …». La forma es un dato de la casa (el verbo), no una lista de métricas: el nombre y la cifra son los de la
  * métrica misma. Nunca «(ausente = 0)» ni el cero a secas como si fuera una cifra medida cualquiera. */
 export const FORMA_DE_CERO = Object.freeze({ verbo: "no tiene" });
 /* el cero en palabras vale solo para CANTIDADES —montos, unidades, conteos y días—: una TASA en 0 (margen, carga, recuperado, pp, veces) es una cifra medida con otro significado («sin contribución» ≤ 0 ≠ «sin margen», CLAUDE.md) y se dice con su cifra («margen 0%»). Dato de la casa, por unidad. */
