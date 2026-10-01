@@ -9,11 +9,12 @@ export const RAIZ_POR_DEFECTO = join(dirname(fileURLToPath(import.meta.url)), ".
 
 export async function cargarBase(raiz = RAIZ_POR_DEFECTO) {
   const U = (p) => import(pathToFileURL(join(raiz, p)).href);
-  const [tenantStore, demo, esquema, validar, componer, verificar, lexico, estados, conjuntos, entityIndex, dato, scenarios, prioridadIntegrada, dominios, specRetrieval] = await Promise.all([
+  const [tenantStore, demo, esquema, validar, componer, verificar, lexico, estados, conjuntos, entityIndex, dato, scenarios, prioridadIntegrada, dominios, specRetrieval, mesaFlujo] = await Promise.all([
     U("src/data/tenantStore.js"), U("src/data/tenants/demo.js"), U("src/adi/encargo/esquema.js"), U("src/adi/encargo/validar.js"),
     U("src/adi/entrega/componer.js"), U("src/adi/entrega/verificar.js"), U("src/adi/notario/lexico.js"), U("src/adi/notario/estados.js"),
     U("src/adi/notario/conjuntosDeLaCasa.js"), U("src/adi/oracle/entityIndex.js"), U("src/adi/oracle/datoProyectado.js"),
     U("src/config/scenarios.js"), U("src/adi/agente/prioridadIntegrada.js"), U("src/config/contract/dominios.js"), U("src/adi/specRetrieval.js"),
+    U("src/adi/sentrix/mesaFlujo.js"),
   ]);
   tenantStore.initTenant(demo.TENANT_DEMO);
   /* la PROYECCIÓN del dato (la misma que lee el Notario): una vez por proceso */
@@ -40,5 +41,13 @@ export async function cargarBase(raiz = RAIZ_POR_DEFECTO) {
     _memo.set(k, res);
     return res;
   };
-  return { raiz, esquema, validar, componer, verificar, lexico, estados, conjuntos, entityIndex, proyeccion, prioridadIntegrada, dominios, publica, scenarios };
+  /* EL ORDEN DE LA MESA (§7.3·52c, consolidación segunda vuelta · parte B): las cuentas de la mesa de flujo en el orden en que la mesa las publica (saldo vencido de mayor a menor, desempate por saldo). Es la MISMA mesa que la pestaña Flujo Comercial
+   * (`sentrix/mesaFlujo.js`: el dato, no una pieza de composición de la Entrega). Devuelve los nombres, o [] si la mesa no se puede armar. */
+  let _mesa = null;
+  const ordenDeLaMesa = () => {
+    if (_mesa) return _mesa;
+    try { const m = mesaFlujo.buildMesaFlujo(scenarios.ESCENARIO_INICIAL); _mesa = ((m && m.filas) || []).map((f) => f.nombre); } catch { _mesa = []; }
+    return _mesa;
+  };
+  return { raiz, esquema, validar, componer, verificar, lexico, estados, conjuntos, entityIndex, proyeccion, prioridadIntegrada, dominios, publica, scenarios, ordenDeLaMesa };
 }

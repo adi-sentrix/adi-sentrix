@@ -26,6 +26,9 @@
  *   4f · carnadas de la segunda vuelta: una lectura o decision con eje X sirve entidades del eje X (`eje-servido`, `primero-fuera-del-eje`) · la foto se sirve, completa y por el
  *       primer concepto pedido (`foto-sin-servir`, `foto-incompleta`, `foto-ordenada-por-otro-concepto`) · un «sin dato» nunca acompaña a una cifra que el dato publica
  *       (`sin-dato-con-dato-publicado`, `servida-sin-fila`) — con los ocho casos de v29 y v30 (J16 J17 J18 J35 J50 K16 K17 K18) como base verde.
+ *   4g · carnadas de la PARTE B (segunda vuelta; owner 2026-10-01): F6, la frase de una premisa (R1 el rótulo de cada cifra: `premisa-cifra-sin-rotulo`, `premisa-rotulo-de-otro-concepto`; R2 un extremo sobre un
+ *       ranking con miembros sin dato: `extremo-sobre-ranking-incompleto`, `ausente-sin-nombrar`) y tres reglas nuevas de la F2 (la foto de cobranza en el orden de la mesa, el cero del empate del filo en palabras,
+ *       la ausencia en la forma «sin dato de X para Y»). Están ABIERTAS y congeladas: la pieza todavía no las cumple y cumplirlas cambia más de 100 textos de los catálogos v13–v28 (a decisión del owner).
  *   6 · CERO red.
  *
  * Solo por `npm run gates:offline` o `node --import ./scripts/offline-guard.mjs _invariantes_consolidacion_gate.mjs`. */
@@ -48,13 +51,14 @@ const N_MUESTRA = 400;
  *   F1 · 48(b)/51(d) «riesgo» pedido sobre un solo dominio, o una lente pedida que no ordena el conjunto, y la prioridad se dice «por riesgo integrado».
  * Congeladas sobre ESTE corpus (catálogos + muestra fija): pueden bajar, nunca subir. */
 /* F5 (segunda vuelta): una simulación en profundidad BREVE con más de 8 filas protegidas por su propio bloque (`filas-sobre-el-tope`): el gobernador de tamaño no parte un bloque de simulación (atomicidad, owner 2026-09-26) y sus oraciones son de prioridad 0 («mejor esfuerzo», `tamano.js`). Cumplirlo es comportamiento nuevo: a decisión del owner. El sub-azar de cobertura la ejerce 1 vez por semilla. */
-const ABIERTAS_CONGELADAS = { "F5:verificador-rechaza-lo-servido": 1 };   /* la F1 las cerró con la condición del §7.3·53: «por riesgo integrado: X» vale cuando X es el primero del plan de señales de ese dominio (107 de 107 la cumplen en el corpus completo, 0 violaciones reales) */
+/* PARTE B (segunda vuelta): las reglas R1/R2 de la F6 y las tres de la F2 (foto de cobranza en el orden de la mesa, cero del empate en palabras, «sin dato de X para Y») están ABIERTAS: la pieza todavía no las cumple y cumplirlas cambia ~120 textos de los catálogos v13–v28 (sobre el tope de 100: a decisión del owner). Congeladas sobre este corpus. */
+const ABIERTAS_CONGELADAS = { "F5:verificador-rechaza-lo-servido": 1, "F6:premisa-cifra-sin-rotulo": 71, "F6:extremo-sobre-ranking-incompleto": 4, "F6:ausente-sin-nombrar": 2, "F2:foto-cobranza-fuera-del-orden-de-la-mesa": 93, "F2:empate-del-filo-en-cero-sin-palabras": 45, "F2:ausencia-sin-la-forma-sin-dato": 22 };   /* la F1 las cerró con la condición del §7.3·53: «por riesgo integrado: X» vale cuando X es el primero del plan de señales de ese dominio (107 de 107 la cumplen en el corpus completo, 0 violaciones reales) */
 
 const base = await cargarBase();
 const familias = await cargarFamilias();
 
 H("0 · la infraestructura: marco, familias, generador");
-ok(familias.length >= 5 && ["F1", "F2", "F3", "F4", "F5"].every((id) => familias.some((f) => f.id === id)), `el marco carga las familias registradas (${familias.map((f) => f.id).join(", ")})`);
+ok(familias.length >= 6 && ["F1", "F2", "F3", "F4", "F5", "F6"].every((id) => familias.some((f) => f.id === id)), `el marco carga las familias registradas (${familias.map((f) => f.id).join(", ")})`);
 ok(familias.every((f) => typeof f.invariante === "function" && f.nombre), "cada familia declara su nombre y su función invariante");
 {
   const a = (await generarEncargos(base, { semilla: "g0", n: 60 })).casos, b = (await generarEncargos(base, { semilla: "g0", n: 60 })).casos, c = (await generarEncargos(base, { semilla: "g1", n: 60 })).casos;
@@ -460,7 +464,7 @@ H("4f · carnadas de la segunda vuelta (el EJE y la FOTO): una lectura o decisio
   for (const [id, enc] of Object.entries(CASOS)) {
     E[id.slice(0, 3)] = entregaDe(base, { origen: "gate", id, encargo: enc });
     const e = E[id.slice(0, 3)];
-    ok(e.ok && revisarEntrega(e, familias).length === 0, `${id}: la Entrega no tiene violaciones de F1–F5`, e.ok ? revisarEntrega(e, familias).slice(0, 3).map((x) => `${x.familia}:${x.regla} ${x.detalle}`).join(" | ") : (e.motivo || e.excepcion));
+    ok(e.ok && revisarEntrega(e, familias).filter((x) => !x.abierta).length === 0, `${id}: la Entrega no tiene violaciones firmes de F1–F6`, e.ok ? revisarEntrega(e, familias).filter((x) => !x.abierta).slice(0, 3).map((x) => `${x.familia}:${x.regla} ${x.detalle}`).join(" | ") : (e.motivo || e.excepcion));
   }
   const bodegas = ["Santiago", "Valparaíso", "Concepción", "Antofagasta"];
   const sirveLasBodegas = (e, parteId) => { const u = (e.entrega.universos || []).find((x) => x.id === parteId); return !!u && bodegas.every((b) => (u.entidades || []).includes(b)) && (u.entidades || []).length === 4; };
@@ -512,7 +516,92 @@ H("4f · carnadas de la segunda vuelta (el EJE y la FOTO): una lectura o decisio
     ok(l50.includes("salesRead") && l50.includes("cobranza") && l50.includes("inventoryStatus"), "lecturasDe: la lectura de tres dominios trae el paquete de cada uno aunque una parte sea por bodega"); }
 }
 
+H("4g · carnadas de la PARTE B (segunda vuelta): el rótulo en la premisa (R1) · un extremo sobre un ranking incompleto (R2) · la foto de cobranza en el orden de la mesa (52c) · el cero del empate en palabras (39c·46f) · «sin dato de X para Y» (52b)");
+{
+  const F6 = familias.find((f) => f.id === "F6"), F2 = familias.find((f) => f.id === "F2");
+  const regla = (vs, r) => vs.some((v) => v.regla === r);
+  const v = (parte) => ({ version: "encargo/v1", ...parte });
+  const comp = (id, enc) => entregaDe(base, { origen: "gate", id, encargo: enc });
+  const conRespuesta = (e, f) => ({ ...e, entrega: { ...e.entrega, respuesta: e.entrega.respuesta.map(f) } });
+  const conTexto = (e, f) => ({ ...e, texto: f(e.texto), entrega: { ...e.entrega, respuesta: e.entrega.respuesta.map((r) => ({ ...r, texto: f(r.texto) })) } });
+  const PREM = "Sobre la premisa planteada en la consulta";
+  ok(!!F6, "el marco carga la familia F6 (la frase de una premisa)");
+  if (F6) {
+    /* R1 · el rótulo en la premisa: «Samsung: margen 24.2%» (con su rótulo) es la base; sin rótulo o con el de otro concepto, rojo */
+    const r1 = comp("R1", v({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen"], eje: "marca" }], premisas: [{ id: "q1", tipo: "cifra", sujeto: "Samsung", metrica: "margen", valor: "24.2%" }] }));
+    const iq1 = r1.ok ? r1.entrega.respuesta.findIndex((r) => r._premisa && r.hechos[0] === "q1") : -1;
+    ok(r1.ok && iq1 >= 0 && /es correcto — Samsung: margen 24\.2%\.$/.test(r1.entrega.respuesta[iq1].texto) && revisarEntrega(r1, [F6]).length === 0, "R1 · base: «Samsung: margen 24.2%» lleva el rótulo de su concepto y el control no marca nada");
+    if (iq1 >= 0) {
+      const con = (txt) => conRespuesta(r1, (r, k) => (k === iq1 ? { ...r, texto: `${PREM}: es correcto — ${txt}.` } : r));
+      ok(regla(revisarEntrega(con("Samsung (24.2%)"), [F6]), "premisa-cifra-sin-rotulo"), "la cifra de la premisa impresa sin rótulo («Samsung (24.2%)») → premisa-cifra-sin-rotulo");
+      ok(regla(revisarEntrega(con("Samsung: margen de inventario 24.2%"), [F6]), "premisa-rotulo-de-otro-concepto"), "la cifra del margen rotulada «margen de inventario» (el rótulo de otro concepto) → premisa-rotulo-de-otro-concepto");
+      ok(revisarEntrega(con("Samsung: margen 24.2%"), [F6]).length === 0, "la misma frase con el rótulo propio no marca nada");
+    }
+    /* R1 · la lista de un orden: «MAK-SAW18V (34%) · PHI-HAIR-PRO (30%)…» sin decir que es el margen (el margen y el margen de inventario coinciden en 34) */
+    const r1b = comp("R1b", v({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen"], eje: "sku" }], premisas: [{ id: "q1", tipo: "orden", sujeto: "MAK-SAW18V", metrica: "margen", orden: { forma: "max" }, universo: { eje: "sku" } }] }));
+    const ib = r1b.ok ? r1b.entrega.respuesta.findIndex((r) => r._premisa && r.hechos[0] === "q1") : -1;
+    if (ib >= 0) {
+      ok(regla(revisarEntrega(conRespuesta(r1b, (r, k) => (k === ib ? { ...r, texto: `${PREM}: es correcto — MAK-SAW18V (34%) · PHI-HAIR-PRO (30%) · SAM-MICRO32L (28%).` } : r)), [F6]), "premisa-cifra-sin-rotulo"), "J21 · «MAK-SAW18V (34%) · PHI-HAIR-PRO (30%)…» sin rótulo (el 34 es del margen y del margen de inventario) → premisa-cifra-sin-rotulo");
+      ok(revisarEntrega(conRespuesta(r1b, (r, k) => (k === ib ? { ...r, texto: `${PREM}: es correcto — margen: MAK-SAW18V (34%) · PHI-HAIR-PRO (30%) · SAM-MICRO32L (28%).` } : r)), [F6]).length === 0, "la misma lista con el rótulo del margen («margen: MAK-SAW18V (34%) · …») no marca nada");
+    } else ok(false, "J21 · la premisa de orden sobre el margen de los SKU se compone");
+    /* R2 · un extremo sobre un ranking con miembros sin dato: la variación de Makita no está publicada (no hay año anterior) */
+    const r2 = comp("R2", v({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen"], eje: "marca" }], premisas: [{ id: "q1", tipo: "orden", sujeto: "LG", metrica: "variacion", orden: { forma: "max" }, universo: { eje: "marca" } }, { id: "q2", tipo: "orden", sujeto: "Bosch", metrica: "margen", orden: { forma: "min" }, universo: { eje: "marca" } }] }));
+    const i2 = r2.ok ? r2.entrega.respuesta.findIndex((r) => r._premisa && r.hechos[0] === "q1") : -1;
+    ok(r2.ok && i2 >= 0, "R2 · la premisa «LG tiene la mayor variación» (marca) se compone");
+    if (i2 >= 0) {
+      const con = (txt) => conRespuesta(r2, (r, k) => (k === i2 ? { ...r, texto: txt } : r));
+      ok(regla(revisarEntrega(con(`${PREM}: es correcto — variación vs año anterior: LG (+15.6%) · Philips (+7.1%) · Samsung (+4.1%).`), [F6]), "extremo-sobre-ranking-incompleto"), "K57 · «LG tiene la mayor variación» juzgada verdadera cuando Makita no tiene variación → extremo-sobre-ranking-incompleto");
+      ok(regla(revisarEntrega(con(`${PREM}: no es así — LG va 2.º de 4 en variación vs año anterior.`), [F6]), "extremo-sobre-ranking-incompleto"), "ni verdadera ni falsa: «LG va 2.º de 4» sobre un ranking incompleto → extremo-sobre-ranking-incompleto");
+      ok(regla(revisarEntrega(con(`${PREM}, no se pudo verificar con este dato: ranking-parcial: el ranking de «Variación vs año anterior» solo trae a 4 del eje.`), [F6]), "ausente-sin-nombrar"), "no verificable pero sin decir quién no tiene dato → ausente-sin-nombrar");
+      ok(revisarEntrega(con(`${PREM}, no se pudo verificar con este dato: sin dato de variación vs año anterior para Makita.`), [F6]).filter((x) => x.regla !== "premisa-cifra-sin-rotulo").length === 0, "no verificable con «sin dato de variación vs año anterior para Makita» → el control no marca nada");
+    }
+    /* R2 · un ranking COMPLETO se afirma como siempre (el margen de las cinco marcas) */
+    { const r2c = comp("R2c", v({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen"], eje: "marca" }], premisas: [{ id: "q2", tipo: "orden", sujeto: "Bosch", metrica: "margen", orden: { forma: "min" }, universo: { eje: "marca" } }] }));
+      const j = r2c.ok ? r2c.entrega.respuesta.findIndex((r) => r._premisa && r.hechos[0] === "q2") : -1;
+      ok(j >= 0 && !revisarEntrega(conRespuesta(r2c, (r, k) => (k === j ? { ...r, texto: `${PREM}: no es así — margen: Bosch (26%).` } : r)), [F6]).some((x) => x.regla === "extremo-sobre-ranking-incompleto"), "el margen de las cinco marcas es un ranking completo: juzgar un extremo sobre él no marca nada"); }
+  }
+  if (F2) {
+    /* (a) la foto de cobranza, en el orden de la mesa (52c, owner) */
+    const f12 = comp("J12b", v({ partes: [{ id: "p1", tema: "cobranza", cierre: "lectura", conceptos: ["abonado", "venta_credito"] }] }));
+    const uid = f12.ok ? f12.entrega.universos.findIndex((u) => u.id === "p1" && !u.soloRanking) : -1;
+    const mesa = base.ordenDeLaMesa();
+    ok(mesa.length >= 8 && mesa[0] === "Lider", `la mesa de flujo da el orden de la foto de cobranza (${mesa.slice(0, 4).join(", ")}…)`);
+    if (uid >= 0) {
+      const serv = f12.entrega.universos[uid].entidades;
+      const enMesa = mesa.filter((n) => serv.includes(n)), alReves = [...enMesa].reverse();
+      const con = (lista) => ({ ...f12, entrega: { ...f12.entrega, universos: f12.entrega.universos.map((u, k) => (k === uid ? { ...u, entidades: lista } : u)) } });
+      ok(regla(revisarEntrega(con(alReves), [F2]), "foto-cobranza-fuera-del-orden-de-la-mesa"), "J12 · la foto de cobranza servida en otro orden que el de la mesa (Jumbo, Falabella, Lider…) → foto-cobranza-fuera-del-orden-de-la-mesa");
+      ok(!regla(revisarEntrega(con(enMesa), [F2]), "foto-cobranza-fuera-del-orden-de-la-mesa"), "la misma foto en el orden de la mesa (Lider, Falabella, Sodimac…) no marca nada");
+    } else ok(false, "J12 · la lectura de cobranza sin universo sirve su foto");
+    /* (b) el cero del empate del filo, en palabras (39c · 46f) */
+    const e04 = comp("J04b", v({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["dias_sin_venta", "rotacion"], eje: "sku", universo: { eje: "sku", top: { metrica: "dias_sin_venta", k: 3, direccion: "menor" } } }] }));
+    const iE = e04.ok ? e04.entrega.respuesta.findIndex((r) => /por el empate del filo/.test(r.texto)) : -1;
+    ok(iE >= 0, "J04 · el top 3 de días sin venta cae en un empate en cero y sirve a todos los empatados");
+    if (iE >= 0) {
+      const sin = (t) => t.replace(/; no tienen? [^()]+\([^)]*\)(?=\))/, "");
+      const con = (t) => sin(t).replace(/(empatan en el puesto \d+)\)/, "$1; no tienen días sin venta (0 días))");
+      ok(regla(revisarEntrega(conTexto(e04, sin), [F2]), "empate-del-filo-en-cero-sin-palabras"), "J04 · el empate del filo en «(0 días)» sin decir el cero en palabras → empate-del-filo-en-cero-sin-palabras");
+      ok(!regla(revisarEntrega(conTexto(e04, con), [F2]), "empate-del-filo-en-cero-sin-palabras"), "«…empatan en el puesto 1; no tienen días sin venta (0 días)» no marca nada");
+    }
+    /* (c) la ausencia, en la forma «sin dato de X para Y» (52b) */
+    const e19 = comp("J19b", v({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["variacion", "costo"], eje: "marca" }] }));
+    ok(e19.ok, "J19 · la lectura por marca con la variación y el costo se compone");
+    if (e19.ok) {
+      const conLimite = (titulo) => ({ ...e19, entrega: { ...e19.entrega, limites: [...e19.entrega.limites.filter((l) => !/Makita/.test(String(l.titulo || ""))), { titulo, motivo: "La lectura de este turno no publicó esa cifra para esas cuentas; no se rellena con otra." }] } });
+      ok(regla(revisarEntrega(conLimite("Sobre la parte p1 (comercial), la foto no trae variación vs año anterior de Makita (1 de 5 marcas)"), [F2]), "ausencia-sin-la-forma-sin-dato"), "J19 · «la foto no trae variación vs año anterior de Makita» (otras palabras) → ausencia-sin-la-forma-sin-dato");
+      ok(!regla(revisarEntrega(conLimite("Sobre la parte p1 (comercial), sin dato de variación vs año anterior para Makita (1 de 5 marcas)"), [F2]), "ausencia-sin-la-forma-sin-dato"), "«sin dato de variación vs año anterior para Makita» (la forma de la 52b) no marca nada");
+    }
+    /* el texto de la ausencia es el de `config/contract/ausencias.js` */
+    const { textoSinDato } = await import("./src/config/contract/ausencias.js");
+    ok(textoSinDato("Variación vs año anterior", ["Makita"]) === "sin dato de variación vs año anterior para Makita", "la forma «sin dato de X para Y» sale de `config/contract/ausencias.js:textoSinDato`");
+  }
+}
+
 H("5 · independencia del control y cableado de la pieza (estático)");
+{
+  const f6 = fs.readFileSync("./scripts/consolidacion/familias/f6_premisas.mjs", "utf8");
+  ok(!/^\s*import[^\n]*(?:notario\/|entrega\/componer|entrega\/rotulos)/m.test(f6), "el control de la F6 NO importa el Notario ni la pieza del rótulo: lee la Entrega, el encargo y el dato");
+}
 {
   const f1 =fs.readFileSync("./scripts/consolidacion/familias/f1_prioridad.mjs", "utf8");
   ok(!/from\s+["'][^"']*entrega\/prioridad/.test(f1) && !/^\s*import[^\n]*prioridad\.js/m.test(f1), "el control de la F1 NO importa la pieza (`entrega/prioridad.js`): lee la Entrega y el dato");

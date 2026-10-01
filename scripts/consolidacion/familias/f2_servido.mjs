@@ -28,6 +28,10 @@
  *   foto-incompleta            en comercial e inventario la foto es el eje entero (45a · 49c).
  *   foto-ordenada-por-otro-concepto  la cabeza de la foto dice «ordenado por M» y M no es el primer concepto pedido que el dato publica (51a).
  *   sin-dato-con-dato-publicado «sin dato de M para X» (o «la foto no trae M de X») cuando el Core publica M para X: un «sin dato» nunca acompaña a una cifra que el dato publica (52b · 51b).
+ *   (segunda vuelta · parte B · ABIERTAS: la pieza todavía no las cumple y cumplirlas cambia más de 100 textos de los catálogos; el gate las congela)
+ *   foto-cobranza-fuera-del-orden-de-la-mesa  la foto de cobranza va en el orden de la mesa (52c, owner), no en el de un concepto.
+ *   empate-del-filo-en-cero-sin-palabras      el cero de un empate en el filo se dice en palabras de negocio junto a su cifra (39c · 46f).
+ *   ausencia-sin-la-forma-sin-dato            la ausencia de una cifra se dice «sin dato de X para Y» (52b), no con otras palabras.
  * (El margen por SKU ya no está exento: el Notario lo verifica como cifra de una entidad y el productor lo sirve; consolidación F5.) */
 import { COBERTURA_DE_FUENTES, coberturaDeLaMetrica } from "../../../src/config/contract/coberturaDeFuentes.js";
 
@@ -47,7 +51,7 @@ export const familia = {
   invariante(ctx) {
     const { entrega, resolucion, dato, base } = ctx;
     const vs = [];
-    const v = (regla, detalle) => vs.push({ regla, detalle: String(detalle).slice(0, 320) });
+    const v = (regla, detalle, abierta = false) => vs.push({ regla, detalle: String(detalle).slice(0, 320), ...(abierta ? { abierta: true } : {}) });
     const lex = base.lexico, esq = base.esquema;
     const R = (dato && dato.rankings) || {};
     const respuesta = Array.isArray(entrega.respuesta) ? entrega.respuesta : [];
@@ -172,6 +176,46 @@ export const familia = {
         const servido = (c) => celdas.some((x) => suyas.has(_norm(x.ent)) && claveDeRotulo(x.met) === c);
         const esperado = conceptos.filter((c) => c !== "participacion").find(servido) || conceptos[0];
         if (dicho !== esperado && dicho !== "participacion") v("foto-ordenada-por-otro-concepto", `${p.id} (${p.tema} por ${eje}) pidió ${conceptos.join(", ")}: la foto debe ordenarse por «${nombreDe(esperado)}» y la cabeza dice «ordenado por ${m[1].trim()}»`);
+      }
+    }
+    /* ── PARTE B (segunda vuelta · owner 2026-10-01): tres reglas de presentación que la pieza todavía no cumple (afectan a más de 100 textos de los catálogos: ABIERTAS, a decisión del owner) ────────────────────────────────────────
+     * foto-cobranza-fuera-del-orden-de-la-mesa   la foto de una lectura o decision de cobranza son las cuentas de la mesa EN EL ORDEN DE LA MESA (52c, owner): el universo que la Entrega declara para la parte las trae en otro orden (el de «Abonado»,
+     *                                            el de «Saldo pendiente»…). El orden de la mesa lo da la mesa de flujo (`base.ordenDeLaMesa`: la misma que la pestaña Flujo Comercial), no una pieza de la Entrega.
+     * empate-del-filo-en-cero-sin-palabras       el empate del filo cuya cifra es 0 dice el cero en palabras de negocio junto a su cifra («no tienen días sin venta (0 días)»), no «(0 días)» a secas (39c · 46f).
+     * ausencia-sin-la-forma-sin-dato             la Entrega declara que falta la cifra de X para Y («la foto no trae…», «no trae «X» de Y») y el dato de verdad no la publica, pero ninguna oración dice «sin dato de X para Y» (52b: la ÚNICA forma). */
+    for (const p of partes) {
+      if (!["lectura", "decision"].includes(p.cierre) || p.tema !== "cobranza") continue;
+      if ((Array.isArray(p.entidades) && p.entidades.length) || esq.universoTieneRestriccionPropia(p.universo)) continue;
+      const u = (entrega.universos || []).find((x) => x.id === p.id && !x.soloRanking);
+      const mesa = typeof base.ordenDeLaMesa === "function" ? base.ordenDeLaMesa() : [];
+      if (!u || !(u.entidades || []).length || !mesa.length) continue;
+      const servidas = (u.entidades || []).map(_norm);
+      const esperado = mesa.map(_norm).filter((n) => servidas.includes(n));
+      const dicho = servidas.filter((n) => esperado.includes(n));
+      if (JSON.stringify(dicho) !== JSON.stringify(esperado)) v("foto-cobranza-fuera-del-orden-de-la-mesa", `${p.id} (cobranza, foto): las cuentas van ${(u.entidades || []).slice(0, 4).join(", ")}… y el orden de la mesa es ${mesa.filter((n) => servidas.includes(_norm(n))).slice(0, 4).join(", ")}…`, true);
+    }
+    for (const t of textos) {
+      const mE = /que sirve \d+ por el empate del filo \((.+?) empatan? en el puesto \d+\)/.exec(t);
+      const mO = /ordenado por ([^:]+): /.exec(t);
+      if (!mE || !mO) continue;
+      const clave = claveDeRotulo(mO[1].trim());
+      const unidad = clave ? (lex.metricaPorClave(clave) || {}).unidad : null;
+      if (!clave || !(lex.UNIDADES_DE_CANTIDAD || ["money", "days", "count"]).includes(unidad)) continue;
+      const primero = mE[1].split(/, | y /).map((s) => s.trim()).filter(Boolean)[0];
+      const fila = celdas.find((c) => _norm(c.ent) === _norm(primero) && claveDeRotulo(c.met) === clave);
+      if (fila && _esCeroImpreso(fila.val) && !/\bno tienen?\b|vendieron? al corte/i.test(t)) v("empate-del-filo-en-cero-sin-palabras", `el empate del filo en ${fila.val} de «${mO[1].trim()}» no dice el cero en palabras: «${t.slice(0, 150)}»`, true);
+    }
+    { /* la ausencia declarada con otras palabras sin la forma «sin dato de X para Y» */
+      const sinDatoDichos = [...limites.map((l) => String(l.titulo || "")), ...textos].flatMap((s) => { const out = []; const re = /sin dato de (.+?) para (.+?)(?:\.| \(|;|$)/g; let m; while ((m = re.exec(s))) out.push({ clave: claveDeRotulo(m[1].trim()), nombres: m[2].split(/, | y /).map((x) => _norm(x.trim())) }); return out; });
+      const ausencias = [];
+      for (const l of limites) { const m = /la foto no trae (.+?) de (.+?) \(\d+ de /.exec(String(l.titulo || "")); if (m) ausencias.push({ clave: claveDeRotulo(m[1].trim()), nombres: m[2].split(/, | y /).map((s) => s.trim()).filter(Boolean), donde: String(l.titulo).slice(0, 100) }); }
+      for (const s of [...limites.map((l) => `${l.titulo || ""} ${l.motivo || ""}`), ...textos]) { const m = /no trae «([^»]+)» de ([^.;]+?)(?:\.|;|$)/.exec(s); if (m) ausencias.push({ clave: claveDeRotulo(m[1].trim()), nombres: m[2].split(/, | y /).map((x) => x.trim()).filter(Boolean), donde: s.slice(0, 100) }); }
+      for (const a of ausencias) {
+        if (!a.clave) continue;
+        for (const n of a.nombres) {
+          const real = ejesDeEntidad(n).some((e) => rankingPublicado(e, a.clave, null) && !filaDelRanking(e, a.clave, n, null) && !coberturaDeLaMetrica(a.clave, e));
+          if (real && !sinDatoDichos.some((d) => d.clave === a.clave && d.nombres.includes(_norm(n)))) v("ausencia-sin-la-forma-sin-dato", `«${a.donde}»: «${n}» no tiene dato de «${nombreDe(a.clave)}» y la Entrega no dice «sin dato de ${nombreDe(a.clave).toLowerCase()} para ${n}»`, true);
+        }
       }
     }
     for (const l of limites) {
