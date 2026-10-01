@@ -825,7 +825,9 @@ venta a crédito, ley del owner).
     (d) LA 47(e) (owner): la lente «contribución» sobre un grupo sin brecha dice «ninguna queda primera», declarado.
     (e) Técnicas (supervisor):
         · un criterio que solo trae una referencia nombra la medida que ordenó y la referencia como tal;
-        · la referencia de la consulta se declara una vez por conjunto y eje, nombrando las partes que cubre (precisa la 49a);
+        · la referencia de la consulta se declara una vez por conjunto y eje (precisa la 49a). Si la usan DOS o más partes,
+          la declaración nombra las partes que cubre; si la usa una sola, no hace falta nombrarla (precisión de la consolidación
+          F3, 2026-10-01). Con cero miembros se dice «ninguno», nunca una lista en blanco;
         · la decisión 30 (miembro sin la cifra) rige en todos los temas;
         · una oración que el verificador rechaza se retira de la Entrega y se declara el límite;
         · las filas de la tabla de señales de la prioridad conservan el rótulo de su señal;
