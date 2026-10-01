@@ -1283,11 +1283,11 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
   /* §7.3·46(d): la oración del grupo nombra la lente que de verdad ORDENÓ la lista (ver A20); aquí solo se cobra que, cuando una lente se nombra (como la que ordena o como el criterio pedido que no aplica), se diga con su NOMBRE VISIBLE y nunca con su id */
   { const lente = (id) => { const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido"], universo: { eje: "cliente", top: { metrica: "saldo_vencido", k: 3 } } }], ...(id ? { criterio: { lente: id } } : {}) }); const m = /Prioridad del procedimiento dentro de este grupo, por ([^:]+):/.exec(E.texto || ""); return m ? m[1] : null; };
     ok(Object.keys(CRITERIOS).length >= 6 && CRITERIOS.credito.nombre === "exposición de crédito", "oráculo · la declaración de la lente (`CRITERIOS`) trae el nombre visible de cada lente", JSON.stringify(Object.keys(CRITERIOS)));
-    for (const id of Object.keys(CRITERIOS).filter((x) => x !== "riesgo")) { const v = lente(id), nom = CRITERIOS[id].nombre; ok(v != null && v.includes(nom) && (new RegExp(`\\b${id}\\b`).test(nom) || !new RegExp(`\\b${id}\\b`).test(v)),`la lente «${id}» se dice con su nombre visible «${nom}», nunca con el id`, String(v)); }
+    for (const id of Object.keys(CRITERIOS).filter((x) => x !== "riesgo")) { const v = lente(id), nom = id === "ventas" ? "venta a crédito" : CRITERIOS[id].nombre; ok(v != null && v.includes(nom) && (new RegExp(`\\b${id}\\b`).test(nom) || !new RegExp(`\\b${id}\\b`).test(v)),`la lente «${id}» se dice con su nombre visible «${nom}», nunca con el id`, String(v)); }
     ok(lente("credito") === "exposición de crédito" && !/\bcredito\b/.test(lente("credito") || ""), "«por credito» ya no se imprime: dice «por exposición de crédito» (es la lente que ordena el saldo vencido)", String(lente("credito")));
     ok(!/riesgo/.test(lente(undefined) || "riesgo") && lente("riesgo") === "saldo vencido (el criterio pedido, riesgo, es el criterio entre dominios y no ordena este grupo)", "CONTROL NEGATIVO · la lente de riesgo POR DEFECTO no se estampa en la oración de un grupo (el grupo dice la clave que lo ordenó); la de riesgo PEDIDA por el usuario se declara como el criterio ENTRE dominios que no ordena un grupo (A20 · A22/47e)", JSON.stringify([lente(undefined), lente("riesgo")])); }
   { const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital", "dias_sin_venta"], eje: "sku", universo: { eje: "sku", estados: ["frenado"] } }], criterio: { referencia: { concepto: "umbral_frenado", valor: 45, unidad: "days" } } });
-    ok(E.ok && /por umbral de venta frenada:/.test(E.texto || "") && !/umbral_frenado/.test(E.texto || ""), "CONTROL NEGATIVO · un criterio que es una REFERENCIA (no una lente) conserva su nombre de la casa, nunca la clave técnica", ((E.texto || "").split("\n").find((l) => /Prioridad del procedimiento/.test(l)) || "").slice(0, 160)); }
+    ok(E.ok && !/por umbral de venta frenada:/.test(E.texto || "") && /\(la referencia pedida, umbral de venta frenada, no ordena este grupo\)/.test(E.texto || "") && !/umbral_frenado/.test(E.texto || ""), "CONTROL NEGATIVO · un criterio que es una REFERENCIA (no una lente) se nombra COMO referencia (§7.3·52e: la medida que ordenó y la referencia pedida; nunca como el criterio, nunca la clave técnica)", ((E.texto || "").split("\n").find((l) => /Prioridad del procedimiento/.test(l)) || "").slice(0, 160)); }
 }
 
 /* ═══ A19 · DIAGNÓSTICO v22 (medición ciega v22, catálogo sellado v22; §7.3·45 y propuesta 46) ═══════════════════════════════════════════════════════════
@@ -1471,7 +1471,7 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     for (const [tema, eje, m] of GRUPOS) {
       const base = colaDe(grupo(tema, eje, m));
       for (const lente of Object.keys(DUENA)) {
-        const E = grupo(tema, eje, m, lente), por = porDe(E), nom = CRITERIOS[lente].nombre, dom = CRITERIOS[lente].dominio;
+        const E = grupo(tema, eje, m, lente), por = porDe(E), nom = (lente === "ventas" && tema === "cobranza" ? "venta a crédito" : CRITERIOS[lente].nombre), dom = CRITERIOS[lente].dominio;   /* §7.3·52a: en cobranza el único dato de venta es la venta a crédito: «ventas» se dice «venta a crédito» */
         n++;
         const nombrada = por === nom;
         if (nombrada) nombradas++;
@@ -1495,7 +1495,7 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
 
   H("A20 · 46(d) · una referencia (umbral, piso) no es una lente: conserva su nombre de la casa; sin clave de orden, nada cambia");
   { const { E } = entregaDe({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["dias_sin_venta", "capital"], eje: "sku", universo: { eje: "sku", estados: ["frenado"] } }], criterio: { referencia: { concepto: "umbral_frenado", valor: 45, unidad: "days" } } });
-    ok(E.ok && /dentro de este grupo, por umbral de venta frenada: /.test(prioGrupo(E)), "CONTROL NEGATIVO · un criterio que es una REFERENCIA conserva su nombre de la casa («por umbral de venta frenada»)", prioGrupo(E)); }
+    ok(E.ok && !/dentro de este grupo, por umbral de venta frenada: /.test(prioGrupo(E)) && /dentro de este grupo, por [^:(]+ \(la referencia pedida, umbral de venta frenada, no ordena este grupo\): /.test(prioGrupo(E)), "CONTROL NEGATIVO · un criterio que es una REFERENCIA se nombra como referencia (§7.3·52e: «por <la medida que ordenó> (la referencia pedida, umbral de venta frenada, no ordena este grupo)»), nunca como el criterio", prioGrupo(E)); }
 }
 
 /* ═══ A21 · DIAGNÓSTICO v23 (medición ciega v23, catálogo sellado v23; §7.3·47) ═══════════════════════════════════════════════════════════════════════════════════
@@ -1579,7 +1579,7 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     ok(E.ok && frenados.length === 1 && cab.sku === "MAK-COMP-AIR", "oráculo · con el umbral de 94 días solo MAK-COMP-AIR (112 días) es frenado; LG-DRYER8KG (94 exactos) queda fuera", JSON.stringify(frenados.map((s) => [s.sku, s.diasSinVenta, s.stockUSD])));
     ok(L.startsWith(`Prioridad del procedimiento dentro de este grupo, por capital: ${cab.sku}, con `) && /en capital inmovilizado crítico\.$/.test(L) && !/por días sin venta/.test(L), "con la lente de capital la prioridad es la del CAPITAL inmovilizado crítico (la medida de la lente), no la de los días sin venta con que se listó el grupo", L);
     const Lr = prioGrupo2(inv(null))[0] || "";
-    ok(/por umbral de venta frenada: /.test(Lr) || /por días sin venta: /.test(Lr), "CONTROL NEGATIVO · sin lente (solo la referencia) el grupo conserva la clave que lo ordenó o el nombre de la referencia", Lr);
+    ok(/por días sin venta \(la referencia pedida, umbral de venta frenada, no ordena este grupo\): /.test(Lr) && !/por umbral de venta frenada: /.test(Lr), "CONTROL NEGATIVO · sin lente (solo la referencia) el grupo nombra la clave que lo ordenó y la referencia como tal (§7.3·52e), nunca la referencia como el criterio", Lr);
     const Lx = prioGrupo2(inv("credito"))[0] || "";
     ok(/el criterio pedido, exposición de crédito, es de cobranza y no ordena este grupo/.test(Lx), "CONTROL NEGATIVO · la lente de crédito sobre inventario sigue declarándose «no ordena este grupo»", Lx); }
 
@@ -1711,7 +1711,7 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     const cob = grupo("cobranza", ["abonado", "recuperado"], "cliente", { estados: ["al dia"], top: { metrica: "abonado", k: 2 } }, "ventas").E;
     const venta = (n) => Mflujo.find((f) => f.nombre === n).ventaK;
     const servidos = universoDe(cob, "p1"), primeroEsp = servidos.slice().sort((a, b) => venta(b) - venta(a))[0];
-    ok(new RegExp(`^Prioridad del procedimiento dentro de este grupo, por ventas: ${primeroEsp}, con \\$[\\d.]+M en venta \\(flujo\\)\\.$`).test(prio(cob)), "Q70 · «ventas» ordena el grupo de cobranza con SU medida (la venta del flujo): el primero es el de mayor venta del grupo (la mesa de flujo)", `${primeroEsp} :: ${prio(cob)}`);
+    ok(new RegExp(`^Prioridad del procedimiento dentro de este grupo, por venta a crédito: ${primeroEsp}, con \\$[\\d.]+M en venta \\(flujo\\)\\.$`).test(prio(cob)), "Q70 · «ventas» ordena el grupo de cobranza con SU medida (la venta a crédito, la venta del flujo: §7.3·52a, «por venta a crédito», nunca «ventas» a secas): el primero es el de mayor venta del grupo (la mesa de flujo)", `${primeroEsp} :: ${prio(cob)}`);
     const com = grupo("comercial", ["contribucion", "margen"], "cliente", { base: "sobre el benchmark", top: { metrica: "contribucion", k: 2 } }, "ventas").E;
     ok(/^Prioridad del procedimiento dentro de este grupo, por ventas: [^,]+, con \$[\d.]+M en venta\.$/.test(prio(com)), "Q70 · también un grupo COMERCIAL (la lee aunque los conceptos pedidos no la incluyan)", prio(com));
     ok(/\(el criterio pedido, ventas, no ordena este grupo\)/.test(prio(grupo("inventario", ["rotacion", "capital"], "sku", { estados: ["rota lento"] }, "ventas").E)), "CONTROL NEGATIVO · «ventas» sobre SKU de inventario se declara (la venta comercial y el inventario son universos que no reconcilian)", inv("ventas"));
@@ -1773,7 +1773,8 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
       const l = (String(E.texto || "").split("\n").find((x) => /Prioridad del procedimiento dentro de este grupo/.test(x)) || "").replace(/^▸ /, "");
       const mm = /Prioridad del procedimiento dentro de este grupo, por ([^:(]+?)(?: \(([^)]*)\))?: (.*)$/.exec(l);
       if (!mm) { malas.push(`${etq} sin oración de prioridad`); continue; }
-      const nombra = mm[1].trim() === VIS[lente], declara = !!mm[2] && new RegExp(`el criterio pedido, ${lente ? VIS[lente] : "x"}`).test(mm[2]);
+      const visL = lente === "ventas" && tema === "cobranza" ? "venta a crédito" : VIS[lente];   /* §7.3·52a: en cobranza «ventas» se dice «venta a crédito» */
+      const nombra = mm[1].trim() === visL, declara = !!mm[2] && new RegExp(`el criterio pedido, ${lente ? visL : "x"}`).test(mm[2]);
       if (lente) { if (nombra) nombradas++; if (declara) declaradas++; const esperaNombrar = APLICA(lente, tema); if (esperaNombrar !== nombra || (!esperaNombrar && !declara)) malas.push(`${etq} → «${l.slice(0, 150)}»`); } else if (mm[2]) malas.push(`${etq} declara sin lente pedida`);
       if (lente === "credito" && tema === "cobranza" && nombra && !/ninguna cuenta queda primera/.test(mm[3])) { const ents = universoDe(E, "p1"), esp = ents.map((x) => Mflujo.find((f) => f.nombre === x)).sort((a, b) => (b.vencidoK - a.vencidoK) || (b.diasVencido - a.diasVencido))[0]; if (!esp || esp.nombre !== mm[3].split(",")[0]) malas.push(`${etq} primero ≠ mayor saldo vencido (${esp && esp.nombre})`); }
       if (lente === "ventas" && tema === "cobranza" && nombra && !/ninguna cuenta queda primera/.test(mm[3])) { const ents = universoDe(E, "p1"), esp = ents.slice().sort((a, b) => Mflujo.find((f) => f.nombre === b).ventaK - Mflujo.find((f) => f.nombre === a).ventaK)[0]; if (esp !== mm[3].split(",")[0]) malas.push(`${etq} primero ≠ mayor venta (${esp})`); }
@@ -1872,6 +1873,7 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
       { k: "inventario·sku", tema: "inventario", eje: "sku", ents: ["LG-DRYER8KG", "MAK-COMP-AIR", "BOS-SANDER", "SAM-REF500L", "PHI-IRON-PRO", "LG-WASH11KG"], conj: ["capital_frenado", "dias_sin_venta"], aplica: { capital: cap } },
     ];
     const VIS = { credito: "exposición de crédito", capital: "capital", contribucion: "contribución", ventas: "ventas", crecimiento: "crecimiento" };
+    const visDe = (lu, D) => (lu === "ventas" && D.tema === "cobranza" ? "venta a crédito" : VIS[lu]);   /* §7.3·52a: en cobranza «ventas» se dice «venta a crédito» */
     const RE_DEC = /^(?:Prioridad del procedimiento|En (?:comercial|cobranza|inventario), quien más pesa|Quien más pesa en el conjunto)/;
     let n = 0, malas = [], ejemplo = null;
     for (const D of DOMS) for (const lente of [null, "riesgo", "credito", "capital", "contribucion", "ventas", "crecimiento"]) for (const k of [2, 3, 4]) for (const sel of ["primeras", "ultimas"]) {
@@ -1887,11 +1889,11 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
         const f = D.aplica[lu];
         if (f) { const vals = nombres.map((x) => ({ x, v: f(x) })), mx = Math.max(...vals.map((y) => y.v)), cima = vals.filter((y) => y.v === mx);
           const m = /Prioridad del procedimiento(?: dentro de este grupo)?, por ([^:(]+?)(?: \([^)]*\))?: ([^,.(]+?)(?:,| \(|\.)/.exec(txt);
-          const nombra = !!m && new RegExp(VIS[lu], "i").test(m[1]);
+          const nombra = !!m && new RegExp(visDe(lu, D), "i").test(m[1]);
           bien = bien && (nombra || /ninguna cuenta queda primera|criterio pedido|no ordena|no trae/i.test(txt));
           if (nombra && mx > 0 && cima.length === 1) bien = bien && m[2].trim() === cima[0].x;
           if (mx === 0 || cima.length > 1) bien = bien && !(nombra && m && nombres.includes(m[2].trim()) && !/ninguna cuenta queda primera|no ordena|criterio pedido/i.test(txt)); }
-        else bien = bien && new RegExp(VIS[lu], "i").test(txt);
+        else bien = bien && new RegExp(visDe(lu, D), "i").test(txt);
       }
       if (!bien) malas.push(etq); else if (!ejemplo && D.k === "cobranza·cliente" && lente === "credito" && sel === "primeras" && k === 2) ejemplo = { E, nombres, dec };
     }

@@ -80,7 +80,7 @@ H("1 · CARNADA «tope artificial» — trimming de la conclusión debe dar ROJO
   // una conclusión larga (prioridad 0, por ser la oración [0]) + 40 oraciones de relleno de baja prioridad — el
   // conjunto entero NUNCA cabe bajo 350 palabras, ni recortando TODO lo recortable (el relleno completo). Si
   // alguna implementación recortara la conclusión para "hacer caber" el resto, este candado la agarra.
-  const conclusion = { texto: "Prioridad del procedimiento, por riesgo integrado: " + "abrir primero Lider por su exposición conjunta en comercial y cobranza, con evidencia cruzada de varias cuentas materiales. ".repeat(6), hechos: [] };
+  const conclusion = { texto: "Prioridad del procedimiento, por riesgo integrado: " + "abrir primero Lider por su exposición conjunta en comercial y cobranza, con evidencia cruzada de varias cuentas materiales. ".repeat(6), hechos: [], _prioridad: { alcance: "cruzada", primero: "Lider" } };
   const relleno = Array.from({ length: 40 }, (_, i) => ({ texto: `Dato adicional de contexto número ${i + 1}, de baja prioridad, prescindible si no cabe.`, hechos: [], prioridad: i + 1 }));
   const entrega = _entregaBase([conclusion, ...relleno], []);
   const { entrega: gob, texto, meta } = gobernarTamano(entrega, "breve", _renderStub, "Prueba");
@@ -104,7 +104,7 @@ H("1b · CARNADA §7.3·33 — sin nada recortable, el contenido obligatorio por
   // que describe la decisión 33: "el contenido que no se recorta (premisas, conclusiones) supera el tope". El
   // bucle de `gobernarTamano` no tiene NADA que retirar (ninguna oración de prioridad > 0, ninguna fila) y
   // rompe por `!retirado` — el render final queda sobre el tope, y `meta.excedeTope` tiene que declararlo.
-  const conclusionSola = { texto: "Prioridad del procedimiento, por riesgo integrado: " + "abrir primero Lider por su exposición conjunta en comercial y cobranza, con evidencia cruzada de varias cuentas materiales. ".repeat(20) };
+  const conclusionSola = { texto: "Prioridad del procedimiento, por riesgo integrado: " + "abrir primero Lider por su exposición conjunta en comercial y cobranza, con evidencia cruzada de varias cuentas materiales. ".repeat(20), _prioridad: { alcance: "cruzada", primero: "Lider" } };
   const entrega = _entregaBase([conclusionSola], []);
   const palabrasSinGobernar = contarPalabras(_renderStub(entrega, "Prueba"));
   const { entrega: gob, meta } = gobernarTamano(entrega, "breve", _renderStub, "Prueba");

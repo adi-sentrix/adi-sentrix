@@ -45,7 +45,8 @@
  *
  * Puro (salvo lectura de figs/índice que el llamador ya construyó). Sin red, sin estado global. */
 import { lecturaDeMargen, prioridadDe } from "../agente/playbooks/margenEnRiesgo.js";
-import { prioridadIntegrada, LENTES } from "../agente/prioridadIntegrada.js";
+import { LENTES } from "../agente/prioridadIntegrada.js";
+import { prioridadCruzada, primeroPorMedida } from "./prioridad.js";   // FAMILIA 1 (consolidación): quién es la entidad destacada lo decide la pieza de la prioridad
 import { sujetoDeTema } from "../encargo/esquema.js";
 import { alcanceDeParte } from "./alcance.js";
 
@@ -119,7 +120,10 @@ function _participacionLider(figs, D) {
   if (!pr || !pr.top || !Array.isArray(pr.juego) || pr.juego.length < 2) return null;
   const lect = lecturaDeMargen(figs);
   if (!lect.totalJuego) return null;
-  const figTop = _find(figs, new RegExp(`^${_esc(pr.top.entidad)} · Contribuci[oó]n no capturada$`, "i"));
+  /* FAMILIA 1: quién es el líder lo decide la pieza (la contribución no capturada: la magnitud que más pesa); el playbook trae los valores */
+  const _lider = primeroPorMedida({ tema: "comercial", claveOrden: "no_capturada", entidades: pr.juego.map((x) => x.entidad), valorDe: (n) => { const x = pr.juego.find((y) => y.entidad === n); return x ? x.usd : NaN; } });
+  const liderEntidad = pr.juego.some((x) => x.entidad === _lider) ? _lider : pr.top.entidad;
+  const figTop = _find(figs, new RegExp(`^${_esc(liderEntidad)} · Contribuci[oó]n no capturada$`, "i"));
   const idTop = D.ref(figTop);
   const idTotal = D.ref(lect.totalJuego);
   if (idTop == null || idTotal == null) return null;
@@ -127,7 +131,7 @@ function _participacionLider(figs, D) {
   if (idShare == null) return null;
   return {
     catalogo: "participacion-lider", tema: "comercial", hechos: [idTop, idTotal, idShare],
-    render: (R) => `${pr.top.entidad} concentra el ${R(idShare)} de la contribución no capturada total (${R(idTotal)}).`,
+    render: (R) => `${liderEntidad} concentra el ${R(idShare)} de la contribución no capturada total (${R(idTotal)}).`,
   };
 }
 function _vsBenchmarkPara(entidad, figs, D) {
@@ -151,22 +155,26 @@ function _participacionVencido(figs, D) {
   const filas = _all(figs, /· Saldo vencido$/i).filter((f) => !/^Saldo vencido · total$/i.test(_lab(f)));
   const conRaw = filas.map((f) => ({ f, entidad: _entidadDe(_lab(f)), raw: Number.isFinite(f.raw) ? f.raw : null })).filter((x) => x.entidad && x.raw != null && x.raw > 0);
   if (conRaw.length < 2) return null;
-  conRaw.sort((a, b) => b.raw - a.raw);
-  const idTop = D.ref(conRaw[0].f);
+  /* FAMILIA 1: quién concentra el vencido lo decide la pieza (el saldo vencido: la magnitud que más pesa) */
+  const _lider = primeroPorMedida({ tema: "cobranza", claveOrden: "saldo_vencido", entidades: conRaw.map((x) => x.entidad), valorDe: (n) => { const x = conRaw.find((y) => y.entidad === n); return x ? x.raw : NaN; } });
+  const lider = conRaw.find((x) => x.entidad === _lider) || conRaw[0];
+  const idTop = D.ref(lider.f);
   if (idTop == null) return null;
   const idShare = D.declararRazon(idTop, idTotal);
   if (idShare == null) return null;
   return {
     catalogo: "participacion-vencido", tema: "cobranza", hechos: [idTop, idTotal, idShare],
-    render: (R) => `${conRaw[0].entidad} concentra el ${R(idShare)} del vencido total (${R(idTotal)}).`,
+    render: (R) => `${lider.entidad} concentra el ${R(idShare)} del vencido total (${R(idTotal)}).`,
   };
 }
 function _porVencer(figs, D) {
   const filasSaldo = _all(figs, /· Saldo pendiente$/i);
   if (!filasSaldo.length) return null;
-  // orden del módulo (mesaFlujo.js: vencido primero) — el primero de la lista ya es quien más debe, el mismo
-  // criterio que usa `componerEntregaCobranza` para elegir el "top" de la ruta fija.
-  const top = filasSaldo[0];
+  // FAMILIA 1: quién es el que más debe lo decide la pieza (el saldo pendiente), el mismo criterio que usa
+  // `componerEntregaCobranza` para elegir el "top" de la ruta fija; la mesa (mesaFlujo.js: vencido primero) trae las cuentas y sus valores.
+  const _enSaldo = filasSaldo.map((f) => ({ f, e: _entidadDe(_lab(f)), v: Number.isFinite(f.raw) ? f.raw : NaN })).filter((x) => x.e);
+  const _primero = _enSaldo.length ? primeroPorMedida({ tema: "cobranza", claveOrden: "saldo_pendiente", entidades: _enSaldo.map((x) => x.e), valorDe: (n) => { const x = _enSaldo.find((y) => y.e === n); return x ? x.v : NaN; } }) : null;
+  const top = (_enSaldo.find((x) => x.e === _primero) || {}).f || filasSaldo[0];
   const entidad = _entidadDe(_lab(top));
   if (!entidad) return null;
   const figVencido = _find(figs, new RegExp(`^${_esc(entidad)} · Saldo vencido$`, "i"));
@@ -200,14 +208,16 @@ function _participacionFrenado(figs, D) {
   const filas = _all(figs, /· Capital (?:frenado|inmovilizado cr[ií]tico)$/i).filter((f) => !/^Capital (?:frenado|inmovilizado cr[ií]tico) · total$/i.test(_lab(f)));
   const conRaw = filas.map((f) => ({ f, entidad: _entidadDe(_lab(f)), raw: Number.isFinite(f.raw) ? f.raw : null })).filter((x) => x.entidad && x.raw != null && x.raw > 0);
   if (conRaw.length < 2) return null;
-  conRaw.sort((a, b) => b.raw - a.raw);
-  const idTop = D.ref(conRaw[0].f);
+  /* FAMILIA 1: quién concentra el capital inmovilizado crítico lo decide la pieza (la magnitud que más pesa) */
+  const _lider = primeroPorMedida({ tema: "inventario", claveOrden: "capital_frenado", entidades: conRaw.map((x) => x.entidad), valorDe: (n) => { const x = conRaw.find((y) => y.entidad === n); return x ? x.raw : NaN; } });
+  const lider = conRaw.find((x) => x.entidad === _lider) || conRaw[0];
+  const idTop = D.ref(lider.f);
   if (idTop == null) return null;
   const idShare = D.declararRazon(idTop, idTotal);
   if (idShare == null) return null;
   return {
     catalogo: "participacion-frenado", tema: "inventario", hechos: [idTop, idTotal, idShare],
-    render: (R) => `${conRaw[0].entidad} concentra el ${R(idShare)} del capital inmovilizado crítico total (${R(idTotal)}).`,
+    render: (R) => `${lider.entidad} concentra el ${R(idShare)} del capital inmovilizado crítico total (${R(idTotal)}).`,
   };
 }
 
@@ -218,9 +228,8 @@ function _participacionFrenado(figs, D) {
 // pedido. `null` (hay al menos una parte "cartera entera" real) no acota: cualquier top es una respuesta legítima.
 function _integrada(figs, temas, D, entidadesPermitidas = null) {
   if (!Array.isArray(temas) || temas.length < 2) return null;
-  let P = null;
-  try { P = prioridadIntegrada(figs, temas); } catch { P = null; }
-  const top = P && Array.isArray(P.integrada) ? P.integrada[0] : null;
+  let top = null;
+  try { top = prioridadCruzada(figs, temas).top; } catch { top = null; }   /* FAMILIA 1: quién va primero entre dominios lo pregunta la pieza */
   if (!top || !top.senales) return null;
   if (entidadesPermitidas && !entidadesPermitidas.has(top.entidad)) return null;
   const idsPorDominio = {};

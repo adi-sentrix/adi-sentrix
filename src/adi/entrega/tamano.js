@@ -16,8 +16,8 @@
  *   1 · cada oración de Respuesta y cada fila de Cifras ya trae `.prioridad` (asignada en fase 1 por
  *       `componer.js` — 0 = nunca recortable; números mayores = se recorta antes). Un ítem SIN `.prioridad`
  *       (las 4 rutas fijas, que no la declaran) recibe un FALLBACK acá mismo: la primera oración/fila de la
- *       lista, o cualquiera cuyo texto sea la fórmula canónica de la casa «Prioridad del procedimiento»/«Quien
- *       más pesa en el conjunto», es prioridad 0; el resto, su índice de aparición (medido: nunca hace falta
+ *       lista, o cualquiera que lleve la MARCA ESTRUCTURAL de la oración de prioridad (`_prioridad`, `prioridad.js`: las
+ *       oraciones «Prioridad del procedimiento…»/«Quien más pesa en el conjunto…»), es prioridad 0; el resto, su índice de aparición (medido: nunca hace falta
  *       para D08-D11, que hoy caben enteros bajo el tope — el fallback es defensivo, no ejercitado en el
  *       catálogo actual).
  *   2 · se ordena por prioridad ascendente (estable: a igual prioridad, gana el orden de aparición) y se agregan
@@ -37,6 +37,7 @@
  * lectura de origen no acota por entidad, ver el informe) no obliga a servir 90 filas. */
 import { renderDe } from "../notario/hechos.js";
 import { contarPalabras, TOPE_BREVE, TOPE_COMPLETA, FILAS_BREVE_MAX, FILAS_COMPLETA_MAX } from "./verificar.js";
+import { esOracionDePrioridad } from "./prioridad.js";   // FAMILIA 1 (consolidación): «cuál es la oración de prioridad» se lee de su marca estructural, no del texto
 
 /** §7.3·49(g): las veces que un valor renderizado APARECE como valor en el texto — no como un trozo de otro número («4» no está en «$12.4M» ni en «14») ni de una palabra. Un hecho «esencial» lo es porque el texto dice SU valor; con la coincidencia por subcadena, el «4» de una cuenta de 4 unidades protegía su fila (y la partía de la entidad) solo porque otra cifra traía un 4. */
 function _apariciones(texto, v) {
@@ -47,8 +48,6 @@ function _apariciones(texto, v) {
   const re = new RegExp(antes + x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + despues, "gu");
   return (t.match(re) || []).length;
 }
-
-const _MARCADOR_CONCLUSION = /^Prioridad del procedimiento|^Quien m[aá]s pesa en el conjunto/;
 
 /** hechosEsencialesDeOracion(r, libro) → { esenciales:[id,...], apoyo:[id,...] } — puro, sin efectos. Las
  *  oraciones «especiales» (premisa, definición, marca de iniciativa) no se dividen: TODOS sus hechos son
@@ -94,7 +93,7 @@ function prioridadDe(item, idx) {
   // una señal opcional) y definiciones (un encargo `cierre:"definicion"` NO TIENE otro contenido: recortarla
   // dejaría la Entrega vacía) — protegidas por el MISMO marcador estructural que ya usa `hechosEsencialesDeOracion`.
   if (item._premisa || item._definicion) return 0;
-  if (typeof item.texto === "string" && _MARCADOR_CONCLUSION.test(item.texto)) return 0;
+  if (esOracionDePrioridad(item)) return 0;   // la conclusión del procedimiento: la marca estructural `_prioridad` (`prioridad.js`), no su texto
   return idx === 0 ? 0 : idx;
 }
 

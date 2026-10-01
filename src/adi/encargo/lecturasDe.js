@@ -63,6 +63,7 @@ import { resolveEntityRef } from "../oracle/entityIndex.js";
 import { umbral } from "../../config/businessPolicy.js";
 import { estadoDeclarado } from "../notario/estados.js";
 import { referenciaDeBase, conjuntoConocido } from "../notario/conjuntosDeLaCasa.js";
+import { MEDIDAS_DE_LENTE } from "../entrega/prioridad.js";   // FAMILIA 1 (consolidación): la tabla lente → medida, una sola
 
 /* LA CAJA EXTENDIDA (owner 2026-08-30, F2 · ADI Agente): `cobranza` y `rolesCartera` —las dos que
  * `pasosDelContratoComercial`/`pasosDeDominios` ya citan por nombre— viven en `cajaDelAgente`, no en `TOOLS` del
@@ -677,8 +678,8 @@ function _callsDePremisas(premisas, criterio = null) {
 
 /** lecturasDe(resolucion) → { plan, porParte }. Puro frente al encargo (nunca lee `preguntaOriginal`); hereda de
  *  `pasosDeDominios` la dependencia del TENANT activo (no de la red, no del LLM) — ver cabecera. */
-/* v24: la MEDIDA de cada lente que aplica a un dominio (`entrega/componer.js:_MEDIDA_DE_LENTE`/`_MEDIDA_SIN_DOMINIO`): el concepto cuyo productor la trae. «ventas» solo se pide a una parte COMERCIAL (la cobranza ya publica la venta de cada cuenta y el inventario no tiene venta). */
-const _CONCEPTO_DE_LA_MEDIDA = { credito: { tema: "cobranza", concepto: "saldo_vencido" }, capital: { tema: "inventario", concepto: "capital_frenado" }, contribucion: { tema: "comercial", concepto: "no_capturada" }, ventas: { tema: "comercial", concepto: "ventas" } };
+/* v24: la MEDIDA de cada lente que aplica a un dominio: el concepto cuyo productor la trae. «ventas» solo se pide a una parte COMERCIAL (la cobranza ya publica la venta de cada cuenta y el inventario no tiene venta). FAMILIA 1 (consolidación): la tabla lente → medida es UNA, la de `entrega/prioridad.js` (`MEDIDAS_DE_LENTE`): la misma que usa el compositor para ordenar. */
+const _CONCEPTO_DE_LA_MEDIDA = MEDIDAS_DE_LENTE;
 function _callsDeMedidaDeLente(criterio, p) {
   const m = criterio && criterio.origen === "usuario" && criterio.lente ? _CONCEPTO_DE_LA_MEDIDA[criterio.lente] : null;
   if (!m || p.cierre !== "decision" || p.tema !== m.tema) return [];
