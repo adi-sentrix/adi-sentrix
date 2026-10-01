@@ -232,3 +232,13 @@ export function textoFigSinClave(sujetos) {
   const lista = xs.length > 1 ? `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}` : String(xs[0] || "");
   return `una cifra de ${lista} sin concepto en el léxico de la casa`;
 }
+
+/* ── UNA ORACIÓN QUE EL VERIFICADOR RECHAZA SE RETIRA Y SE DECLARA (§7.3·52e, consolidación F5) ───────────────────────────────────
+ * Toda oración que compone la Entrega pasa `verificarEntrega` antes de servirse (§7.3·48d); la que no pasa se retira de la Entrega (nunca sale) y se declara como límite. Su redacción vive ACÁ, una vez
+ * (`entrega/componer.js:servirConGarantia` la pide; ningún composer la escribe a mano). `sujetos` son las entidades de las que hablaba la oración retirada (vacío: «una oración de la Entrega»). */
+export const MOTIVO_ORACION_RETIRADA = "Cada oración de la Entrega se verifica contra los hechos del turno antes de servirse; esta no se sostuvo y no se reemplaza por otra. Las cifras de las tablas siguen siendo las verificadas.";
+export function textoOracionRetirada(sujetos) {
+  const xs = (Array.isArray(sujetos) ? sujetos : [sujetos]).map((s) => String(s)).filter(Boolean);
+  const lista = xs.length > 1 ? `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}` : String(xs[0] || "");
+  return `${lista ? `Una oración sobre ${lista}` : "Una oración de la Entrega"} no pasó la verificación y se retiró`;
+}

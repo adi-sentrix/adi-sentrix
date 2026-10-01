@@ -846,11 +846,12 @@ function _valorDeclarado(a) { return a.valor && Number.isFinite(a.valor.raw) ? a
  * boleta del turno no traiga la fig */
 /* «variacion»: cierre D29 del corte 3c (owner 2026-09-25) — el ranking que publica `oracle/datoProyectado.js`
  * (variacionVentasPorEje, la MISMA función de `salesRead`) trae un % ya calculado, sin escala ambigua. */
-const _UNIDAD_DE_RANKING = { unidades: "count", margen: "pct", carga: "pct", brecha: "pp", recuperado: "pct", dias_vencido: "days", rotacion: "ratio", dias_inventario: "days", dias_sin_venta: "days", margen_inventario: "pct", variacion: "pct" };
+const _UNIDAD_DE_RANKING = { unidades: "count", margen: "pct", carga: "pct", brecha: "pp", recuperado: "pct", dias_vencido: "days", rotacion: "ratio", dias_inventario: "days", dias_sin_venta: "days", margen_inventario: "pct", margen_venta: "pct", variacion: "pct" };
 function _delRanking(a, I) {
   const ent = typeof a.sujeto === "string" && a.sujeto !== "negocio" ? I.resolverEntidad(a.sujeto) : null;
   if (!ent) return null;
-  const rk = I.rankingDe(ent.eje, a.metrica);
+  /* §7.3·13/·40 + 52(b) (consolidación F5): el «Margen» de un SKU es el margen de VENTA (el comercial, año cerrado): su ranking estático lo publica con la etiqueta completa («margen de venta»); el SKU tiene otro margen, el de inventario, que se pide por su propio nombre. Sin esto la cifra de un SKU no se verificaba como cifra de una entidad y la Entrega decía «sin dato» con la cifra en la mano. */
+  const rk = I.rankingDe(ent.eje, a.metrica) || (ent.eje === "sku" && normalizar(String(a.metrica || "")) === "margen" ? I.rankingDe("sku", "margen de venta") : null);
   if (!rk) return null;
   const fila = rk.r.filas.find((x) => normalizar(x.entidad) === normalizar(ent.nombre));
   if (!fila || !Number.isFinite(+fila.valor)) return null;

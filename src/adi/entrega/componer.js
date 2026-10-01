@@ -63,7 +63,7 @@ import { prioridadDeParte, valoresDeProyeccion, prioridadCruzada, lideresPorDomi
 import { lecturasDe, REGISTRO_LECTURAS, consultaDeFrenado as _consultaDeFrenado, estadosDeUniverso as _estadosDeUniverso, frenadoSinUmbral as _frenadoSinUmbral } from "../encargo/lecturasDe.js";
 import { ceroPorCobertura, metricaPorClave, claveDeMetrica, claveExactaDeMetrica, dominioDeClave, unidadDeClave, conteoDeEje, conPreposicion, sintagmaDe, esCero, dichoElCero, diasEnPalabras } from "../notario/lexico.js";
 import { objetivoPorMeta } from "../llm/voiceGuard.js";   // v21 (T12): el nombre del concepto que la Entrega imprime como título de su definición va en la voz de la casa («meta» → «objetivo»)
-import { ausenciaPorId } from "../../config/contract/ausencias.js";   // Etapa 2 §2 (owner 2026-09-23): las ausencias del dato, declaradas UNA vez
+import { ausenciaPorId, textoOracionRetirada, MOTIVO_ORACION_RETIRADA } from "../../config/contract/ausencias.js";   // Etapa 2 §2 (owner 2026-09-23): las ausencias del dato, declaradas UNA vez
 // Etapa 2 §4 (owner 2026-09-23, plan §3 «cómo se pega al cliente») — EL PERFIL DEL CLIENTE viaja en el Marco,
 // como los demás hechos: `getTenantData()` es el MISMO acceso que ya usa todo `oracle/` (datoProyectado.js,
 // entityRecord.js, toolRegistry.js) para leer el tenant activo — no se abre una segunda fuente de identidad.
@@ -101,8 +101,9 @@ import { figDeLaProyeccion, filasDeEntidad, completarGrupo, declararLoQueFalta, 
 // FAMILIA 3 (consolidación, paso 2) — la referencia de la consulta: qué conjuntos pone en juego, con qué conteo y qué partes cubre, al lado de la oficial.
 import { referenciasDeLaConsulta, referenciasOficiales, referenciaDelMarco, procedenciaDeLosUmbrales, textoDeBenchmark, textoDeUmbralDeMaterialidad, figDelBenchmarkOficial, planPoneElBenchmark } from "./referencias.js";
 // FAMILIA 4 (consolidación, paso 2) — el RÓTULO de cada cifra según su concepto (§7.3·49f · 51f · 52a · 52e): una pieza lo decide (el nombre del léxico de la clave de la cifra; las filas de señales conservan el de su señal; una fig sin clave se declara, nunca se imprime cruda); los planes y los renders le preguntan a ella.
-import { rotuloDeLaCasa, rotuloDeClave, rotuloEnOracion, rotuloDeDiferencia, rotuloDeSenal, rotuloDeDiferenciaDeSenal, rotuloDeConcentracion, rotuloDeSimulacion, filaDeCifra, claveDeLaFig, conceptoDeLaFig, declaracionDeFigSinClave } from "./rotulos.js";
-import { FILAS_BREVE_MAX, FILAS_COMPLETA_MAX } from "./verificar.js";
+import { rotuloDeLaCasa, rotuloDeClave, rotuloEnOracion, rotuloDeDiferencia, rotuloDeSenal, rotuloDeDiferenciaDeSenal, rotuloDeConcentracion, rotuloDeSimulacion, filaDeCifra, temaDeLaFila, unaFilaPorCifra, claveDeLaFig, conceptoDeLaFig, declaracionDeFigSinClave } from "./rotulos.js";
+// FAMILIA 5 (consolidación, paso 2) — toda oración que se sirve pasó su verificador (§7.3·48d · 51c · 52e): `servirConGarantia` (abajo) corre `verificarEntrega` sobre la Entrega compuesta antes de que salga.
+import { FILAS_BREVE_MAX, FILAS_COMPLETA_MAX, verificarEntrega, cifrasEnTexto, contarPalabras } from "./verificar.js";
 import { PROFUNDIDAD_VALORES, CAMPOS_RAIZ, productorDe, sujetoDeTema, universoTieneRestriccionPropia } from "../encargo/esquema.js";
 import { dominioPorId } from "../../config/contract/dominios.js";
 import { createHash } from "node:crypto";
@@ -3142,10 +3143,68 @@ function _cabezaPartida(resultado) {
   if (!detalle.length) return false;
   return e.respuesta.some((r) => r && r._entidadesCitadas && r._entidadesCitadas.nombres.some((n) => detalle.some((f) => f.valores && f.valores["Entidad / grupo"] === n && f.valores.Tema === r._entidadesCitadas.tema)));
 }
+/* ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ * FAMILIA 5 · servirConGarantia — TODA ORACIÓN QUE SE SIRVE PASÓ SU PROPIO VERIFICADOR (consolidación, paso 2)
+ * ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ * «Toda oración que compone la Entrega pasa `verificarEntrega`; composer y verificador no se contradicen» (§7.3·48d · 51c) y «una oración que el verificador rechaza se retira de la Entrega y se declara el límite» (§7.3·52e).
+ * Hasta acá `componerEntrega` armaba la Entrega y la devolvía sin verificarla; solo `capacidad/acciones.js:consultar` la pasaba por el verificador, y actuaba sobre UNA regla de las diecinueve (la del universo propio). Esta pieza es el ÚLTIMO PASO de
+ * `componerEntrega` (el único camino por el que sale una Entrega): corre `verificarEntrega` sobre lo ya armado y gobernado, con la `resolucion` y el índice del turno.
+ *   · una violación del invariante del universo propio (regla 18, §7.3·17) NO se sirve: la Entrega se declina entera, como siempre (`ok:false`);
+ *   · una violación que apunta a oraciones de la Respuesta (`violacion.oraciones`: índices de `entrega.respuesta`, la ESTRUCTURA, nunca la prosa del detalle) retira esas oraciones —un bloque de simulación, entero— y declara un límite
+ *     (la redacción vive en `config/contract/ausencias.js:textoOracionRetirada`); la Entrega se vuelve a pasar por el verificador (una oración retirada puede dejar a otra sin su respaldo) hasta que no quede ninguna;
+ *   · lo que el verificador marca de la ESTRUCTURA (sin oración a la que apuntar) queda declarado en `entrega.verificacion.violaciones`, nunca callado.
+ * La oración retirada NO viaja en la Entrega (ni en `detalle.oraciones`): `entrega.verificacion = { ok, violaciones, retiradas: [{ regla, hechos }] }` solo dice qué regla la rechazó y qué hechos citaba. */
+const _RONDAS_DE_RETIRO = 4;
+export function servirConGarantia(salida, resolucion) {
+  if (!salida || !salida.ok || !salida.entrega) return salida;
+  const profundidad = _profundidadDe(resolucion);
+  const titulo = _tituloDeTexto(salida.texto);
+  const indice = (salida.entrega.procedencia && salida.entrega.procedencia.libro && salida.entrega.procedencia.libro.indice) || null;
+  const auditar = (s) => { try { return verificarEntrega({ texto: s.texto, entrega: s.entrega, resolucion, indice, profundidad }); } catch { return null; } };
+  let actual = salida;
+  let v = auditar(actual);
+  if (!v) return salida;
+  if (v.violaciones.some((x) => x.regla === "universo-propio-no-coincide")) return { texto: "", entrega: null, libro: salida.libro, ok: false, motivo: "el invariante del universo propio (§7.3·17) no se sostuvo tras componer la Entrega" };
+  const retiradas = [];
+  const limitesNuevos = [];
+  for (let ronda = 0; ronda < _RONDAS_DE_RETIRO && !v.ok; ronda++) {
+    const respuesta = actual.entrega.respuesta || [];
+    const idx = new Set();
+    const reglaDe = new Map();
+    for (const x of v.violaciones) for (const i of x.oraciones || []) if (respuesta[i]) { idx.add(i); if (!reglaDe.has(i)) reglaDe.set(i, x.regla); }
+    /* un bloque de simulación se retira ENTERO (un encabezado sin su cuerpo no dice nada: la misma atomicidad que `tamano.js`) */
+    for (const i of [...idx]) { const b = respuesta[i]._bloqueId; if (b) respuesta.forEach((r, j) => { if (r && r._bloqueId === b) { idx.add(j); if (!reglaDe.has(j)) reglaDe.set(j, reglaDe.get(i)); } }); }
+    if (!idx.size) break;
+    const libros = [actual.entrega.procedencia && actual.entrega.procedencia.libro, actual.entrega.procedencia && actual.entrega.procedencia.libroPremisas, actual.entrega.procedencia && actual.entrega.procedencia.libroIniciativa].filter(Boolean);
+    /* de quién hablaba la oración: las entidades que la propia oración nombra (las de su cabeza, o las dueñas de los hechos que cita y que su texto dice) */
+    const sujetosDe = (r) => { const out = []; const texto = String(r.texto || ""); for (const n of (r._entidadesCitadas && r._entidadesCitadas.nombres) || []) if (n && !out.includes(n)) out.push(n); for (const id of r.hechos || []) for (const L of libros) { const h = L.porId && L.porId.get(id); const ss = h && h.roles && h.roles.sujetos; if (Array.isArray(ss)) for (const s of ss) if (s && s !== "negocio" && texto.includes(String(s)) && !out.includes(s)) out.push(s); } return out; };
+    for (const i of [...idx].sort((a, b) => a - b)) {
+      const r = respuesta[i];
+      retiradas.push({ regla: reglaDe.get(i), hechos: [...(r.hechos || [])] });
+      const t = textoOracionRetirada(sujetosDe(r));
+      if (!limitesNuevos.some((l) => l.titulo === t)) limitesNuevos.push({ titulo: t, motivo: MOTIVO_ORACION_RETIRADA, _retiradaPorVerificador: true });
+    }
+    let entrega = { ...actual.entrega, respuesta: respuesta.filter((_, i) => !idx.has(i)) };
+    /* lo que sostenía una iniciativa retirada no queda declarado como servido (regla 12), y su marca no queda colgada sin contenido */
+    if (entrega.iniciativa && Array.isArray(entrega.iniciativa.ids)) {
+      const citados = new Set(); for (const r of entrega.respuesta) if (r.solicitud === "iniciativa") for (const id of r.hechos || []) citados.add(id);
+      const enOferta = new Set(entrega.iniciativa.ofertaIds || []);
+      entrega = { ...entrega, iniciativa: { ...entrega.iniciativa, ids: entrega.iniciativa.ids.filter((id) => citados.has(id) || enOferta.has(id)) } };
+    }
+    if (entrega.respuesta.some((r) => r._marcaIniciativa) && !entrega.respuesta.some((r) => r._iniciativa)) entrega = { ...entrega, respuesta: entrega.respuesta.filter((r) => !r._marcaIniciativa) };
+    entrega = { ...entrega, limites: [...(salida.entrega.limites || []), ...limitesNuevos] };
+    const texto = _textoDeLaEntrega(entrega, titulo, profundidad);
+    entrega = { ...entrega, meta: { ...(entrega.meta || {}), palabras: contarPalabras(texto), excedeTope: contarPalabras(texto) > ((entrega.meta && entrega.meta.tope) || Infinity) } };
+    actual = { ...actual, texto, entrega };
+    v = auditar(actual);
+    if (!v) return salida;
+  }
+  return { ...actual, entrega: { ...actual.entrega, verificacion: { ok: v.ok, violaciones: v.violaciones.map((x) => ({ regla: x.regla, detalle: x.detalle })), retiradas } } };
+}
 export function componerEntrega(resolucion) {
   let r = _componerEntregaConCabeza(resolucion, 3);
   for (let n = 2; n >= 1 && _cabezaPartida(r); n--) r = _componerEntregaConCabeza(resolucion, n);
-  return r;
+  return servirConGarantia(r, resolucion);
 }
 function _componerEntregaConCabeza(resolucion, nCabezaMax) {
   const canonica = _delegarRutaCanonica(resolucion);
@@ -3657,11 +3716,22 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
     }
     return out;
   };
-  if (!hechos.some((h) => h.tipo === "razon" || h.tipo === "derivada")) {
+  const _tentacionCruzada = () => {
+  if (hechos.some((h) => h.tipo === "razon" || h.tipo === "derivada")) return;
+  {
     const _todosTriples = planes.flatMap(_triplesDePlan);
     if (new Set(_todosTriples.map((t) => t.dueno)).size > 1) {
-      const primera = _todosTriples[0];
-      const segunda = primera ? _todosTriples.find((t) => t.dueno !== primera.dueno && t.clave === primera.clave) : null;
+      /* FAMILIA 5 (§7.3·48d): el par es el PRIMERO que algún dueño forma con otro que comparte su clave, no solo el de la primera fila (el verificador pide la tentación cuando CUALQUIER par de dueños comparte un concepto: Lider y Hites comparten «margen» aunque la primera fila de Lider sea otra). Con la primera fila emparejada el par es el de siempre */
+      let primera = null, segunda = null;
+      /* los operandos son cifras citadas tal cual (`ref` o `cifra`): una cifra que otro hecho CALCULÓ («Contribución» derivada de venta y margen) no es operando de una diferencia */
+      const _tipoDe = (t) => { const h = hechos.find((x) => x.id === t.id); return h ? h.tipo : null; };
+      const _paresQueNoVerificaron = _tentacionCruzada._fallidos || (_tentacionCruzada._fallidos = new Set());
+      /* con crudo propio primero (`ref`: la fig de la boleta); la `cifra` de la proyección solo si no hay un par de `ref` */
+      for (const tipos of [["ref"], ["ref", "cifra"]]) {
+        const _citadas = _todosTriples.filter((t) => tipos.includes(_tipoDe(t)));
+        for (const a of _citadas) { const b = _citadas.find((t) => t.dueno !== a.dueno && t.clave === a.clave && !_paresQueNoVerificaron.has(`${a.id}|${t.id}`)); if (b) { primera = a; segunda = b; break; } }
+        if (primera) break;
+      }
       const unidad = primera ? unidadDeClave(primera.clave) : null;
       // §7.3·25 (mecanismo 6, apoyo) — misma guardia que el resto de este archivo: `declararDerivadaOpcional`
       // marca el id como opcional (capa 2, `rotos` más abajo); estos operandos son sintéticos (`{unit}`, sin
@@ -3670,8 +3740,17 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
       if (segunda && unidad) declararDerivadaOpcional({ unit: unidad }, primera.id, { unit: unidad }, segunda.id);
     }
   }
+  };
+  _tentacionCruzada();
 
-  const libro = libroDeHechos(hechos, { indice: I });
+  let libro = libroDeHechos(hechos, { indice: I });
+  /* FAMILIA 5 (§7.3·48d): la tentación de apoyo que un plan declaró y NO verificó se retira del libro (abajo) y dejaría a la Entrega con ≥2 dueños y ninguna tentación precalculada: se reintenta UNA vez con el par transversal (sin la que no verificó) antes de dar el libro por cerrado */
+  { const _fallidas = libro.hechos.filter((h) => !h.ok && idsTentacionOpcional.has(h.id));
+    if (_fallidas.length && !libro.hechos.some((h) => h.ok && (h.tipo === "razon" || h.tipo === "derivada"))) {
+      for (const h of _fallidas) { const i = hechos.findIndex((x) => x.id === h.id); const crudo = i >= 0 ? hechos[i] : null; if (i >= 0) hechos.splice(i, 1); idsTentacionOpcional.delete(h.id); if (crudo && Array.isArray(crudo.de) && crudo.de.length === 2) (_tentacionCruzada._fallidos || (_tentacionCruzada._fallidos = new Set())).add(`${crudo.de[0].id}|${crudo.de[1].id}`); }
+      _tentacionCruzada();
+      libro = libroDeHechos(hechos, { indice: I });
+    } }
   // §7.3·25 (SUPERVISOR, diagnóstico v10, raíz A1) — un hecho OPCIONAL (`idsTentacionOpcional`, la tentación
   // precalculada de apoyo, arriba) que no verifica NUNCA tumba la Entrega: se retira en silencio de `rotos` — no
   // se cita en ningún texto servido (ver la nota junto a `declararDerivadaOpcional`), así que dejarlo fuera de
@@ -3793,7 +3872,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
     const procedencia = _procedenciaDeFila(libro, [id]);
     const o = contador.origenes && contador.origenes.get(id);
     const cobertura = !!(o && o.origen === ORIGEN.COBERTURA);
-    const temaFila = (o && o.clave && dominioDeClave(o.clave)) || tema;
+    const temaFila = (o && o.clave && dominioDeClave(o.clave)) || temaDeLaFila(etiqueta, tema);   /* FAMILIA 5 (estándar de los cuatro puntos): el tema de la fila es el del dominio de SU cifra («Venta a crédito» es de cobranza aunque la pida la lente «ventas» de una parte comercial) */
     /* FAMILIA 4: la fila de Cifras la construye `rotulos.js:filaDeCifra` (el ÚNICO constructor); el rótulo (`etiqueta`) llega de la pieza, nunca escrito a mano */
     return filaDeCifra({ entidad, tema: _DOM_NOMBRE[temaFila] || temaFila, rotulo: etiqueta, valor: R(id), tipo: cobertura ? `cobertura declarada: ${o.porQue}` : _textoDeTipo(procedencia), id, procedencia, origen: (procedencia === "medido" || cobertura) ? (cobertura ? ORIGEN.COBERTURA : ORIGEN.MEDIDO) : null, extra: _histDeHecho(id) });
   };
@@ -4197,6 +4276,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
     } else if (plan.kind === "definicion") {
       temasCubiertos.add(plan.tema);
       const texto = `${plan.concepto}: ${plan.definicion}${plan.distingue ? ` ${plan.distingue}` : ""}`;
+      for (const c of cifrasEnTexto(texto)) cifrasImpresas.push(c);   /* FAMILIA 5 (§7.3·48d): una definición nunca lee la boleta (§1.1): las cifras de su prosa («de cada $1 de venta») son de la definición, la unidad con que se explica el concepto, no una medición desnuda; se declaran con el mismo escáner de la regla 1 */
       entrega.respuesta.push({ texto, hechos: [], _definicion: true });
     } else if (plan.kind === "grupoUniverso") {
       // CORTE 3c · pieza 1 — EL GRUPO ES EL HECHO `conteo` (K de M, ya verificado): la Respuesta y las Cifras solo
@@ -4205,6 +4285,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
       plan._servido = true;
       const kTxt = R(plan.idConteo), mTxt = renderDe(libro, plan.idConteo, "m"), uTxt = renderDe(libro, plan.idConteo, "universo");
       if (mTxt != null) cifrasImpresas.push(mTxt);
+      if (uTxt != null) cifrasImpresas.push(uTxt);   /* FAMILIA 5 (§7.3·48d): el universo se imprime tal como lo escribió el hecho `conteo` ya verificado, con el valor de cada condición («con venta a crédito de al menos $1K»): sus cifras son del hecho, no desnudas */
       const claveTentTxt = plan.claveTentacion ? _labelDeClave(plan.claveTentacion) : null;
       const tentacion = plan.idTotal ? ` En conjunto, ${claveTentTxt ? _sinSufijoDolar(claveTentTxt).toLowerCase() : "el total"} suma ${R(plan.idTotal)}${plan.idShare ? `; ${plan.miembros[0]} concentra el ${R(plan.idShare)}` : ""}.` : "";
       const texto = `Sobre ${_DOM_NOMBRE[plan.tema] || plan.tema}: hay ${kTxt}${mTxt ? ` de ${mTxt}` : ""} en ${uTxt || "el universo declarado"}${plan.miembros.length ? `: ${plan.miembros.join(", ")}` : ""}.${tentacion}`;
@@ -4565,6 +4646,8 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
   // owner puedan auditar su veredicto sin tener que reconstruirlo.
   entrega.procedencia = { libro, cifrasImpresas, libroPremisas, libroIniciativa };
 
+  /* FAMILIA 5 (§7.3·40b · 52e): una cifra se escribe UNA vez — la medida de la lente o el concepto que dos partes piden, que la tabla ya traía, no sale como una fila más (la fila que queda cita los hechos de las dos) */
+  entrega.cifras.filas = unaFilaPorCifra(entrega.cifras.filas);
   // CORTE 3e (owner 2026-09-26) — «Su encargo» → «Encargo» (ley 1, textual: «"Encargo" (no "Su encargo")»).
   const texto = _textoDeLaEntrega(entrega, "Encargo");
   return _conTamanoGobernado({ texto, entrega, libro, ok: true, motivo: "" }, resolucion);

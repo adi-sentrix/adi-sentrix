@@ -21,6 +21,7 @@
  *   · `rotuloDeSimulacion(texto)`: los rótulos de la simulación son del productor de cada simulación (ningún artículo del contrato los cubre):
  *     pasan por acá sin cambio, para que TODO rótulo de una fila de Cifras salga de esta pieza.
  *   · `filaDeCifra({ entidad, tema, rotulo, valor, tipo, id, procedencia, origen?, extra? })`: el ÚNICO constructor de una fila de Cifras.
+ *   · `temaDeLaFila(rotulo, temaPedido)`: el tema de una fila es el del dominio de su cifra (F5) · `unaFilaPorCifra(filas)`: una cifra se escribe una vez (F5).
  *   · `claveDeLaFig(fig)` · `conceptoDeLaFig(label)`: la clave canónica de una fig y el concepto de su rótulo «Entidad · Concepto».
  *   · `declaracionDeFigSinClave(entidades)`: el límite de una fig que el léxico no conoce.
  * PURO: sin red, sin estado, sin lectura del tenant. Importa solo el léxico y los textos de las ausencias del contrato. */
@@ -78,6 +79,31 @@ export const rotuloDeSimulacion = (texto) => String(texto);
  *  rótulo es el que la pieza le dio al concepto, nunca uno escrito a mano. `origen` (medido · cobertura) y `extra` (la naturaleza histórica) viajan en la fila solo si existen. */
 export function filaDeCifra({ entidad, tema, rotulo, valor, tipo, id, procedencia, origen = null, extra = null }) {
   return { valores: { "Entidad / grupo": entidad, "Tema": tema, "Métrica": rotulo, "Valor": valor, "Tipo": tipo }, hechos: [id], procedencia, ...(origen != null ? { origen } : {}), ...(extra || {}) };
+}
+/** temaDeLaFila(rotulo, temaPedido) → el TEMA de una fila es el del dominio de SU cifra (consolidación F5, el estándar de los cuatro puntos: cada atributo de una fila es el de su cifra):
+ *  el dominio del concepto del rótulo en el léxico («Venta a crédito» → cobranza, «Venta» → comercial), también para su diferencia («Diferencia · Venta»). Un rótulo que no es un concepto del léxico
+ *  (el nombre de una señal de la prioridad, un rótulo de la simulación) conserva el tema de quien pide la fila. */
+export function temaDeLaFila(rotulo, temaPedido) {
+  const clave = claveExactaDeMetrica(String(rotulo == null ? "" : rotulo).replace(/^Diferencia · /, ""));
+  const m = clave ? metricaPorClave(clave) : null;
+  return (m && m.dominio) || temaPedido;
+}
+/** unaFilaPorCifra(filas) → las mismas filas sin repetir ninguna: una cifra se escribe UNA vez (§7.3·40b · 52e). Dos filas con TODOS sus valores iguales (entidad, tema, rótulo, valor y tipo) son la misma cifra citada por dos hechos
+ *  distintos (la medida de la lente que la tabla del grupo ya traía, el mismo concepto pedido por dos partes): queda la primera, en su lugar, y ella lleva los hechos de las dos (la doble colocación de cada oración que cita uno de ellos sigue cumpliéndose). */
+export function unaFilaPorCifra(filas) {
+  const vistas = new Map();
+  const out = [];
+  for (const f of Array.isArray(filas) ? filas : []) {
+    const k = f && f.valores ? JSON.stringify({ ...f.valores, Tipo: undefined }) : null;   /* la misma cifra aunque una fila la diga «derivado» (la calculó otro plan) y la otra «medido» (la mide su productor) */
+    if (k == null) { out.push(f); continue; }
+    const i = vistas.get(k);
+    if (i == null) { vistas.set(k, out.length); out.push({ ...f, hechos: [...(f.hechos || [])] }); continue; }
+    const previa = out[i];
+    for (const id of f.hechos || []) if (!previa.hechos.includes(id)) previa.hechos.push(id);
+    /* una cifra que también la mide su productor es medida: la fila que queda lleva el tipo, la procedencia y el origen de la medida */
+    if (f.valores.Tipo === "medido" && previa.valores.Tipo !== "medido") out[i] = { ...previa, valores: { ...previa.valores, Tipo: "medido" }, procedencia: f.procedencia, ...(f.origen != null ? { origen: f.origen } : {}) };
+  }
+  return out;
 }
 
 /* ── UNA FIG SIN CLAVE EN EL LÉXICO SE DECLARA (52e) ───────────────────────────────────────────────────────────────────────────────── */

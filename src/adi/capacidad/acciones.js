@@ -57,7 +57,6 @@
 import { initTenant, getTenantData } from "../../data/tenantStore.js";
 import { validarEncargo } from "../encargo/validar.js";
 import { componerEntrega } from "../entrega/componer.js";
-import { verificarEntrega } from "../entrega/verificar.js";
 import { construirCatalogo } from "./catalogo.js";
 import { construirPerfilCliente } from "../../config/contract/perfilCliente.js";
 import { crearAlmacenEnMemoria } from "../continuidad/almacen.js";
@@ -234,26 +233,8 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria() } = {}) {
     if (!prep.ok) return { ok: false, motivo: prep.motivo, uso: CABECERA_DE_USO };
 
     const resolucion = validarEncargo(encargo, {});
-    let salida = componerEntrega(resolucion);
-
-    // §7.3·17 (supervisor 2026-09-27, diagnóstico v8, tarea 1a) — DEFENSA EN PROFUNDIDAD, no la implementación
-    // del invariante: `componerEntrega` ya declina EN TIEMPO REAL cualquier parte `lectura`/`decision` cuyo
-    // conjunto servido no coincide con el que resuelve su propio universo (el candado vive en `entrega/componer.js`,
-    // plan.kind==="grupo" — un solo lugar). Este es el camino REAL (`consultar`, quien sirve la Entrega al LLM) y
-    // el ÚNICO llamador de `verificarEntrega` en `src/` fuera de los gates: le pasa `resolucion`/`indice` (antes
-    // ningún camino real lo hacía, así que la regla 18 de `entrega/verificar.js` nunca corría fuera de un gate o
-    // de la medición). Solo se audita ESTA regla (nunca las otras 17: cambiar su comportamiento en producción no
-    // es el alcance de esta tarea) — si de todos modos apareciera (un camino nuevo que reintroduzca el defecto),
-    // se falla CERRADO en vez de servir una Entrega que podría responder otra pregunta sin avisar.
-    if (salida.ok && salida.entrega) {
-      const _indiceDelTurno = (salida.entrega.procedencia && salida.entrega.procedencia.libro && salida.entrega.procedencia.libro.indice) || null;
-      let _auditoria = null;
-      try { _auditoria = verificarEntrega({ texto: salida.texto, entrega: salida.entrega, resolucion, indice: _indiceDelTurno }); } catch { _auditoria = null; }
-      const _violaUniversoPropio = _auditoria && _auditoria.violaciones.some((v) => v.regla === "universo-propio-no-coincide");
-      if (_violaUniversoPropio) {
-        salida = { texto: "", entrega: null, libro: salida.libro, ok: false, motivo: "el invariante del universo propio (§7.3·17) no se sostuvo tras componer la Entrega" };
-      }
-    }
+    /* FAMILIA 5 (§7.3·48d): `componerEntrega` ya pasa TODA la Entrega por `verificarEntrega` antes de que salga (`entrega/componer.js:servirConGarantia`): el invariante del universo propio (§7.3·17) la declina entera, y una oración que el verificador rechaza se retira y se declara. Acá no se audita por segunda vez (era la tercera copia de la regla 18). */
+    const salida = componerEntrega(resolucion);
 
     const versionIdActivo = tenant.version != null ? tenant.version : null;
     const conversacionIdEntrante = (encargo && typeof encargo.conversacionId === "string" && encargo.conversacionId) || null;

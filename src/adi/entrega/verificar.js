@@ -69,6 +69,9 @@ function _cifrasEnTexto(texto) {
   return out;
 }
 
+/** cifrasEnTexto(texto) → las cifras que el escáner de la regla 1 ve impresas en un texto (la MISMA cuenta: el compositor declara con ella las que una frase fija trae por su cuenta, nunca una segunda lista) */
+export const cifrasEnTexto = _cifrasEnTexto;
+
 /* «¿esta cifra impresa está respaldada?» — casa si es sustring de algo que el compositor declaró impreso, o si
  * algo declarado es sustring de ella (una cifra puede imprimirse con más o menos contexto pegado, ej. «MM$ 3.4M»
  * contiene «3.4M»). Comparación literal, sin tolerancia numérica: acá no se está re-verificando el VALOR (eso ya
@@ -148,7 +151,8 @@ function _tuteoOColoquial(texto) {
  *  (las 4 rutas fijas, ningún gate viejo) no paga esa regla ni cambia de comportamiento. */
 export function verificarEntrega({ texto, entrega, partes = [], profundidad = "completa", resolucion = null, indice = null } = {}) {
   const violaciones = [];
-  const v = (regla, detalle) => violaciones.push({ regla, detalle });
+  /* `oraciones` (F5, aditivo): los índices de `entrega.respuesta` a que apunta la violación, cuando es de UNA oración (o de las oraciones donde está lo que se rechaza); sin él la violación es de la estructura. Es lo que `servirConGarantia` (componer.js) retira: se lee de la ESTRUCTURA, nunca de la prosa del detalle */
+  const v = (regla, detalle, oraciones = null) => violaciones.push({ regla, detalle, ...(Array.isArray(oraciones) && oraciones.length ? { oraciones } : {}) });
 
   if (!entrega || typeof texto !== "string" || !texto.trim()) { v("estructura", "no hay Entrega o el texto está vacío"); return { ok: false, violaciones }; }
 
@@ -161,7 +165,7 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
   const cifrasImpresas = (entrega.procedencia && entrega.procedencia.cifrasImpresas) || [];
   const enTexto = _cifrasEnTexto(texto);
   const huerfanas = enTexto.filter((c) => !_respaldada(c, cifrasImpresas));
-  if (huerfanas.length) v("cifras-desnudas", `cifras en el texto sin hecho que las respalde: ${huerfanas.join(", ")}`);
+  if (huerfanas.length) v("cifras-desnudas", `cifras en el texto sin hecho que las respalde: ${huerfanas.join(", ")}`, (entrega.respuesta || []).map((r, i) => (r && typeof r.texto === "string" && _cifrasEnTexto(r.texto).some((c) => huerfanas.includes(c)) ? i : -1)).filter((i) => i >= 0));
 
   // 2 · oración-hecho = dueño + métrica + valor en la misma oración — cada oración de Respuesta trae al menos un
   // hecho de apoyo declarado (evidencia estructural) y al menos una cifra impresa (evidencia de forma).
@@ -179,9 +183,9 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
   // que `_definicion` no tiene cifra propia por contrato, esta línea no tiene hecho ni cifra por DISEÑO (§A.5.3).
   (entrega.respuesta || []).forEach((r, i) => {
     if (r._definicion || r._marcaIniciativa) return;
-    if (!Array.isArray(r.hechos) || !r.hechos.length) v("oracion-hecho", `respuesta[${i}] no declara los hechos que la sostienen: «${(r.texto || "").slice(0, 80)}»`);
+    if (!Array.isArray(r.hechos) || !r.hechos.length) v("oracion-hecho", `respuesta[${i}] no declara los hechos que la sostienen: «${(r.texto || "").slice(0, 80)}»`, [i]);
     /* v24 (Q100, §7.3·47a): la oración que DECLARA que ninguna cuenta queda primera por la lente pedida (`_sinPrimero`) es una declaración negativa: dice qué medida no trae el grupo, no una cifra (mismo espíritu que la excepción de `_premisa`); SÍ exige sus hechos */
-    if (!r._premisa && !r._sinPrimero && !_cifrasEnTexto(r.texto).length) v("oracion-hecho", `respuesta[${i}] no trae ninguna cifra: «${(r.texto || "").slice(0, 80)}»`);
+    if (!r._premisa && !r._sinPrimero && !_cifrasEnTexto(r.texto).length) v("oracion-hecho", `respuesta[${i}] no trae ninguna cifra: «${(r.texto || "").slice(0, 80)}»`, [i]);
   });
 
   // 3 · doble colocación — todo hecho citado en Respuesta aparece también en Cifras (tabla) o en la lista de hechos
@@ -237,10 +241,10 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
     return t;
   })();
   const _HABLA_DE_BRECHA = /\bbenchmark\b|\bbrecha\b/i.test(_SIN_EXCLUSIONES);
-  if (_HABLA_DE_BRECHA && (!entrega.marco || !entrega.marco.referenciaDeclarada)) v("comparables-juntas", "el texto habla de benchmark/brecha y el marco no declara la referencia — una brecha sin su referencia no se sostiene sola");
+  if (_HABLA_DE_BRECHA && (!entrega.marco || !entrega.marco.referenciaDeclarada)) v("comparables-juntas", "el texto habla de benchmark/brecha y el marco no declara la referencia — una brecha sin su referencia no se sostiene sola", (entrega.respuesta || []).map((r, i) => (r && !r._definicion && /\bbenchmark\b|\bbrecha\b/i.test(String(r.texto || "")) ? i : -1)).filter((i) => i >= 0));
   (entrega.respuesta || []).forEach((r, i) => {
     if (r._definicion) return;
-    if (/benchmark|brecha/i.test(r.texto) && !_cifrasEnTexto(r.texto).length) v("comparables-juntas", `respuesta[${i}] habla de benchmark/brecha sin ninguna cifra en la misma oración: «${(r.texto || "").slice(0, 80)}»`);
+    if (/benchmark|brecha/i.test(r.texto) && !_cifrasEnTexto(r.texto).length) v("comparables-juntas", `respuesta[${i}] habla de benchmark/brecha sin ninguna cifra en la misma oración: «${(r.texto || "").slice(0, 80)}»`, [i]);
   });
 
   // 5 · toda ausencia relevante es un límite con TÍTULO, redactado como hallazgo (nunca prohibición ni excusa)
@@ -386,7 +390,7 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
       if (!r._simulacion || r._bloqueId) return;
       const mezcla = r._mezcla;
       const declaraMezcla = mezcla && ((Array.isArray(mezcla.entidades) && mezcla.entidades.length) || (Array.isArray(mezcla.escenarios) && mezcla.escenarios.length));
-      if (!declaraMezcla) v("oracion-simulacion-sin-alcance", `respuesta[${i}] es de una simulación pero no pertenece a un bloque ni declara los alcances que mezcla (\`_mezcla\`)`);
+      if (!declaraMezcla) v("oracion-simulacion-sin-alcance", `respuesta[${i}] es de una simulación pero no pertenece a un bloque ni declara los alcances que mezcla (\`_mezcla\`)`, [i]);
     });
     const colsSim = entrega.cifras && Array.isArray(entrega.cifras.columnas) ? entrega.cifras.columnas : [];
     if (colsSim.includes("Simulación") && colsSim.includes("Supuesto")) {
@@ -609,8 +613,8 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
           resueltasPorContraste.push([m.index, m.index + m[0].length]);
           if (!primero || !segundo) continue;
           const v1 = m[1].trim().replace(/\.$/, ""), v2 = m[2].trim().replace(/\.$/, "");
-          if (_cifraEspecifica(v1) && !_respaldada(v1, [...primero.valores]) && _esCifraDeOtro(v1, [...segundo.valores])) v("dueno-de-cifra-equivocado", `respuesta[${i}] el contraste imprime "${v1}" en el lugar del sujeto ("${primero.nombre}"), pero esa cifra en el libro pertenece a "${segundo.nombre}": «${(r.texto || "").slice(0, 120)}»`);
-          if (_cifraEspecifica(v2) && !_respaldada(v2, [...segundo.valores]) && _esCifraDeOtro(v2, [...primero.valores])) v("dueno-de-cifra-equivocado", `respuesta[${i}] el contraste imprime "${v2}" en el lugar del rival ("${segundo.nombre}"), pero esa cifra en el libro pertenece a "${primero.nombre}": «${(r.texto || "").slice(0, 120)}»`);
+          if (_cifraEspecifica(v1) && !_respaldada(v1, [...primero.valores]) && _esCifraDeOtro(v1, [...segundo.valores])) v("dueno-de-cifra-equivocado", `respuesta[${i}] el contraste imprime "${v1}" en el lugar del sujeto ("${primero.nombre}"), pero esa cifra en el libro pertenece a "${segundo.nombre}": «${(r.texto || "").slice(0, 120)}»`, [i]);
+          if (_cifraEspecifica(v2) && !_respaldada(v2, [...segundo.valores]) && _esCifraDeOtro(v2, [...primero.valores])) v("dueno-de-cifra-equivocado", `respuesta[${i}] el contraste imprime "${v2}" en el lugar del rival ("${segundo.nombre}"), pero esa cifra en el libro pertenece a "${primero.nombre}": «${(r.texto || "").slice(0, 120)}»`, [i]);
         }
         const _dentroDeContraste = (idx) => resueltasPorContraste.some(([a, b]) => idx >= a && idx < b);
 
@@ -639,14 +643,17 @@ export function verificarEntrega({ texto, entrega, partes = [], profundidad = "c
           const ventana = resto.slice(0, corte);
           // la PRIMERA cifra ESPECÍFICA de la ventana — un ordinal/conteo pelado antes («1° de 5») no cuenta (a).
           let cifra = null, posCifra = -1;
-          for (const m of ventana.matchAll(_CIFRA_G())) { const c = m[0].trim().replace(/\.$/, ""); if (/\bpuesto\s+$/i.test(ventana.slice(0, m.index))) continue; /* v24: «en el puesto 12» es una posición, no la cifra de nadie (la declaración del empate del filo dice el puesto compartido) */ if (_cifraEspecifica(c)) { cifra = c; posCifra = m.index; break; } }
+          for (const m of ventana.matchAll(_CIFRA_G())) { const c = m[0].trim().replace(/\.$/, ""); if (/\bpuesto\s+$/i.test(ventana.slice(0, m.index))) continue; /* v24: «en el puesto 12» es una posición, no la cifra de nadie (la declaración del empate del filo dice el puesto compartido) */
+            /* §7.3·51(c) (consolidación F5): la oración de PUESTO («Easy, 7° de 13 clientes con saldo pendiente: …», «hay 8 de 13») dice el TAMAÑO DEL UNIVERSO que ordena el puesto: el «13» del «N° de 13» es el de ese conjunto, no la cifra de ninguna entidad (ni de la dueña de una premisa que cita su puesto 13): la composición y el verificador no se contradicen */
+            if (/(?:^|[^\d.,$])\d{1,3}\s*[°º]?\s+de\s+$/.test(ventana.slice(0, m.index))) continue;
+            if (_cifraEspecifica(c)) { cifra = c; posCifra = m.index; break; } }
           if (cifra == null) continue;   // ninguna cifra específica pegada a este nombre antes del siguiente dueño: nada que verificar
           if (_dentroDeContraste(inicioResto + posCifra)) continue;   // ya lo resolvió el convenio "(A contra B)" de arriba
           if (_respaldada(cifra, [...valoresA])) continue;   // es una de SUS propias cifras: correcto
           const deOtroCitado = [...porDueno.entries()].find(([kB, d]) => kB !== kA && _esCifraDeOtro(cifra, [...d.valores]));
-          if (deOtroCitado) { v("dueno-de-cifra-equivocado", `respuesta[${i}] atribuye a "${nombreA}" la cifra "${cifra}", que en el libro pertenece a "${deOtroCitado[1].nombre}": «${(r.texto || "").slice(0, 120)}»`); continue; }
+          if (deOtroCitado) { v("dueno-de-cifra-equivocado", `respuesta[${i}] atribuye a "${nombreA}" la cifra "${cifra}", que en el libro pertenece a "${deOtroCitado[1].nombre}": «${(r.texto || "").slice(0, 120)}»`, [i]); continue; }
           const otroNoCitado = _perteneceANoCitado(cifra, kA);
-          if (otroNoCitado) v("dueno-de-cifra-equivocado", `respuesta[${i}] atribuye a "${nombreA}" la cifra "${cifra}", que en el libro pertenece a "${otroNoCitado.nombre}" (hecho "${otroNoCitado.hid}", no citado por esta oración): «${(r.texto || "").slice(0, 120)}»`);
+          if (otroNoCitado) v("dueno-de-cifra-equivocado", `respuesta[${i}] atribuye a "${nombreA}" la cifra "${cifra}", que en el libro pertenece a "${otroNoCitado.nombre}" (hecho "${otroNoCitado.hid}", no citado por esta oración): «${(r.texto || "").slice(0, 120)}»`, [i]);
           // si no es de A ni de ningún otro hecho de ningún libro, es huérfana: ya la caza la regla 1 (cifras-desnudas)
         }
       });

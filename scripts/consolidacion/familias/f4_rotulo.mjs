@@ -16,6 +16,8 @@
  *                                de otra clave de la misma unidad (capital inmovilizado ≠ crítico, saldo por vencer ≠ pendiente…) (51f).
  *   oracion-rotula-crudo         una oración dice la cifra «en X» (prioridad, comparación, «no tiene X») con una X que no es el nombre del
  *                                léxico en minúscula (49f · 51f · 52e).
+ *   tema-mal-asociado            el Tema de la fila no es el del dominio de su cifra («Falabella · comercial · Venta a crédito»): cada fila lleva el tema de
+ *                                su cifra, no el de la parte o la lente que la pidió (estándar de los cuatro puntos del owner; consolidación F5).
  * EXENTO (52e): las filas de la tabla de señales de la prioridad (el nombre de su señal: «vencido», «atraso», «distancia al benchmark»…, su
  * diferencia «Diferencia · materialidad» y la concentración «Participación del vencido total») y la tabla de la simulación (sus rótulos son los
  * de su productor: ningún artículo del contrato los cubre). */
@@ -47,11 +49,12 @@ export const familia = {
     const claveDe = (rotulo) => lex.claveExactaDeMetrica(rotulo) || null;
     /* las señales de la prioridad (dato del contrato): sus nombres y las tres dimensiones */
     const SENALES = new Set(["materialidad", "severidad", "urgencia"]);
-    try { for (const dom of Object.values((base.prioridadIntegrada && base.prioridadIntegrada.LENTES) || {})) for (const l of Object.values(dom || {})) if (l && l.nombre) SENALES.add(_norm(l.nombre)); } catch { /* sin señales: el control sigue */ }
+    try { for (const dom of Object.values((base.prioridadIntegrada && base.prioridadIntegrada.LENTES) || {})) for (const l of Object.values(dom || {})) if (l && l.nombre) SENALES.add(String(l.nombre)); } catch { /* sin señales: el control sigue */ }
+    /* el rótulo de una señal es SU nombre, tal cual (en minúscula: «vencido», «días sin venta»); el rótulo de un concepto («Días sin venta») no es una señal aunque se parezca: no se exime */
     const esDeSenal = (met) => {
-      const t = _norm(met).replace(/^diferencia · /, "");
+      const t = String(met).replace(/^Diferencia · /, "");
       if (SENALES.has(t)) return true;
-      const m = /^participacion del (.+) total$/.exec(t);
+      const m = /^Participación del (.+) total$/.exec(t);
       return !!(m && SENALES.has(m[1]));
     };
     /* el dato: la clave y el valor de cada cifra por entidad (los rankings de la proyección) */
@@ -74,6 +77,9 @@ export const familia = {
       if (!clave) { v("fig-sin-clave-sin-declarar", `la fila «${ent} · ${met}» (${x.Tema}) lleva un rótulo sin clave en el léxico`); continue; }
       const nombre = lex.metricaPorClave(clave).nombre;
       if (core !== nombre) { v("rotulo-fuera-del-lexico", `la fila «${ent} · ${met}» (${x.Tema}) debería rotularse «${esDif ? "Diferencia · " : ""}${nombre}»`); continue; }
+      /* el TEMA de la fila es el del dominio de su cifra (el estándar de los cuatro puntos: cada atributo de una fila es el de SU cifra): «Falabella · comercial · Venta a crédito» tiene el tema mal asociado (la venta a crédito es de cobranza) */
+      const dominio = lex.metricaPorClave(clave).dominio;
+      if (x.Tema != null && dominio && _norm(x.Tema) !== _norm(dominio)) v("tema-mal-asociado", `la fila «${ent} · ${met}» lleva el tema «${x.Tema}» y su cifra es del dominio «${dominio}»`);
       if (esDif || /\s[−-]\s|^Total\b/.test(String(ent))) continue;   // una diferencia o un total no es la cifra de UNA fig del dato
       /* el dato: si publica la clave del rótulo para esa entidad con OTRO valor y la cifra impresa es la de otra clave de la misma unidad, el rótulo es de otro concepto */
       const imp = _valorImpreso(x.Valor);

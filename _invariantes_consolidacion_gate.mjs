@@ -45,7 +45,7 @@ const base = await cargarBase();
 const familias = await cargarFamilias();
 
 H("0 · la infraestructura: marco, familias, generador");
-ok(familias.length >= 4 && familias.some((f) => f.id === "F1") && familias.some((f) => f.id === "F2") && familias.some((f) => f.id === "F3") && familias.some((f) => f.id === "F4"), `el marco carga las familias registradas (${familias.map((f) => f.id).join(", ")})`);
+ok(familias.length >= 5 && ["F1", "F2", "F3", "F4", "F5"].every((id) => familias.some((f) => f.id === id)), `el marco carga las familias registradas (${familias.map((f) => f.id).join(", ")})`);
 ok(familias.every((f) => typeof f.invariante === "function" && f.nombre), "cada familia declara su nombre y su función invariante");
 {
   const a = (await generarEncargos(base, { semilla: "g0", n: 60 })).casos, b = (await generarEncargos(base, { semilla: "g0", n: 60 })).casos, c = (await generarEncargos(base, { semilla: "g1", n: 60 })).casos;
@@ -348,6 +348,65 @@ H("4d · carnadas de la F4 (el rótulo de cada cifra según su concepto): el con
   }
 }
 
+H("4e · carnadas de la F5 (toda oración servida pasó su verificador), de la fila repetida (F2), del margen por SKU (F2) y del tema de la fila (F4): el control TIENE que ponerse en rojo");
+{
+  const F5 = familias.find((f) => f.id === "F5"), F2 = familias.find((f) => f.id === "F2"), F4 = familias.find((f) => f.id === "F4");
+  const caso = (id) => { const c = catalogos.find((x) => x.id === id); return c ? entregaDe(base, c) : { ok: false }; };
+  const regla = (vs, r) => vs.some((v) => v.regla === r);
+  ok(!!F5 && !!F2 && !!F4, "el marco carga las familias F5, F2 y F4");
+  /* F5 · la base verde es v27:M31 (la causa: la oración de puesto «Easy, 7° de 13» chocaba con la regla 17 del verificador, que le atribuía el «13» a la dueña de una premisa) */
+  const m31 = caso("v27:M31");
+  ok(m31.ok && /Easy, 7° de 13 clientes con saldo pendiente/.test(m31.texto) && revisarEntrega(m31, [F5]).length === 0, "v27:M31 (la oración de puesto «7° de 13» con una premisa que cita el puesto 13): el verificador la acepta, el control no marca nada");
+  if (m31.ok) {
+    const iEasy = m31.entrega.respuesta.findIndex((r) => /^Easy, 7° de 13/.test(r.texto));
+    const mut = (fn) => ({ ...m31, entrega: { ...m31.entrega, respuesta: m31.entrega.respuesta.map((r, i) => (i === iEasy ? fn(r) : r)) } });
+    const ctxDe = (e) => ({ ...e, texto: e.texto.replace(m31.entrega.respuesta[iEasy].texto, e.entrega.respuesta[iEasy].texto) });
+    /* una cifra de OTRO dueño pegada al nombre (la sustitución silenciosa que la regla 17 vigila) sigue en rojo: el verificador no se relajó */
+    const otra = ctxDe(mut((r) => ({ ...r, texto: r.texto.replace("$2.0M pendientes", "$5.3M pendientes") })));
+    ok(regla(revisarEntrega(otra, [F5]), "verificador-rechaza-lo-servido") && regla(revisarEntrega(otra, [F5]), "oracion-rechazada-servida"), "la cifra de otra cuenta ($5.3M, de Sodimac) pegada al nombre de Easy → verificador-rechaza-lo-servido y oracion-rechazada-servida");
+    const sinHechos = ctxDe(mut((r) => ({ ...r, hechos: [] })));
+    ok(regla(revisarEntrega(sinHechos, [F5]), "oracion-rechazada-servida"), "una oración servida sin los hechos que la sostienen → oracion-rechazada-servida");
+    const sinLimite = { ...m31, entrega: { ...m31.entrega, verificacion: { ok: true, violaciones: [], retiradas: [{ regla: "oracion-hecho", hechos: [] }] } } };
+    ok(regla(revisarEntrega(sinLimite, [F5]), "retirada-sin-limite"), "una oración retirada que no se declara en los límites → retirada-sin-limite");
+    /* la pieza: una oración rechazada se RETIRA y se DECLARA (nunca sale) */
+    const { servirConGarantia } = await import("./src/adi/entrega/componer.js");
+    const mala = otra;
+    const s = servirConGarantia({ texto: mala.texto, entrega: mala.entrega, libro: mala.entrega.procedencia.libro, ok: true, motivo: "" }, m31.resolucion);
+    const vs = s.ok ? base.verificar.verificarEntrega({ texto: s.texto, entrega: s.entrega, resolucion: m31.resolucion, indice: s.entrega.procedencia.libro.indice }) : null;
+    ok(s.ok && !s.texto.includes("Easy, 7° de 13") && !s.entrega.respuesta.some((r) => /^Easy, 7° de 13/.test(r.texto)) && vs && vs.violaciones.length === 0, "servirConGarantia: la oración que el verificador rechaza no sale en el texto ni en la Entrega, y lo que sale pasa el verificador", JSON.stringify(vs && vs.violaciones));
+    ok(s.ok && s.entrega.verificacion && s.entrega.verificacion.ok === true && s.entrega.verificacion.retiradas.length === 1 && s.entrega.verificacion.retiradas[0].regla === "dueno-de-cifra-equivocado" && s.entrega.limites.some((l) => l._retiradaPorVerificador && /^Una oración sobre Easy no pasó la verificación y se retiró$/.test(l.titulo)) && /\*\*Una oración sobre Easy no pasó la verificación y se retiró\.\*\*/.test(s.texto), "servirConGarantia: la oración retirada se declara como límite (su texto sale de ausencias.js) y la Entrega dice qué regla la rechazó, sin llevar la oración");
+    ok(revisarEntrega({ ...m31, texto: s.texto, entrega: s.entrega }, [F5]).length === 0, "la Entrega que la pieza sirve tras retirar la oración no tiene violaciones del control F5");
+  }
+  /* F2 · una cifra se escribe una vez */
+  const f40 = caso("v13:Z64");
+  if (f40.ok) {
+    const filas = f40.entrega.cifras.filas;
+    ok(revisarEntrega(f40, [F2]).length === 0 && filas.filter((f) => f.valores["Entidad / grupo"] === "Falabella" && f.valores["Métrica"] === "Venta").length === 1, "v13:Z64 (la medida de la lente que la tabla ya traía): Falabella · Venta sale UNA vez");
+    const dup = { ...f40, entrega: { ...f40.entrega, cifras: { ...f40.entrega.cifras, filas: [...filas, { ...filas[1], hechos: ["e999"] }] } } };
+    ok(regla(revisarEntrega(dup, [F2]), "fila-duplicada"), "la misma fila (entidad, rótulo y valor) dos veces → fila-duplicada");
+    const { unaFilaPorCifra } = await import("./src/adi/entrega/rotulos.js");
+    const u = unaFilaPorCifra([...filas, { ...filas[1], hechos: ["e999"] }]);
+    ok(u.length === filas.length && u[1].hechos.includes("e999") && u[1].hechos.length === 2, "la pieza: la fila repetida se funde en la primera, que cita los hechos de las dos (la doble colocación de cada oración se sigue cumpliendo)");
+  } else ok(false, "existe v13:Z64 en los catálogos");
+  /* F2 · el margen por SKU se verifica como cifra de una entidad (la causa del «sin dato» falso) */
+  const y03 = caso("v19:Y03");
+  if (y03.ok) {
+    const I = y03.entrega.procedencia.libro.indice;
+    const { libroDeHechos } = await import("./src/adi/notario/hechos.js");
+    const H = libroDeHechos([{ id: "z1", tipo: "cifra", sujeto: "MAK-SAW18V", metrica: "margen", valor: "34%" }, { id: "z2", tipo: "cifra", sujeto: "MAK-SAW18V", metrica: "margen", valor: "20%" }], { indice: I }).hechos;
+    ok(H[0].ok && H[0].veredicto === "verdadera" && !(H[1].ok && H[1].veredicto === "verdadera"), "el Notario verifica el margen de un SKU como cifra de una entidad (34% sí, 20% no)");
+  } else ok(false, "existe v19:Y03 en los catálogos");
+  /* F4 · el tema de la fila es el del dominio de su cifra */
+  const q14 = caso("v24:Q14");
+  if (q14.ok) {
+    ok(revisarEntrega(q14, [F4]).length === 0 && q14.entrega.cifras.filas.every((f) => f.valores["Métrica"] !== "Venta a crédito" || f.valores.Tema === "cobranza"), "v24:Q14: «Venta a crédito» lleva el tema «cobranza» (el de su cifra), no el de la parte o la lente que la pidió");
+    const mal = { ...q14, entrega: { ...q14.entrega, cifras: { ...q14.entrega.cifras, filas: q14.entrega.cifras.filas.map((f) => (f.valores["Métrica"] === "Venta a crédito" ? { ...f, valores: { ...f.valores, Tema: "comercial" } } : f)) } } };
+    ok(regla(revisarEntrega(mal, [F4]), "tema-mal-asociado"), "«Falabella · comercial · Venta a crédito» (la venta a crédito es de cobranza) → tema-mal-asociado");
+    const { temaDeLaFila } = await import("./src/adi/entrega/rotulos.js");
+    ok(temaDeLaFila("Venta a crédito", "comercial") === "cobranza" && temaDeLaFila("Diferencia · Venta", "cobranza") === "comercial" && temaDeLaFila("vencido", "cobranza") === "cobranza" && temaDeLaFila("Cosa del productor", "inventario") === "inventario", "la pieza: el tema de una fila es el del dominio de su cifra; un rótulo que no es un concepto del léxico (una señal) conserva el de quien la pide");
+  } else ok(false, "existe v24:Q14 en los catálogos");
+}
+
 H("5 · independencia del control y cableado de la pieza (estático)");
 {
   const f1 =fs.readFileSync("./scripts/consolidacion/familias/f1_prioridad.mjs", "utf8");
@@ -392,6 +451,17 @@ H("5 · independencia del control y cableado de la pieza (estático)");
   ok(/referenciaDelMarco\(/.test(comp) && /procedenciaDeLosUmbrales\(/.test(comp) && /export function referenciaDelMarco/.test(ref) && /export function procedenciaDeLosUmbrales/.test(ref), "componer.js le pregunta a la pieza por la referencia oficial del Marco y por la procedencia de los umbrales");
   ok(!/_BASE_BENCHMARK_RE/.test(comp) && !/const nivelEnJuego/.test(comp) && !/umbralesDeEstados\(\[\.\.\.estadosEnJuego\]\)/.test(comp), "componer.js ya no decide por su cuenta cuándo el Marco declara el benchmark, el nivel de carga o la procedencia de un umbral");
   ok(!/`Benchmark de margen(?: \(comercial\))?: \$\{/.test(comp) && !/Umbral de materialidad de la empresa/.test(comp), "ni las rutas fijas ni el multitema escriben a mano la frase del benchmark o del piso de materialidad: salen de la pieza");
+}
+
+{
+  /* F5 · el control no importa la pieza; `componerEntrega` pasa TODA Entrega por ella; la tercera copia de la regla 18 (acciones.js) ya no existe */
+  const f5 = fs.readFileSync("./scripts/consolidacion/familias/f5_verificador.mjs", "utf8"), comp = fs.readFileSync("./src/adi/entrega/componer.js", "utf8"), acc = fs.readFileSync("./src/adi/capacidad/acciones.js", "utf8"), aus = fs.readFileSync("./src/config/contract/ausencias.js", "utf8");
+  ok(!/^\s*import[^\n]*componer\.js/m.test(f5) && !/servirConGarantia\(/.test(f5), "el control de la F5 NO importa la pieza (`servirConGarantia`): el oráculo es `verificarEntrega` sobre lo servido");
+  ok(/return servirConGarantia\(r, resolucion\);/.test(comp) && /verificarEntrega\(\{ texto: s\.texto, entrega: s\.entrega, resolucion, indice, profundidad \}\)/.test(comp), "componerEntrega pasa la Entrega por `servirConGarantia`, que corre `verificarEntrega` con la resolución, el índice del turno y la profundidad");
+  ok(!/verificarEntrega/.test(acc.replace(/\/\*[\s\S]*?\*\//g, "")) && !/universo-propio-no-coincide/.test(acc), "`acciones.consultar` ya no audita por su cuenta (la tercera copia de la regla 18 se borró)");
+  ok(/export function textoOracionRetirada/.test(aus) && /export const MOTIVO_ORACION_RETIRADA/.test(aus) && /textoOracionRetirada\(/.test(comp) && !/no pasó la verificación/.test(comp), "el límite de una oración retirada sale de `config/contract/ausencias.js` (la pieza no escribe su texto)");
+  const ver = fs.readFileSync("./src/adi/entrega/verificar.js", "utf8");
+  ok(/\{ oraciones \}|oraciones = null/.test(ver) && !/respuesta\\\[\(\\d\+\)\\\]/.test(comp), "la pieza lee de la ESTRUCTURA qué oraciones rechaza el verificador (`violacion.oraciones`), nunca parsea la prosa del detalle");
 }
 
 H("6 · cero red");

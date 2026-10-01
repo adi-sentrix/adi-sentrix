@@ -20,7 +20,9 @@
  *   cero-sin-origen            un 0 impreso en una fila medida no tiene origen en el dato: ni la fila de la fuente con valor 0 (medido) ni una fuente
  *                              que declare cubrir al grupo para esa métrica (52b).
  *   sin-dato-como-numero       un «sin dato» impreso como número (NaN, «null», «undefined») (52b).
- *   tasa-sin-denominador-como-cero una tasa impresa como 0 % cuyo denominador el dato no trae o vale cero (52b). */
+ *   tasa-sin-denominador-como-cero una tasa impresa como 0 % cuyo denominador el dato no trae o vale cero (52b).
+ *   fila-duplicada             la misma fila (entidad, rótulo y valor iguales) se imprime dos veces: una cifra se escribe una vez (40b · 52e, consolidación F5).
+ * (El margen por SKU ya no está exento: el Notario lo verifica como cifra de una entidad y el productor lo sirve; consolidación F5.) */
 import { COBERTURA_DE_FUENTES, coberturaDeLaMetrica } from "../../../src/config/contract/coberturaDeFuentes.js";
 
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -55,14 +57,15 @@ export const familia = {
     const filasDe = (ent) => celdas.filter((c) => _norm(c.ent) === _norm(ent));
     const nombreDe = (clave) => ((lex.metricaPorClave(clave) || {}).nombre) || clave;
 
+    /* ── una cifra se escribe UNA vez (40b · 52e): la misma fila (entidad, rótulo y valor iguales) no sale dos veces entre Cifras y Detalle ──────── */
+    { const vistas = new Set(); for (const c of celdas) { const x = c.fila.valores || {}; const k = [c.ent, c.met, String(c.val).trim(), x.Tema, x["Simulación"], x.Supuesto].join("|"); if (vistas.has(k)) v("fila-duplicada", `«${c.ent} · ${c.met}» = ${c.val} (${x.Tema || "—"}) se imprime dos veces`); else vistas.add(k); } }
+
     /* ── el dato: qué publica la fuente para una entidad y un concepto ────────────────────────────────────────────── */
     const filaDelRanking = (eje, clave, ent, tema) => { const rk = R[eje] && R[eje][_CLAVE_DE_RANKING(eje, clave, tema)]; return rk && Array.isArray(rk.filas) ? (rk.filas.find((f) => _norm(f.entidad) === _norm(ent) && Number.isFinite(f.valor)) || null) : null; };
     const rankingPublicado = (eje, clave, tema) => { const rk = R[eje] && R[eje][_CLAVE_DE_RANKING(eje, clave, tema)]; return !!(rk && Array.isArray(rk.filas) && rk.filas.length); };
     const esDelEje = (eje, ent) => Object.values(R[eje] || {}).some((rk) => rk && Array.isArray(rk.filas) && rk.filas.some((f) => _norm(f.entidad) === _norm(ent)));
     /* ¿el dato demuestra algo para (entidad, concepto)? → "medido" (la fila de la fuente) · "cobertura" (la fuente declara cubrir al grupo y la entidad es del grupo) · null (dato ausente) */
     const origenEnElDato = (eje, clave, ent, tema) => {
-      /* el margen por SKU vive solo en un ranking estático que el Notario no sabe verificar como cifra de una entidad (§7.3·13/40, hechos.js `_cifraPropia`): hasta que la casa lo declare verificable, no se exige su fila (hueco abierto, reportado) */
-      if (eje === "sku" && clave === "margen") return null;
       if (filaDelRanking(eje, clave, ent, tema)) return "medido";
       if (rankingPublicado(eje, clave, tema) && coberturaDeLaMetrica(clave, eje) && esDelEje(eje, ent)) return "cobertura";
       return null;
@@ -88,7 +91,7 @@ export const familia = {
           /* el dato la publica: una declaración de que falta NO la excusa (se declara con verdad: lo que el dato trae se sirve) */
           if (origen) { v("servida-sin-fila", `${p.id} · «${s.n}» (${s.via}) no tiene fila de «${nombreDe(c)}» y el dato la publica (${origen})${declarado(s.n, c) ? "; la Entrega dice que falta" : "; la Entrega no lo declara"}`); continue; }
           /* el dato no la publica pero la fuente SÍ publica a otras entidades del eje (dato ausente de esta entidad): hay que declararlo, nunca callarlo (52b) */
-          if (!(s.eje === "sku" && c === "margen") && rankingPublicado(s.eje, c, p.tema) && esDelEje(s.eje, s.n) && !declarado(s.n, c)) v("ausente-sin-declarar", `${p.id} · «${s.n}» (${s.via}) no tiene dato de «${nombreDe(c)}» en la fuente y la Entrega no lo declara («sin dato de X para Y»)`);
+          if (rankingPublicado(s.eje, c, p.tema) && esDelEje(s.eje, s.n) && !declarado(s.n, c)) v("ausente-sin-declarar", `${p.id} · «${s.n}» (${s.via}) no tiene dato de «${nombreDe(c)}» en la fuente y la Entrega no lo declara («sin dato de X para Y»)`);
         }
       }
     }
