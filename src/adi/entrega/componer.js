@@ -63,7 +63,7 @@ import { prioridadDeParte, valoresDeProyeccion, prioridadCruzada, lideresPorDomi
 import { lecturasDe, REGISTRO_LECTURAS, consultaDeFrenado as _consultaDeFrenado, estadosDeUniverso as _estadosDeUniverso, frenadoSinUmbral as _frenadoSinUmbral } from "../encargo/lecturasDe.js";
 import { ceroPorCobertura, metricaPorClave, claveDeMetrica, claveExactaDeMetrica, dominioDeClave, unidadDeClave, conteoDeEje, conPreposicion, sintagmaDe, esCero, dichoElCero, diasEnPalabras } from "../notario/lexico.js";
 import { objetivoPorMeta } from "../llm/voiceGuard.js";   // v21 (T12): el nombre del concepto que la Entrega imprime como título de su definición va en la voz de la casa («meta» → «objetivo»)
-import { ausenciaPorId, textoOracionRetirada, MOTIVO_ORACION_RETIRADA } from "../../config/contract/ausencias.js";   // Etapa 2 §2 (owner 2026-09-23): las ausencias del dato, declaradas UNA vez
+import { ausenciaPorId, textoOracionRetirada, MOTIVO_ORACION_RETIRADA, textoSinDato } from "../../config/contract/ausencias.js";   // Etapa 2 §2 (owner 2026-09-23): las ausencias del dato, declaradas UNA vez
 // Etapa 2 §4 (owner 2026-09-23, plan §3 «cómo se pega al cliente») — EL PERFIL DEL CLIENTE viaja en el Marco,
 // como los demás hechos: `getTenantData()` es el MISMO acceso que ya usa todo `oracle/` (datoProyectado.js,
 // entityRecord.js, toolRegistry.js) para leer el tenant activo — no se abre una segunda fuente de identidad.
@@ -2330,7 +2330,9 @@ function _textoDePremisa(H, libroPremisas, consulta = null) {
   if (H.veredicto === "verdadera") return `Sobre la premisa planteada en la consulta: es correcto — ${verdadCasa}.`;
   // 38(a)/39(b): con `contra` la oración ya dice las DOS cifras con su dueño, y una `cifra` falsa ya dice la suya con su dueño; la traza de la verdad derivada («La verdad: …») repetiría lo mismo con la notación interna
   if (H.veredicto === "falsa") { const vd = H.render && H.render.verdadPropia && (H.render.verdadPropia.contra || H.tipo === "cifra") ? "" : _trazaSinRepetir(verdadCasa, _textoVerdadDerivada(H, libroPremisas)); return `Sobre la premisa planteada en la consulta: no es así — ${verdadCasa}${vd ? `. La verdad: ${vd}` : ""}.`; }
-  return `Sobre la premisa planteada en la consulta, no se pudo verificar con este dato: ${H.motivo}.`;
+  /* §7.3·52(b) (parte B, c): la ausencia del dato de una entidad se dice «sin dato de X para Y» (texto de `ausencias.js`), no con las palabras del motivo interno del Notario («sin-evidencia: la boleta no trae «X» de Y») */
+  const _ausente = /^sin-evidencia: la boleta no trae «([^»]+)» de ([^.]+?)\.?$/.exec(String(H.motivo || ""));
+  return `Sobre la premisa planteada en la consulta, no se pudo verificar con este dato: ${_ausente ? textoSinDato(_ausente[1], [_ausente[2]]) : H.motivo}.`;
 }
 
 /* ── PLAN «grupo» (cierre `cifra` sin entidades: listado del eje, group-by o `universo.top`) ────────────────────
@@ -2399,7 +2401,14 @@ function _entidadesDelTopVerificado(entidadesDeLaToolCruda, figsAcotadas, top, e
   // exactamente la respuesta NO VERIFICABLE que la decisión 13 prohíbe servir (W99: Bosch sale «ganador» de un
   // ranking de variación que solo trae 4 de 5 marcas). Se declina (`entidades: []`, `resuelto:false`) para que
   // `_planCifraGrupo` decline la parte entera con un límite — nunca la crudo sin verificar.
-  if (R && R.error && /^ranking-parcial/.test(R.error)) return { entidades: [], figsExtra: [], resuelto: false };
+  if (R && R.error && /^ranking-parcial/.test(R.error)) {
+    /* §7.3·52(b) (parte B, c): la parte declinada por un ranking incompleto dice QUIÉN no tiene dato con la forma única «sin dato de X para Y» (texto de `ausencias.js`), no un «sin evidencia» genérico */
+    const m = metricaPorClave(claveDeMetrica(conceptoTop));
+    let rk = null; try { rk = m && indice.rankingDe ? (indice.rankingDe(eje, m.nombre) || null) : null; } catch { rk = null; }
+    const conDato = new Set(((rk && rk.r && rk.r.filas) || []).map((f) => normalizar(f.entidad)));
+    const sin = conDato.size && indice.entidades ? [...indice.entidades].filter(([k, e]) => e && e.eje === eje && !conDato.has(k)).map(([, e]) => e.nombre) : [];
+    return { entidades: [], figsExtra: [], resuelto: false, ...(m && sin.length ? { errorUniverso: `ranking-parcial: ${textoSinDato(m.nombre, sin)}` } : {}) };
+  }
   // RAÍZ A (supervisor 2026-09-29, bug real — ver la nota grande sobre `_resolverConjuntoDeclarado`, arriba de
   // `_entidadEnAlcanceDeUnaParte`) — CUALQUIER OTRO error de resolución (p. ej. «universo-no-resoluble» de un
   // `union` con `estados:["frenado"]` sin umbral declarado) declina TAMBIÉN, con el motivo real (`errorUniverso`)
@@ -2681,7 +2690,18 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
   /* FAMILIA 1: la decisión de prioridad es de `prioridad.js`. v23: la lente que aplica al dominio ordena la prioridad del grupo. §7.3·50(a): la lista del grupo es la de su productor (o el RANKING que el usuario pidió, su dirección manda); la ORACIÓN de prioridad de una `decision` nombra a quien pide atención por la medida nombrada entre los servidos: nunca corona al mejor por una tasa. */
   const prio = prioridadDeParte({ criterio, tema: parte.tema, cierre: parte.cierre, entidades: orden, claveOrden, valorDe: _valorDeOrden, proyeccion: valoresDeProyeccion(indice, eje, claveOrden), figs: figsAcotadas, porEntidad });
   const { lenteGrupo, primeroAtencion } = prio;
-  return { kind: "grupo", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, eje, conceptos, porEntidad, orden, cola, empates, faltantes, prioridad: prio, ...(lenteGrupo ? { lenteGrupo } : {}), ...(empateFilo && orden.length === empateFilo.servidos ? { empateFilo } : {}), ...(fotoCompletada.length ? { fotoCompletada } : {}), claveOrden, ...(primeroAtencion ? { primeroAtencion } : {}), universoDecl: { top: top || null, base: alcance.base || null, estados: alcance.estados || null, no_estados: alcance.no_estados || null, filtros: alcance.filtros || null, bodega: alcance.bodega || null, union: alcance.union || null, excluir: alcance.excluirCompleto || null, entidades: orden } };
+  /* §7.3·52(c) (owner, parte B · a): la foto de una lectura o decision de COBRANZA son las cuentas de la mesa EN EL ORDEN DE LA MESA (el de `facts.clientes`, que `soloEntidades` conserva), no el de un concepto. La prioridad ya se decidió con los valores (arriba) y no depende
+   * del orden de la lista. Si ese orden coincide con el de la medida que ordenaba, la cabeza sigue diciendo «ordenado por X» (es verdad); si no, el orden es el de la mesa, se dice así y no hay «empate en el orden servido» (la lista no está ordenada por ninguna cifra). */
+  let ordenDeLaMesa = false;
+  if (foto && parte.tema === "cobranza" && soloEntidades && soloEntidades.size && !top) {
+    const mesa = [...soloEntidades].filter((n) => orden.includes(n));
+    if (mesa.length === orden.length) {
+      const vs = mesa.map(_valorDeOrden);
+      orden = mesa;
+      if (vs.some((x, i) => i > 0 && !(vs[i - 1] >= x))) { ordenDeLaMesa = true; empates.length = 0; }
+    }
+  }
+  return { kind: "grupo", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, eje, conceptos, porEntidad, orden, cola, empates, faltantes, prioridad: prio, ...(ordenDeLaMesa ? { ordenDeLaMesa: true } : {}), ...(lenteGrupo ? { lenteGrupo } : {}), ...(empateFilo && orden.length === empateFilo.servidos ? { empateFilo } : {}), ...(fotoCompletada.length ? { fotoCompletada } : {}), claveOrden, ...(primeroAtencion ? { primeroAtencion } : {}), universoDecl: { top: top || null, base: alcance.base || null, estados: alcance.estados || null, no_estados: alcance.no_estados || null, filtros: alcance.filtros || null, bodega: alcance.bodega || null, union: alcance.union || null, excluir: alcance.excluirCompleto || null, entidades: orden } };
 }
 
 /* ── PLAN «multitema» (cierre `lectura`/`decision` SIN entidades, 1..N temas: reusa `prioridadIntegrada`, LA
@@ -4059,8 +4079,13 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
       const _declaraEmpF = !!(_empF && _nombresEmpF.length > 1 && plan.universoDecl.top && totalEje != null);
       /* v21 (§7.3·44c): la foto de un productor con lista propia (la mesa de cobranza) que NO es todo el eje declara su cola: «la foto de cobranza (8 de 13 cuentas)», nunca un listado que parezca la cartera entera */
       const _fotoConCola = !!(plan.esFoto && totalEje != null && plan.orden.length < totalEje);
+      /* §7.3·39(c) · 46(f) (parte B, b): el empate del filo cuya cifra es 0 dice el cero en palabras de negocio junto a su cifra («no tienen días sin venta (0 días)»), la misma forma de la premisa de pertenencia; las cantidades solo (dinero, días, unidades) */
+      const _unidadEmp = plan.claveOrden ? unidadDeClave(plan.claveOrden) : null;
+      const _ceroEmpF = _declaraEmpF && _empF.valor === 0 && esCero(0, _unidadEmp)
+        ? `; ${dichoElCero(String(_labelDeClave(plan.claveOrden) || plan.claveOrden).toLowerCase(), _unidadEmp === "money" ? "$0" : _unidadEmp === "days" ? diasEnPalabras(0) : "0").replace(/^no tiene\b/, "no tienen")}`
+        : "";
       const prefijo = plan.universoDecl.top && totalEje != null
-        ? `El top ${plan.universoDecl.top.k} de ${totalEje} ${plan.eje}${_declaraEmpF ? `, que sirve ${plan.orden.length} por el empate del filo (${_listaDeNombres(_nombresEmpF)} empatan en el puesto ${_empF.puesto})` : ""}`
+        ? `El top ${plan.universoDecl.top.k} de ${totalEje} ${plan.eje}${_declaraEmpF ? `, que sirve ${plan.orden.length} por el empate del filo (${_listaDeNombres(_nombresEmpF)} empatan en el puesto ${_empF.puesto}${_ceroEmpF})` : ""}`
         : _fotoConCola ? `Por ${plan.eje}, la foto de ${_DOM_NOMBRE[plan.tema] || plan.tema} (${plan.orden.length} de ${conteoDeEje(plan.eje, totalEje).texto})` : `Por ${plan.eje}`;
       if (_fotoConCola) { cifrasImpresas.push(String(plan.orden.length)); cifrasImpresas.push(String(totalEje)); }
       if (plan.universoDecl.top && totalEje != null) { cifrasImpresas.push(String(totalEje)); cifrasImpresas.push(String(plan.universoDecl.top.k)); if (_declaraEmpF) { cifrasImpresas.push(String(plan.orden.length)); cifrasImpresas.push(String(_empF.puesto)); } }
@@ -4073,7 +4098,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         ? ` Empate en el orden servido: ${_empatesPorDecir.map((g) => { cifrasImpresas.push(String(g.n)); return `puesto ${g.n} compartido por ${_listaDe(g.entidades)}`; }).join("; ")}.`
         : "";
       /* v21 (T100, §7.3·43b/44a): la oración que DECLARA un empate —el del filo («sirve 6 por el empate…») o el del orden servido («puesto 4 compartido por…»)— es un negativo obligatorio como una premisa: el tope de tamaño no la retira (`prioridad: 0`); antes, en un encargo de tres partes, iba al Detalle y el orden servido quedaba con el empate sin decir. La FOTO (sin universo propio) conserva la prioridad de siempre: el empate de sus ceros no desplaza a las lecturas por dominio */
-      entrega.respuesta.push({ texto: `${prefijo}, ordenado por ${_labelDeClave(plan.claveOrden) || plan.claveOrden}: ${cabeza}.${empateTxt}`, hechos: idsCabeza, _entidadesCitadas: { tema: _NOMBRE_DE_TEMA(plan.tema), nombres: plan.orden.slice(0, _nCabeza) }, ...((_declaraEmpF || (empateTxt && !plan.esFoto) || _fotoConCola) ? { prioridad: 0 } : {}) });   /* v24 (Q13, §7.3·45a): la cola de la foto («8 de 13 cuentas») se declara también en «breve»: el tope de tamaño no la retira */
+      entrega.respuesta.push({ texto: `${prefijo}, ${plan.ordenDeLaMesa ? "en el orden de la mesa, con" : "ordenado por"} ${_labelDeClave(plan.claveOrden) || plan.claveOrden}: ${cabeza}.${empateTxt}`, hechos: idsCabeza, _entidadesCitadas: { tema: _NOMBRE_DE_TEMA(plan.tema), nombres: plan.orden.slice(0, _nCabeza) }, ...((_declaraEmpF || (empateTxt && !plan.esFoto) || _fotoConCola) ? { prioridad: 0 } : {}) });   /* v24 (Q13, §7.3·45a): la cola de la foto («8 de 13 cuentas») se declara también en «breve»: el tope de tamaño no la retira */
       // §7.3·17 (supervisor 2026-09-27, diagnóstico v8) — una `decision` sobre un universo propio calcula la
       // prioridad del procedimiento DENTRO de ese universo (nunca fuera, nunca con la lente de negocio del
       // dominio entero): el MISMO texto que ya usa el plan `grupoUniverso` unas líneas más abajo, aplicado acá

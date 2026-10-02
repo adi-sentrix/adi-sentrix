@@ -28,7 +28,7 @@
  *   foto-incompleta            en comercial e inventario la foto es el eje entero (45a · 49c).
  *   foto-ordenada-por-otro-concepto  la cabeza de la foto dice «ordenado por M» y M no es el primer concepto pedido que el dato publica (51a).
  *   sin-dato-con-dato-publicado «sin dato de M para X» (o «la foto no trae M de X») cuando el Core publica M para X: un «sin dato» nunca acompaña a una cifra que el dato publica (52b · 51b).
- *   (segunda vuelta · parte B · ABIERTAS: la pieza todavía no las cumple y cumplirlas cambia más de 100 textos de los catálogos; el gate las congela)
+ *   (segunda vuelta · parte B · FIRMES: el owner aprobó el cambio de ~120 textos de los catálogos)
  *   foto-cobranza-fuera-del-orden-de-la-mesa  la foto de cobranza va en el orden de la mesa (52c, owner), no en el de un concepto.
  *   empate-del-filo-en-cero-sin-palabras      el cero de un empate en el filo se dice en palabras de negocio junto a su cifra (39c · 46f).
  *   ausencia-sin-la-forma-sin-dato            la ausencia de una cifra se dice «sin dato de X para Y» (52b), no con otras palabras.
@@ -178,7 +178,7 @@ export const familia = {
         if (dicho !== esperado && dicho !== "participacion") v("foto-ordenada-por-otro-concepto", `${p.id} (${p.tema} por ${eje}) pidió ${conceptos.join(", ")}: la foto debe ordenarse por «${nombreDe(esperado)}» y la cabeza dice «ordenado por ${m[1].trim()}»`);
       }
     }
-    /* ── PARTE B (segunda vuelta · owner 2026-10-01): tres reglas de presentación que la pieza todavía no cumple (afectan a más de 100 textos de los catálogos: ABIERTAS, a decisión del owner) ────────────────────────────────────────
+    /* ── PARTE B (segunda vuelta · owner 2026-10-01): tres reglas de presentación (FIRMES: el owner aprobó el cambio de ~120 textos) ────────────────────────────────────────
      * foto-cobranza-fuera-del-orden-de-la-mesa   la foto de una lectura o decision de cobranza son las cuentas de la mesa EN EL ORDEN DE LA MESA (52c, owner): el universo que la Entrega declara para la parte las trae en otro orden (el de «Abonado»,
      *                                            el de «Saldo pendiente»…). El orden de la mesa lo da la mesa de flujo (`base.ordenDeLaMesa`: la misma que la pestaña Flujo Comercial), no una pieza de la Entrega.
      * empate-del-filo-en-cero-sin-palabras       el empate del filo cuya cifra es 0 dice el cero en palabras de negocio junto a su cifra («no tienen días sin venta (0 días)»), no «(0 días)» a secas (39c · 46f).
@@ -192,7 +192,7 @@ export const familia = {
       const servidas = (u.entidades || []).map(_norm);
       const esperado = mesa.map(_norm).filter((n) => servidas.includes(n));
       const dicho = servidas.filter((n) => esperado.includes(n));
-      if (JSON.stringify(dicho) !== JSON.stringify(esperado)) v("foto-cobranza-fuera-del-orden-de-la-mesa", `${p.id} (cobranza, foto): las cuentas van ${(u.entidades || []).slice(0, 4).join(", ")}… y el orden de la mesa es ${mesa.filter((n) => servidas.includes(_norm(n))).slice(0, 4).join(", ")}…`, true);
+      if (JSON.stringify(dicho) !== JSON.stringify(esperado)) v("foto-cobranza-fuera-del-orden-de-la-mesa", `${p.id} (cobranza, foto): las cuentas van ${(u.entidades || []).slice(0, 4).join(", ")}… y el orden de la mesa es ${mesa.filter((n) => servidas.includes(_norm(n))).slice(0, 4).join(", ")}…`);
     }
     for (const t of textos) {
       const mE = /que sirve \d+ por el empate del filo \((.+?) empatan? en el puesto \d+\)/.exec(t);
@@ -203,7 +203,7 @@ export const familia = {
       if (!clave || !(lex.UNIDADES_DE_CANTIDAD || ["money", "days", "count"]).includes(unidad)) continue;
       const primero = mE[1].split(/, | y /).map((s) => s.trim()).filter(Boolean)[0];
       const fila = celdas.find((c) => _norm(c.ent) === _norm(primero) && claveDeRotulo(c.met) === clave);
-      if (fila && _esCeroImpreso(fila.val) && !/\bno tienen?\b|vendieron? al corte/i.test(t)) v("empate-del-filo-en-cero-sin-palabras", `el empate del filo en ${fila.val} de «${mO[1].trim()}» no dice el cero en palabras: «${t.slice(0, 150)}»`, true);
+      if (fila && _esCeroImpreso(fila.val) && !/\bno tienen?\b|vendieron? al corte/i.test(t)) v("empate-del-filo-en-cero-sin-palabras", `el empate del filo en ${fila.val} de «${mO[1].trim()}» no dice el cero en palabras: «${t.slice(0, 150)}»`);
     }
     { /* la ausencia declarada con otras palabras sin la forma «sin dato de X para Y» */
       const sinDatoDichos = [...limites.map((l) => String(l.titulo || "")), ...textos].flatMap((s) => { const out = []; const re = /sin dato de (.+?) para (.+?)(?:\.| \(|;|$)/g; let m; while ((m = re.exec(s))) out.push({ clave: claveDeRotulo(m[1].trim()), nombres: m[2].split(/, | y /).map((x) => _norm(x.trim())) }); return out; });
@@ -214,7 +214,7 @@ export const familia = {
         if (!a.clave) continue;
         for (const n of a.nombres) {
           const real = ejesDeEntidad(n).some((e) => rankingPublicado(e, a.clave, null) && !filaDelRanking(e, a.clave, n, null) && !coberturaDeLaMetrica(a.clave, e));
-          if (real && !sinDatoDichos.some((d) => d.clave === a.clave && d.nombres.includes(_norm(n)))) v("ausencia-sin-la-forma-sin-dato", `«${a.donde}»: «${n}» no tiene dato de «${nombreDe(a.clave)}» y la Entrega no dice «sin dato de ${nombreDe(a.clave).toLowerCase()} para ${n}»`, true);
+          if (real && !sinDatoDichos.some((d) => d.clave === a.clave && d.nombres.includes(_norm(n)))) v("ausencia-sin-la-forma-sin-dato", `«${a.donde}»: «${n}» no tiene dato de «${nombreDe(a.clave)}» y la Entrega no dice «sin dato de ${nombreDe(a.clave).toLowerCase()} para ${n}»`);
         }
       }
     }

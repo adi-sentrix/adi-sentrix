@@ -771,7 +771,7 @@ H("24 · CARNADA · §7.3·29 (SUPERVISOR, «declinar honestamente cuenta como �
   const EA6 = componerEntrega(RA6);
   ok(EA6.ok === true, "★ §7.3·29 · la Entrega compone ok:true aunque su única parte se decline al armar (declinar honestamente cuenta como éxito, nunca una Entrega vacía)", EA6.ok ? "" : EA6.motivo);
   if (EA6.ok) {
-    const limRanking = (EA6.entrega.limites || []).find((l) => /ranking parcial|no encontró evidencia/i.test(`${l.titulo} ${l.motivo}`));
+    const limRanking = (EA6.entrega.limites || []).find((l) => /ranking parcial|ranking-parcial|no encontró evidencia/i.test(`${l.titulo} ${l.motivo}`));
     ok(!!limRanking, "★ el límite nombra el ranking incompleto, declarado en entrega.limites (ya no en motivo — no hay Entrega vacía que lo esconda)", JSON.stringify(EA6.entrega.limites));
     // (a) NUNCA se sirve un ganador no verificable: ninguna marca recibe cifra propia como sujeto de esta parte
     // (la tabla de Cifras queda vacía — la parte se declinó, no se sirvió con otro alcance) y ninguna oración de

@@ -16,7 +16,7 @@
  *   extremo-sobre-ranking-incompleto una premisa de orden máx/mín/puesto sobre un eje cuyo ranking tiene miembros sin dato (y la fuente no declara que lo ausente vale cero) se juzga (verdadera o falsa): debía declararse
  *                                   no verificable (13 · 52b).
  *   ausente-sin-nombrar             esa misma premisa, declarada no verificable, no dice quién no tiene dato en la forma «sin dato de M para X» (52b).
- * Las cuatro están ABIERTAS mientras el owner decide el alcance del cambio (la pieza todavía no las cumple: afectan a más de 100 textos de los catálogos v13–v28); el gate las congela. */
+ * Las cuatro son FIRMES (el owner aprobó el cambio de ~120 textos: `notario/verificar.js` rotula la cifra y declara no verificable el extremo sobre un ranking incompleto). */
 
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -41,7 +41,7 @@ export const familia = {
   invariante(ctx) {
     const { entrega, dato, base, encargo } = ctx;
     const vs = [];
-    const v = (regla, detalle) => vs.push({ regla, detalle: String(detalle).slice(0, 360), abierta: true });
+    const v = (regla, detalle) => vs.push({ regla, detalle: String(detalle).slice(0, 360) });
     const lex = base.lexico, esq = base.esquema;
     const premisas = (encargo && Array.isArray(encargo.premisas)) ? encargo.premisas : [];
     const respuesta = Array.isArray(entrega.respuesta) ? entrega.respuesta : [];

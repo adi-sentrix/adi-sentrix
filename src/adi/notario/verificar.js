@@ -19,6 +19,7 @@
  * Tres redacciones de la misma afirmación → el mismo veredicto, por construcción. Puro: sin I/O, sin red. */
 import { tolCalculo } from "../oracle/calculoCatalogo.js";
 import { parseFigures } from "../boleta.js";
+import { textoSinDato } from "../../config/contract/ausencias.js";   /* §7.3·52(b): la forma «sin dato de X para Y» vive UNA vez, en el contrato */
 import { formatoDeUmbral } from "../../config/businessPolicy.js";   /* §7.3·40(d): el valor de una referencia de la casa se escribe EXACTO (la única función de la casa) */
 import { metricasEn } from "./evidencia.js";   // el del muro + las métricas derivadas de la proyección
 import { rangoDeMatiz } from "../agente/atributosYRelaciones.js";
@@ -1252,7 +1253,14 @@ function _ordenar(a, I) {
     if (!peorEs) return { nv: `polaridad-no-declarada: la boleta no dice qué es «${dir}» en «${a.metrica}»` };
     dir = dir === "peor" ? peorEs : (peorEs === "mayor" ? "menor" : "mayor");
   }
-  if (F.parcial && (dir === "menor" || o.forma === "min")) return { nv: `ranking-parcial: el ranking de «${a.metrica}» solo trae a ${F.filas.length} del eje y la casa no declara que lo ausente valga 0: el «menor» no se responde` };
+  /* §7.3·13 · 52(b) (parte B, owner 2026-10-01): NO SE AFIRMA UN EXTREMO SOBRE UN RANKING INCOMPLETO. «El mayor/menor», «es la k.ª» y «la mayor variación» no se juzgan (ni verdaderos ni falsos) si el ranking tiene miembros sin dato: se declaran no verificables y se
+   * dice quién no tiene dato, con el texto de `config/contract/ausencias.js` («sin dato de M para X»). Lo ausente no se ordena. (El top-k y el comparativo entre dos miembros con dato no son un extremo.) */
+  if (F.parcial && ["max", "min", "puesto"].includes(o.forma)) {
+    const vistos = new Set(F.filas.map((x) => normalizar(x.entidad)));
+    const sin = [..._todosDelEje(I, eje) || []].filter((k) => !vistos.has(k)).map((k) => { const e = I.entidades.get(k); return e ? e.nombre : k; });
+    const m = metricaPorClave(_claveDeMetricaLex(a.metrica));
+    return { nv: `ranking-parcial: ${textoSinDato(m ? m.nombre : a.metrica, sin.length ? sin : ["parte del eje"])}` };
+  }
   const filas = [...F.filas].sort((x, y) => dir === "mayor" ? y.valor - x.valor : x.valor - y.valor);
   const puesto = new Map();
   for (let i = 0; i < filas.length; i++) { const prev = i > 0 && filas[i - 1].valor === filas[i].valor ? puesto.get(normalizar(filas[i - 1].entidad)) : i + 1; puesto.set(normalizar(filas[i].entidad), prev); }
@@ -1291,7 +1299,9 @@ function _orden(a, I) {
     if (!f && x.valor === 0) { const m = metricaPorClave(_claveDeMetricaLex(a.metrica)); if (m && esCero(0, m.unidad)) return `${x.entidad}: ${dichoElCero(m.nombre.toLowerCase(), m.unidad === "money" ? "$0" : m.unidad === "days" ? diasEnPalabras(0) : "0")}`; }
     return `${x.entidad} (${txt})`; };
   const ev = F.rk ? [`ranking ${eje} · ${F.rk.clave} · ${F.universo}`] : [`cifras de «${a.metrica}» por ${eje}`];
-  const cabeza = filas.slice(0, Math.min(3, filas.length)).map(fmtFila).join(" · ");
+  /* §7.3·49(f) · 51(f) · 52(e) (parte B, R1): toda cifra que la frase de una premisa imprime lleva el rótulo de SU concepto, el del léxico: «margen: A (34%) · B (30%)», nunca «A (34%) · B (30%)» a secas (el margen y el margen de inventario coinciden en 34) */
+  const _rot = (txt) => rotuloDeLasCifras(a.metrica, txt);
+  const cabeza = _rot(filas.slice(0, Math.min(3, filas.length)).map(fmtFila).join(" · "));
   const sujetos = (Array.isArray(a.sujeto) ? a.sujeto : [a.sujeto]).map(nombre);
   const faltan = sujetos.filter((s) => !puesto.has(normalizar(s)));
   if (faltan.length) {
@@ -1321,11 +1331,16 @@ function _orden(a, I) {
     if (!puesto.has(normalizar(b))) return _nv(`fuera-del-universo: ${b} no tiene «${a.metrica}» en ${F.universo}`, ev);
     const fa = filas.find((x) => normalizar(x.entidad) === normalizar(sujetos[0])), fb = filas.find((x) => normalizar(x.entidad) === normalizar(b));
     const cierra = dir === "mayor" ? fa.valor > fb.valor : fa.valor < fb.valor;
-    const verdad = `${fmtFila(fa)} vs ${fmtFila(fb)}`;
+    const verdad = _rot(`${fmtFila(fa)} vs ${fmtFila(fb)}`);
     if (cierra) return _ok(`${sujetos[0]} está por «${dir}» que ${b} en «${a.metrica}»`, ev, verdad);
     return _falsa(fa.valor === fb.valor ? `orden-falso: ${sujetos[0]} y ${b} empatan en «${a.metrica}»` : `orden-falso: ${sujetos[0]} no está por «${dir}» que ${b} en «${a.metrica}»`, verdad, ev);
   }
   return _nv("forma de orden desconocida");
+}
+/** rotuloDeLasCifras(metrica, texto) → «rótulo del léxico: texto» (en minúscula, como en toda oración); sin concepto en el léxico el texto queda como vino (la declaración de una fig sin clave es del compositor, 52e) */
+function rotuloDeLasCifras(metrica, texto) {
+  const m = metricaPorClave(_claveDeMetricaLex(metrica));
+  return m && texto ? `${m.nombre.toLowerCase()}: ${texto}` : texto;
 }
 function _topk(a, sujetos, filas, puesto, ev, cabeza, fmtFila, dir) {
   const k = a.orden.k;
@@ -1333,14 +1348,14 @@ function _topk(a, sujetos, filas, puesto, ev, cabeza, fmtFila, dir) {
   if (sujetos.length === 1) {
     const p = puesto.get(normalizar(sujetos[0]));
     if (p <= k) return _ok(`${sujetos[0]} está entre los ${k} de «${dir}» en «${a.metrica}» (va ${p}.º)`, ev, cabeza);
-    return _falsa(`orden-falso: ${sujetos[0]} va ${p}.º, fuera de los ${k} primeros en «${a.metrica}» (${dir}): ${top.map(fmtFila).join(", ")}`, top.map(fmtFila).join(", "), ev);
+    return _falsa(`orden-falso: ${sujetos[0]} va ${p}.º, fuera de los ${k} primeros en «${a.metrica}» (${dir}): ${top.map(fmtFila).join(", ")}`, rotuloDeLasCifras(a.metrica, top.map(fmtFila).join(", ")), ev);
   }
   const setTop = new Set(top.map((x) => normalizar(x.entidad)));
   const fuera = sujetos.filter((s) => !setTop.has(normalizar(s)));
   const faltanDelTop = top.filter((x) => !sujetos.some((s) => normalizar(s) === normalizar(x.entidad)));
-  if (!fuera.length && (sujetos.length >= k || !faltanDelTop.length)) return _ok(`${_lista(sujetos)} son los ${k} de «${dir}» en «${a.metrica}»`, ev, top.map(fmtFila).join(", "));
-  if (!fuera.length) return _ok(`${_lista(sujetos)} están entre los ${k} de «${dir}» en «${a.metrica}»`, ev, top.map(fmtFila).join(", "));
-  return _falsa(`orden-falso: ${_lista(fuera)} no está entre los ${k} de «${dir}» en «${a.metrica}»; los ${k} son ${top.map(fmtFila).join(", ")}`, top.map(fmtFila).join(", "), ev);
+  if (!fuera.length && (sujetos.length >= k || !faltanDelTop.length)) return _ok(`${_lista(sujetos)} son los ${k} de «${dir}» en «${a.metrica}»`, ev, rotuloDeLasCifras(a.metrica, top.map(fmtFila).join(", ")));
+  if (!fuera.length) return _ok(`${_lista(sujetos)} están entre los ${k} de «${dir}» en «${a.metrica}»`, ev, rotuloDeLasCifras(a.metrica, top.map(fmtFila).join(", ")));
+  return _falsa(`orden-falso: ${_lista(fuera)} no está entre los ${k} de «${dir}» en «${a.metrica}»; los ${k} son ${top.map(fmtFila).join(", ")}`, rotuloDeLasCifras(a.metrica, top.map(fmtFila).join(", ")), ev);
 }
 
 /* ── RELACIÓN (k veces, fracción, parte, mayor/menor, igual, diferencia) ────────────────────────────────────────────────── */

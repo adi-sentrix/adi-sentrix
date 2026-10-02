@@ -118,7 +118,7 @@ function _impreso(entrega, entidad, clave = null) {
 /** declararLoQueFalta(plan, entrega, { dominioNombre, conteoDeEje, listaDeNombres }) → { limites: [{ titulo, motivo }], numeros: [string] }
  *  `plan.faltantes` = [{ entidad, clave }] las claves sin dato de un miembro servido; `plan.sinCifra` = [nombre] las entidades NOMBRADAS sin ninguna cifra; `plan._formaFoto` (la foto de un productor) + `plan.orden` (o `plan.miembros`); `plan._servido` = el plan se imprimió.
  *    · una entidad nombrada sin NINGUNA cifra → «no se pudo servir la cifra de X» (la forma de siempre) — salvo que la Entrega la imprima por otro lado;
- *    · el concepto que falta a una parte de la FOTO → «la foto no trae M de A, B (n de N cuentas)» (la forma de siempre);
+ *    · el concepto que falta a una parte de la FOTO → «sin dato de M para A, B (n de N cuentas)» (52b: la forma única, más la cuenta de la foto);
  *    · cualquier otro miembro sin la cifra de un concepto pedido → «sin dato de M para A, B» (la forma nueva, §7.3·52b; la decisión 30 rige en todos los temas).
  *  Nunca se declara como faltante lo que la Entrega imprime. */
 export function declararLoQueFalta(plan, entrega, { dominioNombre = (t) => t, conteoDeEje = null, listaDeNombres = null } = {}) {
@@ -139,7 +139,8 @@ export function declararLoQueFalta(plan, entrega, { dominioNombre = (t) => t, co
     const conFila = orden.filter((e) => !sin.includes(e) && _impreso(entrega, e, clave));
     if (esFoto && conFila.length && conteoDeEje) {
       numeros.push(String(sin.length), String(orden.length));
-      limites.push({ titulo: `${parte}, la foto no trae ${String(_nombreDeMetrica(clave)).toLowerCase()} de ${lista(sin)} (${sin.length} de ${conteoDeEje(plan.eje, orden.length).texto})`, motivo: MOTIVO_SIN_DATO });
+      /* §7.3·52(b) (parte B): la ausencia se dice SIEMPRE «sin dato de X para Y» (el texto de `ausencias.js`); la foto agrega solo cuántas de las cuentas del eje quedan sin la cifra */
+      limites.push({ titulo: `${parte}, ${textoSinDato(_nombreDeMetrica(clave), sin)} (${sin.length} de ${conteoDeEje(plan.eje, orden.length).texto})`, motivo: MOTIVO_SIN_DATO });
     } else {
       limites.push({ titulo: `${parte}, ${textoSinDato(_nombreDeMetrica(clave), sin)}`, motivo: MOTIVO_SIN_DATO });
     }

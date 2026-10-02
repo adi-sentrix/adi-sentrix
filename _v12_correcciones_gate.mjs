@@ -1536,14 +1536,14 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     const { E } = entregaDe(enc(["variacion", "ventas"]));
     const filas = filasCifras(E), marcas = enTabla(E);
     const sinVar = marcas.filter((m) => !filas.some((f) => f.valores["Entidad / grupo"] === m && /Variaci[oó]n/.test(f.valores["Métrica"])));
-    const dec = limitesTxt(E).filter((t) => /la foto no trae variaci[oó]n/i.test(t));
+    const dec = limitesTxt(E).filter((t) => /sin dato de variaci[oó]n/i.test(t));   /* parte B (§7.3·52b): la ausencia se dice «sin dato de X para Y», ya no «la foto no trae X de Y» */
     ok(E.ok && marcas.length === 5 && sinVar.length >= 1, "oráculo · la foto por marca trae 5 marcas y al menos una sin la fila de variación (la tabla ya servida)", JSON.stringify({ marcas, sinVar }));
     ok(dec.length === 1 && sinVar.every((m) => dec[0].includes(m)) && marcas.filter((m) => !sinVar.includes(m)).every((m) => !dec[0].includes(m)), "la declaración nombra EXACTAMENTE las marcas que no traen la variación (ni una más, ni una menos)", dec.join(" | "));
     ok(dec.length === 1 && dec[0].includes(`(${sinVar.length} de 5 marcas)`), "y dice cuántas son de cuántas: «(N de 5 marcas)»", dec.join(" | "));
     const E2 = entregaDe(enc(["ventas"])).E;
-    ok(E2.ok && limitesTxt(E2).filter((t) => /la foto no trae/i.test(t)).length === 0, "CONTROL NEGATIVO · una foto por marca con la cifra de TODAS las cuentas no declara ninguna falta", limitesTxt(E2).join(" | "));
-    const carnada = conTexto(E, (t) => t.replace(/la foto no trae/g, "la foto sí trae"));
-    const declara = (EE) => limitesTxt(EE).some((t) => /la foto no trae variaci[oó]n/i.test(t));
+    ok(E2.ok && limitesTxt(E2).filter((t) => /sin dato de|la foto no trae/i.test(t)).length === 0, "CONTROL NEGATIVO · una foto por marca con la cifra de TODAS las cuentas no declara ninguna falta", limitesTxt(E2).join(" | "));
+    const carnada = conTexto(E, (t) => t.replace(/sin dato de/g, "con dato de"));
+    const declara = (EE) => limitesTxt(EE).some((t) => /sin dato de variaci[oó]n/i.test(t));
     ok(declara(E) && !declara(carnada), "CARNADA · el defecto reconstruido (la tabla omite la fila y ningún límite lo dice) cae", ""); }
 
   H("A21 · 19 · R40 · R45 · la referencia de la consulta se declara en el EJE del universo que la pone en juego (marca · familia), no en clientes");
@@ -1640,7 +1640,7 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     ok(E.ok && mismosNombres(universoDe(E, "p1"), T.servidos), "el universo servido por la parte son las 13 cuentas", JSON.stringify(universoDe(E, "p1")));
     ok(T.servidos.every((n) => sirven.has(n)), "cada una de las 13 tiene fila (Cifras o Detalle): las 7 sanas también, con su «Saldo vencido $0»", JSON.stringify(T.servidos.filter((n) => !sirven.has(n))));
     ok(T.empatados.every((n) => filasCifras(E).concat(filasDetalle(E)).some((f) => f.valores["Entidad / grupo"] === n && /Saldo vencido/.test(f.valores["Métrica"]) && f.valores["Valor"] === "$0")), "la fila de cada sana es la de la métrica que ordena y dice su cifra en cero («$0»), nunca una celda vacía ni «sin procedencia»", "");
-    ok(/sirve 13 por el empate del filo \(Jumbo, Mercado Libre, Ripley, La Polar, Hites, ABC y Unimarc empatan en el puesto 7\)/.test(txt), "la oración del top declara «sirve 13 por el empate del filo» con los 7 empatados y el puesto compartido", txt.split("\n").find((l) => /empate del filo/.test(l)) || "");
+    ok(/sirve 13 por el empate del filo \(Jumbo, Mercado Libre, Ripley, La Polar, Hites, ABC y Unimarc empatan en el puesto 7(?:; no tienen [^)]*\([^)]*\))?\)/.test(txt), "la oración del top declara «sirve 13 por el empate del filo» con los 7 empatados y el puesto compartido", txt.split("\n").find((l) => /empate del filo/.test(l)) || "");
     ok(/Jumbo: no tiene saldo vencido \(\$0\), empatado con Mercado Libre, Ripley, La Polar, Hites, ABC y Unimarc en el puesto 7/.test(premisaTxt(E, "q1")), "la premisa de pertenencia del empatado es verdadera, dice su cero con su cifra y declara el empate", premisaTxt(E, "q1"));
     ok(verifica(E, R).ok === true, "la Entrega pasa `verificarEntrega`", JSON.stringify(verifica(E, R).violaciones));
     const E6 = entregaDe(enc(6)).E;
@@ -1752,7 +1752,7 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
       const ents = universoDe(E, "p1"), txt = sinTablas(E), sirven = sujetosDe(E);
       afirma(mismosNombres(ents, T.servidos), "servido=esperado (top k con el empate del filo)", etq, JSON.stringify({ esperado: T.servidos, servido: ents }));
       afirma(T.servidos.every((n) => sirven.has(n)), "cada servido tiene fila", etq, JSON.stringify(T.servidos.filter((n) => !sirven.has(n))));
-      const m = /sirve (\d+) por el empate del filo \(([^)]*?) empatan en el puesto (\d+)\)/.exec(txt);
+      const m = /sirve (\d+) por el empate del filo \(([^)]*?) empatan en el puesto (\d+)(?:; no tienen? [^)]*\([^)]*\))?\)/.exec(txt);   /* parte B (§7.3·39c · 46f): un empate en cero agrega «; no tienen X (cifra del cero)» */
       if (T.hay) {
         afirma(!!m && +m[1] === T.servidos.length && mismosNombres(m[2].split(/, | y /).map((x) => x.trim()).filter(Boolean), T.empatados) && +m[3] === T.puesto, "declara N, los empatados y el puesto compartido", etq, m ? m[0] : "sin declaración");
         if (F.ceros[metrica] && T.filo === 0) afirma(F.ceros[metrica].test(`${m ? m[0] : ""} | ${premisaTxt(E, "q1")} | ${premisaTxt(E, "q2")}`), "el empate en cero dice su cifra", etq, premisaTxt(E, "q1").slice(0, 160));

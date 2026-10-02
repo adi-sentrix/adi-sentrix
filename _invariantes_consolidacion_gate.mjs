@@ -28,7 +28,7 @@
  *       (`sin-dato-con-dato-publicado`, `servida-sin-fila`) — con los ocho casos de v29 y v30 (J16 J17 J18 J35 J50 K16 K17 K18) como base verde.
  *   4g · carnadas de la PARTE B (segunda vuelta; owner 2026-10-01): F6, la frase de una premisa (R1 el rótulo de cada cifra: `premisa-cifra-sin-rotulo`, `premisa-rotulo-de-otro-concepto`; R2 un extremo sobre un
  *       ranking con miembros sin dato: `extremo-sobre-ranking-incompleto`, `ausente-sin-nombrar`) y tres reglas nuevas de la F2 (la foto de cobranza en el orden de la mesa, el cero del empate del filo en palabras,
- *       la ausencia en la forma «sin dato de X para Y»). Están ABIERTAS y congeladas: la pieza todavía no las cumple y cumplirlas cambia más de 100 textos de los catálogos v13–v28 (a decisión del owner).
+ *       la ausencia en la forma «sin dato de X para Y»). Son FIRMES: el owner aprobó el cambio de ~120 textos de los catálogos v13–v28 y la pieza las cumple (4h).
  *   6 · CERO red.
  *
  * Solo por `npm run gates:offline` o `node --import ./scripts/offline-guard.mjs _invariantes_consolidacion_gate.mjs`. */
@@ -51,8 +51,8 @@ const N_MUESTRA = 400;
  *   F1 · 48(b)/51(d) «riesgo» pedido sobre un solo dominio, o una lente pedida que no ordena el conjunto, y la prioridad se dice «por riesgo integrado».
  * Congeladas sobre ESTE corpus (catálogos + muestra fija): pueden bajar, nunca subir. */
 /* F5 (segunda vuelta): una simulación en profundidad BREVE con más de 8 filas protegidas por su propio bloque (`filas-sobre-el-tope`): el gobernador de tamaño no parte un bloque de simulación (atomicidad, owner 2026-09-26) y sus oraciones son de prioridad 0 («mejor esfuerzo», `tamano.js`). Cumplirlo es comportamiento nuevo: a decisión del owner. El sub-azar de cobertura la ejerce 1 vez por semilla. */
-/* PARTE B (segunda vuelta): las reglas R1/R2 de la F6 y las tres de la F2 (foto de cobranza en el orden de la mesa, cero del empate en palabras, «sin dato de X para Y») están ABIERTAS: la pieza todavía no las cumple y cumplirlas cambia ~120 textos de los catálogos v13–v28 (sobre el tope de 100: a decisión del owner). Congeladas sobre este corpus. */
-const ABIERTAS_CONGELADAS = { "F5:verificador-rechaza-lo-servido": 1, "F6:premisa-cifra-sin-rotulo": 71, "F6:extremo-sobre-ranking-incompleto": 4, "F6:ausente-sin-nombrar": 2, "F2:foto-cobranza-fuera-del-orden-de-la-mesa": 93, "F2:empate-del-filo-en-cero-sin-palabras": 45, "F2:ausencia-sin-la-forma-sin-dato": 22 };   /* la F1 las cerró con la condición del §7.3·53: «por riesgo integrado: X» vale cuando X es el primero del plan de señales de ese dominio (107 de 107 la cumplen en el corpus completo, 0 violaciones reales) */
+/* PARTE B (segunda vuelta): las reglas R1/R2 de la F6 y las tres de la F2 (foto de cobranza en el orden de la mesa, cero del empate en palabras, «sin dato de X para Y») estuvieron congeladas (71 · 4 · 2 · 93 · 45 · 22) hasta que el owner aprobó el cambio de ~120 textos; hoy son FIRMES (0 violaciones). */
+const ABIERTAS_CONGELADAS = { "F5:verificador-rechaza-lo-servido": 1 };   /* la F1 las cerró con la condición del §7.3·53: «por riesgo integrado: X» vale cuando X es el primero del plan de señales de ese dominio (107 de 107 la cumplen en el corpus completo, 0 violaciones reales) */
 
 const base = await cargarBase();
 const familias = await cargarFamilias();
@@ -597,9 +597,28 @@ H("4g · carnadas de la PARTE B (segunda vuelta): el rótulo en la premisa (R1) 
   }
 }
 
+H("4h · la PIEZA cumple las seis reglas de la parte B (las Entregas reales, sin mutar): R1 · R2 · la foto de cobranza en el orden de la mesa · el cero del empate · «sin dato de X para Y»");
+{
+  const v = (parte) => ({ version: "encargo/v1", ...parte });
+  const real = (id, enc) => entregaDe(base, { origen: "gate", id, encargo: enc });
+  const limpio = (e) => e.ok && revisarEntrega(e, familias).length === 0;
+  const J21 = real("B21", v({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen"], eje: "sku" }], premisas: [{ id: "q1", tipo: "orden", sujeto: "MAK-SAW18V", metrica: "margen", orden: { forma: "max" }, universo: { eje: "sku" } }] }));
+  ok(limpio(J21) && /es correcto — margen: MAK-SAW18V \(34%\) · PHI-HAIR-PRO \(30%\)/.test(J21.texto), "R1 · J21: la lista de la premisa de orden dice «margen: MAK-SAW18V (34%) · …» (el rótulo de su concepto)");
+  const K57 = real("B57", v({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen"], eje: "marca" }], premisas: [{ id: "q1", tipo: "orden", sujeto: "LG", metrica: "variacion", orden: { forma: "max" }, universo: { eje: "marca" } }] }));
+  ok(limpio(K57) && /no se pudo verificar con este dato: ranking-parcial: sin dato de variación vs año anterior para Makita/.test(K57.texto) && !/es correcto — .*LG \(\+15\.6%\)/.test(K57.texto), "R2 · K57: «LG tiene la mayor variación» es no verificable y dice «sin dato de variación vs año anterior para Makita» (antes: verdadera)");
+  const J12 = real("B12", v({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["abonado", "venta_credito"] }], criterio: { lente: "credito" } }));
+  ok(limpio(J12) && /la foto de cobranza \(8 de 13 cuentas\), en el orden de la mesa, con Abonado: Lider /.test(J12.texto), "52(c) · J12: la foto de cobranza va «en el orden de la mesa» (Lider, Falabella, Sodimac…), no ordenada por «Abonado»");
+  const J04 = real("B04", v({ partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["dias_sin_venta", "rotacion"], eje: "sku", universo: { eje: "sku", top: { metrica: "dias_sin_venta", k: 3, direccion: "menor" } } }] }));
+  ok(limpio(J04) && /empatan en el puesto 1; no tienen días sin venta \(0 días\)\)/.test(J04.texto), "39(c) · 46(f) · J04: el empate del filo en cero dice «no tienen días sin venta (0 días)»");
+  const J19 = real("B19", v({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["variacion", "costo"], eje: "marca" }] }));
+  ok(limpio(J19) && /sin dato de variación vs año anterior para Makita \(1 de 5 marcas\)/.test(J19.texto) && !/la foto no trae/.test(J19.texto), "52(b) · J19: la ausencia de la variación de Makita se dice «sin dato de variación vs año anterior para Makita (1 de 5 marcas)»");
+  const J57 = real("B57b", v({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["variacion", "contribucion"], eje: "marca", universo: { eje: "marca", top: { metrica: "variacion", k: 4 } } }] }));
+  ok(limpio(J57) && /el universo declarado no se pudo evaluar\.\*\* ranking-parcial: sin dato de variación vs año anterior para Makita/.test(J57.texto), "52(b) · J57: la parte declinada por el ranking incompleto dice quién no tiene dato (texto de `ausencias.js`)");
+}
+
 H("5 · independencia del control y cableado de la pieza (estático)");
 {
-  const f6 = fs.readFileSync("./scripts/consolidacion/familias/f6_premisas.mjs", "utf8");
+  const f6 =fs.readFileSync("./scripts/consolidacion/familias/f6_premisas.mjs", "utf8");
   ok(!/^\s*import[^\n]*(?:notario\/|entrega\/componer|entrega\/rotulos)/m.test(f6), "el control de la F6 NO importa el Notario ni la pieza del rótulo: lee la Entrega, el encargo y el dato");
 }
 {
