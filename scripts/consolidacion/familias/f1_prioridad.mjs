@@ -22,6 +22,7 @@
  *   prioridad-sin-marca               toda oración de prioridad lleva su marca estructural `_prioridad` (la que leen el tamaño gobernado y
  *                                     la pregunta abierta de «breve»; nadie lee ya el texto con una expresión regular).
  *   marca-primero-distinto            el `primero` de la marca es el que nombra la oración.
+ *   ventas-sobre-inventario-ordena    la lente «ventas» pedida sobre una parte de INVENTARIO se declara y no ordena (50b · 54c): la oración de prioridad del grupo no la nombra como la lente que ordenó aunque el universo use un top por ventas.
  *   primero-fuera-del-eje             quien va primero es una entidad del eje de la parte que prioriza (51e · 53, segunda vuelta): «por riesgo integrado: LG-DRYER8KG» en una decision por BODEGA corona a un SKU que no es del grupo. */
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 const CAB = /^(Prioridad del procedimiento|Quien más pesa en el conjunto)(?: (dentro de este grupo))?, por (.+?): (.*)$/s;
@@ -187,6 +188,12 @@ export const familia = {
         } else if (lentePedida === "riesgo") {
           if (!(S.decl && S.decl.tipo === "criterio")) v("lente-pedida-callada", `se pidió riesgo y la oración de un grupo no declara que es el criterio entre dominios: «${texto.slice(0, 110)}»`);
         } else if (tipoNombre === "lente") v("lente-no-pedida", `nombra la lente «${S.nombre}» sin que el usuario la haya pedido`);
+        /* §7.3·54(c) (la 50(b) en todos los caminos): el inventario no publica la venta; la lente «ventas» sobre una parte de INVENTARIO se declara y no ordena, aunque el universo de la parte use un top por ventas */
+        if (lentePedida === "ventas" && S.primero != null && !S.sinPrimero) {
+          const deEsto = grupos.filter((g) => g.miembros.some((m) => _norm(m) === _norm(S.primero)));
+          const laDeclaraVentas = !!(S.decl && S.decl.tipo === "criterio" && visiblesDe("ventas").includes(_norm(S.decl.pedido)));
+          if (deEsto.length && deEsto.every((g) => g.parte.tema === "inventario") && !laDeclaraVentas) v("ventas-sobre-inventario-ordena", `la lente «ventas» sobre una parte de inventario no se declara como la que no ordena: «${texto.slice(0, 110)}»`);
+        }
         if (soloReferencia && !S.sinPrimero && S.primero != null) {
           const ref = crit.referencia.concepto, nomRef = _norm((lex.metricaPorClave(ref) || {}).nombre || ref);
           if (!(S.decl && S.decl.tipo === "referencia" && _norm(S.decl.pedido) === nomRef)) v("referencia-sin-nombrar", `el criterio solo trae la referencia «${nomRef}» y la oración no la nombra como referencia: «${texto.slice(0, 110)}»`);

@@ -774,7 +774,19 @@ function _conteoTipado(H, h, I) {
     // su tamaño (`top.k`) es un «de M» admisible. Con el sentido por defecto (`sobre` ausente o "filtro") el top
     // corre DENTRO de lo ya filtrado por estados — ahí `k` no es una restricción previa, ya lo captura `mBase`/
     // `mAdmisibles` de arriba, así que no se agrega nada nuevo (nunca cambia el comportamiento de hoy).
-    if (u.top && normalizar(u.top.sobre) === "eje" && _entero(u.top.k) && +u.top.k > 0) mAdmisibles.add(+u.top.k); }
+    if (u.top && normalizar(u.top.sobre) === "eje" && _entero(u.top.k) && +u.top.k > 0) mAdmisibles.add(+u.top.k);
+    /* §7.3·54(a) LOS ESLABONES DE UN CONTEO: la cadena tiene un eslabón por CADA restricción, en el orden de `_conjuntoTipado` —el eje entero, la base, CADA estado, CADA filtro, el top, la exclusión— y el universo FINAL
+     * también es un eslabón. Un «de M» es admisible si M es el tamaño de cualquiera de ellos: los filtros no son un solo eslabón y «n de n» sobre el universo final es verdadero. */
+    { const acum = { eje }; const sumar = (campo, valor) => { acum[campo] = valor; const s = tam({ ...acum }); if (s) mAdmisibles.add(s); };
+      if (u.base && !/^todos?|todas$/i.test(String(u.base))) sumar("base", u.base);
+      const _est = _lista(u.estados); for (let i = 0; i < _est.length; i++) sumar("estados", _est.slice(0, i + 1));
+      const _noEst = _lista(u.no_estados); for (let i = 0; i < _noEst.length; i++) sumar("no_estados", _noEst.slice(0, i + 1));
+      if (u.bodega) sumar("bodega", u.bodega);
+      const _fil = Array.isArray(u.filtros) ? u.filtros : []; for (let i = 0; i < _fil.length; i++) sumar("filtros", _fil.slice(0, i + 1));
+      if (u.top) sumar("top", u.top);
+      if (u.excluir) sumar("excluir", u.excluir);
+      if (set.size > 0) mAdmisibles.add(set.size); }
+  }
   const mDicho = c.m != null && Number.isFinite(+c.m) ? +c.m : null;
   /* v22 (S17 · S18 · S21, §7.3·44d): cuando el «de M» que la consulta dijo NO es de la cadena del universo (falsa solo por el M), la verdad propia imprime el M MÁS AJUSTADO de esa cadena que aún supere al conteo —el mismo que una premisa verdadera de este universo diría—, nunca el eje entero
    * ni un «5 de 5» vacuo: antes la Entrega decía «3 de 7» en la premisa verdadera y «3 de 13» en la falsa, sobre el MISMO universo. */

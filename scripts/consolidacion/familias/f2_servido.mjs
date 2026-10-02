@@ -32,6 +32,9 @@
  *   foto-cobranza-fuera-del-orden-de-la-mesa  la foto de cobranza va en el orden de la mesa (52c, owner), no en el de un concepto.
  *   empate-del-filo-en-cero-sin-palabras      el cero de un empate en el filo se dice en palabras de negocio junto a su cifra (39c · 46f).
  *   ausencia-sin-la-forma-sin-dato            la ausencia de una cifra se dice «sin dato de X para Y» (52b), no con otras palabras.
+ *   (§7.3·54(b) · FIRME: el owner aprobó la 54; lee la RESOLUCIÓN del encargo, no la Entrega)
+ *   declinacion-sin-alternativas  un concepto sin productor en el eje pedido (`concepto_sin_productor`) o un eje sin productor (`eje_no_soportado`) declina con la lista de alternativas VACÍA, o sin el eje donde sí se publica y el concepto que sí se publica en ese eje (54b).
+ *   declinacion-alternativa-falsa  ninguna pareja (eje, concepto) de sus alternativas es algo que el Core publica (el eje donde sí se publica y el concepto que sí se publica en ese eje).
  * (El margen por SKU ya no está exento: el Notario lo verifica como cifra de una entidad y el productor lo sirve; consolidación F5.) */
 import { COBERTURA_DE_FUENTES, coberturaDeLaMetrica } from "../../../src/config/contract/coberturaDeFuentes.js";
 
@@ -288,6 +291,17 @@ export const familia = {
         const d = filaDelRanking(where.eje, DENOMINADOR[clave], c.ent, tema);
         if (!d || !(d.valor > 0)) v("tasa-sin-denominador-como-cero", `«${c.ent} · ${c.met}» imprime ${c.val} y su denominador («${nombreDe(DENOMINADOR[clave])}») ${d ? "vale 0" : "no figura en el dato"}`);
       }
+    }
+    /* §7.3·54(b): un concepto sin productor en el eje pedido declina CON alternativas — el eje donde sí se publica y el concepto que sí se publica en ese eje—, nunca con la lista vacía */
+    for (const nr of (resolucion && Array.isArray(resolucion.noResuelto) ? resolucion.noResuelto : [])) {
+      if (!nr || (nr.motivo !== "concepto_sin_productor" && nr.motivo !== "eje_no_soportado")) continue;
+      const alt = Array.isArray(nr.alternativas) ? nr.alternativas : [];
+      const ejesAlt = alt.filter((a) => a && a.tipo === "eje" && a.eje), conceptosAlt = alt.filter((a) => a && a.tipo === "concepto" && a.clave);
+      const dicho = `${nr.parte || "raíz"}·${nr.campo} «${typeof nr.valor === "string" ? nr.valor : JSON.stringify(nr.valor)}» (${nr.motivo})`;
+      if (!alt.length) { v("declinacion-sin-alternativas", `${dicho} declina con la lista de alternativas vacía`); continue; }
+      if (nr.motivo === "concepto_sin_productor" && (!ejesAlt.length || !conceptosAlt.length)) { v("declinacion-sin-alternativas", `${dicho} declina sin ${!ejesAlt.length ? "el eje donde sí se publica" : "el concepto que sí se publica"}: ${alt.map((a) => `${a.tipo}:${a.eje || a.clave || ""}`).join(", ")}`); continue; }
+      if (nr.motivo === "eje_no_soportado" && !ejesAlt.length) { v("declinacion-sin-alternativas", `${dicho} declina sin ningún eje donde sí se publica`); continue; }
+      if (ejesAlt.length && conceptosAlt.length && !ejesAlt.some((e) => conceptosAlt.some((c) => (typeof base.publica === "function" && base.publica(e.eje, c.clave)) || esq.productorDe(c.clave, e.eje)))) v("declinacion-alternativa-falsa", `${dicho}: ninguna pareja (eje, concepto) de sus alternativas se publica (${alt.map((a) => `${a.tipo}:${a.eje || a.clave || ""}`).join(", ")})`);
     }
     void COBERTURA_DE_FUENTES; void _numDe;
     return vs;

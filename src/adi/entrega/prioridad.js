@@ -168,7 +168,9 @@ export function nombraLaLista(criterio, tema, claveOrden) {
   const L = CRITERIOS[id];
   /* v24 (Q44, §7.3·47e + 46d): el «riesgo integrado» que el USUARIO pidió es el criterio ENTRE dominios: dentro de un grupo de una parte no ordena, y eso se DECLARA */
   if (id === "riesgo" && criterio.origen === "usuario" && !lenteOrdenaLaClave(id, claveOrden)) return { tipo: "medida", clave: claveOrden, declara: { nombre: nombreVisibleDeLente(id, tema), entreDominios: true, dominio: null } };
-  if (id !== "riesgo" && L.dominio !== tema && !lenteOrdenaLaClave(id, claveOrden)) return { tipo: "medida", clave: claveOrden, declara: { nombre: nombreVisibleDeLente(id, tema), entreDominios: false, dominio: L.dominio || null } };
+  /* §7.3·54(c): la 50(b) vale en TODOS los caminos — la lente «ventas» sobre una parte de INVENTARIO se declara y no ordena, aunque el universo de la parte use un top por ventas (la lista sale ordenada por la venta, pero el inventario no publica la venta: la lente pedida no la ordenó) */
+  const _ventasSobreInventario = id === "ventas" && tema === "inventario";
+  if (id !== "riesgo" && (_ventasSobreInventario || (L.dominio !== tema && !lenteOrdenaLaClave(id, claveOrden)))) return { tipo: "medida", clave: claveOrden, declara: { nombre: nombreVisibleDeLente(id, tema), entreDominios: false, dominio: L.dominio || null } };
   return lenteOrdenaLaClave(id, claveOrden) ? { tipo: "lente", nombre: nombreVisibleDeLente(id, tema) } : { tipo: "medida", clave: claveOrden, declara: null };
 }
 

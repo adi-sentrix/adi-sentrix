@@ -36,7 +36,7 @@ import fs from "node:fs";
 import { createHash } from "node:crypto";
 import { cargarBase } from "./scripts/consolidacion/base.mjs";
 import { cargarCatalogos, armarCorpus, entregaDe } from "./scripts/consolidacion/corpus.mjs";
-import { generarEncargos, generarCobertura, especificacionesDeCeldas, auditarCobertura } from "./scripts/consolidacion/generador.mjs";
+import { generarEncargos, generarCobertura, generarConteosDeCadena, VARIANTES_DE_CONTEO, especificacionesDeCeldas, auditarCobertura } from "./scripts/consolidacion/generador.mjs";
 import { cargarFamilias, correrCorpus, revisarEntrega } from "./scripts/consolidacion/marco.mjs";
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
 
@@ -82,6 +82,13 @@ const cobertura = generarCobertura(base, { semilla: SEMILLA_COBERTURA, minimo: 1
   ok(createHash("sha256").update(JSON.stringify(g400)).digest("hex") === "93f9d5ce1c4c445b6d22f3c6b6c32baca2163ed80d62c2a8b791ad2aa0486329", "el sub-azar de cobertura tiene su propia semilla derivada: la secuencia del generador general (400 encargos de la semilla del gate) es byte-idéntica a la de antes");
   const otra = generarCobertura(base, { semilla: SEMILLA_COBERTURA, minimo: 1, espacio });
   ok(JSON.stringify(otra.casos) === JSON.stringify(cobertura.casos), "el sub-azar de cobertura es determinístico (misma semilla, mismos encargos)");
+  /* §7.3·54(a): los CONTEOS DE CADENA van AL FINAL del sub-azar con su propia semilla derivada (`<semilla>:cobertura:conteos`): la secuencia de las celdas (los primeros 1223 encargos) es byte-idéntica a la de antes */
+  const delasCeldas = cobertura.casos.filter((c) => !/:conteos:/.test(c.id)), conteosDeCadena = cobertura.casos.filter((c) => /:conteos:/.test(c.id));
+  ok(delasCeldas.length === 1223 && createHash("sha256").update(JSON.stringify(delasCeldas)).digest("hex") === "272520ae6366fcd7808c50cf2fbad71a78b9e85cce7a465655fda69a3f17df8f" && cobertura.casos.slice(0, 1223).every((c, i) => c === delasCeldas[i]), "los conteos de cadena (semilla derivada «:cobertura:conteos») no movieron la secuencia del sub-azar de las celdas: sus 1223 encargos son byte-idénticos a los de antes y van primero");
+  ok(conteosDeCadena.length >= 60 && VARIANTES_DE_CONTEO.every((x) => conteosDeCadena.some((c) => c.celda === `CONTEO:${x}`)), `el sub-azar produce ${conteosDeCadena.length} conteos de cadena en las cuatro variantes (el M igual al final · el de un eslabón · fuera de la cadena · un n falso)`);
+  ok(cobertura.estadistica.conteos && cobertura.estadistica.conteos.cadenas.filtros >= 30 && cobertura.estadistica.conteos.cadenas.estados >= 3 && cobertura.estadistica.conteos.cadenas.ambos >= 8, `…con cadenas de varios filtros (${cobertura.estadistica.conteos && cobertura.estadistica.conteos.cadenas.filtros}), de varios estados (${cobertura.estadistica.conteos && cobertura.estadistica.conteos.cadenas.estados}) y de filtros con estados (${cobertura.estadistica.conteos && cobertura.estadistica.conteos.cadenas.ambos})`);
+  { const otraC = generarConteosDeCadena(base, { semilla: SEMILLA_COBERTURA, n: 64 }), otraD = generarConteosDeCadena(base, { semilla: SEMILLA_COBERTURA + "-b", n: 64 });
+    ok(JSON.stringify(otraC.casos) === JSON.stringify(conteosDeCadena) && JSON.stringify(otraC.casos) !== JSON.stringify(otraD.casos), "los conteos de cadena son determinísticos (misma semilla, mismos encargos) y otra semilla da otros"); }
   const dims = new Set([...espacio.validas.values()].map((c) => c.dim));
   ok(["P", "C", "U", "F", "F2", "Q", "K", "D", "S", "M", "M3"].every((d) => dims.has(d)) && espacio.validas.size >= 1900, `el espacio válido cubre las once dimensiones (${espacio.validas.size} celdas que el validador acepta; ${espacio.noConstruibles.length} combinaciones que no, p. ej. la bodega de un SKU aplicada a una marca)`);
   const aud = auditarCobertura(base, cobertura.casos, { espacio });
@@ -616,10 +623,80 @@ H("4h · la PIEZA cumple las seis reglas de la parte B (las Entregas reales, sin
   ok(limpio(J57) && /el universo declarado no se pudo evaluar\.\*\* ranking-parcial: sin dato de variación vs año anterior para Makita/.test(J57.texto), "52(b) · J57: la parte declinada por el ranking incompleto dice quién no tiene dato (texto de `ausencias.js`)");
 }
 
+H("4i · carnadas de la 54 (mediciones v31 y v32): los eslabones de un conteo (F6) · la lente «ventas» sobre inventario no ordena (F1) · un concepto sin productor declina con alternativas (F2)");
+{
+  const F1 = familias.find((f) => f.id === "F1"), F2 = familias.find((f) => f.id === "F2"), F6 = familias.find((f) => f.id === "F6");
+  const regla = (vs, r) => vs.some((x) => x.regla === r);
+  const v = (parte) => ({ version: "encargo/v1", ...parte });
+  const comp = (id, enc) => entregaDe(base, { origen: "gate", id, encargo: enc });
+  const conRespuesta = (e, f) => ({ ...e, entrega: { ...e.entrega, respuesta: e.entrega.respuesta.map(f) } });
+  const PREM = "Sobre la premisa planteada en la consulta";
+  /* (a) los eslabones de un conteo — la cadena de H74 (v31): marca · venta > $4M ∧ margen < 26.5 % → top 2 de contribución → sin Samsung = 5 → 5 → 3 → 2 → 1 */
+  const U1 = { eje: "marca", filtros: [{ metrica: "ventas", op: ">", valor: 4000000 }, { metrica: "margen", op: "<", valor: 26.5 }], top: { metrica: "contribucion", k: 2 }, excluir: { entidades: ["Samsung"] } };
+  const E1 = comp("E54a", v({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "margen"], eje: "marca", universo: U1 }], premisas: [
+    { id: "q1", tipo: "conteo", conteo: { n: 1, m: 1 }, de: U1 }, { id: "q2", tipo: "conteo", conteo: { n: 1, m: 3 }, de: U1 }, { id: "q3", tipo: "conteo", conteo: { n: 1, m: 4 }, de: U1 }, { id: "q4", tipo: "conteo", conteo: { n: 2, m: 5 }, de: U1 }] }));
+  const idx = (e, q) => (e.ok ? e.entrega.respuesta.findIndex((r) => r._premisa && r.hechos[0] === q) : -1);
+  const frase = (e, q) => (idx(e, q) >= 0 ? e.entrega.respuesta[idx(e, q)].texto : "");
+  ok(!!F6 && E1.ok && revisarEntrega(E1, [F6]).length === 0, "54(a) · H74: la cadena 5 → 5 → 3 → 2 → 1 se compone y el control de la F6 no marca nada");
+  ok(/es correcto — 1 de 1 en las marcas/.test(frase(E1, "q1")), "54(a) · «1 de 1» sobre el universo FINAL (el top menos Samsung: LG) es verdadero: «n de n» sobre el final");
+  ok(/es correcto — 1 de 3 en las marcas/.test(frase(E1, "q2")), "54(a) · «1 de 3» (el eslabón tras los DOS filtros) es verdadero");
+  ok(/no es así — 1 de 2 en las marcas/.test(frase(E1, "q3")), "54(a) · «1 de 4» (4 no es de la cadena) es falso y la verdad imprime el eslabón MÁS AJUSTADO distinto del final: «1 de 2» (el top, antes de excluir)");
+  ok(/no es así — 1 de 5 en las marcas/.test(frase(E1, "q4")), "54(a) · «2 de 5» (n falso) es falso: la verdad dice «1 de 5»");
+  if (F6 && E1.ok) {
+    const con = (q, t) => conRespuesta(E1, (r, k) => (k === idx(E1, q) ? { ...r, texto: t } : r));
+    ok(regla(revisarEntrega(con("q1", `${PREM}: no es así — 1 de 2 en las marcas con venta superior a $4.0M: LG.`), [F6]), "conteo-eslabon-veredicto"), "«1 de 1» sobre el universo final juzgado FALSO (lo que hacía el Notario) → conteo-eslabon-veredicto");
+    ok(regla(revisarEntrega(con("q2", `${PREM}: no es así — 1 de 2 en las marcas con venta superior a $4.0M: LG.`), [F6]), "conteo-eslabon-veredicto"), "«1 de 3» (el eslabón de los dos filtros) juzgado FALSO → conteo-eslabon-veredicto");
+    ok(regla(revisarEntrega(con("q4", `${PREM}: es correcto — 1 de 5 en las marcas con venta superior a $4.0M: LG.`), [F6]), "conteo-eslabon-veredicto"), "«2 de 5» (el universo final tiene 1) juzgado VERDADERO → conteo-eslabon-veredicto");
+    ok(regla(revisarEntrega(con("q3", `${PREM}: no es así — 1 de 5 en las marcas con venta superior a $4.0M: LG.`), [F6]), "conteo-eslabon-m-impreso"), "un conteo falso por su M que imprime «1 de 5» (el eje entero) en vez del eslabón más ajustado (2) → conteo-eslabon-m-impreso");
+    ok(revisarEntrega(con("q3", `${PREM}: no es así — 1 de 2 en las marcas con venta superior a $4.0M: LG.`), [F6]).length === 0, "la misma verdad con el eslabón más ajustado («1 de 2») no marca nada");
+  }
+  /* (a) los filtros NO son un solo eslabón — G71 (v32): familia · venta > $12M (4 → 3) ∧ carga > 3.3 % (→ 2) → top 2 de menos margen (→ 2) → sin Electrodomésticos (→ 1) */
+  const U2 = { eje: "familia", filtros: [{ metrica: "ventas", op: ">", valor: 12000000 }, { metrica: "carga", op: ">", valor: 3.3 }], top: { metrica: "margen", k: 2, direccion: "menor" }, excluir: { entidades: ["Electrodomésticos"] } };
+  const E2 = comp("E54b", v({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "carga"], eje: "familia", universo: U2 }], premisas: [{ id: "q1", tipo: "conteo", conteo: { n: 1, m: 1 }, de: U2 }, { id: "q2", tipo: "conteo", conteo: { n: 1, m: 3 }, de: U2 }] }));
+  ok(E2.ok && revisarEntrega(E2, [F6]).length === 0 && /es correcto — 1 de 1 en las familias/.test(frase(E2, "q1")) && /es correcto — 1 de 3 en las familias/.test(frase(E2, "q2")), "54(a) · G71: «1 de 3» (tras el primer filtro) y «1 de 1» (el final) son verdaderos: cada filtro es su propio eslabón");
+  if (F6 && E2.ok) ok(regla(revisarEntrega(conRespuesta(E2, (r, k) => (k === idx(E2, "q2") ? { ...r, texto: `${PREM}: no es así — 1 de 2 en las familias con venta superior a $12.0M: Cuidado Personal.` } : r)), [F6]), "conteo-eslabon-veredicto"), "G71.q2 «1 de 3» juzgado FALSO (los filtros contados como un solo eslabón) → conteo-eslabon-veredicto");
+  /* (c) la 50(b) en todos los caminos: la lente «ventas» sobre inventario por SKU se declara y no ordena, aunque el universo use un top por ventas (H72, v31) */
+  const E3 = comp("E54c", v({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital"], eje: "sku", universo: { eje: "sku", top: { metrica: "ventas", k: 3 } } }], criterio: { lente: "ventas" } }));
+  const iP = E3.ok ? E3.entrega.respuesta.findIndex((r) => /^Prioridad del procedimiento dentro de este grupo/.test(r.texto)) : -1;
+  ok(!!F1 && iP >= 0 && /por venta \(el criterio pedido, ventas, no ordena este grupo\): SAM-TV55/.test(E3.entrega.respuesta[iP].texto) && revisarEntrega(E3, [F1]).length === 0, "54(c) · H72: la lente «ventas» sobre una parte de inventario con un top por ventas se declara («el criterio pedido, ventas, no ordena este grupo») y el control de la F1 no marca nada");
+  if (F1 && iP >= 0) {
+    ok(regla(revisarEntrega(conRespuesta(E3, (r, k) => (k === iP ? { ...r, texto: "Prioridad del procedimiento dentro de este grupo, por ventas: SAM-TV55, con $13.3M en venta." } : r)), [F1]), "ventas-sobre-inventario-ordena"), "«por ventas: SAM-TV55, con $13.3M en venta» sobre inventario (la lente nombrada como la que ordenó) → ventas-sobre-inventario-ordena");
+    ok(!regla(revisarEntrega(conRespuesta(E3, (r, k) => (k === iP ? { ...r, texto: "Prioridad del procedimiento dentro de este grupo, por capital (el criterio pedido, ventas, no ordena este grupo): SAM-REF500L, con $19K en capital." } : r)), [F1]), "ventas-sobre-inventario-ordena"), "la lente declarada sobre otra medida («por capital (el criterio pedido, ventas, no ordena este grupo)») no marca la regla");
+  }
+  /* (c) la lente «ventas» sobre COMERCIAL sigue ordenando: el control no la marca */
+  { const E3c = comp("E54c2", v({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["ventas", "margen"], eje: "marca" }], criterio: { lente: "ventas" } }));
+    ok(E3c.ok && /por ventas: Samsung/.test(E3c.texto) && revisarEntrega(E3c, [F1]).length === 0, "la lente «ventas» sobre una decision COMERCIAL sigue ordenando («por ventas: Samsung») y no marca la regla"); }
+  /* (b) un concepto sin productor declina CON alternativas: el eje donde sí se publica y el concepto que sí se publica en ese eje (H27, v31) */
+  const E4 = comp("E54d", v({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "peso_costo"], eje: "marca", entidades: [{ nombre: "Bosch", eje: "marca" }] }] }));
+  const nrSP = E4.ok ? E4.resolucion.noResuelto.find((x) => x.motivo === "concepto_sin_productor" && x.valor === "peso_costo") : null;
+  ok(!!F2 && !!nrSP && nrSP.alternativas.some((a) => a.tipo === "eje" && a.eje === "marca") && nrSP.alternativas.some((a) => a.tipo === "concepto" && a.clave === "ventas") && revisarEntrega(E4, [F2]).length === 0, "54(b) · H27: `peso_costo` (sin productor en ningún eje) declina con el eje donde se publica (marca) y el concepto que sí se publica en él (ventas), y el control de la F2 no marca nada");
+  if (F2 && nrSP) {
+    const conAlt = (alt) => ({ ...E4, resolucion: { ...E4.resolucion, noResuelto: E4.resolucion.noResuelto.map((x) => (x === nrSP ? { ...x, alternativas: alt } : x)) } });
+    ok(regla(revisarEntrega(conAlt([]), [F2]), "declinacion-sin-alternativas"), "`peso_costo` declinado con la lista de alternativas VACÍA (lo que hacía el validador) → declinacion-sin-alternativas");
+    ok(regla(revisarEntrega(conAlt([{ tipo: "eje", eje: "marca" }]), [F2]), "declinacion-sin-alternativas"), "declinado con el eje pero sin el concepto que sí se publica → declinacion-sin-alternativas");
+    ok(regla(revisarEntrega(conAlt([{ tipo: "eje", eje: "marca" }, { tipo: "concepto", clave: "saldo_vencido" }]), [F2]), "declinacion-alternativa-falsa"), "declinado con una pareja que el Core no publica (saldo vencido por marca) → declinacion-alternativa-falsa");
+  }
+  /* (b) el barrido: cada concepto de cada tema, en cada eje, con el eje explícito y por defecto — ninguna declinación sale con alternativas vacías */
+  { const { DOMINIOS_REGISTRO } = await import("./src/config/contract/dominios.js"), { EJES } = await import("./src/adi/encargo/esquema.js");
+    let n = 0; const malas = [];
+    for (const d of DOMINIOS_REGISTRO.filter((x) => x.estado !== "ausente" && Array.isArray(x.metricas))) for (const eje of [null, ...EJES]) for (const c of d.metricas) {
+      const R = base.validar.validarEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: d.id, cierre: "cifra", conceptos: [c], ...(eje ? { eje } : {}) }] }, {});
+      for (const nr of R.noResuelto || []) { if (nr.motivo !== "concepto_sin_productor" && nr.motivo !== "eje_no_soportado") continue; n++; const t = new Set((nr.alternativas || []).map((a) => a.tipo)); if (!t.has("eje") || (nr.motivo === "concepto_sin_productor" && !t.has("concepto"))) malas.push(`${d.id}·${eje || "defecto"}·${c} (${nr.motivo})`); }
+    }
+    ok(n >= 100 && malas.length === 0, `54(b) · el barrido de ${n} declinaciones (concepto_sin_productor · eje_no_soportado) de todos los temas, ejes y conceptos: ninguna sale con la lista vacía ni sin el eje y el concepto que sí se publican`, malas.slice(0, 6).join(" · ")); }
+  /* los conteos de cadena que genera el sub-azar: la variante «M igual al final» se juzga VERDADERA y la del n falso, FALSA */
+  { const deCadena = cobertura.casos.filter((c) => /:conteos:/.test(c.id)); let veri = 0, malas = [];
+    for (const c of deCadena.filter((x) => x.celda === "CONTEO:m-igual-al-final" || x.celda === "CONTEO:n-falso")) { const e = entregaDe(base, c); const i = e.ok ? e.entrega.respuesta.findIndex((r) => r._premisa && r.hechos[0] === "q1") : -1; if (i < 0 || !/(?:es correcto|no es así) — /.test(e.entrega.respuesta[i].texto)) continue; veri++; const dice = /es correcto — /.test(e.entrega.respuesta[i].texto); if (dice !== (c.celda === "CONTEO:m-igual-al-final")) malas.push(c.id); }
+    ok(veri >= 20 && malas.length === 0, `los conteos de cadena del sub-azar (${veri} verificados): «n de n» sobre el universo final se juzga verdadero y un n falso, falso`, malas.slice(0, 4).join(", ")); }
+}
+
 H("5 · independencia del control y cableado de la pieza (estático)");
 {
   const f6 =fs.readFileSync("./scripts/consolidacion/familias/f6_premisas.mjs", "utf8");
   ok(!/^\s*import[^\n]*(?:notario\/|entrega\/componer|entrega\/rotulos)/m.test(f6), "el control de la F6 NO importa el Notario ni la pieza del rótulo: lee la Entrega, el encargo y el dato");
+  const cad = fs.readFileSync("./scripts/consolidacion/cadena.mjs", "utf8"), hec = fs.readFileSync("./src/adi/notario/hechos.js", "utf8");
+  ok(!/^\s*import/m.test(cad) && /from "\.\.\/cadena\.mjs"/.test(f6) && /from "\.\/cadena\.mjs"/.test(fs.readFileSync("./scripts/consolidacion/cobertura.mjs", "utf8")), "la cadena de un conteo (`cadena.mjs`) se recalcula con el DATO, sin importar nada del Notario ni de la Entrega; la usan el control de la F6 y el generador de cobertura");
+  ok(/§7\.3·54\(a\)/.test(hec) && /sumar\("filtros"/.test(hec) && /mAdmisibles\.add\(set\.size\)/.test(hec), "el Notario cuenta CADA filtro y cada estado como un eslabón y admite el universo final (54a)");
 }
 {
   const f1 =fs.readFileSync("./scripts/consolidacion/familias/f1_prioridad.mjs", "utf8");

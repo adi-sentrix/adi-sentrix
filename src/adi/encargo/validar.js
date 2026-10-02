@@ -96,6 +96,21 @@ function _validarConcepto(clave, tema, eje, ejeExplicitoInvalido = false) {
   return { estado: "valido" };
 }
 
+/* §7.3·54(b): un concepto sin productor en el eje pedido SIEMPRE declina con alternativas: el eje donde sí se publica y el concepto que sí se publica en ese eje —nunca una lista vacía—.
+ * Los ejes son los del propio concepto; si ninguno lo publica (`peso_costo`), el eje es el pedido cuando el tema publica algo ahí, o los ejes donde el tema publica. Los conceptos son los de la misma parte que sí resuelven en ese eje; si no hay, los del tema con productor en él. */
+function _alternativasSinProductor(metricasDelTema, ejeEfectivo, ejesDelConcepto, conceptosValidos, clave) {
+  const publica = (k, e) => productorDe(k, e);   // el concepto sin productor no se publica en el eje pedido: no hace falta excluirlo
+  let ejes = [...ejesDelConcepto];
+  let conceptos = conceptosValidos.filter((k) => k !== clave);
+  if (!conceptos.length && ejeEfectivo) conceptos = metricasDelTema.filter((k) => publica(k, ejeEfectivo)).slice(0, 3);
+  if (!ejes.length) {
+    if (conceptos.length && ejeEfectivo) ejes = [ejeEfectivo];
+    else { const s = new Set(); for (const k of metricasDelTema) for (const e of ejesConProductor(k)) s.add(e); ejes = EJES.filter((e) => s.has(e)); }
+  }
+  if (!conceptos.length && ejes.length) conceptos = metricasDelTema.filter((k) => publica(k, ejes[0])).slice(0, 3);
+  return [...ejes.map((e) => ({ tipo: "eje", eje: e })), ...conceptos.map((k) => ({ tipo: "concepto", clave: k }))];
+}
+
 /* ── el productor de un supuesto de simulación (§3.5): depende de (tipo, tema, eje) — no hay tabla declarativa
  * en el Core para esto (assumptionRegistry.js solo declara la FORMA), así que se codifica la tabla del contrato,
  * leída de `simulateGeneral`/`simulateCarga`/`simulateCapital`/`simulateCosto` (toolContracts.js/specRetrieval.js). */
@@ -356,6 +371,7 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
    * decide DESPUÉS de recorrer TODOS los conceptos de la parte, porque el motivo correcto depende del resultado
    * conjunto (ver el bloque de abajo). */
   const sinProductorPendientes = [];   // { c, ejes } — solo cuando el eje fue explícito
+  const sinProductorInmediatos = [];   // { nr, c, ejes } — el eje salió por defecto: la declaración ya está en `noResuelto`; sus alternativas se completan al final (§7.3·54b, con los conceptos que sí resolvieron)
   for (const c of conceptosEntrada) {
     if (!_str(c)) continue;
     const r = _validarConcepto(c, tema, ejeEfectivo, ejeExplicitoInvalido);
@@ -375,7 +391,8 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
     }
     // "sin_productor"
     if (ejeFueExplicito) { sinProductorPendientes.push({ c, ejes: r.ejes }); continue; }
-    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: c, motivo: "concepto_sin_productor", alternativas: r.ejes.map((e) => ({ tipo: "eje", eje: e })) }));
+    const nrSP = nuevoNoResuelto({ parte: id, campo: "concepto", valor: c, motivo: "concepto_sin_productor", alternativas: r.ejes.map((e) => ({ tipo: "eje", eje: e })) });
+    noResuelto.push(nrSP); sinProductorInmediatos.push({ nr: nrSP, c, ejes: r.ejes });
   }
   /* La decisión (§RC6 del diagnóstico, tomada por el supervisor): si el eje es explícito y AL MENOS UN OTRO
    * concepto de la MISMA parte SÍ resuelve en ese eje, el eje en sí queda probado válido por esa prueba — el
@@ -383,15 +400,17 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
    * concepto pedido tiene productor en ese eje, es el EJE el que falla, no cada concepto: UN solo
    * `eje_no_soportado` (campo "eje") con las alternativas de ejes que sí producen. Con eje POR DEFECTO (no
    * explícito) la rama de arriba ya declara siempre `concepto_sin_productor` — esta decisión no la toca. */
+  const _metricasTema = temaEntrada.metricas || [];
+  for (const { nr, c, ejes } of sinProductorInmediatos) nr.alternativas = _alternativasSinProductor(_metricasTema, ejeEfectivo, ejes, conceptosValidos, c);
   if (ejeFueExplicito && sinProductorPendientes.length) {
     if (conceptosValidos.length > 0) {
       for (const { c, ejes } of sinProductorPendientes) {
-        noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: c, motivo: "concepto_sin_productor", alternativas: ejes.map((e) => ({ tipo: "eje", eje: e })) }));
+        noResuelto.push(nuevoNoResuelto({ parte: id, campo: "concepto", valor: c, motivo: "concepto_sin_productor", alternativas: _alternativasSinProductor(_metricasTema, ejeEfectivo, ejes, conceptosValidos, c) }));
       }
     } else {
       const ejesAlternativos = new Set();
       for (const { ejes } of sinProductorPendientes) for (const e of ejes) ejesAlternativos.add(e);
-      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "eje", valor: parteCruda.eje, motivo: "eje_no_soportado", alternativas: [...ejesAlternativos].map((e) => ({ tipo: "eje", eje: e })) }));
+      noResuelto.push(nuevoNoResuelto({ parte: id, campo: "eje", valor: parteCruda.eje, motivo: "eje_no_soportado", alternativas: _alternativasSinProductor(_metricasTema, null, [...ejesAlternativos], [], sinProductorPendientes[0].c) }));
     }
   }
   /* RC-A (diagnóstico v2, supervisor 2026-09-26 — MATERIAL: «Resolucion.ok»/«estado» mienten sobre si el eje
@@ -416,7 +435,7 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
   if (ejeSinProductorImplicito) {
     const ejesAlternativos = new Set();
     for (const c of temaEntrada.metricas || []) for (const e of ejesConProductor(c)) ejesAlternativos.add(e);
-    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "eje", valor: parteCruda.eje, motivo: "eje_no_soportado", alternativas: [...ejesAlternativos].map((e) => ({ tipo: "eje", eje: e })) }));
+    noResuelto.push(nuevoNoResuelto({ parte: id, campo: "eje", valor: parteCruda.eje, motivo: "eje_no_soportado", alternativas: _alternativasSinProductor(temaEntrada.metricas || [], null, [...ejesAlternativos], [], null) }));
   }
 
   /* ── universo (§4g) ── */

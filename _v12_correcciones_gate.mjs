@@ -1798,7 +1798,8 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
       if (f.top) { u.top = { metrica: "abonado", k }; cur = topSet(cur, k); cadena.push(cur); pasos.push("top"); }
       if (f.excluir) { u.excluir = { entidades: excl }; cur = new Set([...cur].filter((x) => !excl.includes(x))); cadena.push(cur); pasos.push("excluir"); }
       const final = cadena[cadena.length - 1], nFinal = final.size; if (nFinal === 0) continue;
-      const eslabones = [...new Set(cadena.filter((c, i) => pasos[i] === "eje" || pasos[i] === "base" || i < cadena.length - 1).map((c) => c.size))];
+      /* §7.3·54(a): el universo FINAL también es un eslabón de la cadena («n de n» sobre el final es verdadero); antes de la 54 el último paso quedaba fuera de los «de M» admisibles */
+      const eslabones = [...new Set(cadena.map((c) => c.size))];
       const extras = new Set(); if (f.base && f.estados) extras.add(new Set([...cadena[0]].filter((x) => mora.has(x))).size);   /* la población de los estados SOLOS: el código la admite, la cadena estricta no la exige */
       const noEslabon = [2, 3, 4, 5, 6, 7, 9, 11, 12].filter((c) => c >= nFinal && !eslabones.includes(c) && !extras.has(c))[0];
       const ms = [...eslabones, ...(noEslabon != null ? [noEslabon] : [])];

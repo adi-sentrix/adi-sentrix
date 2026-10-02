@@ -5,18 +5,25 @@
  *   R2 · NO SE AFIRMA UN EXTREMO SOBRE UN RANKING INCOMPLETO (contrato §7.3·13 · 52(b)): «el mayor / el menor», «es el k.º» y «la mayor variación» no se juzgan verdaderos ni falsos si el ranking tiene
  *        miembros sin dato: se declaran no verificables y se dice quién no tiene dato («sin dato de M para X»). Lo ausente no se ordena.
  *
+ *   R3 · LOS ESLABONES DE UN CONTEO (contrato §7.3·54(a), mediciones v31 y v32): la cadena del universo de una premisa de conteo tiene un eslabón por cada restricción —el eje entero, la base, CADA estado, CADA filtro, el top y la exclusión—
+ *        y el universo FINAL también es un eslabón. Un «de M» es admisible si M es el tamaño de cualquiera de ellos («n de n» sobre el universo final es verdadero); la verdad de un conteo falso por su M imprime el eslabón más ajustado distinto del final.
+ *
  * LO QUE LEE: la ENTREGA (las oraciones de sus premisas: `respuesta[i]._premisa`, su id en `hechos[0]`) y el DATO (los rankings de la proyección, lo que el Core publica por eje —`base.publica`—, la
  * declaración de cobertura de las fuentes y los nombres de cada eje). De la premisa lee su CAMPO TIPADO del encargo (`encargo.premisas`: tipo, métrica, forma del orden, universo). NO lee `notario/*` ni
  * `entrega/componer.js`: ni importa la pieza ni repite su lógica.
  *
  * LAS REGLAS (cada violación nombra la suya):
+ *   conteo-eslabon-veredicto        una premisa de conteo cuyo n es el tamaño del universo FINAL y cuyo M es el tamaño de CUALQUIER eslabón de la cadena (recalculada con el dato: `cadena.mjs`) se juzga falsa; o una con otro n se juzga verdadera (54a).
+ *   conteo-eslabon-m-impreso        la verdad de un conteo falso solo por su M no imprime el eslabón más ajustado de la cadena distinto del final (54a).
  *   premisa-cifra-sin-rotulo        la frase imprime «A (valor) · B (valor)» (o «A (valor) vs B (valor)») y ningún rótulo del léxico de la cifra —ni el de la métrica de la premisa ni el de la clave que el dato
  *                                   trae para A con ese valor— aparece en la frase (49f · 51f · 52e).
  *   premisa-rotulo-de-otro-concepto la frase dice «A: ROTULO valor» con el rótulo de un concepto que no es el de la métrica de la premisa (el margen dicho «margen de inventario»; las ventas, «venta a crédito») (49f).
  *   extremo-sobre-ranking-incompleto una premisa de orden máx/mín/puesto sobre un eje cuyo ranking tiene miembros sin dato (y la fuente no declara que lo ausente vale cero) se juzga (verdadera o falsa): debía declararse
  *                                   no verificable (13 · 52b).
  *   ausente-sin-nombrar             esa misma premisa, declarada no verificable, no dice quién no tiene dato en la forma «sin dato de M para X» (52b).
- * Las cuatro son FIRMES (el owner aprobó el cambio de ~120 textos: `notario/verificar.js` rotula la cifra y declara no verificable el extremo sobre un ranking incompleto). */
+ * Las cuatro primeras son FIRMES (el owner aprobó el cambio de ~120 textos: `notario/verificar.js` rotula la cifra y declara no verificable el extremo sobre un ranking incompleto); las dos de los eslabones, también (el owner aprobó la 54). */
+
+import { cadenaDeConteo, mAdmisiblesDe, eslabonMasAjustado } from "../cadena.mjs";
 
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -122,6 +129,31 @@ export const familia = {
           if (/(?:es correcto|no es así) — /.test(t)) { v("extremo-sobre-ranking-incompleto", `${p.id} (orden ${p.orden.forma} de «${nombreDe(clave)}» por ${eje}): ${sinDato.join(", ")} no tiene${sinDato.length > 1 ? "n" : ""} dato y la premisa se juzga: «${t.slice(0, 110)}»`); continue; }
           const n = _norm(t);
           if (!/sin dato de /.test(n) || !sinDato.every((x) => n.includes(_norm(x)))) v("ausente-sin-nombrar", `${p.id} (orden ${p.orden.forma} de «${nombreDe(clave)}» por ${eje}) es no verificable y no dice «sin dato de ${nombreDe(clave).toLowerCase()} para ${sinDato.join(", ")}»: «${t.slice(0, 130)}»`);
+        }
+      }
+    }
+    /* R3 · los eslabones de un conteo (54a): la cadena completa recalculada con el dato, y el veredicto de la frase contra ella */
+    for (const p of premisas) {
+      if (!p || p.tipo !== "conteo") continue;
+      const u = p.de || p.universo; const c = p.conteo && typeof p.conteo === "object" ? p.conteo : p;
+      const n = c && c.n != null && Number.isFinite(+c.n) ? +c.n : null, m = c && c.m != null && Number.isFinite(+c.m) ? +c.m : null;
+      if (n == null || !u || typeof u !== "object") continue;
+      const cadena = cadenaDeConteo(base, u);
+      if (!cadena.ok) continue;   /* el dato no demuestra alguna restricción de este universo: el control no decide */
+      const adm = mAdmisiblesDe(cadena);
+      const frases = respuesta.filter((r) => r && r._premisa && Array.isArray(r.hechos) && r.hechos[0] === p.id);
+      for (const r of frases) {
+        const t = String(r.texto || "");
+        const mv = /(es correcto|no es así) — (\d+) de (\d+) en /.exec(t);
+        if (!mv) continue;   /* «no se pudo verificar…», o una frase sin «n de M»: no decide */
+        const diceCorrecto = mv[1] === "es correcto";
+        const cadenaTxt = cadena.eslabones.map((e) => e.tam).join(" → ");
+        if (n === cadena.tam && m != null && adm.has(m) && !diceCorrecto) v("conteo-eslabon-veredicto", `${p.id} («${n} de ${m}», cadena ${cadenaTxt}): ${m} es el tamaño de un eslabón y el conteo es ${cadena.tam}, y la frase lo juzga falso: «${t.slice(0, 120)}»`);
+        else if (n !== cadena.tam && diceCorrecto) v("conteo-eslabon-veredicto", `${p.id} («${n} de ${m}», cadena ${cadenaTxt}): el universo tiene ${cadena.tam}, no ${n}, y la frase lo juzga verdadero: «${t.slice(0, 120)}»`);
+        /* la verdad de un conteo falso SOLO por su M imprime el eslabón más ajustado distinto del final */
+        if (n === cadena.tam && m != null && !adm.has(m) && !diceCorrecto) {
+          const esperado = eslabonMasAjustado(cadena);
+          if (esperado != null && Number(mv[2]) === cadena.tam && Number(mv[3]) !== esperado) v("conteo-eslabon-m-impreso", `${p.id} («${n} de ${m}», cadena ${cadenaTxt}): ${m} no es de la cadena y la verdad imprime «${mv[2]} de ${mv[3]}»; el eslabón más ajustado distinto del final es ${esperado}: «${t.slice(0, 120)}»`);
         }
       }
     }

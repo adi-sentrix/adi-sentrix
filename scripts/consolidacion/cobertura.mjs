@@ -14,8 +14,11 @@
  *   2 · EL SUB-AZAR DE COBERTURA. `generarCobertura(base, { semilla, minimo })` produce, con su PROPIA semilla derivada
  *       (`<semilla>:cobertura`: no toca la secuencia del generador general ni la del sub-azar de la F3), encargos hasta que cada celda
  *       válida tiene al menos `minimo` encargos que la ejercen (cobertura voraz: un encargo suma a todas las celdas que ejerce).
+ *       AL FINAL de esa secuencia (sin moverla: son otra semilla derivada, `<semilla>:cobertura:conteos`) agrega LOS CONTEOS DE CADENA (§7.3·54a): premisas de conteo sobre universos con varios filtros y estados, con el M igual al universo final,
+ *       igual a un eslabón intermedio, fuera de la cadena, y con un n falso — la cadena recalculada con el dato (`cadena.mjs`), no con el Notario.
  *       Cada encargo pasa por `validarEncargo`: solo se entregan los que el validador acepta sin reparos. Determinístico. OFFLINE. */
 import { crearAzar } from "./azar.mjs";
+import { cadenaDeConteo, mAdmisiblesDe } from "./cadena.mjs";
 
 const BODEGAS = ["Santiago", "Valparaíso", "Antofagasta", "Concepción"];
 const OPS = ["<", ">", "<=", ">="];
@@ -340,8 +343,74 @@ export function especificacionesDeCeldas(base, { semilla = "adi-consolidacion-1"
   return { validas, noConstruibles, posibles: todas.size, ayuda: k.a };
 }
 
-/** generarCobertura(base, { semilla, minimo, dims, espacio }) → { casos, estadistica, conteo } — el sub-azar de cobertura: cada celda válida ejercida al menos `minimo` veces. */
-export function generarCobertura(base, { semilla = "adi-consolidacion-1", minimo = 2, dims = null, espacio = null, maximoPorCelda = 40 } = {}) {
+/* ── LOS CONTEOS DE CADENA (§7.3·54a) ────────────────────────────────────────────────────────────────────────────────────── */
+/* las claves de los rankings de la proyección que se usan como filtro o top (el margen por SKU se pide «margen») y los estados que el dato demuestra por eje */
+const ESTADOS_DEL_DATO = { sku: ["capital sano", "inmovilizado", "inmovilizado critico", "sobrestock", "riesgo de quiebre"], cliente: ["en mora", "al dia"] };
+const BASES_DEL_DATO = { cliente: ["carga comercial alta", "sobre el nivel declarado de carga", "bajo el benchmark"], sku: ["SKU bajo el benchmark"] };
+const CLAVE_PEDIDA = { margen_venta: "margen" };
+export const VARIANTES_DE_CONTEO = ["m-igual-al-final", "m-de-un-eslabon", "m-fuera-de-la-cadena", "n-falso"];
+
+/** generarConteosDeCadena(base, { semilla, n }) → { casos, estadistica } — premisas de conteo sobre universos con CADENAS de varios filtros y estados; el M de la premisa es el del universo FINAL, el de un eslabón intermedio, uno que no es de la cadena, o el n es falso.
+ *  Semilla propia derivada (`<semilla>:cobertura:conteos`): no mueve ninguna otra secuencia. La cadena se recalcula con el dato (`cadena.mjs`). Cada encargo pasa por `validarEncargo`. Determinístico. OFFLINE. */
+export function generarConteosDeCadena(base, { semilla = "adi-consolidacion-1", n = 64, maximoIntentos = 60 } = {}) {
+  const R = crearAzar(`${semilla}:cobertura:conteos`);
+  const a = ayudas(base);
+  const casos = [], estadistica = { pedidos: n, intentos: 0, rechazados: 0, porVariante: {}, cadenas: { filtros: 0, estados: 0, ambos: 0 } };
+  const ejes = a.ejes.filter((e) => a.pares.some((p) => p.eje === e) && a.nombresDe(e).length >= 2);
+  const filtrosPosibles = (eje) => Object.keys((base.proyeccion && base.proyeccion.rankings && base.proyeccion.rankings[eje]) || {}).filter((k) => a.rankingDe(eje, k) && !/^(?:participacion|capital_frenado|capital_inmovilizado)$/.test(k));
+  for (let i = 0; i < n; i++) {
+    const variante = VARIANTES_DE_CONTEO[i % VARIANTES_DE_CONTEO.length];
+    let hecho = false;
+    for (let intento = 0; intento < maximoIntentos && !hecho; intento++) {
+      estadistica.intentos++;
+      const eje = R.pick(ejes);
+      const par = R.pick(a.pares.filter((p) => p.eje === eje));
+      const metricas = filtrosPosibles(eje); if (!metricas.length) { estadistica.rechazados++; continue; }
+      const u = { eje };
+      /* los estados (sku y cliente: los que el dato demuestra) y la base nombrada */
+      const ee = ESTADOS_DEL_DATO[eje] || [], bb = BASES_DEL_DATO[eje] || [];
+      if (ee.length && R.bool(0.8)) { u.estados = R.muestra(ee, R.int(1, Math.min(2, ee.length))); if (ee.length - u.estados.length >= 1 && R.bool(0.25)) u.no_estados = R.muestra(ee.filter((x) => !u.estados.includes(x)), 1); }
+      if (bb.length && R.bool(0.4)) u.base = R.pick(bb);
+      /* los filtros: 1 a 3, con el umbral tomado de un valor del propio dato (así cada filtro reduce el universo) */
+      const nf = R.int(1, 3); const fs = [];
+      for (let j = 0; j < nf; j++) {
+        const k = R.pick(metricas); const rk = a.rankingDe(eje, k);
+        const vs = ((rk && rk.filas) || []).map((f) => (Number.isFinite(f.raw) ? f.raw : f.valor)).filter((v) => Number.isFinite(v));
+        if (!vs.length) continue;
+        const op = R.pick([">", ">", "<", ">=", "<="]);
+        fs.push({ metrica: CLAVE_PEDIDA[k] || k, op, valor: R.pick(vs) });
+      }
+      if (fs.length) u.filtros = fs;
+      if (R.bool(0.4)) { const k = R.pick(metricas); u.top = { metrica: CLAVE_PEDIDA[k] || k, k: R.int(1, 3), ...(R.bool(0.4) ? { direccion: "menor" } : {}) }; }
+      if (R.bool(0.35)) u.excluir = { entidades: [R.pick(a.nombresDe(eje))] };
+      const nRestr = (u.estados ? u.estados.length : 0) + (u.no_estados ? u.no_estados.length : 0) + (fs.length || 0);
+      if (nRestr < 2) { estadistica.rechazados++; continue; }   /* una cadena de VARIOS filtros y estados */
+      const cad = cadenaDeConteo(base, u);
+      if (!cad.ok || cad.tam < 1) { estadistica.rechazados++; continue; }
+      const sizes = [...mAdmisiblesDe(cad)].sort((x, y) => x - y);
+      const intermedios = cad.eslabones.map((e) => e.tam).filter((x) => x !== cad.tam && x > 0);
+      let nn = cad.tam, mm = null;
+      if (variante === "m-igual-al-final") mm = cad.tam;
+      else if (variante === "m-de-un-eslabon") { if (!intermedios.length) { estadistica.rechazados++; continue; } mm = R.pick(intermedios); }
+      else if (variante === "m-fuera-de-la-cadena") { const libres = []; for (let x = 1; x <= a.nombresDe(eje).length + 2; x++) if (!sizes.includes(x)) libres.push(x); if (!libres.length) { estadistica.rechazados++; continue; } mm = R.pick(libres); }
+      else { nn = cad.tam + R.int(1, 2); mm = R.pick(sizes); }
+      const conceptos = a.conceptosDe(par.tema, eje); if (!conceptos.length) { estadistica.rechazados++; continue; }
+      const parte = { id: "p1", tema: par.tema, cierre: R.pick(["cifra", "lectura"]), conceptos: R.muestra(conceptos, 1), ...(eje !== a.esquema.sujetoDeTema(par.tema) ? { eje } : {}) };
+      const enc = { version: "encargo/v1", partes: [parte], premisas: [{ id: "q1", tipo: "conteo", conteo: { n: nn, m: mm }, de: u }] };
+      if (!valido(base, enc)) { estadistica.rechazados++; continue; }
+      casos.push({ origen: "cobertura", id: `cobertura:${semilla}:conteos:${casos.length + 1}`, encargo: enc, celda: `CONTEO:${variante}` });
+      estadistica.porVariante[variante] = (estadistica.porVariante[variante] || 0) + 1;
+      if (fs.length >= 2) estadistica.cadenas.filtros++;
+      if ((u.estados || []).length + (u.no_estados || []).length >= 2) estadistica.cadenas.estados++;
+      if (fs.length >= 1 && (u.estados || []).length + (u.no_estados || []).length >= 1) estadistica.cadenas.ambos++;
+      hecho = true;
+    }
+  }
+  return { casos, estadistica };
+}
+
+/** generarCobertura(base, { semilla, minimo, dims, espacio, conteos }) → { casos, estadistica, conteo } — el sub-azar de cobertura: cada celda válida ejercida al menos `minimo` veces; al final, `conteos` (64 por defecto, solo sin `dims`) premisas de conteo con cadena (§7.3·54a). */
+export function generarCobertura(base, { semilla = "adi-consolidacion-1", minimo = 2, dims = null, espacio = null, maximoPorCelda = 40, conteos = 64 } = {}) {
   const esp = espacio || especificacionesDeCeldas(base, { semilla });
   const R = crearAzar(`${semilla}:cobertura`);
   const k = constructor(base, R);
@@ -364,6 +433,8 @@ export function generarCobertura(base, { semilla = "adi-consolidacion-1", minimo
     }
     if ((conteo.get(clave) || 0) < minimo) estadistica.sinCompletar.push(clave);
   }
+  /* §7.3·54a: los conteos de cadena van AL FINAL, con su propia semilla derivada: la secuencia de arriba no se mueve */
+  if (!dims && conteos > 0) { const c = generarConteosDeCadena(base, { semilla, n: conteos }); casos.push(...c.casos); estadistica.conteos = c.estadistica; }
   return { casos, estadistica, conteo };
 }
 

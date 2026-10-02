@@ -132,6 +132,10 @@ const HISTORICOS_HECHOS_FRENADO = new Set([
  * x14-top-que-corta-un-empate h3 («Unimarc es la de menor saldo pendiente entre los 3 de menor días vencido», con 7 cuentas empatadas en 0 días) esperaba «no-verificable» por la decisión anterior; con la 44(a) el top son las 7
  * y Unimarc SÍ es la de menor saldo pendiente entre ellas: «verdadera», con el empate declarado en la fuente («7 por el empate del filo»). Se congela contra el significado histórico que probaba; no se re-etiqueta ni se borra. */
 const HISTORICOS_HECHOS_EMPATE_FILO = new Set(["x14-top-que-corta-un-empate h3"]);
+/* §7.3·54(a) (v31 y v32): el universo FINAL también es un eslabón de la cadena de un conteo, así que «n de n» sobre él es verdadero.
+ * u09-base-todos h2 («6 de 6 en los clientes en mora», base «todos») esperaba «falsa» por la lectura anterior de los «de M» admisibles; con la 54(a) el M = 6 es el tamaño del universo final y la premisa es verdadera.
+ * Se congela contra el significado histórico que probaba; no se re-etiqueta ni se reescribe el fixture (las pruebas antiguas son registro histórico). */
+const HISTORICOS_HECHOS_ESLABON_FINAL = new Set(["u09-base-todos h2"]);
 if (!solo || solo.has("hechos")) {
   const F = leer("hechos.json");
   for (const c of (F.casos || F)) {
@@ -149,6 +153,7 @@ if (!solo || solo.has("hechos")) {
       const e = esp[H.id]; if (!e) continue;
       if (HISTORICOS_HECHOS_FRENADO.has(`${c.id} ${H.id}`)) { cuenta("hechos", "excluidos"); console.log(`  ❄ HISTÓRICO · ${c.id} ${H.id} — congelado (frenado-regla-de-rotacion, §7.3·34b), no se juzga contra el canon vigente`); continue; }
       if (HISTORICOS_HECHOS_EMPATE_FILO.has(`${c.id} ${H.id}`)) { cuenta("hechos", "excluidos"); console.log(`  ❄ HISTÓRICO · ${c.id} ${H.id} — congelado (top-que-corta-un-empate, §7.3·44a), no se juzga contra el canon vigente`); continue; }
+      if (HISTORICOS_HECHOS_ESLABON_FINAL.has(`${c.id} ${H.id}`)) { cuenta("hechos", "excluidos"); console.log(`  ❄ HISTÓRICO · ${c.id} ${H.id} — congelado (eslabon-final-de-un-conteo, §7.3·54a), no se juzga contra el canon vigente`); continue; }
       cuenta("hechos", "hechos");
       const esperadoVerdadero = /^(?:verdadera|sellada)$/.test(e);
       const salioVerdadero = H.veredicto === "verdadera" || H.veredicto === "sellada";
