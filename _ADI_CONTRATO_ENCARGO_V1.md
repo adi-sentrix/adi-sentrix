@@ -838,6 +838,15 @@ venta a crédito, ley del owner).
     urgencia): es la prioridad del procedimiento, no un criterio inventado. Lo que se prohíbe es nombrar riesgo cuando el
     plan de señales no ordenó esa lista, o coronar a alguien distinto del primero del plan. Cuando la lente pedida no ordena el
     grupo, se declara y sigue la lectura de riesgo con la misma condición.
+54. [2026-10-01, supervisor; mediciones v31 y v32] Precisa la 46(c), la 48(c) y la 50(b).
+    (a) LOS ESLABONES DE UN CONTEO. La cadena del universo de una premisa tiene un eslabón por cada restricción, en orden: el
+    eje entero, la base, CADA estado, CADA filtro, el top y la exclusión. El universo FINAL también es un eslabón. Un «de M»
+    es admisible si M es el tamaño de cualquiera de ellos, así que «n de n» sobre el universo final es verdadero. La verdad de
+    un conteo falso por su M imprime el eslabón más ajustado distinto del final.
+    (b) Un concepto sin productor en el eje pedido siempre declina CON alternativas (§2.1): el eje donde sí se publica y el
+    concepto que sí se publica en ese eje. Nunca se declina con una lista de alternativas vacía.
+    (c) La 50(b) se aplica igual en todos los caminos: la lente «ventas» sobre una parte de INVENTARIO por SKU se declara y
+    no ordena, aunque el universo de la parte use un top por ventas.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
