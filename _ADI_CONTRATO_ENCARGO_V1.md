@@ -861,6 +861,16 @@ venta a crédito, ley del owner).
     crecimiento» y no declara que no ordena (la no contradicción de la 55a). Por ser la medida de una LENTE (50a), va primero
     la de mayor variación. Donde el dato no publica la variación, se declara como dice la 50(b), y si alguien no tiene dato se
     aplica la 52(b).
+57. [2026-10-02, supervisor; mediciones v37 y v38] Precisa la 56, la 55(b) y la 54(a).
+    (a) La base de «crecimiento» es la VARIACIÓN PORCENTUAL contra el año anterior, en todos los ejes. La variación en dinero
+    puede acompañar como cifra de apoyo, pero no decide quién va primero.
+    (b) La 56 rige en TODOS los caminos: grupo, foto, universo con miembros, entidades nombradas y partes de un encargo mixto.
+    Va primero quien tiene la mayor variación, y quien no tiene dato se declara aparte (52b) en ese mismo camino.
+    (c) En un encargo mixto, cada parte que decide lleva SU oración de prioridad con el nombre de su lente (52a por parte),
+    aunque comparta entidades con otra parte.
+    (d) En la 54(a), la bodega, cada no_estado y cada rama de una unión también son eslabones de la cadena.
+    (e) Un concepto de otro dominio pedido en una parte se declina como `concepto_de_otro_tema` antes de evaluar su productor
+    (§4, el orden de la validación).
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
