@@ -210,6 +210,19 @@ export function prioridadDeParte({ criterio = null, tema = null, cierre = "decis
   return { modo, primero, lenteGrupo, primeroAtencion, nombra };
 }
 
+/** §7.3·55(c): tras «ninguna cuenta queda primera» la lista (el grupo, o los empatados) conserva el orden del universo SERVIDO —el del top, el de las entidades en el orden en que se nombraron o el de la foto— y nunca el que usó la pieza para decidir quién pide atención
+ *  (que ordena por el primer concepto pedido). Reordena en el lugar el detalle `lenteGrupo` de una decisión `sin-discrimina` (`entidades` y `empatadas`); quien no está en el orden servido queda al final, en su orden. Sin lente que no distingue, no toca nada. Devuelve `prio`. */
+export function alOrdenServido(prio, ordenServido) {
+  const lg = prio && prio.lenteGrupo;
+  if (!lg || lg.modo !== "sin-discrimina" || !Array.isArray(ordenServido) || !ordenServido.length) return prio;
+  const pos = new Map(); ordenServido.forEach((n, i) => { const k = normalizar(n); if (!pos.has(k)) pos.set(k, i); });
+  const clave = (n) => (pos.has(normalizar(n)) ? pos.get(normalizar(n)) : Infinity);
+  const porServido = (xs) => xs.slice().sort((a, b) => { const ka = clave(a), kb = clave(b); return ka === kb ? 0 : ka < kb ? -1 : 1; });
+  if (Array.isArray(lg.entidades)) lg.entidades = porServido(lg.entidades);
+  if (Array.isArray(lg.empatadas)) lg.empatadas = porServido(lg.empatadas);
+  return prio;
+}
+
 /** los valores de la medida `claveOrden` en el eje `eje` según la PROYECCIÓN del dato (`I.rankingDe`): `Map(nombre normalizado → valor)` o null si la proyección no publica ese ranking */
 export function valoresDeProyeccion(I, eje, claveOrden) {
   if (!I || !eje || !claveOrden) return null;

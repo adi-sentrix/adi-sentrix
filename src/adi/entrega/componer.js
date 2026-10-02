@@ -54,7 +54,7 @@ import { partesDelEncargo, dominiosDelEncargo } from "../agente/partesDelEncargo
 import { pasosDeDominios } from "../agente/contratoDeDominios.js";
 import { LENTES, CRITERIOS } from "../agente/prioridadIntegrada.js";
 import { crearEntrega } from "./esquema.js";
-import { prioridadDeParte, valoresDeProyeccion, prioridadCruzada, lideresPorDominio, prioridadPorLente, temaDeLaParteQuePrioriza, conceptoDeLaMedidaParcial, modoDeLaCruzada, vaAntesQue, nombreVisibleDeLente, lenteIdDelCriterio, primeroPorMedida, marcaDePrioridad, ALCANCE_DE_PRIORIDAD, esOracionDePrioridad, primeroDeLaConclusion } from "./prioridad.js";   // FAMILIA 1 (consolidación): quién va primero y qué lente o medida se nombra, UNA pieza
+import { prioridadDeParte, alOrdenServido, valoresDeProyeccion, prioridadCruzada, lideresPorDominio, prioridadPorLente, temaDeLaParteQuePrioriza, conceptoDeLaMedidaParcial, modoDeLaCruzada, vaAntesQue, nombreVisibleDeLente, lenteIdDelCriterio, primeroPorMedida, marcaDePrioridad, ALCANCE_DE_PRIORIDAD, esOracionDePrioridad, primeroDeLaConclusion } from "./prioridad.js";   // FAMILIA 1 (consolidación): quién va primero y qué lente o medida se nombra, UNA pieza
 // CORTE 3b (Etapa 1, owner 2026-09-25, `_ADI_LLMBUSINESS_PLAN.md` §1 + `_ADI_CONTRATO_ENCARGO_V1.md`) — la Entrega
 // para CUALQUIER encargo válido: `lecturasDe` (corte 3a) decide QUÉ CORRE, este archivo decide CÓMO SE ESCRIBE.
 // `metricaPorClave` es la MISMA fuente que ya usa `validar.js` para juzgar conceptos — acá se usa para el otro
@@ -1656,6 +1656,7 @@ function _planCifraEntidad(parte, figs, ref, I, declararDerivada = null, sinCifr
     const nombres = ordenados.map((x) => x.entidad);
     const porEntidadFig = new Map(ordenados.map((x) => [x.entidad, new Map(x.filas.filter((y) => y.clave).map((y) => [y.clave, y._fig]))]));
     const prio = prioridadDeParte({ criterio, tema: parte.tema, cierre: "decision", entidades: nombres, claveOrden, valorDe: (n) => val(ordenados.find((x) => x.entidad === n)), proyeccion: valoresDeProyeccion(I, parte.eje || sujetoDeTema(parte.tema), claveOrden), figs, porEntidad: porEntidadFig });   /* FAMILIA 1: la decisión de prioridad es de `prioridad.js` */
+    alOrdenServido(prio, filasPorEntidad.map((x) => x.entidad));   /* §7.3·55(c): «ninguna cuenta queda primera» enumera el grupo en el orden en que se NOMBRÓ (el de la tabla), no en el de la primera medida con que se decidió */
     const { lenteGrupo, primeroAtencion } = prio;
     const porEntidadId = new Map(ordenados.map((x) => [x.entidad, new Map(x.filas.filter((y) => y.clave).map((y) => [y.clave, y.id]))]));
     return { ...out, prioridadEntre: { orden: nombres, claveOrden, lenteGrupo, porEntidadId, prioridad: prio, ...(primeroAtencion ? { primeroAtencion } : {}) } };
@@ -2056,6 +2057,7 @@ function _cerrarGrupoUniverso(p, figsDeP, I, hechos, contador, ref, declararRazo
   const figB0 = gp.claveOrden && gp.miembros.length > 1 ? _mapaDe(gp.porEntidad, gp.miembros[1]).get(gp.claveOrden) : null;
   /* FAMILIA 1: la decisión de prioridad es de `prioridad.js`. v23: la lente que aplica al dominio ordena la prioridad del grupo (se lee antes de pasar las figs a ids). §7.3·50(a): la lista del grupo exhibe los casos de mayor a menor (y «X concentra el N %» nombra al mayor); la PRIORIDAD de una `decision` nombra a quien pide atención por la medida nombrada. Nunca corona al mejor. */
   const prio = prioridadDeParte({ criterio, tema: p.tema, cierre: p.cierre, entidades: gp.miembros, claveOrden: gp.claveOrden, valorDe: (n) => { const fg = _mapaDe(gp.porEntidad, n).get(gp.claveOrden); return fg && Number.isFinite(fg.raw) ? fg.raw : NaN; }, proyeccion: valoresDeProyeccion(I, gp.eje, gp.claveOrden), figs: figsDeP, porEntidad: gp.porEntidad });
+  alOrdenServido(prio, gp.miembros);   /* §7.3·55(c): la lista tras «ninguna cuenta queda primera» va en el orden servido (el de `miembros`, el de la tabla) */
   const { lenteGrupo, primeroAtencion } = prio;
   /* v23 (R65): un total que vale CERO no es base de ninguna participación («0 de 0» no es una razón): un grupo donde la medida vale cero para todos no tumba la Entrega, simplemente no declara participación (el cero se dice con su cifra en la fila). Se lee ANTES de pasar las figs a ids. */
   const _totalDeLaTentacionEsCero = !!(gp.claveTentacion && (() => { const fs = gp.miembros.map((n) => _mapaDe(gp.porEntidad, n).get(gp.claveTentacion)).filter((f) => f && typeof f === "object"); return fs.length > 0 && fs.every((f) => Number.isFinite(f.raw) && f.raw === 0); })());
@@ -2712,6 +2714,7 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
       if (vs.some((x, i) => i > 0 && !(vs[i - 1] >= x))) { ordenDeLaMesa = true; empates.length = 0; }
     }
   }
+  alOrdenServido(prio, orden);   /* §7.3·55(c): con la lente en cero, «ninguna cuenta queda primera» enumera el grupo en el orden SERVIDO (el del top o el de la foto, ya fijado arriba), no en el del concepto con que se decidió */
   return { kind: "grupo", tema: parte.tema, parteId: parte.id, cierre: parte.cierre, eje, conceptos, porEntidad, orden, cola, empates, faltantes, prioridad: prio, ...(ordenDeLaMesa ? { ordenDeLaMesa: true } : {}), ...(lenteGrupo ? { lenteGrupo } : {}), ...(empateFilo && orden.length === empateFilo.servidos ? { empateFilo } : {}), ...(fotoCompletada.length ? { fotoCompletada } : {}), claveOrden, ...(primeroAtencion ? { primeroAtencion } : {}), universoDecl: { top: top || null, base: alcance.base || null, estados: alcance.estados || null, no_estados: alcance.no_estados || null, filtros: alcance.filtros || null, bodega: alcance.bodega || null, union: alcance.union || null, excluir: alcance.excluirCompleto || null, entidades: orden } };
 }
 

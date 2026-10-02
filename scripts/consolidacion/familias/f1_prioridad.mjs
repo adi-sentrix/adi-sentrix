@@ -26,7 +26,7 @@
  *   oracion-dice-que-no-ordena-y-ordena   (55a) una oración nunca dice que una medida no ordena a la vez que ordena por ella: si dice «X no ordena este grupo», el orden de la lista (la medida nombrada, o la de su línea «ordenado por …») no es por X.
  *   por-el-top-sin-top                «por venta, el top que se pidió» solo cuando la parte pidió de verdad un top por esa medida (55a).
  *   venta-a-credito-fuera-de-cobranza · ventas-en-cobranza-sin-credito   (55b, precisa la 52a) el nombre de la lente «ventas» es POR PARTE: «venta a crédito» solo cuando las partes que deciden son de cobranza; con una parte comercial se dice «ventas», aunque el encargo tenga una parte de cobranza.
- *   lista-tras-ninguna-pierde-el-orden   (55c) tras «ninguna cuenta queda primera» la lista conserva el orden del top o del universo que se pidió (la 50a rige la oración de prioridad, no esa lista).
+ *   lista-tras-ninguna-pierde-el-orden   (55c) tras «ninguna cuenta queda primera» la lista conserva el orden del top o del universo que se pidió (la 50a rige la oración de prioridad, no esa lista). Sin top, la enumeración de la propia oración —«el grupo (A, B, C)» o «A y B empatan»— va en el orden en que se NOMBRARON las entidades o en el del universo servido (la foto), nunca en el del primer concepto pedido (C82 de v36).
  *   primero-fuera-del-eje             quien va primero es una entidad del eje de la parte que prioriza (51e · 53, segunda vuelta): «por riesgo integrado: LG-DRYER8KG» en una decision por BODEGA corona a un SKU que no es del grupo. */
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 const CAB = /^(Prioridad del procedimiento|Quien más pesa en el conjunto)(?: (dentro de este grupo))?, por (.+?): (.*)$/s;
@@ -48,6 +48,7 @@ export function analizarOracion(texto) {
     const mm = /\bno (?:tiene|trae) (.+?)(?: \(|;|\.|$)/.exec(r);
     if (mm) { S.medida = mm[1]; S.verbo = /\bno trae\b/.test(r) ? "trae" : "tiene"; }
     const g = /el grupo \(([^)]*)\)/.exec(r); if (g) S.miembrosDichos = g[1].split(",").map((s) => s.trim()).filter(Boolean);
+    else { const em = /^ninguna cuenta queda primera, porque (.+?) empatan en /.exec(r); if (em) { S.miembrosDichos = em[1].split(/, | y /).map((s) => s.trim()).filter(Boolean); S.empate = true; } }   /* «A, B y C empatan en X»: los empatados, también una enumeración del grupo */
   } else if ((x = /ordenado por (.+?), lo encabeza (.+)\.$/.exec(r))) { S.medida = x[1]; S.primero = x[2]; S.forma = "encabeza"; }
   else if ((x = /^(.+?), con (.+?) en ([^,]+?)\.$/.exec(r))) { S.primero = x[1]; S.valor = x[2]; S.medida = x[3]; S.forma = "cifra"; }
   else if ((x = /^(.+?) \(\d+ de \d+ en .+\)\.$/.exec(r))) { S.primero = x[1]; S.forma = "universo"; }
@@ -234,6 +235,12 @@ export const familia = {
           const nombresL = [...mL[1].matchAll(/(?:^|, )([^,()]+?) \([^)]*\)/g)].map((x) => x[1].trim());
           const u = (entrega.universos || []).find((x) => Array.isArray(x.entidades) && nombresL.length && nombresL.every((n) => x.entidades.includes(n)));
           if (u && nombresL.length >= 2 && nombresL.some((n, i) => n !== u.entidades[i])) v("lista-tras-ninguna-pierde-el-orden", `tras «ninguna cuenta queda primera» la lista dice ${nombresL.join(", ")} y el universo pedido va ${u.entidades.slice(0, nombresL.length).join(", ")}: «${texto.slice(0, 110)}»`);
+        }
+        /* 55(c), SIN top: la enumeración de la propia oración («el grupo (A, B, C)» · «A, B y C empatan») conserva el orden del universo pedido —las entidades en el orden en que se NOMBRARON, o el universo servido (la foto)—, nunca el de la primera medida pedida. Se juzga contra el orden de cada grupo del que habla la oración (la verdad de la parte: `miembrosDe`, sus entidades nombradas o su universo); marca solo si la enumeración invierte el orden en TODOS los grupos candidatos */
+        if (Array.isArray(S.miembrosDichos) && S.miembrosDichos.length >= 2) {
+          const gs = gruposDe(S);
+          const invierte = (g) => { const ms = g.miembros.map(_norm); const idx = S.miembrosDichos.map((n) => ms.indexOf(_norm(n))).filter((i) => i >= 0); return idx.some((i, k) => k > 0 && i < idx[k - 1]); };
+          if (gs.length && gs.every(invierte)) v("lista-tras-ninguna-pierde-el-orden", `tras «ninguna cuenta queda primera» ${S.empate ? "los empatados van" : "el grupo va"} ${S.miembrosDichos.join(", ")} y el orden pedido es ${gs[0].miembros.filter((m) => S.miembrosDichos.some((n) => _norm(n) === _norm(m))).join(", ")}: «${texto.slice(0, 110)}»`);
         }
       }
       /* 46(d)·47(d): la lente pedida se nombra con su medida o se declara que no ordena; sin lente pedida, nunca se nombra una lente */

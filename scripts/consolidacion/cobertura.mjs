@@ -449,8 +449,45 @@ export function generarPrioridadPorParte(base, { semilla = "adi-consolidacion-1"
   return { casos, estadistica };
 }
 
-/** generarCobertura(base, { semilla, minimo, dims, espacio, conteos, prioridad }) → { casos, estadistica, conteo } — el sub-azar de cobertura: cada celda válida ejercida al menos `minimo` veces; al final, `conteos` (64 por defecto, solo sin `dims`) premisas de conteo con cadena (§7.3·54a) y `prioridad` (48) encargos con la lente «ventas» por parte (§7.3·55). */
-export function generarCobertura(base, { semilla = "adi-consolidacion-1", minimo = 2, dims = null, espacio = null, maximoPorCelda = 40, conteos = 64, prioridad = 48 } = {}) {
+/* ── LAS ENTIDADES NOMBRADAS CON LA LENTE EN CERO, EN OTRO ORDEN QUE EL DEL PRIMER CONCEPTO (§7.3·55c · C82 de la medición v36) ───────────────────────────────────────────────────── */
+/* la forma que ningún generador anterior producía: una parte de COBRANZA con entidades NOMBRADAS cuyo saldo vencido vale cero (la lente «exposición de crédito» no distingue a nadie: «ninguna cuenta queda primera») y nombradas en un orden DISTINTO del que da el primer concepto pedido (de mayor a menor); la enumeración tras «ninguna queda primera» debe seguir el orden nombrado */
+export const VARIANTES_DE_ORDEN_NOMBRADO = ["nombradas-en-cero", "nombradas-en-cero+segundo-concepto", "nombradas-en-cero+premisa"];
+
+/** generarEntidadesFueraDeOrden(base, { semilla, n }) → { casos, estadistica } — encargos de cobranza con entidades nombradas en cero (saldo vencido) en un orden que NO es el del primer concepto, con la lente «crédito». Semilla propia derivada (`<semilla>:cobertura:orden-nombrado`): no mueve ninguna otra secuencia. Cada encargo pasa por `validarEncargo`. Determinístico. OFFLINE. */
+export function generarEntidadesFueraDeOrden(base, { semilla = "adi-consolidacion-1", n = 24, maximoIntentos = 80 } = {}) {
+  const R = crearAzar(`${semilla}:cobertura:orden-nombrado`);
+  const a = ayudas(base);
+  const casos = [], estadistica = { pedidos: n, intentos: 0, rechazados: 0, porVariante: {}, sinCero: false };
+  const filasDe = (clave) => { const rk = a.rankingDe("cliente", clave); return rk && Array.isArray(rk.filas) ? rk.filas : []; };
+  const enCero = filasDe("saldo_vencido").filter((f) => f && Number.isFinite(f.valor) && f.valor === 0).map((f) => f.entidad);
+  if (enCero.length < 2) { estadistica.sinCero = true; return { casos, estadistica }; }
+  const conceptos = a.conceptosDe("cobranza", "cliente").filter((c) => c !== "saldo_vencido" && filasDe(c).length);
+  if (!conceptos.length) return { casos, estadistica };
+  for (let i = 0; i < n; i++) {
+    const variante = VARIANTES_DE_ORDEN_NOMBRADO[i % VARIANTES_DE_ORDEN_NOMBRADO.length];
+    let hecho = false;
+    for (let intento = 0; intento < maximoIntentos && !hecho; intento++) {
+      estadistica.intentos++;
+      const nombres = R.muestra(enCero, Math.min(enCero.length, R.int(2, 4)));
+      const cs = R.muestra(conceptos, variante === "nombradas-en-cero+segundo-concepto" ? Math.min(2, conceptos.length) : 1);
+      /* el orden que daría el primer concepto pedido (de mayor a menor): el encargo solo vale si los nombres van en OTRO orden */
+      const vals = new Map(filasDe(cs[0]).map((f) => [f.entidad, f.valor]));
+      if (nombres.some((x) => !Number.isFinite(vals.get(x)))) { estadistica.rechazados++; continue; }
+      const porConcepto = nombres.slice().sort((x, y) => vals.get(y) - vals.get(x));
+      if (porConcepto.every((x, j) => x === nombres[j])) { estadistica.rechazados++; continue; }
+      const enc = { version: "encargo/v1", partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: cs, entidades: nombres.map((nombre) => ({ nombre })) }], criterio: { lente: "credito" } };
+      if (variante === "nombradas-en-cero+premisa") enc.premisas = [{ id: "q1", tipo: "cifra", sujeto: R.pick(nombres), metrica: "saldo_pendiente", valor: "$1.0M" }];
+      if (!valido(base, enc)) { estadistica.rechazados++; continue; }
+      casos.push({ origen: "cobertura", id: `cobertura:${semilla}:orden-nombrado:${casos.length + 1}`, encargo: enc, celda: `ORDEN-NOMBRADO:${variante}` });
+      estadistica.porVariante[variante] = (estadistica.porVariante[variante] || 0) + 1;
+      hecho = true;
+    }
+  }
+  return { casos, estadistica };
+}
+
+/** generarCobertura(base, { semilla, minimo, dims, espacio, conteos, prioridad, ordenNombrado }) → { casos, estadistica, conteo } — el sub-azar de cobertura: cada celda válida ejercida al menos `minimo` veces; al final, `conteos` (64 por defecto, solo sin `dims`) premisas de conteo con cadena (§7.3·54a), `prioridad` (48) encargos con la lente «ventas» por parte (§7.3·55) y `ordenNombrado` (24) encargos de cobranza con entidades nombradas en cero y en otro orden que el del primer concepto (§7.3·55c). */
+export function generarCobertura(base, { semilla = "adi-consolidacion-1", minimo = 2, dims = null, espacio = null, maximoPorCelda = 40, conteos = 64, prioridad = 48, ordenNombrado = 24 } = {}) {
   const esp = espacio || especificacionesDeCeldas(base, { semilla });
   const R = crearAzar(`${semilla}:cobertura`);
   const k = constructor(base, R);
@@ -477,6 +514,8 @@ export function generarCobertura(base, { semilla = "adi-consolidacion-1", minimo
   if (!dims && conteos > 0) { const c = generarConteosDeCadena(base, { semilla, n: conteos }); casos.push(...c.casos); estadistica.conteos = c.estadistica; }
   /* §7.3·55: la prioridad por parte (la lente «ventas» en comercial + cobranza y en inventario con top por ventas) va después de los conteos, con su propia semilla derivada (`<semilla>:cobertura:prioridad`): ni las celdas ni los conteos se mueven */
   if (!dims && prioridad > 0) { const c = generarPrioridadPorParte(base, { semilla, n: prioridad }); casos.push(...c.casos); estadistica.prioridad = c.estadistica; }
+  /* §7.3·55(c) (C82 de v36): las entidades nombradas con la lente en cero y en otro orden que el del primer concepto, al final, con su propia semilla derivada (`<semilla>:cobertura:orden-nombrado`): ni las celdas, ni los conteos, ni la prioridad por parte se mueven */
+  if (!dims && ordenNombrado > 0) { const c = generarEntidadesFueraDeOrden(base, { semilla, n: ordenNombrado }); casos.push(...c.casos); estadistica.ordenNombrado = c.estadistica; }
   return { casos, estadistica, conteo };
 }
 
