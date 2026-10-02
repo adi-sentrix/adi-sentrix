@@ -53,10 +53,10 @@ export const MEDIDAS_DE_LENTE = {
   crecimiento: { tema: "comercial", concepto: "variacion", nombre: rotuloEnOracion({ clave: "variacion" }) },   /* §7.3·56 */
 };
 /* la señal propia de una lente SIN dominio (para reconocerla en las figs de un grupo de cuentas): «ventas» ordena con la venta que el grupo trae */
-/* §7.3·56: la medida de la lente «crecimiento» es la variación contra el año anterior (en % o en $); donde el dato la publica (comercial) la lente APLICA y ordena: va primero la de mayor variación (50a). `claves`: las claves del léxico que ordenan como la lente */
+/* §7.3·56 + 57(a): la medida de la lente «crecimiento» es la VARIACIÓN PORCENTUAL contra el año anterior, en todos los ejes (la variación en dinero acompaña como cifra de apoyo y NO decide quién va primero); donde el dato la publica (comercial) la lente APLICA y ordena: va primero la de mayor variación (50a). `claves`: las claves del léxico que ordenan como la lente (solo la del %) */
 const _MEDIDA_SIN_DOMINIO = {
   ventas: { re: /· Ventas?(?: \(flujo\)| a crédito)?$/i, nombre: rotuloEnOracion({ clave: "ventas" }), peor: "mayor", temas: ["comercial", "cobranza"] },
-  crecimiento: { re: /· Variaci[oó]n vs a[nñ]o anterior$/i, nombre: rotuloEnOracion({ clave: "variacion" }), peor: "mayor", temas: ["comercial"], claves: ["variacion", "variacion_usd"], parcial: true },   /* `parcial`: quien no tiene la variación (una marca sin año anterior) no se ordena ni se cuenta como 0: se declara «sin dato de X para Y» (52b) y la lente ordena a los demás */
+  crecimiento: { re: /· Variaci[oó]n vs a[nñ]o anterior$/i, nombre: rotuloEnOracion({ clave: "variacion" }), peor: "mayor", temas: ["comercial"], claves: ["variacion"], parcial: true },   /* `parcial`: quien no tiene la variación (una marca sin año anterior) no se ordena ni se cuenta como 0: se declara «sin dato de X para Y» (52b) y la lente ordena a los demás */
 };
 /* 52(a): en cobranza la venta de la cuenta es la venta A CRÉDITO; su nombre sale del léxico (nunca escrito a mano acá) */
 const _ventaACredito = () => String(_labelDeClave("venta_credito")).toLowerCase();
@@ -145,7 +145,8 @@ function _lenteDelGrupo(criterio, tema, cierre, entidades, figs, porEntidad, cla
   const vd = (x) => (mayor ? x.f.raw : -x.f.raw);
   filas.sort((a, b) => (vd(b) - vd(a)) || ((b.d ? b.d.raw : -Infinity) - (a.d ? a.d.raw : -Infinity)));
   const cima = filas[0];
-  if (!(cima.f.raw > 0)) return { ...base, modo: "sin-discrimina", motivo: "cero", figCero: cima.f, ubicCero: ubicar(cima.f), concepto: conceptoDe(cima.f) };
+  /* una tasa CON SIGNO (la variación vs año anterior, 56): la mayor va primero aunque sea negativa («la que menos cae»); solo si todas valen exactamente 0 la medida no distingue a nadie. Una magnitud (dinero, unidades) no distingue cuando la mayor vale 0 */
+  if (spec.parcial ? filas.every((x) => x.f.raw === 0) : !(cima.f.raw > 0)) return { ...base, modo: "sin-discrimina", motivo: "cero", figCero: cima.f, ubicCero: ubicar(cima.f), concepto: conceptoDe(cima.f) };
   const empatadas = filas.filter((x) => x.f.raw === cima.f.raw && (x.d ? x.d.raw : null) === (cima.d ? cima.d.raw : null));
   if (empatadas.length > 1) return { ...base, modo: "sin-discrimina", motivo: "empate", empatadas: empatadas.map((x) => x.e), figEmpate: cima.f, ubicEmpate: ubicar(cima.f), concepto: conceptoDe(cima.f) };
   return { ...base, modo: "primero", primero: cima.e, fig: cima.f, ubicFig: ubicar(cima.f), concepto: conceptoDe(cima.f) };
@@ -262,6 +263,9 @@ export function temaDeLaParteQuePrioriza(temasDeDecision, temas) {
 export function prioridadPorLente(temas, figs, lente, temasDeDecision = null) {
   if (!lente || lente === "riesgo" || !CRITERIOS[lente]) return null;
   const temaDeLaParte = CRITERIOS[lente].dominio || temaDeLaParteQuePrioriza(temasDeDecision, temas);
+  /* §7.3·57(c): una lente sin dominio ordena solo donde su medida aplica (`_MEDIDA_SIN_DOMINIO.temas`): sobre la parte de UN tema donde no aplica (la variación vs año anterior en cobranza, la venta en inventario) la lente no ordena y se declara (50b), nunca se corona con la cifra de otro dominio */
+  { const unico = Array.isArray(temasDeDecision) && temasDeDecision.length === 1 ? temasDeDecision[0] : null, ms = !CRITERIOS[lente].dominio ? _MEDIDA_SIN_DOMINIO[lente] : null;
+    if (ms && unico && !ms.temas.includes(unico)) return null; }
   const _ordenar = (fs) => { try { return ordenPorCriterio(fs, temas, lente); } catch { return null; } };
   const _cabeza = (O) => { const p = O && Array.isArray(O.lista) ? O.lista[0] : null; const c = p && Array.isArray(p.cifras) ? p.cifras[0] : null; return p && c && c.metrica ? { primero: p, c0: c } : null; };
   /* 55(b): en una parte COMERCIAL la lente «ventas» ordena por la venta del período, no por la venta a crédito de la mesa de cobranza (el productor prefiere la de la mesa cuando el plan trae las dos): la medida de la lente es la de SU parte; sin la venta de la parte
@@ -280,6 +284,19 @@ export function conceptoDeLaMedidaParcial(criterio, tema) {
   const id = criterio && criterio.lente && CRITERIOS[criterio.lente] ? criterio.lente : null;
   const s = id && !CRITERIOS[id].dominio ? _MEDIDA_SIN_DOMINIO[id] : null;
   return s && s.parcial && s.temas.includes(tema) && MEDIDAS_DE_LENTE[id] ? MEDIDAS_DE_LENTE[id].concepto : null;
+}
+/** §7.3·57(a)(b): quién va primero por una lente cuya medida el dato publica POR CUENTA y no para todas (la variación vs año anterior, EN %, de la lente «crecimiento») sobre `entidades`, en CUALQUIER camino (grupo · foto · universo con miembros · entidades nombradas · plan del tema).
+ *  Es `prioridadDeParte` sin clave de orden: la lente ordena a quienes tienen el dato (la mayor variación va primero) y a quien no lo tiene no se le ordena ni se le cuenta como 0 (se declara «sin dato de X para Y», 52b: lo hace quien llama con `completarGrupo`).
+ *  `porEntidad` trae la fig de la variación de cada entidad (`Map(nombre → Map(clave → fig))`: la de la boleta o la de la proyección). Devuelve `{ modo, primero, lenteGrupo }` o null cuando la lente no aplica a ese tema o ninguna entidad trae la medida (se declara, 50b). */
+export function prioridadPorMedidaParcial({ lente, tema, entidades = [], figs = [], porEntidad = null } = {}) {
+  if (!lente || !conceptoDeLaMedidaParcial({ lente }, tema) || !Array.isArray(entidades) || !entidades.length) return null;
+  const d = prioridadDeParte({ criterio: { lente, origen: "usuario" }, tema, cierre: "decision", entidades, claveOrden: null, figs, porEntidad });
+  return d.lenteGrupo ? { modo: d.modo, primero: d.primero, lenteGrupo: d.lenteGrupo } : null;
+}
+/** §7.3·57(c): los temas de las partes que DECIDEN cuando son DOS O MÁS distintos (un encargo mixto); null con uno solo. Cada uno lleva SU oración de prioridad con el nombre de su lente (52a por parte), aunque comparta entidades con otra parte. */
+export function temasQueDecidenPorSuCuenta(temasDeDecision) {
+  const t = [...new Set((Array.isArray(temasDeDecision) ? temasDeDecision : []).filter(Boolean))];
+  return t.length >= 2 ? t : null;
 }
 /** el MODO de la prioridad cruzada de un plan multitema (48b · 51d): qué oración se dice.
  *    "por-lente"        la lente que el usuario pidió ordenó (`porLente`)

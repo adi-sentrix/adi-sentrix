@@ -16,6 +16,8 @@
  *       válida tiene al menos `minimo` encargos que la ejercen (cobertura voraz: un encargo suma a todas las celdas que ejerce).
  *       AL FINAL de esa secuencia (sin moverla: son otra semilla derivada, `<semilla>:cobertura:conteos`) agrega LOS CONTEOS DE CADENA (§7.3·54a): premisas de conteo sobre universos con varios filtros y estados, con el M igual al universo final,
  *       igual a un eslabón intermedio, fuera de la cadena, y con un n falso — la cadena recalculada con el dato (`cadena.mjs`), no con el Notario.
+ *       Y, también al final y cada uno con su propia semilla derivada: `<semilla>:cobertura:prioridad` (la lente «ventas» por parte, 55), `<semilla>:cobertura:orden-nombrado` (55c), `<semilla>:cobertura:crecimiento` (la lente «crecimiento» sobre entidades nombradas, con y sin un miembro sin dato,
+ *       y los encargos MIXTOS con las mismas entidades por parte o con la foto de cada una; 56 · 57 a/b/c) y `<semilla>:cobertura:eslabones` (conteos con BODEGA, NO_ESTADOS y UNIÓN como eslabones; 57d).
  *       Cada encargo pasa por `validarEncargo`: solo se entregan los que el validador acepta sin reparos. Determinístico. OFFLINE. */
 import { crearAzar } from "./azar.mjs";
 import { cadenaDeConteo, mAdmisiblesDe } from "./cadena.mjs";
@@ -486,8 +488,124 @@ export function generarEntidadesFueraDeOrden(base, { semilla = "adi-consolidacio
   return { casos, estadistica };
 }
 
-/** generarCobertura(base, { semilla, minimo, dims, espacio, conteos, prioridad, ordenNombrado }) → { casos, estadistica, conteo } — el sub-azar de cobertura: cada celda válida ejercida al menos `minimo` veces; al final, `conteos` (64 por defecto, solo sin `dims`) premisas de conteo con cadena (§7.3·54a), `prioridad` (48) encargos con la lente «ventas» por parte (§7.3·55) y `ordenNombrado` (24) encargos de cobranza con entidades nombradas en cero y en otro orden que el del primer concepto (§7.3·55c). */
-export function generarCobertura(base, { semilla = "adi-consolidacion-1", minimo = 2, dims = null, espacio = null, maximoPorCelda = 40, conteos = 64, prioridad = 48, ordenNombrado = 24 } = {}) {
+/* ── LA LENTE «CRECIMIENTO» EN TODOS LOS CAMINOS Y LOS ENCARGOS MIXTOS (§7.3·56 · 57 a/b/c · mediciones v37 y v38) ──────────────────────────────────────────────────────────────────────────── */
+/* las formas que los generadores anteriores casi no producían: (A) una `decision` comercial con entidades NOMBRADAS y la lente «crecimiento», con todas con la variación vs año anterior y con un miembro SIN ese dato (una marca sin año anterior: se declara aparte, 52b); (B) un encargo MIXTO (comercial + cobranza) con LAS MISMAS entidades nombradas en las dos partes, y (C) con la foto de cada parte (sin entidades), con la lente «crecimiento» o «ventas»: cada parte que decide lleva SU oración de prioridad con el nombre de su lente (57c) */
+export const VARIANTES_DE_CRECIMIENTO = ["nombradas-con-dato", "nombradas-con-un-miembro-sin-dato", "mixto-mismas-entidades-crecimiento", "mixto-mismas-entidades-ventas", "mixto-foto-crecimiento", "mixto-foto-ventas"];
+
+/** generarCrecimientoPorCamino(base, { semilla, n }) → { casos, estadistica } — encargos con la lente «crecimiento» sobre entidades nombradas (con y sin un miembro sin dato) y encargos mixtos con las mismas entidades por parte (o con la foto de cada parte). Semilla propia derivada (`<semilla>:cobertura:crecimiento`): no mueve ninguna otra secuencia. Cada encargo pasa por `validarEncargo`. Determinístico. OFFLINE. */
+export function generarCrecimientoPorCamino(base, { semilla = "adi-consolidacion-1", n = 48, maximoIntentos = 80 } = {}) {
+  const R = crearAzar(`${semilla}:cobertura:crecimiento`);
+  const a = ayudas(base);
+  const casos = [], estadistica = { pedidos: n, intentos: 0, rechazados: 0, porVariante: {}, ejes: {} };
+  const conVariacion = (eje) => { const rk = a.rankingDe(eje, "variacion"); return new Set(((rk && rk.filas) || []).filter((f) => Number.isFinite(f.valor)).map((f) => f.entidad)); };
+  const sinVariacion = (eje) => a.nombresDe(eje).filter((x) => !conVariacion(eje).has(x));
+  const ejesCom = ["cliente", "marca", "familia", "canal"].filter((e) => a.pares.some((p) => p.tema === "comercial" && p.eje === e) && conVariacion(e).size >= 2);
+  const porDefecto = (tema) => a.esquema.sujetoDeTema(tema);
+  const nombrar = (nombres, eje, tema) => nombres.map((nombre) => (eje !== porDefecto(tema) || R.bool(0.3) ? { nombre, eje } : { nombre }));
+  for (let i = 0; i < n; i++) {
+    const variante = VARIANTES_DE_CRECIMIENTO[i % VARIANTES_DE_CRECIMIENTO.length];
+    let hecho = false;
+    for (let intento = 0; intento < maximoIntentos && !hecho; intento++) {
+      estadistica.intentos++;
+      let enc = null, eje = "cliente";
+      if (variante === "nombradas-con-dato" || variante === "nombradas-con-un-miembro-sin-dato") {
+        const sinDato = variante === "nombradas-con-un-miembro-sin-dato";
+        const ejes = sinDato ? ejesCom.filter((e) => sinVariacion(e).length) : ejesCom;
+        if (!ejes.length) { estadistica.rechazados++; continue; }
+        eje = R.pick(ejes);
+        const con = [...conVariacion(eje)].filter((x) => a.nombresDe(eje).includes(x));
+        let nombres = R.muestra(con, Math.min(con.length, R.int(2, 4)));
+        if (sinDato) nombres = R.muestra([R.pick(sinVariacion(eje)), ...R.muestra(con, R.int(1, Math.min(2, con.length)))], 4);
+        const cs = a.conceptosDe("comercial", eje); if (!cs.length || nombres.length < 2) { estadistica.rechazados++; continue; }
+        const parte = { id: "p1", tema: "comercial", cierre: "decision", conceptos: R.muestra(cs, R.int(1, 2)), ...(eje !== porDefecto("comercial") ? { eje } : {}), entidades: nombrar(nombres, eje, "comercial") };
+        enc = { version: "encargo/v1", partes: [parte], criterio: { lente: "crecimiento" } };
+        if (R.bool(0.25)) enc.premisas = [{ id: "q1", tipo: "variacion", sujeto: R.pick(nombres), metrica: "ventas", variacion: { direccion: R.pick(["sube", "baja"]), valor: `${R.int(1, 20)}.${R.int(0, 9)}%` }, periodo: "anterior" }];
+      } else {
+        const lente = /crecimiento$/.test(variante) ? "crecimiento" : "ventas";
+        const csCom = a.conceptosDe("comercial", "cliente"), csCob = a.conceptosDe("cobranza", "cliente");
+        if (!csCom.length || !csCob.length) { estadistica.rechazados++; continue; }
+        const mismas = /mismas-entidades/.test(variante);
+        const nombres = mismas ? R.muestra(a.nombresDe("cliente"), R.int(2, 4)) : [];
+        const com = { id: "p1", tema: "comercial", cierre: "decision", conceptos: R.muestra(csCom, R.int(1, 2)) }, cob = { id: "p2", tema: "cobranza", cierre: "decision", conceptos: R.muestra(csCob, R.int(1, 2)) };
+        if (mismas) { com.entidades = nombrar(nombres, "cliente", "comercial"); cob.entidades = nombrar(nombres, "cliente", "cobranza"); }
+        enc = { version: "encargo/v1", partes: R.bool(0.5) ? [com, cob] : [cob, com], criterio: { lente } };
+        enc.partes.forEach((p, j) => { p.id = `p${j + 1}`; });
+      }
+      if (!valido(base, enc)) { estadistica.rechazados++; continue; }
+      casos.push({ origen: "cobertura", id: `cobertura:${semilla}:crecimiento:${casos.length + 1}`, encargo: enc, celda: `CRECIMIENTO:${variante}` });
+      estadistica.porVariante[variante] = (estadistica.porVariante[variante] || 0) + 1;
+      estadistica.ejes[eje] = (estadistica.ejes[eje] || 0) + 1;
+      hecho = true;
+    }
+  }
+  return { casos, estadistica };
+}
+
+/* ── LA BODEGA, LOS NO_ESTADOS Y LAS RAMAS DE UNA UNIÓN COMO ESLABONES DE UN CONTEO (§7.3·57d · B40 de la medición v37) ───────────────────────────────────────────────────────────────────────── */
+/* la 54(a) ya contaba el eje, la base, cada estado, cada filtro, el top y la exclusión; la 57(d) agrega la BODEGA, CADA no_estado y CADA RAMA de una unión: el «de M» de una premisa de conteo es admisible si M es el tamaño de cualquiera de ellos. La cadena se recalcula con el dato (`cadena.mjs`), no con el Notario. */
+export const VARIANTES_DE_ESLABON = ["m-de-la-bodega", "m-de-un-no-estado", "m-de-una-rama", "m-igual-al-final", "m-fuera-de-la-cadena", "n-falso"];
+
+/** generarEslabonesDeBodegaYUnion(base, { semilla, n }) → { casos, estadistica } — premisas de conteo sobre universos con BODEGA, con NO_ESTADOS y con UNIÓN; el M es el de la bodega, el de un no_estado, el de una rama, el del universo final, uno que no es de la cadena, o el n es falso. Semilla propia derivada (`<semilla>:cobertura:eslabones`). Cada encargo pasa por `validarEncargo`. Determinístico. OFFLINE. */
+export function generarEslabonesDeBodegaYUnion(base, { semilla = "adi-consolidacion-1", n = 48, maximoIntentos = 400 } = {}) {
+  const R = crearAzar(`${semilla}:cobertura:eslabones`);
+  const a = ayudas(base);
+  const casos = [], estadistica = { pedidos: n, intentos: 0, rechazados: 0, porVariante: {}, porClase: {} };
+  const metricasDe = (eje) => Object.keys((base.proyeccion && base.proyeccion.rankings && base.proyeccion.rankings[eje]) || {}).filter((k) => a.rankingDe(eje, k) && !/^(?:participacion|capital_frenado|capital_inmovilizado)$/.test(k));
+  const filtroDe = (eje) => { const ms = metricasDe(eje); if (!ms.length) return null; const k = R.pick(ms), rk = a.rankingDe(eje, k); const vs = ((rk && rk.filas) || []).map((f) => (Number.isFinite(f.raw) ? f.raw : f.valor)).filter((v) => Number.isFinite(v)); return vs.length ? { metrica: CLAVE_PEDIDA[k] || k, op: R.pick([">", ">", "<", ">=", "<="]), valor: R.pick(vs) } : null; };
+  const estadosDe = (eje) => ESTADOS_DEL_DATO[eje] || [];
+  const universoDe = (clase) => {
+    if (clase === "bodega") { const u = { eje: "sku", bodega: R.pick(BODEGAS) }; if (R.bool(0.6)) u.estados = R.muestra(estadosDe("sku"), 1); if (R.bool(0.3)) { const f = filtroDe("sku"); if (f) u.filtros = [f]; } return u; }
+    if (clase === "no_estados") {
+      if (R.bool(0.5)) { const [e1, e2] = R.muestra(estadosDe("sku"), 2); const u = { eje: "sku", estados: [e1], no_estados: [e2] }; if (R.bool(0.4)) u.bodega = R.pick(BODEGAS); return u; }
+      const f = filtroDe("cliente"); return { eje: "cliente", no_estados: R.muestra(estadosDe("cliente"), 1), ...(f ? { filtros: [f] } : {}) };
+    }
+    const eje = R.pick(["sku", "cliente"]);
+    const rama = () => {
+      if (eje === "sku") { const k = R.pick(["estados", "bodega", "ambas", "no+bodega"]); const e = R.pick(estadosDe("sku")), b = R.pick(BODEGAS); return k === "estados" ? { estados: [e] } : k === "bodega" ? { bodega: b } : k === "ambas" ? { estados: [e], bodega: b } : { no_estados: [e], bodega: b }; }
+      const k = R.pick(["base", "estados", "filtros", "no+filtros"]); const f = filtroDe("cliente"), e = R.pick(estadosDe("cliente"));
+      if (k === "base") return { base: R.pick(BASES_DEL_DATO.cliente) };
+      if (k === "estados") return { estados: [e] };
+      return f ? (k === "filtros" ? { filtros: [f] } : { no_estados: [e], filtros: [f] }) : { estados: [e] };
+    };
+    return { eje, union: [rama(), rama()] };
+  };
+  const CLASES = ["bodega", "no_estados", "union"];
+  for (let i = 0; i < n; i++) {
+    const variante = VARIANTES_DE_ESLABON[i % VARIANTES_DE_ESLABON.length];
+    const claseFija = variante === "m-de-la-bodega" ? "bodega" : variante === "m-de-un-no-estado" ? "no_estados" : variante === "m-de-una-rama" ? "union" : null;
+    let hecho = false;
+    for (let intento = 0; intento < maximoIntentos && !hecho; intento++) {
+      estadistica.intentos++;
+      const clase = claseFija || CLASES[Math.floor(i / VARIANTES_DE_ESLABON.length) % CLASES.length];
+      const u = universoDe(clase);
+      const cad = cadenaDeConteo(base, u);
+      if (!cad.ok || cad.tam < 1) { estadistica.rechazados++; continue; }
+      const sizes = [...mAdmisiblesDe(cad)].sort((x, y) => x - y);
+      /* el M de un eslabón de esa clase solo discrimina si NO es el del universo final ni el del eje entero (con esos «de M» el conteo ya era admisible por la 54a) */
+      const eslabonesDe = (re) => cad.eslabones.filter((e) => re.test(e.nombre) && e.tam > 0 && e.tam !== cad.tam && e.tam !== a.nombresDe(u.eje).length).map((e) => e.tam);
+      let nn = cad.tam, mm = null;
+      if (variante === "m-de-la-bodega") { const t = eslabonesDe(/^bodega /); if (!t.length) { estadistica.rechazados++; continue; } mm = R.pick(t); }
+      else if (variante === "m-de-un-no-estado") { const t = eslabonesDe(/^sin /); if (!t.length) { estadistica.rechazados++; continue; } mm = R.pick(t); }
+      else if (variante === "m-de-una-rama") { const t = eslabonesDe(/^rama \d+ · (?!eje entero)/); if (!t.length) { estadistica.rechazados++; continue; } mm = R.pick(t); }
+      else if (variante === "m-igual-al-final") mm = cad.tam;
+      else if (variante === "m-fuera-de-la-cadena") { const libres = []; for (let x = 1; x <= a.nombresDe(u.eje).length + 2; x++) if (!sizes.includes(x)) libres.push(x); if (!libres.length) { estadistica.rechazados++; continue; } mm = R.pick(libres); }
+      else { nn = cad.tam + R.int(1, 2); mm = R.pick(sizes); }
+      const pares = a.pares.filter((p) => p.eje === u.eje); if (!pares.length) { estadistica.rechazados++; continue; }
+      const par = R.pick(pares), conceptos = a.conceptosDe(par.tema, u.eje); if (!conceptos.length) { estadistica.rechazados++; continue; }
+      const parte = { id: "p1", tema: par.tema, cierre: R.pick(["cifra", "lectura"]), conceptos: R.muestra(conceptos, 1), ...(u.eje !== a.esquema.sujetoDeTema(par.tema) ? { eje: u.eje } : {}) };
+      const enc = { version: "encargo/v1", partes: [parte], premisas: [{ id: "q1", tipo: "conteo", conteo: { n: nn, m: mm }, de: u }] };
+      if (!valido(base, enc)) { estadistica.rechazados++; continue; }
+      casos.push({ origen: "cobertura", id: `cobertura:${semilla}:eslabones:${casos.length + 1}`, encargo: enc, celda: `ESLABON:${variante}` });
+      estadistica.porVariante[variante] = (estadistica.porVariante[variante] || 0) + 1;
+      estadistica.porClase[clase] = (estadistica.porClase[clase] || 0) + 1;
+      hecho = true;
+    }
+  }
+  return { casos, estadistica };
+}
+
+/** generarCobertura(base, { semilla, minimo, dims, espacio, conteos, prioridad, ordenNombrado, crecimiento, eslabones }) → { casos, estadistica, conteo } — el sub-azar de cobertura: cada celda válida ejercida al menos `minimo` veces; al final, `conteos` (64 por defecto, solo sin `dims`) premisas de conteo con cadena (§7.3·54a), `prioridad` (48) encargos con la lente «ventas» por parte (§7.3·55), `ordenNombrado` (24) encargos de cobranza con entidades nombradas en cero y en otro orden que el del primer concepto (§7.3·55c), `crecimiento` (48) encargos con la lente «crecimiento» sobre entidades nombradas y mixtos con las mismas entidades por parte (§7.3·56 · 57a-c) y `eslabones` (48) conteos con bodega, no_estados y unión (§7.3·57d). */
+export function generarCobertura(base, { semilla = "adi-consolidacion-1", minimo = 2, dims = null, espacio = null, maximoPorCelda = 40, conteos = 64, prioridad = 48, ordenNombrado = 24, crecimiento = 48, eslabones = 48 } = {}) {
   const esp = espacio || especificacionesDeCeldas(base, { semilla });
   const R = crearAzar(`${semilla}:cobertura`);
   const k = constructor(base, R);
@@ -516,6 +634,10 @@ export function generarCobertura(base, { semilla = "adi-consolidacion-1", minimo
   if (!dims && prioridad > 0) { const c = generarPrioridadPorParte(base, { semilla, n: prioridad }); casos.push(...c.casos); estadistica.prioridad = c.estadistica; }
   /* §7.3·55(c) (C82 de v36): las entidades nombradas con la lente en cero y en otro orden que el del primer concepto, al final, con su propia semilla derivada (`<semilla>:cobertura:orden-nombrado`): ni las celdas, ni los conteos, ni la prioridad por parte se mueven */
   if (!dims && ordenNombrado > 0) { const c = generarEntidadesFueraDeOrden(base, { semilla, n: ordenNombrado }); casos.push(...c.casos); estadistica.ordenNombrado = c.estadistica; }
+  /* §7.3·56 · 57(a)(b)(c) (mediciones v37 y v38): la lente «crecimiento» sobre entidades nombradas (con y sin un miembro sin dato) y los encargos mixtos con las mismas entidades por parte, al final de lo anterior, con su propia semilla derivada (`<semilla>:cobertura:crecimiento`) */
+  if (!dims && crecimiento > 0) { const c = generarCrecimientoPorCamino(base, { semilla, n: crecimiento }); casos.push(...c.casos); estadistica.crecimiento = c.estadistica; }
+  /* §7.3·57(d) (B40 de v37): los conteos con bodega, no_estados y unión como eslabones, al final de todo, con su propia semilla derivada (`<semilla>:cobertura:eslabones`) */
+  if (!dims && eslabones > 0) { const c = generarEslabonesDeBodegaYUnion(base, { semilla, n: eslabones }); casos.push(...c.casos); estadistica.eslabones = c.estadistica; }
   return { casos, estadistica, conteo };
 }
 

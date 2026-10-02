@@ -7,6 +7,7 @@
  *
  *   R3 · LOS ESLABONES DE UN CONTEO (contrato §7.3·54(a), mediciones v31 y v32): la cadena del universo de una premisa de conteo tiene un eslabón por cada restricción —el eje entero, la base, CADA estado, CADA filtro, el top y la exclusión—
  *        y el universo FINAL también es un eslabón. Un «de M» es admisible si M es el tamaño de cualquiera de ellos («n de n» sobre el universo final es verdadero); la verdad de un conteo falso por su M imprime el eslabón más ajustado distinto del final.
+ *        §7.3·57(d) (mediciones v37 y v38, B40): la BODEGA, CADA no_estado y CADA RAMA de una unión también son eslabones de la cadena (`cadena.mjs` los recalcula con el dato, sin el Notario).
  *
  * LO QUE LEE: la ENTREGA (las oraciones de sus premisas: `respuesta[i]._premisa`, su id en `hechos[0]`) y el DATO (los rankings de la proyección, lo que el Core publica por eje —`base.publica`—, la
  * declaración de cobertura de las fuentes y los nombres de cada eje). De la premisa lee su CAMPO TIPADO del encargo (`encargo.premisas`: tipo, métrica, forma del orden, universo). NO lee `notario/*` ni

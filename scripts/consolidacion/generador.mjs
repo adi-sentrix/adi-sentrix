@@ -7,7 +7,7 @@
  * variados». Determinístico: misma semilla y misma raíz ⇒ mismos encargos. OFFLINE: no llama a nadie. */
 import { crearAzar } from "./azar.mjs";
 /* LA COBERTURA (consolidación, segunda vuelta): el sub-azar que garantiza un mínimo por cada combinación válida (tema × cierre × eje × concepto × forma de universo × premisa × criterio), con su PROPIA semilla derivada (`<semilla>:cobertura`): no mueve la secuencia de este generador ni la del sub-azar de la F3. */
-export { generarCobertura, generarConteosDeCadena, generarPrioridadPorParte, generarEntidadesFueraDeOrden, VARIANTES_DE_ORDEN_NOMBRADO, VARIANTES_DE_PRIORIDAD, VARIANTES_DE_CONTEO, especificacionesDeCeldas, auditarCobertura, celdasDe } from "./cobertura.mjs";
+export { generarCobertura, generarConteosDeCadena, generarPrioridadPorParte, generarEntidadesFueraDeOrden, generarCrecimientoPorCamino, generarEslabonesDeBodegaYUnion, VARIANTES_DE_ORDEN_NOMBRADO, VARIANTES_DE_PRIORIDAD, VARIANTES_DE_CONTEO, VARIANTES_DE_CRECIMIENTO, VARIANTES_DE_ESLABON, especificacionesDeCeldas, auditarCobertura, celdasDe } from "./cobertura.mjs";
 
 const PESOS_TEMA = { comercial: 0.42, inventario: 0.31, cobranza: 0.27 };
 /* los cierres que el generador produce: se carga la mano en `decision` (donde vive la prioridad) y en `lectura` (la foto) */

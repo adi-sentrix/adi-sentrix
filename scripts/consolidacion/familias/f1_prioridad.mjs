@@ -27,7 +27,11 @@
  *   por-el-top-sin-top                «por venta, el top que se pidió» solo cuando la parte pidió de verdad un top por esa medida (55a).
  *   venta-a-credito-fuera-de-cobranza · ventas-en-cobranza-sin-credito   (55b, precisa la 52a) el nombre de la lente «ventas» es POR PARTE: «venta a crédito» solo cuando las partes que deciden son de cobranza; con una parte comercial se dice «ventas», aunque el encargo tenga una parte de cobranza.
  *   lista-tras-ninguna-pierde-el-orden   (55c) tras «ninguna cuenta queda primera» la lista conserva el orden del top o del universo que se pidió (la 50a rige la oración de prioridad, no esa lista). Sin top, la enumeración de la propia oración —«el grupo (A, B, C)» o «A y B empatan»— va en el orden en que se NOMBRARON las entidades o en el del universo servido (la foto), nunca en el del primer concepto pedido (C82 de v36).
- *   primero-fuera-del-eje             quien va primero es una entidad del eje de la parte que prioriza (51e · 53, segunda vuelta): «por riesgo integrado: LG-DRYER8KG» en una decision por BODEGA corona a un SKU que no es del grupo. */
+ *   primero-fuera-del-eje             quien va primero es una entidad del eje de la parte que prioriza (51e · 53, segunda vuelta): «por riesgo integrado: LG-DRYER8KG» en una decision por BODEGA corona a un SKU que no es del grupo.
+ *   crecimiento-base-en-dinero        (57a, mediciones v37 y v38) la base de la lente «crecimiento» es la variación PORCENTUAL contra el año anterior, en todos los ejes: una oración «por crecimiento» nunca la ordena con «variación vs año anterior en $» (la variación en dinero puede acompañar, no decide).
+ *   crecimiento-no-corona-a-la-mayor-variacion   (56 · 57b, B25 de v37) en TODOS los caminos (grupo · foto · universo con miembros · entidades nombradas · plan del tema) va primero quien tiene la mayor variación en % entre los que tienen el dato; nunca se corona a quien no lo tiene.
+ *   crecimiento-sin-dato-no-declarado (52b · 57b, A27 de v38) quien no tiene la variación (el dato no la publica: una marca sin año anterior) se declara aparte, «sin dato de variación vs año anterior para X», en el mismo camino; no se ordena ni se cuenta como cero.
+ *   parte-que-decide-sin-oracion-de-prioridad   (57c, B71 de v37) en un encargo MIXTO (partes que deciden de dos o más temas) cada parte que decide lleva SU oración de prioridad con el nombre de su lente (52a por parte), aunque comparta entidades con otra parte; donde la lente no aplica a su dominio, la parte lo declara. */
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 const CAB = /^(Prioridad del procedimiento|Quien más pesa en el conjunto)(?: (dentro de este grupo))?, por (.+?): (.*)$/s;
 const MARCADOR = /^(Prioridad del procedimiento|Quien más pesa en el conjunto)/;
@@ -151,11 +155,17 @@ export const familia = {
     /* los temas de las partes de las que habla la oración: las del grupo (de grupo) o las partes que DECIDEN dentro del plan del tema (la prioridad cruzada reúne las partes SIN universo propio: una parte con top, base, estados, filtros, bodega o entidades nombradas tiene su propio grupo y su propia oración).
      * Solo cuentan los dominios de CUENTAS (comercial · cobranza), donde la lente «ventas» aplica: una decision de inventario no la lleva (50b) */
     const delPlanDelTema = (p) => p.estado !== "no_resuelta" && !(Array.isArray(p.entidades) && p.entidades.length) && !esq.universoTieneRestriccionPropia(p.universo) && !(p.eje && p.eje !== (esq.sujetoDeTema ? esq.sujetoDeTema(p.tema) : p.eje));
-    const temasDe = (S) => new Set((S.grupo ? gruposDe(S).map((g) => g.parte) : decisiones.filter(delPlanDelTema)).map((p) => p.tema).filter((t) => t === "comercial" || t === "cobranza"));
+    const temasDe = (S) => {
+      let T = new Set((S.grupo ? gruposDe(S).map((g) => g.parte) : decisiones.filter(delPlanDelTema)).map((p) => p.tema).filter((t) => t === "comercial" || t === "cobranza"));
+      /* 57(c): en un encargo mixto cada parte lleva SU oración; una oración que no es de un grupo es de la parte cuyo DOMINIO es el de la medida que dice («con V en venta a crédito» es de cobranza; «en venta», de comercial) */
+      if (!S.grupo && S.medida && T.size > 1) { const c = claveDe(S.medida), dom = c ? lex.dominioDeClave(c) : null; if (dom && T.has(dom)) T = new Set([dom]); }
+      return T;
+    };
     const topPorVentas = (p) => !!(p && p.universo && p.universo.top && String(p.universo.top.metrica) === "ventas");
     /* el orden con que la Entrega EXHIBE la lista del grupo de quien va primero: la medida de su línea «El top K de M, ordenado por X: …» (o «Por cliente, ordenado por X: …»); null si ninguna línea de lista lo nombra */
     const ordenadoPorDeLaLista = (primero) => { const out = []; if (primero == null) return out; for (const r of respuesta) { const t = String((r && r.texto) || ""); if (MARCADOR.test(t) || !t.includes(primero)) continue; const m = /ordenado por ([^:]+?):/.exec(t); if (m) out.push(m[1].trim()); } return out; };   /* todas las líneas de lista que nombran a ese primero (una misma cuenta puede estar en el grupo de dos partes) */
 
+    const sentencias = [];   /* las oraciones de prioridad ya analizadas (para las reglas de la 57, que miran la Entrega entera) */
     for (const r of respuesta) {
       const texto = String((r && r.texto) || "");
       const esPrioridad = MARCADOR.test(texto);
@@ -172,6 +182,7 @@ export const familia = {
       const esLaMedida = nom != null && S.medida != null && nom === _norm(S.medida) && !(lentePedida && visiblesDe(lentePedida).includes(nom));
       const tipoNombre = nom == null ? "declara" : (nom === "riesgo integrado" || nom === "riesgo") ? "riesgo" : esLaMedida ? "medida" : idDeLente.has(nom) ? "lente" : esNombreDeReferencia(S.nombre) ? "referencia" : "medida";
       const idLente = tipoNombre === "lente" ? idDeLente.get(nom) : null;
+      sentencias.push({ S, texto, tipoNombre, idLente });
       if (r._prioridad && r._prioridad.primero != null && S.primero != null && _norm(r._prioridad.primero) !== _norm(S.primero)) v("marca-primero-distinto", `la marca dice «${r._prioridad.primero}» y la oración nombra «${S.primero}»`);
 
       /* §7.3·53 (corrige la 48(b) y la 51(d)): «por riesgo integrado: X» sobre un grupo, o sobre UN dominio, vale cuando X es el PRIMERO del plan de señales de ese dominio (materialidad + severidad + urgencia: la prioridad del procedimiento); lo que se prohíbe es nombrar riesgo cuando el plan no ordenó esa lista, o coronar a alguien distinto del primero del plan. Se lee del dato: el primero del plan es quien más pesa por la medida de materialidad del dominio (dato.rankings). */
@@ -308,6 +319,70 @@ export const familia = {
         if (vals && vals.size >= 2 && Number.isFinite(mio)) {
           const ext = Math.max(...vals.values());
           if (Math.abs(mio - ext) > 1e-9 && !(esq.universoTieneRestriccionPropia(((partes.find((p) => p.cierre === "decision") || {}).universo)) || partes.some((p) => Array.isArray(p.entidades) && p.entidades.length))) v("por-lente-cruzada-primero", `«${S.primero}» (${mio}) no es quien más pesa por «${S.medida}» (${ext})`);
+        }
+      }
+    }
+    /* ══ §7.3·56 + 57 · LA LENTE «CRECIMIENTO» Y UNA ORACIÓN DE PRIORIDAD POR PARTE ═══════════════════════════════════════════════════════════
+     * Se lee de la ENTREGA (sus oraciones, sus límites) y del DATO (`dato.rankings.<eje>.variacion`: la variación vs año anterior EN %, que el dato publica por cliente, marca, familia y canal). No de la pieza. */
+    const ejeDeLaParte = (p) => p.eje || (esq.sujetoDeTema ? esq.sujetoDeTema(p.tema) : null);
+    /* los miembros del grupo de una parte decision: sus entidades nombradas, su universo declarado o —la prioridad del tema, sin universo propio— el eje entero */
+    const miembrosEfectivos = (g) => { if (g.miembros.length) return g.miembros; if (!delPlanDelTema(g.parte)) return []; try { return base.entityIndex.axisEntityNames(g.eje || ejeDeLaParte(g.parte)) || []; } catch { return []; } };
+    const esCrecimiento = (x) => x.tipoNombre === "lente" && x.idLente === "crecimiento";
+    for (const x of sentencias.filter(esCrecimiento)) {
+      const { S, texto } = x;
+      /* 57(a): la base de «crecimiento» es la variación PORCENTUAL en todos los ejes; la variación en dinero puede acompañar pero no decide quién va primero */
+      if (S.medida && /\ben \$\s*$/.test(S.medida)) v("crecimiento-base-en-dinero", `la lente «crecimiento» se ordena con «${S.medida}» y su base es la variación en %: «${texto.slice(0, 120)}»`);
+      /* 57(b): va primero quien tiene la MAYOR variación (en % y entre quienes tienen el dato), en todos los caminos */
+      if (S.primero != null && !S.sinPrimero) {
+        const cands = S.grupo ? gruposDe(S) : grupos.filter((g) => g.parte.tema === "comercial" && miembrosEfectivos(g).some((m) => _norm(m) === _norm(S.primero)));
+        let verificable = false, cumple = false, det = "";
+        for (const g of cands) {
+          const vals = valoresDe(g.eje || ejeDeLaParte(g.parte), "variacion"); if (!vals) continue;
+          const ms = miembrosEfectivos(g).map((m) => ({ m, x: vals.get(_norm(m)) })).filter((o) => Number.isFinite(o.x));
+          const mio = vals.get(_norm(S.primero)); verificable = true;
+          if (!Number.isFinite(mio)) { det = `«${S.primero}» no tiene la variación vs año anterior y se corona`; continue; }
+          const ext = Math.max(...ms.map((o) => o.x));
+          if (Math.abs(mio - ext) < 1e-9) { cumple = true; break; }
+          det = `«${S.primero}» (${mio} %) no es la mayor variación del grupo (${ms.find((o) => o.x === ext).m}, ${ext} %)`;
+        }
+        if (verificable && !cumple) v("crecimiento-no-corona-a-la-mayor-variacion", `${det}: «${texto.slice(0, 110)}»`);
+      }
+    }
+    /* 57(b) + 52(b): quien no tiene la variación se declara aparte («sin dato de variación vs año anterior para X») en el mismo camino, y no se ordena ni se cuenta como cero */
+    if (sentencias.some(esCrecimiento)) {
+      const textosDeLimites = [...(Array.isArray(entrega.limites) ? entrega.limites : []).map((l) => `${(l && l.titulo) || ""} ${(l && l.motivo) || ""}`), ...respuesta.map((r) => String((r && r.texto) || ""))].map(_norm).join(" | ");
+      for (const g of grupos.filter((gg) => gg.parte.tema === "comercial" && gg.parte.estado !== "no_resuelta")) {
+        const ms = miembrosEfectivos(g);
+        const vals = valoresDe(g.eje || ejeDeLaParte(g.parte), "variacion"); if (!vals || !ms.length) continue;
+        if (!sentencias.some((x) => esCrecimiento(x) && x.S.primero != null && ms.some((m) => _norm(m) === _norm(x.S.primero)))) continue;   /* solo el grupo de quien se coronó por crecimiento */
+        for (const m of ms.filter((mm) => !vals.has(_norm(mm)))) {
+          const nm = _norm(m).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          /* la ausencia se dice «sin dato de variación vs año anterior para X» (52b) o, si la entidad nombrada no trae NINGUNA cifra de lo pedido, «no se pudo servir la cifra de X» (51b): las dos la declaran aparte */
+          if (!new RegExp(`sin dato de variacion vs ano anterior para [^.|]*${nm}|no se pudo servir la cifra de ${nm}`).test(textosDeLimites)) v("crecimiento-sin-dato-no-declarado", `«${m}» no tiene la variación vs año anterior (el dato no la publica) y la Entrega no dice «sin dato de variación vs año anterior para ${m}»`);
+        }
+      }
+    }
+    /* 57(c): en un encargo MIXTO (partes que deciden de dos o más temas) cada parte que decide lleva SU oración de prioridad con el nombre de su lente (52a por parte), aunque comparta entidades con otra parte; donde la lente no aplica a su dominio, la parte lo declara */
+    if (lentePedida && lentePedida !== "riesgo") {
+      const L = CRITERIOS[lentePedida];
+      const aplica = (t) => (L.dominio ? L.dominio === t : lentePedida === "ventas" ? (t === "comercial" || t === "cobranza") : lentePedida === "crecimiento" ? t === "comercial" : false);
+      /* las partes que decide Y la Entrega SIRVE: con al menos dos cuentas servidas (una sola no tiene entre quién priorizar) y con una medida de SU dominio (una parte de cobranza que pide solo «participación» no trae cifra de cobranza que ordene) */
+      const servidas = grupos.filter((g) => {
+        const p = g.parte, ms = miembrosEfectivos(g);
+        if (p.estado === "no_resuelta" || ms.length < 2 || !["comercial", "cobranza", "inventario"].includes(p.tema)) return false;
+        if (!(Array.isArray(entrega.temasCubiertos) && entrega.temasCubiertos.includes(p.tema))) return false;
+        if (Array.isArray(p.entidades) && p.entidades.length && (entrega.universos || []).filter((x) => String(x.id).startsWith(`${p.id}_`) && !/_(?:ranking|prioridad)$/.test(String(x.id))).length < 2) return false;
+        return !(Array.isArray(p.conceptos) && p.conceptos.length && !p.conceptos.some((c) => lex.dominioDeClave(c) === p.tema));
+      });
+      if (new Set(servidas.map((g) => g.parte.tema)).size >= 2 && servidas.some((g) => aplica(g.parte.tema))) {
+        const dom = (t) => ({ comercial: "comercial", cobranza: "cobranza", inventario: "inventario" }[t] || t);
+        for (const g of servidas) {
+          const p = g.parte, ms = miembrosEfectivos(g);
+          const lleva = sentencias.some((x) => (x.S.grupo ? gruposDe(x.S).some((gg) => gg.parte.id === p.id) : (x.tipoNombre === "lente" && x.idLente === lentePedida && (() => { const c = claveDe(x.S.medida); return !!c && lex.dominioDeClave(c) === p.tema; })())));
+          /* donde la lente no aplica, la parte lo declara en su línea de dominio («En cobranza, quien más pesa es …») o en la oración que cita a sus cuentas; una parte sin ninguna línea de dominio (el plan de señales no la trae) no tiene oración de prioridad que declarar */
+          const declara = respuesta.some((r) => { const t = String((r && r.texto) || ""); return /no ordena este conjunto/.test(t) && (new RegExp(`^En ${dom(p.tema)},`).test(t) || ms.some((m) => t.includes(m))); });
+          const sinLinea = !respuesta.some((r) => new RegExp(`^En ${dom(p.tema)}, quien más pesa`).test(String((r && r.texto) || "")));
+          if (!lleva && !(!aplica(p.tema) && (declara || sinLinea))) v("parte-que-decide-sin-oracion-de-prioridad", `la parte ${p.id} (${p.tema}) decide y la Entrega no trae su oración de prioridad con el nombre de su lente (${CRITERIOS[lentePedida].nombre})${aplica(p.tema) ? "" : " ni declara que no la ordena"}`);
         }
       }
     }

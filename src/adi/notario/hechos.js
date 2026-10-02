@@ -777,14 +777,34 @@ function _conteoTipado(H, h, I) {
     if (u.top && normalizar(u.top.sobre) === "eje" && _entero(u.top.k) && +u.top.k > 0) mAdmisibles.add(+u.top.k);
     /* §7.3·54(a) LOS ESLABONES DE UN CONTEO: la cadena tiene un eslabón por CADA restricción, en el orden de `_conjuntoTipado` —el eje entero, la base, CADA estado, CADA filtro, el top, la exclusión— y el universo FINAL
      * también es un eslabón. Un «de M» es admisible si M es el tamaño de cualquiera de ellos: los filtros no son un solo eslabón y «n de n» sobre el universo final es verdadero. */
-    { const acum = { eje }; const sumar = (campo, valor) => { acum[campo] = valor; const s = tam({ ...acum }); if (s) mAdmisibles.add(s); };
-      if (u.base && !/^todos?|todas$/i.test(String(u.base))) sumar("base", u.base);
-      const _est = _lista(u.estados); for (let i = 0; i < _est.length; i++) sumar("estados", _est.slice(0, i + 1));
-      const _noEst = _lista(u.no_estados); for (let i = 0; i < _noEst.length; i++) sumar("no_estados", _noEst.slice(0, i + 1));
-      if (u.bodega) sumar("bodega", u.bodega);
-      const _fil = Array.isArray(u.filtros) ? u.filtros : []; for (let i = 0; i < _fil.length; i++) sumar("filtros", _fil.slice(0, i + 1));
-      if (u.top) sumar("top", u.top);
-      if (u.excluir) sumar("excluir", u.excluir);
+    /* §7.3·57(d) (extiende la 54a): la BODEGA, CADA no_estado y CADA RAMA de una unión también son eslabones de la cadena. La cadena de una restricción sigue el orden de `_conjuntoTipado` (base · cada estado · cada no_estado · la bodega · cada filtro · el top · la exclusión); una unión suma, tras todo eso, el tamaño de CADA rama (sola y con su propia cadena de restricciones) y el de la unión acumulada rama a rama. */
+    { const _cadenaDe = (uu) => { const acum = { eje }; const sumar = (campo, valor) => { acum[campo] = valor; const s = tam({ ...acum }); if (s) mAdmisibles.add(s); };
+        if (uu.base && !/^todos?|todas$/i.test(String(uu.base))) sumar("base", uu.base);
+        const _est = _lista(uu.estados); for (let i = 0; i < _est.length; i++) sumar("estados", _est.slice(0, i + 1));
+        const _noEst = _lista(uu.no_estados); for (let i = 0; i < _noEst.length; i++) sumar("no_estados", _noEst.slice(0, i + 1));
+        if (uu.bodega) sumar("bodega", uu.bodega);
+        const _fil = Array.isArray(uu.filtros) ? uu.filtros : []; for (let i = 0; i < _fil.length; i++) sumar("filtros", _fil.slice(0, i + 1));
+        if (uu.top) sumar("top", uu.top);
+        if (uu.excluir) sumar("excluir", uu.excluir);
+        /* la bodega acota el eje como una base: con estados o no_estados también es un eslabón ANTES de ellos («el eje acotado por la bodega», B40 de v37); el universo final es el mismo */
+        if (uu.bodega && (_lista(uu.estados).length || _lista(uu.no_estados).length)) {
+          const a2 = { eje }; const sumar2 = (campo, valor) => { a2[campo] = valor; const s = tam({ ...a2 }); if (s) mAdmisibles.add(s); };
+          if (uu.base && !/^todos?|todas$/i.test(String(uu.base))) sumar2("base", uu.base);
+          sumar2("bodega", uu.bodega);
+          const e2 = _lista(uu.estados); for (let i = 0; i < e2.length; i++) sumar2("estados", e2.slice(0, i + 1));
+          const n2 = _lista(uu.no_estados); for (let i = 0; i < n2.length; i++) sumar2("no_estados", n2.slice(0, i + 1));
+          const f2 = Array.isArray(uu.filtros) ? uu.filtros : []; for (let i = 0; i < f2.length; i++) sumar2("filtros", f2.slice(0, i + 1));
+          if (uu.top) sumar2("top", uu.top);
+          if (uu.excluir) sumar2("excluir", uu.excluir);
+        } };
+      _cadenaDe(u);
+      if (Array.isArray(u.union) && u.union.length) {
+        const raiz = { ...u }; delete raiz.union;
+        u.union.forEach((v, i) => {
+          if (_es(v)) { const rama = { ...v }; delete rama.union; _cadenaDe(rama); const s1 = tam({ ...rama, eje }); if (s1) mAdmisibles.add(s1); }
+          const s2 = tam({ ...raiz, union: u.union.slice(0, i + 1) }); if (s2) mAdmisibles.add(s2);
+        });
+      }
       if (set.size > 0) mAdmisibles.add(set.size); }
   }
   const mDicho = c.m != null && Number.isFinite(+c.m) ? +c.m : null;
