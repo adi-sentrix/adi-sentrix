@@ -409,8 +409,48 @@ export function generarConteosDeCadena(base, { semilla = "adi-consolidacion-1", 
   return { casos, estadistica };
 }
 
-/** generarCobertura(base, { semilla, minimo, dims, espacio, conteos }) → { casos, estadistica, conteo } — el sub-azar de cobertura: cada celda válida ejercida al menos `minimo` veces; al final, `conteos` (64 por defecto, solo sin `dims`) premisas de conteo con cadena (§7.3·54a). */
-export function generarCobertura(base, { semilla = "adi-consolidacion-1", minimo = 2, dims = null, espacio = null, maximoPorCelda = 40, conteos = 64 } = {}) {
+/* ── LA PRIORIDAD POR PARTE (§7.3·55) ────────────────────────────────────────────────────────────────────────────────────── */
+/* las dos formas que los generadores anteriores casi no producían (mediciones v33 y v34): (A) un encargo con una parte COMERCIAL y una de COBRANZA con la lente «ventas» (el nombre de la lente es de la parte que decide, 55b), y (B) partes de INVENTARIO por SKU con un top por ventas
+ * y la lente «ventas» (la lista la ordena el top: «por venta, el top que se pidió», 55a) */
+export const VARIANTES_DE_PRIORIDAD = ["comercial-decision+cobranza-lectura", "comercial-decision+cobranza-decision", "comercial-lectura+cobranza-decision", "inventario-top-ventas", "inventario-top-ventas+comercial-decision", "inventario-lectura-top-ventas+decision-top-ventas"];
+
+/** generarPrioridadPorParte(base, { semilla, n }) → { casos, estadistica } — encargos con la lente «ventas» (comercial + cobranza · inventario con top por ventas). Semilla propia derivada (`<semilla>:cobertura:prioridad`): no mueve ninguna otra secuencia. Cada encargo pasa por `validarEncargo`. Determinístico. OFFLINE. */
+export function generarPrioridadPorParte(base, { semilla = "adi-consolidacion-1", n = 48, maximoIntentos = 60 } = {}) {
+  const R = crearAzar(`${semilla}:cobertura:prioridad`);
+  const a = ayudas(base);
+  const casos = [], estadistica = { pedidos: n, intentos: 0, rechazados: 0, porVariante: {} };
+  const conceptosDe = (tema, eje, k) => R.muestra(a.conceptosDe(tema, eje), k);
+  const topVentas = (eje) => ({ eje, top: { metrica: "ventas", k: R.int(1, 4), ...(R.bool(0.3) ? { direccion: "menor" } : {}) } });
+  const universoInv = () => { const u = topVentas("sku"); if (R.bool(0.3)) u.bodega = R.pick(BODEGAS); else if (R.bool(0.3)) { const ee = a.estados.estadosValidosPara("sku"); if (ee.length) u.estados = [R.pick(ee)]; } return u; };
+  const universoCom = () => (R.bool(0.4) ? topVentas("cliente") : null);
+  for (let i = 0; i < n; i++) {
+    const variante = VARIANTES_DE_PRIORIDAD[i % VARIANTES_DE_PRIORIDAD.length];
+    let hecho = false;
+    for (let intento = 0; intento < maximoIntentos && !hecho; intento++) {
+      estadistica.intentos++;
+      const partes = [];
+      const com = (id, cierre) => { const u = universoCom(); const p = { id, tema: "comercial", cierre, conceptos: conceptosDe("comercial", "cliente", R.int(1, 2)) }; if (u && u.top) p.universo = u; return p; };
+      const cob = (id, cierre) => ({ id, tema: "cobranza", cierre, conceptos: conceptosDe("cobranza", "cliente", R.int(1, 2)) });
+      const inv = (id, cierre) => ({ id, tema: "inventario", cierre, conceptos: conceptosDe("inventario", "sku", R.int(1, 2)), eje: "sku", universo: universoInv() });
+      if (variante === "comercial-decision+cobranza-lectura") partes.push(com("p1", "decision"), cob("p2", "lectura"));
+      else if (variante === "comercial-decision+cobranza-decision") partes.push(com("p1", "decision"), cob("p2", "decision"));
+      else if (variante === "comercial-lectura+cobranza-decision") partes.push(com("p1", "lectura"), cob("p2", "decision"));
+      else if (variante === "inventario-top-ventas") partes.push(inv("p1", "decision"));
+      else if (variante === "inventario-top-ventas+comercial-decision") partes.push(inv("p1", "decision"), com("p2", "decision"));
+      else partes.push(inv("p1", "lectura"), inv("p2", "decision"));
+      if (partes.some((p) => !p.conceptos.length)) { estadistica.rechazados++; continue; }
+      const enc = { version: "encargo/v1", partes, criterio: { lente: "ventas" } };
+      if (!valido(base, enc)) { estadistica.rechazados++; continue; }
+      casos.push({ origen: "cobertura", id: `cobertura:${semilla}:prioridad:${casos.length + 1}`, encargo: enc, celda: `PRIORIDAD:${variante}` });
+      estadistica.porVariante[variante] = (estadistica.porVariante[variante] || 0) + 1;
+      hecho = true;
+    }
+  }
+  return { casos, estadistica };
+}
+
+/** generarCobertura(base, { semilla, minimo, dims, espacio, conteos, prioridad }) → { casos, estadistica, conteo } — el sub-azar de cobertura: cada celda válida ejercida al menos `minimo` veces; al final, `conteos` (64 por defecto, solo sin `dims`) premisas de conteo con cadena (§7.3·54a) y `prioridad` (48) encargos con la lente «ventas» por parte (§7.3·55). */
+export function generarCobertura(base, { semilla = "adi-consolidacion-1", minimo = 2, dims = null, espacio = null, maximoPorCelda = 40, conteos = 64, prioridad = 48 } = {}) {
   const esp = espacio || especificacionesDeCeldas(base, { semilla });
   const R = crearAzar(`${semilla}:cobertura`);
   const k = constructor(base, R);
@@ -435,6 +475,8 @@ export function generarCobertura(base, { semilla = "adi-consolidacion-1", minimo
   }
   /* §7.3·54a: los conteos de cadena van AL FINAL, con su propia semilla derivada: la secuencia de arriba no se mueve */
   if (!dims && conteos > 0) { const c = generarConteosDeCadena(base, { semilla, n: conteos }); casos.push(...c.casos); estadistica.conteos = c.estadistica; }
+  /* §7.3·55: la prioridad por parte (la lente «ventas» en comercial + cobranza y en inventario con top por ventas) va después de los conteos, con su propia semilla derivada (`<semilla>:cobertura:prioridad`): ni las celdas ni los conteos se mueven */
+  if (!dims && prioridad > 0) { const c = generarPrioridadPorParte(base, { semilla, n: prioridad }); casos.push(...c.casos); estadistica.prioridad = c.estadistica; }
   return { casos, estadistica, conteo };
 }
 

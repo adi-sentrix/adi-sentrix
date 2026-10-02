@@ -856,6 +856,11 @@ venta a crédito, ley del owner).
     «ventas» ordena por la venta del período y se dice «por ventas», aunque el mismo encargo tenga una parte de cobranza.
     (c) Tras «ninguna cuenta queda primera» (47a), la lista conserva el orden del top o del universo que se pidió; la 50(a)
     rige la oración de prioridad, no esa lista.
+56. [2026-10-02, supervisor; implementación de la 55] LA LENTE «CRECIMIENTO». Su medida es la variación contra el año
+    anterior. Donde el dato publica esa variación para el eje de la parte, la lente APLICA y ordena; la oración se dice «por
+    crecimiento» y no declara que no ordena (la no contradicción de la 55a). Por ser la medida de una LENTE (50a), va primero
+    la de mayor variación. Donde el dato no publica la variación, se declara como dice la 50(b), y si alguien no tiene dato se
+    aplica la 52(b).
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

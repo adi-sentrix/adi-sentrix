@@ -17,7 +17,8 @@
  *   · 50(a) LA PRIORIDAD PIDE ATENCIÓN: con la medida de una lente va de mayor a menor (quien más pesa); con la medida PROPIA,
  *     donde más es peor (carga, días) el mayor, una MAGNITUD (dinero o unidades) de mayor a menor, y solo una TASA o RAZÓN
  *     donde más es mejor (margen, rotación) invierte: el menor pide atención. La polaridad y la unidad son las del léxico.
- *   · 52(a) en cobranza el único dato de venta es la venta a crédito: la lente «ventas» se dice «venta a crédito».
+ *   · 52(a) en cobranza el único dato de venta es la venta a crédito: la lente «ventas» se dice «venta a crédito». 55(b): POR PARTE — solo en una parte de cobranza; en una parte comercial se dice «ventas» y ordena por la venta del período, aunque el encargo tenga una parte de cobranza.
+ *   · 55(a) (corrige la 54(c)): si el universo de la parte ya viene ordenado por venta (un top por ventas), la oración nombra la venta como lo que ordenó («por venta, el top que se pidió») y no declara «ventas no ordena este grupo»: una oración nunca dice que una medida no ordena y a la vez ordena por ella.
  *   · 52(e) un criterio que solo trae una REFERENCIA (umbral, piso, techo, benchmark) nombra la medida que ordenó y la
  *     referencia COMO TAL: una referencia no es una lente y nunca se nombra como el criterio que ordenó.
  *
@@ -32,7 +33,7 @@ import { CRITERIOS, LENTES, prioridadIntegrada, ordenPorCriterio } from "../agen
 import { ceroPorCobertura, metricaPorClave, claveExactaDeMetrica, dominioDeClave } from "../notario/lexico.js";
 import { normalizar } from "../notario/afirmacion.js";
 /* FAMILIA 4 (§7.3·49f · 51f · 52a): el rótulo de cada medida («saldo vencido», «venta a crédito», «en yoy»→«en variación vs año anterior en $») lo decide `./rotulos.js`; acá solo se le pregunta */
-import { rotuloDeLaCasa, rotuloDeClave, rotuloEnOracion, conceptoDeLaFig } from "./rotulos.js";
+import { rotuloDeLaCasa, rotuloDeClave, rotuloEnOracion, conceptoDeLaFig, claveDeLaFig } from "./rotulos.js";
 
 const _lab = (f) => String((f && f.label) || "");
 const _entidadDe = (label) => { const p = String(label || "").split("·").map((s) => s.trim()); return p.length >= 2 ? p[0] : null; };
@@ -49,9 +50,14 @@ export const MEDIDAS_DE_LENTE = {
   capital: { tema: "inventario", concepto: "capital_frenado", nombre: rotuloEnOracion({ clave: "capital_frenado" }) },
   contribucion: { tema: "comercial", concepto: "no_capturada", nombre: rotuloEnOracion({ clave: "no_capturada" }) },
   ventas: { tema: "comercial", concepto: "ventas", nombre: rotuloEnOracion({ clave: "ventas" }) },
+  crecimiento: { tema: "comercial", concepto: "variacion", nombre: rotuloEnOracion({ clave: "variacion" }) },   /* §7.3·56 */
 };
 /* la señal propia de una lente SIN dominio (para reconocerla en las figs de un grupo de cuentas): «ventas» ordena con la venta que el grupo trae */
-const _MEDIDA_SIN_DOMINIO = { ventas: { re: /· Ventas?(?: \(flujo\)| a crédito)?$/i, nombre: rotuloEnOracion({ clave: "ventas" }), peor: "mayor" } };
+/* §7.3·56: la medida de la lente «crecimiento» es la variación contra el año anterior (en % o en $); donde el dato la publica (comercial) la lente APLICA y ordena: va primero la de mayor variación (50a). `claves`: las claves del léxico que ordenan como la lente */
+const _MEDIDA_SIN_DOMINIO = {
+  ventas: { re: /· Ventas?(?: \(flujo\)| a crédito)?$/i, nombre: rotuloEnOracion({ clave: "ventas" }), peor: "mayor", temas: ["comercial", "cobranza"] },
+  crecimiento: { re: /· Variaci[oó]n vs a[nñ]o anterior$/i, nombre: rotuloEnOracion({ clave: "variacion" }), peor: "mayor", temas: ["comercial"], claves: ["variacion", "variacion_usd"], parcial: true },   /* `parcial`: quien no tiene la variación (una marca sin año anterior) no se ordena ni se cuenta como 0: se declara «sin dato de X para Y» (52b) y la lente ordena a los demás */
+};
 /* 52(a): en cobranza la venta de la cuenta es la venta A CRÉDITO; su nombre sale del léxico (nunca escrito a mano acá) */
 const _ventaACredito = () => String(_labelDeClave("venta_credito")).toLowerCase();
 const _esVentaDeCobranza = (id, tema) => id === "ventas" && tema === "cobranza";
@@ -81,6 +87,7 @@ export function lenteOrdenaLaClave(id, claveOrden) {
   const label = String(_labelDeClave(claveOrden));
   const lab = _planoDeLente(label);
   if (!L.dominio && _planoDeLente(L.nombre).startsWith(lab)) return true;   // «ventas» ↔ Venta
+  if (!L.dominio && _MEDIDA_SIN_DOMINIO[id] && Array.isArray(_MEDIDA_SIN_DOMINIO[id].claves) && _MEDIDA_SIN_DOMINIO[id].claves.includes(claveOrden)) return true;   // §7.3·56: «crecimiento» ↔ variación vs año anterior
   const spec = L.dominio && L.lente && LENTES[L.dominio] && LENTES[L.dominio][L.lente];
   return !!(spec && (spec.re.test(`· ${label}`) || spec.re.test(`· ${lab}`)));
 }
@@ -109,7 +116,7 @@ function _lenteDelGrupo(criterio, tema, cierre, entidades, figs, porEntidad, cla
   const id = criterio && criterio.lente && CRITERIOS[criterio.lente] ? criterio.lente : null;
   if (!id || cierre !== "decision" || !Array.isArray(entidades) || !entidades.length) return null;
   const C = CRITERIOS[id];
-  const spec = C.dominio === tema && C.lente && LENTES[C.dominio] ? LENTES[C.dominio][C.lente] : (!C.dominio && (tema === "comercial" || tema === "cobranza") ? (_MEDIDA_SIN_DOMINIO[id] || null) : null);   /* la venta comercial y el inventario son universos que no reconcilian: «ventas» no ordena un grupo de SKU de inventario, se declara */
+  const spec = C.dominio === tema && C.lente && LENTES[C.dominio] ? LENTES[C.dominio][C.lente] : (!C.dominio && _MEDIDA_SIN_DOMINIO[id] && _MEDIDA_SIN_DOMINIO[id].temas.includes(tema) ? _MEDIDA_SIN_DOMINIO[id] : null);   /* la venta comercial y el inventario son universos que no reconcilian: «ventas» no ordena un grupo de SKU de inventario, se declara */
   if (!spec) return null;
   const des = C.desempate && LENTES[C.dominio][C.desempate] ? LENTES[C.dominio][C.desempate] : null;
   const medida = _esVentaDeCobranza(id, tema) ? _ventaACredito() : ((MEDIDAS_DE_LENTE[id] && MEDIDAS_DE_LENTE[id].nombre) || spec.nombre);
@@ -132,7 +139,8 @@ function _lenteDelGrupo(criterio, tema, cierre, entidades, figs, porEntidad, cla
   const propias = (re) => { const m = new Map(); for (const f of [...(Array.isArray(figs) ? figs : []), ..._servidas]) { const l = _lab(f); if (!re.test(l) || !Number.isFinite(f.raw)) continue; const e = _entidadDe(l); if (e && !m.has(normalizar(e))) m.set(normalizar(e), f); } return m; };
   const deLente = propias(spec.re), deDesempate = des ? propias(des.re) : new Map();
   const filas = entidades.map((e) => ({ e, f: deLente.get(normalizar(e)) || null, d: deDesempate.get(normalizar(e)) || null })).filter((x) => x.f);
-  if (!filas.length || (!C.dominio && filas.length !== entidades.length)) return { ...base, modo: "sin-discrimina", motivo: "sin-medida", concepto: medida };   /* una lente sin dominio solo corona si el grupo TRAE su medida en todas las cuentas */
+  if (!filas.length && spec.parcial) return null;   /* §7.3·56: donde el dato no publica la medida para el eje de la parte (la variación vs año anterior por SKU), la lente NO aplica y se declara (50b: `nombraLaLista`) */
+  if (!filas.length || (!C.dominio && !spec.parcial && filas.length !== entidades.length)) return { ...base, modo: "sin-discrimina", motivo: "sin-medida", concepto: medida };   /* una lente sin dominio solo corona si el grupo TRAE su medida en todas las cuentas */
   const mayor = spec.peor !== "menor";
   const vd = (x) => (mayor ? x.f.raw : -x.f.raw);
   filas.sort((a, b) => (vd(b) - vd(a)) || ((b.d ? b.d.raw : -Infinity) - (a.d ? a.d.raw : -Infinity)));
@@ -147,10 +155,10 @@ function _lenteDelGrupo(criterio, tema, cierre, entidades, figs, porEntidad, cla
  * Devuelve la DECISIÓN, nunca la frase:
  *   { tipo: "lente",      nombre }                         la lente que de verdad ordenó la lista (o la que el criterio trae sin clave de orden)
  *   { tipo: "nombre",     texto }                          una clave que no es lente (un nombre de la casa)
- *   { tipo: "medida",     clave, declara: null | {…} }     la clave de orden; `declara` = la lente pedida que NO ordena este grupo
+ *   { tipo: "medida",     clave, declara: null | {…} }     la clave de orden; `declara` = la lente pedida que NO ordena este grupo; `porElTop: true` (55a) = la lista la ordenó el top por ventas que se pidió
  *   { tipo: "referencia", clave, referencia }              52(e): un criterio que solo trae una REFERENCIA nombra la medida que ordenó y la referencia como tal
  *   null                                                   el criterio no trae nada que nombrar (no hay oración) */
-export function nombraLaLista(criterio, tema, claveOrden) {
+export function nombraLaLista(criterio, tema, claveOrden, { ordenDelTop = false } = {}) {
   if (!criterio) return null;
   const id = criterio.lente && CRITERIOS[criterio.lente] ? criterio.lente : null;
   if (!id || !claveOrden) {
@@ -168,7 +176,10 @@ export function nombraLaLista(criterio, tema, claveOrden) {
   const L = CRITERIOS[id];
   /* v24 (Q44, §7.3·47e + 46d): el «riesgo integrado» que el USUARIO pidió es el criterio ENTRE dominios: dentro de un grupo de una parte no ordena, y eso se DECLARA */
   if (id === "riesgo" && criterio.origen === "usuario" && !lenteOrdenaLaClave(id, claveOrden)) return { tipo: "medida", clave: claveOrden, declara: { nombre: nombreVisibleDeLente(id, tema), entreDominios: true, dominio: null } };
-  /* §7.3·54(c): la 50(b) vale en TODOS los caminos — la lente «ventas» sobre una parte de INVENTARIO se declara y no ordena, aunque el universo de la parte use un top por ventas (la lista sale ordenada por la venta, pero el inventario no publica la venta: la lente pedida no la ordenó) */
+  /* §7.3·55(a) (corrige la 54(c)): si el universo de la parte YA viene ordenado por venta (un top por ventas que pidió el usuario), lo que ordenó la lista ES la venta: la oración lo nombra así («por venta, el top que se pidió») y NO declara «ventas no ordena este grupo»
+   * (una oración nunca dice que una medida no ordena y a la vez ordena por ella). El inventario por SKU no publica la venta: la lente «ventas» no es la que ordenó, el top sí. Sin ese top, la 50(b) rige: la lente se declara. */
+  if (id === "ventas" && tema === "inventario" && ordenDelTop && lenteOrdenaLaClave(id, claveOrden)) return { tipo: "medida", clave: claveOrden, declara: null, porElTop: true };
+  /* §7.3·54(c): la 50(b) vale en TODOS los caminos — la lente «ventas» sobre una parte de INVENTARIO sin ese top se declara y no ordena */
   const _ventasSobreInventario = id === "ventas" && tema === "inventario";
   if (id !== "riesgo" && (_ventasSobreInventario || (L.dominio !== tema && !lenteOrdenaLaClave(id, claveOrden)))) return { tipo: "medida", clave: claveOrden, declara: { nombre: nombreVisibleDeLente(id, tema), entreDominios: false, dominio: L.dominio || null } };
   return lenteOrdenaLaClave(id, claveOrden) ? { tipo: "lente", nombre: nombreVisibleDeLente(id, tema) } : { tipo: "medida", clave: claveOrden, declara: null };
@@ -184,15 +195,16 @@ export function nombraLaLista(criterio, tema, claveOrden) {
  *   lenteGrupo      el detalle de la lente que aplica (id, nombre visible, medida, motivo, figs) o null — el compositor declara sus cifras
  *   primeroAtencion el que pide atención cuando NO es el primero de la lista (50a), o null
  *   nombra    qué se nombra tras «por» en modo "propia" (ver `nombraLaLista`)
+ *   ordenDelTop (entrada, 55a)  la lista de la parte la ordenó el top que el usuario pidió (el universo YA viene ordenado por esa medida)
  * `valorDe(nombre)` → el número de la medida `claveOrden` de esa entidad (NaN si no lo trae); `proyeccion` (opcional, `valoresDeProyeccion`) → los
  * mismos valores según la proyección del dato, para cuando las figs del turno no los traen todos. `cierre` ≠ "decision" no prioriza. */
-export function prioridadDeParte({ criterio = null, tema = null, cierre = "decision", entidades = [], claveOrden = null, valorDe = null, proyeccion = null, figs = [], porEntidad = null } = {}) {
+export function prioridadDeParte({ criterio = null, tema = null, cierre = "decision", entidades = [], claveOrden = null, valorDe = null, proyeccion = null, figs = [], porEntidad = null, ordenDelTop = false } = {}) {
   const lenteGrupo = _lenteDelGrupo(criterio, tema, cierre, entidades, figs, porEntidad, claveOrden);
   /* 50(a): quien pide atención se decide con los valores de la medida. Cuando las figs del turno no traen el valor crudo de TODAS las entidades (una tasa como la variación, que la boleta no publica con su crudo), se decide con la proyección del dato —los mismos valores, de una sola fuente—: sin valores NO se corona a la primera de la lista (un MEJOR por una tasa). Nunca se mezclan dos escalas: o todas por las figs, o todas por la proyección. */
   let vd = valorDe;
   if (typeof valorDe === "function" && proyeccion instanceof Map && Array.isArray(entidades) && entidades.length >= 2 && !entidades.every((n) => Number.isFinite(valorDe(n))) && entidades.every((n) => proyeccion.has(normalizar(n)))) vd = (n) => proyeccion.get(normalizar(n));
   const primeroAtencion = cierre === "decision" && typeof vd === "function" ? _primeroDeAtencion(entidades, vd, criterio, claveOrden) : null;
-  const nombra = criterio ? nombraLaLista(criterio, tema, claveOrden) : null;
+  const nombra = criterio ? nombraLaLista(criterio, tema, claveOrden, { ordenDelTop }) : null;
   const modo = lenteGrupo ? (lenteGrupo.modo === "primero" ? "lente" : "sin-primero") : "propia";
   const primero = modo === "lente" ? lenteGrupo.primero : modo === "sin-primero" ? null : (primeroAtencion || (entidades && entidades.length ? entidades[0] : null));
   return { modo, primero, lenteGrupo, primeroAtencion, nombra };
@@ -224,19 +236,37 @@ export function lideresPorDominio(P) {
   for (const d of Object.keys((P && P.porDominio) || {})) { const x = P.porDominio[d][0]; if (x) out[d] = x; }
   return out;
 }
+/** §7.3·55(b) (precisa la 52(a)): el nombre de la lente «ventas» es POR PARTE, nunca por encargo. La oración de prioridad de un plan que reúne varias partes es la de las partes que DECIDEN: con una parte comercial
+ *  la lente ordena por la venta del período y se dice «ventas» (aunque el encargo tenga una parte de cobranza); «venta a crédito» se dice solo cuando la parte que decide es de COBRANZA. Devuelve el tema de esa parte (comercial · cobranza, los dominios donde la lente «ventas» aplica) o null
+ *  (ninguna parte que decide es de cuentas: el nombre sigue al dominio de la medida con que se ordenó, como siempre). */
+export function temaDeLaParteQuePrioriza(temasDeDecision, temas) {
+  const d = (Array.isArray(temasDeDecision) && temasDeDecision.length ? temasDeDecision : Array.isArray(temas) ? temas : []).filter(Boolean);
+  return d.includes("comercial") ? "comercial" : d.includes("cobranza") ? "cobranza" : null;
+}
 /** quién va primero por la lente que el USUARIO pidió (47a/46d: `ordenPorCriterio`, la misma función que ordena «ahora por X»):
- *  `{ lente, entidad, metrica, dominio }` o null cuando esa lente no puede ordenar estas figs (se declara, nunca se sustituye). */
-export function prioridadPorLente(temas, figs, lente) {
+ *  `{ lente, entidad, metrica, dominio, temaDeLaParte }` o null cuando esa lente no puede ordenar estas figs (se declara, nunca se sustituye).
+ *  `temasDeDecision` (55b): los temas de las partes `decision` del plan, de donde sale el nombre de la lente. */
+export function prioridadPorLente(temas, figs, lente, temasDeDecision = null) {
   if (!lente || lente === "riesgo" || !CRITERIOS[lente]) return null;
-  let O = null;
-  try { O = ordenPorCriterio(figs, temas, lente); } catch { O = null; }
-  const primero = O && Array.isArray(O.lista) ? O.lista[0] : null;
-  const c0 = primero && Array.isArray(primero.cifras) ? primero.cifras[0] : null;
-  if (!(primero && c0 && c0.metrica)) return null;
+  const temaDeLaParte = CRITERIOS[lente].dominio || temaDeLaParteQuePrioriza(temasDeDecision, temas);
+  const _ordenar = (fs) => { try { return ordenPorCriterio(fs, temas, lente); } catch { return null; } };
+  const _cabeza = (O) => { const p = O && Array.isArray(O.lista) ? O.lista[0] : null; const c = p && Array.isArray(p.cifras) ? p.cifras[0] : null; return p && c && c.metrica ? { primero: p, c0: c } : null; };
+  /* 55(b): en una parte COMERCIAL la lente «ventas» ordena por la venta del período, no por la venta a crédito de la mesa de cobranza (el productor prefiere la de la mesa cuando el plan trae las dos): la medida de la lente es la de SU parte; sin la venta de la parte
+   * la lente no ordena (se declara), nunca se ordena una parte comercial por la venta a crédito diciendo «ventas» */
+  const K = _cabeza(_ordenar(lente === "ventas" && temaDeLaParte === "comercial" ? (Array.isArray(figs) ? figs : []).filter((f) => claveDeLaFig(f) !== "venta_credito") : figs));
+  if (!K) return null;
+  const { primero, c0 } = K;
   if (rotuloDeLaCasa({ concepto: c0.metrica }).sinClave) return null;   /* FAMILIA 4 (52e): una medida que el léxico no conoce no se imprime con el rótulo crudo del productor: la lente no ordena (se declara) */
-  /* `dominioDeLaMedida`: el dominio de la MEDIDA con que ordenó (en cobranza el único dato de venta es la venta a crédito, «Venta (flujo)»: 52a) — con él se NOMBRA la lente; `dominio` es el de siempre (la fila de la tabla) */
+  /* `temaDeLaParte`: el tema de la PARTE a la que pertenece la oración (55b) — con él se NOMBRA la lente («venta a crédito» solo en cobranza, 52a); sin parte que decida, el dominio de la MEDIDA con que ordenó; `dominio` es el de siempre (la fila de la tabla) */
   const claveMedida = claveExactaDeMetrica(c0.metrica);
-  return { lente, entidad: primero.entidad, metrica: c0.metrica, dominio: CRITERIOS[lente].dominio || (temas.includes("comercial") ? "comercial" : temas[0]), dominioDeLaMedida: (claveMedida && dominioDeClave(claveMedida)) || null };
+  return { lente, entidad: primero.entidad, metrica: c0.metrica, dominio: CRITERIOS[lente].dominio || (temas.includes("comercial") ? "comercial" : temas[0]), temaDeLaParte: temaDeLaParte || (claveMedida && dominioDeClave(claveMedida)) || null };
+}
+/** §7.3·56: el concepto de la medida de una lente sin dominio que el dato publica POR CUENTA y no para todas (la variación contra el año anterior de la lente «crecimiento»): el grupo la completa con la proyección ANTES de ordenar (quien el dato no trae queda
+ *  sin dato, 52b) y la oración de la lente ordena a los demás. null para toda otra lente o tema. */
+export function conceptoDeLaMedidaParcial(criterio, tema) {
+  const id = criterio && criterio.lente && CRITERIOS[criterio.lente] ? criterio.lente : null;
+  const s = id && !CRITERIOS[id].dominio ? _MEDIDA_SIN_DOMINIO[id] : null;
+  return s && s.parcial && s.temas.includes(tema) && MEDIDAS_DE_LENTE[id] ? MEDIDAS_DE_LENTE[id].concepto : null;
 }
 /** el MODO de la prioridad cruzada de un plan multitema (48b · 51d): qué oración se dice.
  *    "por-lente"        la lente que el usuario pidió ordenó (`porLente`)

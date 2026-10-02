@@ -1765,7 +1765,7 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
 
   H("A22 · barrido (ii) · la lente × el dominio × el universo: la oración de prioridad nombra la lente que ordenó o declara la que no, y el primero es el de la medida");
   { const LENTES_A = ["riesgo", "credito", "capital", "contribucion", "ventas", "crecimiento"], VIS = { riesgo: "riesgo", credito: "exposición de crédito", capital: "capital", contribucion: "contribución", ventas: "ventas", crecimiento: "crecimiento" };
-    const APLICA = (l, tema) => (l === "credito" && tema === "cobranza") || (l === "capital" && tema === "inventario") || (l === "contribucion" && tema === "comercial") || (l === "ventas" && (tema === "cobranza" || tema === "comercial"));
+    const APLICA = (l, tema) => (l === "credito" && tema === "cobranza") || (l === "capital" && tema === "inventario") || (l === "contribucion" && tema === "comercial") || (l === "ventas" && (tema === "cobranza" || tema === "comercial")) || (l === "crecimiento" && tema === "comercial");   /* §7.3·56: «crecimiento» aplica donde el dato publica la variación vs año anterior (comercial por cuenta) */
     const TEMAS = { cobranza: { eje: "cliente", conceptos: [["abonado", "saldo_vencido"], ["venta_credito", "recuperado"]], unis: [{ top: { metrica: "abonado", k: 3 } }, { estados: ["en mora"] }] }, inventario: { eje: "sku", conceptos: [["rotacion", "capital"], ["capital_frenado", "dias_sin_venta"]], unis: [{ top: { metrica: "capital", k: 3 } }, { estados: ["rota lento"] }] }, comercial: { eje: "cliente", conceptos: [["contribucion", "margen"], ["ventas", "margen"]], unis: [{ top: { metrica: "margen", k: 3 } }, { base: "bajo el benchmark" }] } };
     const malas = []; let n = 0, nombradas = 0, declaradas = 0, noVerifican = 0;
     for (const [tema, T] of Object.entries(TEMAS)) for (const conceptos of T.conceptos) for (const uni of T.unis) for (const lente of LENTES_A.concat([null])) {
@@ -1784,7 +1784,7 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     }
     ok(n === 84 && malas.length === 0, `la lente se nombra ⇔ aplica (crédito→cobranza · capital→inventario · contribución→comercial · ventas→cuentas) y si no se DECLARA; sin lente pedida no se declara; el primero es el de la medida — ${n} combinaciones (3 dominios × 2 conjuntos de conceptos × 2 universos × (6 lentes + sin lente))`, malas.slice(0, 4).join(" | "));
     ok(noVerifican === 0, "las 84 Entregas de la matriz de lentes pasan `verificarEntrega`", String(noVerifican));
-    ok(nombradas === 20 && declaradas === 52, "oráculo de la matriz · hay lentes que se nombran y lentes que se declaran (20 nombradas: crédito→cobranza 4 · capital→inventario 4 · contribución→comercial 4 · ventas→cuentas 8; las otras 52 se declaran)", JSON.stringify({ nombradas, declaradas })); }
+    ok(nombradas === 24 && declaradas === 48, "oráculo de la matriz · hay lentes que se nombran y lentes que se declaran (24 nombradas: crédito→cobranza 4 · capital→inventario 4 · contribución→comercial 4 · ventas→cuentas 8 · crecimiento→comercial 4 (§7.3·56); las otras 48 se declaran)", JSON.stringify({ nombradas, declaradas })); }
 
   H("A22 · barrido (iv) · el «de M» de un conteo en todas las formas de universo (eje · base · estados · top · excluir · bodega): el eslabón es admisible y la falsedad por M imprime el más ajustado");
   { const bajo = new Set(clientesMargen.filter((c) => c.margen < 30.1).map((c) => c.nombre)), mora = new Set(Mflujo.filter((f) => f.vencidoK > 0).map((f) => f.nombre)), abon = Object.fromEntries(Mflujo.map((f) => [f.nombre, f.abonadoK]));
@@ -2138,13 +2138,13 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     ok(n >= 300 && sentencias >= 100 && malas.length === 0, `barrido · ${n} Entregas (${sentencias} oraciones de prioridad): ninguna corona al mejor`, JSON.stringify(malas.slice(0, 5)));
     /* el caso del corrector: la carga comercial de las marcas (la foto del eje), con «crecimiento» pedido (la lente no ordena el grupo): abre con la marca de MAYOR carga, no con la de menos */
     const marcas = marcasMargen.map((x) => x.nombre), Dm0 = { ...DOMS["comercial·marca"], ents: marcas };
-    const { R: Rc, E: Ec } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["carga"], eje: "marca" }], criterio: { lente: "crecimiento" } });
+    const { R: Rc, E: Ec } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["carga"], eje: "marca" }], criterio: { lente: "credito" } });   /* §7.3·56: «crecimiento» ya aplica a una parte comercial por marca; la lente que se DECLARA aquí es «exposición de crédito» (de cobranza) */
     const mayorCarga = extremo(Dm0, "carga", marcas, false), menorCarga = marcas.slice().sort((a, b) => cM.carga.get(a) - cM.carga.get(b))[0];
     const oc = respuestaDe(Ec).find((t) => RE_PRI.test(t)) || "";
-    ok(mayorCarga && !mayorCarga.includes(menorCarga) && RE_PRI.test(oc) && mayorCarga.includes(RE_PRI.exec(oc)[2].trim()) && /el criterio pedido, crecimiento/.test(oc) && verifica(Ec, Rc).ok, "50a · el caso del corrector: «por carga comercial (el criterio pedido, crecimiento, …)» nombra a la marca de MÁS carga, no a la de menos", oc);
+    ok(mayorCarga && !mayorCarga.includes(menorCarga) && RE_PRI.test(oc) && mayorCarga.includes(RE_PRI.exec(oc)[2].trim()) && /el criterio pedido, exposición de crédito/.test(oc) && verifica(Ec, Rc).ok, "50a · el caso del corrector: «por carga comercial (el criterio pedido, exposición de crédito, …)» nombra a la marca de MÁS carga, no a la de menos", oc);
     /* CARNADA · el defecto reconstruido: la prioridad que corona a la cuenta de MENOS carga (la mejor) cae en el mismo juez */
     const Dm = Dm0, malo = { ...Ec, texto: Ec.texto, entrega: { ...Ec.entrega, respuesta: (Ec.entrega.respuesta || []).map((r) => (RE_PRI.test(String(r.texto).replace(/^▸\s*/, "")) ? { ...r, texto: r.texto.replace(RE_PRI.exec(r.texto.replace(/^▸\s*/, ""))[2], menorCarga) } : r)) } };
-    ok(juzga(Ec, Dm, "crecimiento", "foto", Dm.ents).length === 0 && juzga(malo, Dm, "crecimiento", "foto", Dm.ents).length > 0, "CARNADA · el defecto reconstruido (la prioridad abre con la cuenta de MENOS carga, la mejor) cae en el juez de la matriz");
+    ok(juzga(Ec, Dm, "credito", "foto", Dm.ents).length === 0 && juzga(malo, Dm, "credito", "foto", Dm.ents).length > 0, "CARNADA · el defecto reconstruido (la prioridad abre con la cuenta de MENOS carga, la mejor) cae en el juez de la matriz");
     /* donde más es mejor (margen, rotación) el primero es el MENOR; con la lente ventas pedida, el MAYOR (la medida de la lente) */
     const Dc = DOMS["comercial·marca"];
     const { E: Em } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["margen"], eje: "marca", entidades: Dc.ents.map((x) => ({ nombre: x, eje: "marca" })) }] });

@@ -29,6 +29,9 @@
  *   4g · carnadas de la PARTE B (segunda vuelta; owner 2026-10-01): F6, la frase de una premisa (R1 el rótulo de cada cifra: `premisa-cifra-sin-rotulo`, `premisa-rotulo-de-otro-concepto`; R2 un extremo sobre un
  *       ranking con miembros sin dato: `extremo-sobre-ranking-incompleto`, `ausente-sin-nombrar`) y tres reglas nuevas de la F2 (la foto de cobranza en el orden de la mesa, el cero del empate del filo en palabras,
  *       la ausencia en la forma «sin dato de X para Y»). Son FIRMES: el owner aprobó el cambio de ~120 textos de los catálogos v13–v28 y la pieza las cumple (4h).
+ *   4i · carnadas de la 54 (v31 y v32) y 4j · carnadas de la 55 (mediciones v33 y v34): un top por ventas ordena la lista y la oración lo dice («por venta, el top que se pidió») sin declarar que «ventas» no ordena · el nombre de la lente «ventas» es POR PARTE
+ *       («venta a crédito» solo en una parte de cobranza) · la lista tras «ninguna cuenta queda primera» conserva el orden pedido · el % con la forma de la casa. El sub-azar de cobertura agrega, al final y con su semilla derivada
+ *       (`<semilla>:cobertura:prioridad`), 48 encargos con la lente «ventas» (comercial + cobranza · inventario por SKU con un top por ventas) sin mover las celdas ni los conteos.
  *   6 · CERO red.
  *
  * Solo por `npm run gates:offline` o `node --import ./scripts/offline-guard.mjs _invariantes_consolidacion_gate.mjs`. */
@@ -36,7 +39,7 @@ import fs from "node:fs";
 import { createHash } from "node:crypto";
 import { cargarBase } from "./scripts/consolidacion/base.mjs";
 import { cargarCatalogos, armarCorpus, entregaDe } from "./scripts/consolidacion/corpus.mjs";
-import { generarEncargos, generarCobertura, generarConteosDeCadena, VARIANTES_DE_CONTEO, especificacionesDeCeldas, auditarCobertura } from "./scripts/consolidacion/generador.mjs";
+import { generarEncargos, generarCobertura, generarConteosDeCadena, generarPrioridadPorParte, VARIANTES_DE_CONTEO, VARIANTES_DE_PRIORIDAD, especificacionesDeCeldas, auditarCobertura } from "./scripts/consolidacion/generador.mjs";
 import { cargarFamilias, correrCorpus, revisarEntrega } from "./scripts/consolidacion/marco.mjs";
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
 
@@ -52,6 +55,7 @@ const N_MUESTRA = 400;
  * Congeladas sobre ESTE corpus (catálogos + muestra fija): pueden bajar, nunca subir. */
 /* F5 (segunda vuelta): una simulación en profundidad BREVE con más de 8 filas protegidas por su propio bloque (`filas-sobre-el-tope`): el gobernador de tamaño no parte un bloque de simulación (atomicidad, owner 2026-09-26) y sus oraciones son de prioridad 0 («mejor esfuerzo», `tamano.js`). Cumplirlo es comportamiento nuevo: a decisión del owner. El sub-azar de cobertura la ejerce 1 vez por semilla. */
 /* PARTE B (segunda vuelta): las reglas R1/R2 de la F6 y las tres de la F2 (foto de cobranza en el orden de la mesa, cero del empate en palabras, «sin dato de X para Y») estuvieron congeladas (71 · 4 · 2 · 93 · 45 · 22) hasta que el owner aprobó el cambio de ~120 textos; hoy son FIRMES (0 violaciones). */
+/* §7.3·55(a) y §7.3·56: la regla de no contradicción de la F1 (`oracion-dice-que-no-ordena-y-ordena`) es FIRME para toda lente: la de «crecimiento» (7 abiertas congeladas hasta la 56) se cerró (donde el dato publica la variación vs año anterior la lente aplica, ordena al mayor y se dice «por crecimiento»). */
 const ABIERTAS_CONGELADAS = { "F5:verificador-rechaza-lo-servido": 1 };   /* la F1 las cerró con la condición del §7.3·53: «por riesgo integrado: X» vale cuando X es el primero del plan de señales de ese dominio (107 de 107 la cumplen en el corpus completo, 0 violaciones reales) */
 
 const base = await cargarBase();
@@ -83,12 +87,19 @@ const cobertura = generarCobertura(base, { semilla: SEMILLA_COBERTURA, minimo: 1
   const otra = generarCobertura(base, { semilla: SEMILLA_COBERTURA, minimo: 1, espacio });
   ok(JSON.stringify(otra.casos) === JSON.stringify(cobertura.casos), "el sub-azar de cobertura es determinístico (misma semilla, mismos encargos)");
   /* §7.3·54(a): los CONTEOS DE CADENA van AL FINAL del sub-azar con su propia semilla derivada (`<semilla>:cobertura:conteos`): la secuencia de las celdas (los primeros 1223 encargos) es byte-idéntica a la de antes */
-  const delasCeldas = cobertura.casos.filter((c) => !/:conteos:/.test(c.id)), conteosDeCadena = cobertura.casos.filter((c) => /:conteos:/.test(c.id));
+  const delasCeldas = cobertura.casos.filter((c) => !/:(?:conteos|prioridad):/.test(c.id)), conteosDeCadena = cobertura.casos.filter((c) => /:conteos:/.test(c.id));   /* §7.3·55: la prioridad por parte (`:prioridad:`) va después de los conteos, con su propia semilla derivada */
   ok(delasCeldas.length === 1223 && createHash("sha256").update(JSON.stringify(delasCeldas)).digest("hex") === "272520ae6366fcd7808c50cf2fbad71a78b9e85cce7a465655fda69a3f17df8f" && cobertura.casos.slice(0, 1223).every((c, i) => c === delasCeldas[i]), "los conteos de cadena (semilla derivada «:cobertura:conteos») no movieron la secuencia del sub-azar de las celdas: sus 1223 encargos son byte-idénticos a los de antes y van primero");
   ok(conteosDeCadena.length >= 60 && VARIANTES_DE_CONTEO.every((x) => conteosDeCadena.some((c) => c.celda === `CONTEO:${x}`)), `el sub-azar produce ${conteosDeCadena.length} conteos de cadena en las cuatro variantes (el M igual al final · el de un eslabón · fuera de la cadena · un n falso)`);
   ok(cobertura.estadistica.conteos && cobertura.estadistica.conteos.cadenas.filtros >= 30 && cobertura.estadistica.conteos.cadenas.estados >= 3 && cobertura.estadistica.conteos.cadenas.ambos >= 8, `…con cadenas de varios filtros (${cobertura.estadistica.conteos && cobertura.estadistica.conteos.cadenas.filtros}), de varios estados (${cobertura.estadistica.conteos && cobertura.estadistica.conteos.cadenas.estados}) y de filtros con estados (${cobertura.estadistica.conteos && cobertura.estadistica.conteos.cadenas.ambos})`);
   { const otraC = generarConteosDeCadena(base, { semilla: SEMILLA_COBERTURA, n: 64 }), otraD = generarConteosDeCadena(base, { semilla: SEMILLA_COBERTURA + "-b", n: 64 });
     ok(JSON.stringify(otraC.casos) === JSON.stringify(conteosDeCadena) && JSON.stringify(otraC.casos) !== JSON.stringify(otraD.casos), "los conteos de cadena son determinísticos (misma semilla, mismos encargos) y otra semilla da otros"); }
+  /* §7.3·55: la PRIORIDAD POR PARTE (la lente «ventas» en comercial + cobranza y en inventario con un top por ventas) va después de los conteos, con su propia semilla derivada (`<semilla>:cobertura:prioridad`): ni las celdas ni los conteos se movieron */
+  { const dePrioridad = cobertura.casos.filter((c) => /:prioridad:/.test(c.id));
+    ok(dePrioridad.length >= 40 && VARIANTES_DE_PRIORIDAD.every((x) => dePrioridad.some((c) => c.celda === `PRIORIDAD:${x}`)), `el sub-azar produce ${dePrioridad.length} encargos de prioridad por parte en las seis variantes (comercial + cobranza con la lente «ventas» · inventario con un top por ventas)`);
+    ok(dePrioridad.every((c) => c.encargo.criterio && c.encargo.criterio.lente === "ventas") && dePrioridad.some((c) => c.encargo.partes.some((p) => p.tema === "comercial") && c.encargo.partes.some((p) => p.tema === "cobranza")) && dePrioridad.some((c) => c.encargo.partes.some((p) => p.tema === "inventario" && p.universo && p.universo.top && p.universo.top.metrica === "ventas")), "…todos con la lente «ventas»: una parte comercial más una de cobranza, y partes de inventario por SKU con un top por ventas");
+    ok(cobertura.casos.slice(0, delasCeldas.length + conteosDeCadena.length).every((c) => !/:prioridad:/.test(c.id)) && cobertura.casos.slice(delasCeldas.length + conteosDeCadena.length).every((c) => /:prioridad:/.test(c.id)), "los de prioridad van AL FINAL: después de las celdas y de los conteos");
+    const otraP = generarPrioridadPorParte(base, { semilla: SEMILLA_COBERTURA, n: 48 }), otraQ = generarPrioridadPorParte(base, { semilla: SEMILLA_COBERTURA + "-b", n: 48 });
+    ok(JSON.stringify(otraP.casos) === JSON.stringify(dePrioridad) && JSON.stringify(otraP.casos) !== JSON.stringify(otraQ.casos), "los encargos de prioridad por parte son determinísticos (misma semilla, mismos encargos) y otra semilla da otros"); }
   const dims = new Set([...espacio.validas.values()].map((c) => c.dim));
   ok(["P", "C", "U", "F", "F2", "Q", "K", "D", "S", "M", "M3"].every((d) => dims.has(d)) && espacio.validas.size >= 1900, `el espacio válido cubre las once dimensiones (${espacio.validas.size} celdas que el validador acepta; ${espacio.noConstruibles.length} combinaciones que no, p. ej. la bodega de un SKU aplicada a una marca)`);
   const aud = auditarCobertura(base, cobertura.casos, { espacio });
@@ -658,7 +669,7 @@ H("4i · carnadas de la 54 (mediciones v31 y v32): los eslabones de un conteo (F
   /* (c) la 50(b) en todos los caminos: la lente «ventas» sobre inventario por SKU se declara y no ordena, aunque el universo use un top por ventas (H72, v31) */
   const E3 = comp("E54c", v({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital"], eje: "sku", universo: { eje: "sku", top: { metrica: "ventas", k: 3 } } }], criterio: { lente: "ventas" } }));
   const iP = E3.ok ? E3.entrega.respuesta.findIndex((r) => /^Prioridad del procedimiento dentro de este grupo/.test(r.texto)) : -1;
-  ok(!!F1 && iP >= 0 && /por venta \(el criterio pedido, ventas, no ordena este grupo\): SAM-TV55/.test(E3.entrega.respuesta[iP].texto) && revisarEntrega(E3, [F1]).length === 0, "54(c) · H72: la lente «ventas» sobre una parte de inventario con un top por ventas se declara («el criterio pedido, ventas, no ordena este grupo») y el control de la F1 no marca nada");
+  ok(!!F1 && iP >= 0 && /por venta, el top que se pidió: SAM-TV55/.test(E3.entrega.respuesta[iP].texto) && !/no ordena este grupo/.test(E3.entrega.respuesta[iP].texto) && revisarEntrega(E3, [F1]).length === 0, "54(c) corregida por la 55(a) · H72: con un top por ventas la lista la ordena la venta y la oración lo dice («por venta, el top que se pidió»), sin declarar que «ventas» no ordena; el control de la F1 no marca nada");
   if (F1 && iP >= 0) {
     ok(regla(revisarEntrega(conRespuesta(E3, (r, k) => (k === iP ? { ...r, texto: "Prioridad del procedimiento dentro de este grupo, por ventas: SAM-TV55, con $13.3M en venta." } : r)), [F1]), "ventas-sobre-inventario-ordena"), "«por ventas: SAM-TV55, con $13.3M en venta» sobre inventario (la lente nombrada como la que ordenó) → ventas-sobre-inventario-ordena");
     ok(!regla(revisarEntrega(conRespuesta(E3, (r, k) => (k === iP ? { ...r, texto: "Prioridad del procedimiento dentro de este grupo, por capital (el criterio pedido, ventas, no ordena este grupo): SAM-REF500L, con $19K en capital." } : r)), [F1]), "ventas-sobre-inventario-ordena"), "la lente declarada sobre otra medida («por capital (el criterio pedido, ventas, no ordena este grupo)») no marca la regla");
@@ -688,6 +699,59 @@ H("4i · carnadas de la 54 (mediciones v31 y v32): los eslabones de un conteo (F
   { const deCadena = cobertura.casos.filter((c) => /:conteos:/.test(c.id)); let veri = 0, malas = [];
     for (const c of deCadena.filter((x) => x.celda === "CONTEO:m-igual-al-final" || x.celda === "CONTEO:n-falso")) { const e = entregaDe(base, c); const i = e.ok ? e.entrega.respuesta.findIndex((r) => r._premisa && r.hechos[0] === "q1") : -1; if (i < 0 || !/(?:es correcto|no es así) — /.test(e.entrega.respuesta[i].texto)) continue; veri++; const dice = /es correcto — /.test(e.entrega.respuesta[i].texto); if (dice !== (c.celda === "CONTEO:m-igual-al-final")) malas.push(c.id); }
     ok(veri >= 20 && malas.length === 0, `los conteos de cadena del sub-azar (${veri} verificados): «n de n» sobre el universo final se juzga verdadero y un n falso, falso`, malas.slice(0, 4).join(", ")); }
+}
+
+H("4j · carnadas de la 55 (mediciones v33 y v34): un top por ventas ordena la lista (54c corregida) · el nombre de la lente es POR PARTE (52a) · la lista tras «ninguna cuenta queda primera» conserva el orden · el % con la forma de la casa");
+{
+  const F1 = familias.find((f) => f.id === "F1");
+  const regla = (vs, r) => vs.some((x) => x.regla === r);
+  const v = (parte) => ({ version: "encargo/v1", ...parte });
+  const comp = (id, enc) => entregaDe(base, { origen: "gate", id, encargo: enc });
+  const cambia = (e, re, texto) => ({ ...e, entrega: { ...e.entrega, respuesta: e.entrega.respuesta.map((r) => (re.test(r.texto) ? { ...r, texto } : r)) } });
+  const frase = (e, re) => (e.ok ? (e.entrega.respuesta.find((r) => re.test(r.texto)) || { texto: "" }).texto : "");
+  const PRIO_G = /^Prioridad del procedimiento dentro de este grupo/, PRIO_C = /^Prioridad del procedimiento, por /;
+  /* (a) la 55(a): el universo ya viene ordenado por venta (un top por ventas): lo que ordenó la lista es la venta; no se declara «ventas no ordena este grupo» (E20 · E55 · E81 · E82 · E83 de v34) */
+  const A = comp("E55a", v({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["dias_inventario", "capital"], eje: "sku", universo: { eje: "sku", estados: ["capital sano"], top: { metrica: "ventas", k: 4 } } }], criterio: { lente: "ventas" } }));
+  ok(!!F1 && A.ok && /por venta, el top que se pidió: SAM-TV55, con \$13\.3M en venta\.$/.test(frase(A, PRIO_G)) && !/no ordena/.test(frase(A, PRIO_G)) && revisarEntrega(A, [F1]).length === 0, "55(a) · E81: inventario por SKU con un top por ventas y la lente «ventas» → «por venta, el top que se pidió: SAM-TV55, con $13.3M en venta», sin declarar que «ventas» no ordena; el control no marca nada");
+  if (F1 && A.ok) {
+    ok(regla(revisarEntrega(cambia(A, PRIO_G, "Prioridad del procedimiento dentro de este grupo, por venta (el criterio pedido, ventas, no ordena este grupo): SAM-TV55, con $13.3M en venta."), [F1]), "oracion-dice-que-no-ordena-y-ordena"), "la oración que dice «ventas no ordena este grupo» mientras ordena por venta (lo que hacía la 54c) → oracion-dice-que-no-ordena-y-ordena");
+    ok(regla(revisarEntrega(cambia(A, PRIO_G, "Prioridad del procedimiento dentro de este grupo, por capital (el criterio pedido, ventas, no ordena este grupo): LG-WASH11KG, con $15K en capital."), [F1]), "oracion-dice-que-no-ordena-y-ordena"), "dice «ventas no ordena» y el universo de la parte ya viene ordenado por venta (aunque la medida nombrada sea otra) → oracion-dice-que-no-ordena-y-ordena");
+    ok(regla(revisarEntrega(cambia(A, PRIO_G, "Prioridad del procedimiento dentro de este grupo, por ventas: SAM-TV55, con $13.3M en venta."), [F1]), "ventas-sobre-inventario-ordena"), "«por ventas: SAM-TV55» sobre inventario (la lente nombrada como la que ordenó) → ventas-sobre-inventario-ordena");
+  }
+  /* sin un top por ventas la lente SÍ se declara (50b): el control no marca la declaración y marca «el top que se pidió» sin top por esa medida */
+  const A2 = comp("E55a2", v({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital"], eje: "sku", universo: { eje: "sku", top: { metrica: "capital", k: 3 } } }], criterio: { lente: "ventas" } }));
+  ok(!!F1 && A2.ok && /por capital \(el criterio pedido, ventas, no ordena este grupo\): SAM-REF500L/.test(frase(A2, PRIO_G)) && revisarEntrega(A2, [F1]).length === 0, "55(a) · sin un top por ventas (el top es por capital) la lente «ventas» sobre inventario se declara («no ordena este grupo») y el control no marca nada");
+  if (F1 && A2.ok) ok(regla(revisarEntrega(cambia(A2, PRIO_G, "Prioridad del procedimiento dentro de este grupo, por venta, el top que se pidió: SAM-REF500L, con $19K en capital."), [F1]), "por-el-top-sin-top"), "«por venta, el top que se pidió» cuando el top es por capital → por-el-top-sin-top");
+  /* (b) la 55(b): el nombre de la lente «ventas» es POR PARTE — F30 de v33: una decision comercial y una lectura de cobranza */
+  const B = comp("F30c", v({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["variacion", "ventas"] }, { id: "p2", tema: "cobranza", cierre: "lectura", conceptos: ["saldo_pendiente"] }], criterio: { lente: "ventas" } }));
+  ok(!!F1 && B.ok && /por ventas: Falabella, con \$19\.4M en venta\.$/.test(frase(B, PRIO_C)) && revisarEntrega(B, [F1]).length === 0, "55(b) · F30: una decision comercial más una lectura de cobranza con la lente «ventas» → «por ventas: Falabella, con $19.4M en venta» (no «venta a crédito»); el control no marca nada");
+  const Bd = comp("F30d", v({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["ventas", "margen"] }, { id: "p2", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido"] }], criterio: { lente: "ventas" } }));
+  ok(!!F1 && Bd.ok && /por ventas: Falabella/.test(frase(Bd, PRIO_C)) && revisarEntrega(Bd, [F1]).length === 0, "55(b) · con una decision comercial y otra de cobranza la lente se dice «ventas» (la parte comercial ordena por la venta del período)");
+  if (F1 && B.ok) ok(regla(revisarEntrega(cambia(B, PRIO_C, "Prioridad del procedimiento, por venta a crédito: Falabella, con $19.4M en venta a crédito."), [F1]), "venta-a-credito-fuera-de-cobranza"), "«por venta a crédito» en una oración cuya parte que decide es comercial (aunque el encargo tenga una parte de cobranza) → venta-a-credito-fuera-de-cobranza");
+  const C = comp("F30e", v({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido", "saldo_pendiente"] }], criterio: { lente: "ventas" } }));
+  ok(!!F1 && C.ok && /por venta a crédito: Falabella, con \$19\.4M en venta a crédito\.$/.test(frase(C, PRIO_C)) && revisarEntrega(C, [F1]).length === 0, "55(b) · una decision de COBRANZA con la lente «ventas» sigue diciendo «por venta a crédito» (52a)");
+  if (F1 && C.ok) ok(regla(revisarEntrega(cambia(C, PRIO_C, "Prioridad del procedimiento, por ventas: Falabella, con $19.4M en venta a crédito."), [F1]), "ventas-en-cobranza-sin-credito"), "«por ventas» en una oración cuya única parte que decide es de cobranza → ventas-en-cobranza-sin-credito");
+  /* (c) la 55(c): tras «ninguna cuenta queda primera» la lista conserva el orden del top pedido (E03 de v34: «las 4 que más recuperaron» con la lente exposición de crédito) */
+  const D = comp("E55c", v({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["recuperado", "saldo_pendiente"], universo: { eje: "cliente", top: { metrica: "recuperado", k: 4 } } }], criterio: { lente: "credito" } }));
+  ok(!!F1 && D.ok && /ninguna cuenta queda primera, porque el grupo \(.*\) no trae saldo vencido; la lista se ordenó por recuperado: Mercado Libre \(77\.8%\), Ripley \(77\.8%\), La Polar \(71\.4%\)\.$/.test(frase(D, PRIO_G)) && revisarEntrega(D, [F1]).length === 0, "55(c) · E03: «ninguna cuenta queda primera» y la lista conserva el orden del top pedido (Mercado Libre, Ripley, La Polar); el control no marca nada");
+  if (F1 && D.ok) {
+    ok(regla(revisarEntrega(cambia(D, PRIO_G, "Prioridad del procedimiento dentro de este grupo, por exposición de crédito: ninguna cuenta queda primera, porque el grupo (Mercado Libre, Ripley, La Polar, Hites, ABC, Unimarc) no trae saldo vencido; la lista se ordenó por recuperado: La Polar (71.4%), Ripley (77.8%), Mercado Libre (77.8%)."), [F1]), "lista-tras-ninguna-pierde-el-orden"), "la lista tras «ninguna cuenta queda primera» invertida (de menor a mayor, como pedía la 50a para la oración) → lista-tras-ninguna-pierde-el-orden");
+  }
+  /* (56) la lente «crecimiento»: su medida es la variación vs año anterior; donde el dato la publica la lente APLICA y ordena al mayor («por crecimiento: …»), sin declarar que no ordena (S64 · P22 · L22 · L24); a quien no tiene dato se le aplica la 52(b) (M25: Makita) */
+  const G = comp("S64c", v({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["variacion", "ventas"], eje: "familia" }], criterio: { lente: "crecimiento" } }));
+  ok(!!F1 && G.ok && /por crecimiento: Línea Blanca, con 15\.6% en variación vs año anterior\.$/.test(frase(G, PRIO_G)) && revisarEntrega(G, [F1]).length === 0, "56 · S64: la lente «crecimiento» sobre una decision comercial por familia → «por crecimiento: Línea Blanca, con 15.6% en variación vs año anterior» (va primero el de mayor variación); el control no marca nada");
+  if (F1 && G.ok) {
+    ok(regla(revisarEntrega(cambia(G, PRIO_G, "Prioridad del procedimiento dentro de este grupo, por variación vs año anterior (el criterio pedido, crecimiento, no ordena este grupo): Línea Blanca, con 15.6% en variación vs año anterior."), [F1]), "oracion-dice-que-no-ordena-y-ordena"), "la oración que declara «crecimiento no ordena este grupo» mientras ordena por la variación vs año anterior (lo que hacía el código) → oracion-dice-que-no-ordena-y-ordena (firme)");
+    ok(regla(revisarEntrega(cambia(G, PRIO_G, "Prioridad del procedimiento dentro de este grupo, por crecimiento: Cuidado Personal, con 7.1% en variación vs año anterior."), [F1]), "primero-no-pide-atencion"), "«por crecimiento» que corona a quien no tiene la mayor variación → primero-no-pide-atencion");
+  }
+  const Gm = comp("M25c", v({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["carga", "variacion"], eje: "marca" }], criterio: { lente: "crecimiento" } }));
+  ok(!!F1 && Gm.ok && /por crecimiento: LG, con \+?15\.6% en variación vs año anterior\.$/.test(frase(Gm, PRIO_G)) && /sin dato de variación vs año anterior para Makita/.test(Gm.texto) && revisarEntrega(Gm, [F1]).length === 0, "56 · M25: una marca sin variación (Makita) se declara «sin dato de variación vs año anterior para Makita» (52b) y la lente ordena a las demás; el control no marca nada");
+  const Gi = comp("L56i", v({ partes: [{ id: "p1", tema: "inventario", cierre: "decision", conceptos: ["capital"], eje: "sku", universo: { eje: "sku", top: { metrica: "capital", k: 3 } } }], criterio: { lente: "crecimiento" } }));
+  ok(!!F1 && Gi.ok && /\(el criterio pedido, crecimiento, no ordena este grupo\)/.test(frase(Gi, PRIO_G)) && revisarEntrega(Gi, [F1]).length === 0, "56 · donde el dato no publica la variación para el eje de la parte (inventario por SKU) la lente «crecimiento» se declara (50b) y el control no marca nada");
+  /* la presentación (v33 F09.q3): un % negativo de la verdad propia con la forma de la casa («-5%», no «-5.0%») */
+  const U9 = { eje: "cliente", estados: ["en mora"], filtros: [{ metrica: "carga", op: ">", valor: 4 }, { metrica: "variacion", op: ">", valor: 0 }], top: { metrica: "saldo_pendiente", k: 2 }, excluir: { entidades: ["Lider"] } };
+  const E9 = comp("F09q3", v({ partes: [{ id: "p1", tema: "cobranza", cierre: "lectura", conceptos: ["saldo_vencido", "saldo_pendiente"], universo: U9 }], premisas: [{ id: "q3", tipo: "grupo", miembros: ["Easy"], universo: U9 }] }));
+  ok(E9.ok && /no es así — Easy: variación vs año anterior -5%\./.test(E9.texto) && !/-5\.0%/.test(E9.texto), "presentación · F09.q3: la verdad propia de Easy dice «-5%» (el formato de la casa), no «-5.0%»");
 }
 
 H("5 · independencia del control y cableado de la pieza (estático)");
