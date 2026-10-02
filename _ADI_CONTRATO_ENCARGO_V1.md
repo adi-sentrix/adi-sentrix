@@ -847,6 +847,15 @@ venta a crédito, ley del owner).
     concepto que sí se publica en ese eje. Nunca se declina con una lista de alternativas vacía.
     (c) La 50(b) se aplica igual en todos los caminos: la lente «ventas» sobre una parte de INVENTARIO por SKU se declara y
     no ordena, aunque el universo de la parte use un top por ventas.
+55. [2026-10-02, supervisor; mediciones v33 y v34] Corrige la 54(c) y precisa la 50(a) y la 52(a).
+    (a) Corrige la 54(c): si el universo de la parte YA viene ordenado por venta (un top por ventas que pidió el usuario), lo
+    que ordenó la lista es la venta, y la oración lo nombra así («por venta, el top que se pidió»), sin declarar «ventas no
+    ordena este grupo». Una oración nunca dice que una medida no ordena y a la vez ordena por ella. Sin ese top, la lente
+    «ventas» sobre inventario se declara como dice la 50(b).
+    (b) La 52(a) es por PARTE: «por venta a crédito» se dice solo en una parte de COBRANZA. En una parte comercial la lente
+    «ventas» ordena por la venta del período y se dice «por ventas», aunque el mismo encargo tenga una parte de cobranza.
+    (c) Tras «ninguna cuenta queda primera» (47a), la lista conserva el orden del top o del universo que se pidió; la 50(a)
+    rige la oración de prioridad, no esa lista.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
