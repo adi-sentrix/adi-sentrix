@@ -9,7 +9,7 @@
  * CERO llamadas a una base, cero red: solo lee el archivo `.sql` del disco y lo compara contra módulos ya
  * importados. Solo por `npm run gates:offline` (o `node --import ./scripts/offline-guard.mjs _migracion_015_gate.mjs`). */
 import { readFileSync } from "node:fs";
-import { CLASES_HECHO_EMPRESA, ORIGENES_HECHO_EMPRESA, ESTADOS_HECHO_EMPRESA } from "./src/adi/continuidad/empresa.js";
+import { CLASES_HECHO_EMPRESA, ORIGENES_HECHO_EMPRESA, ESTADOS_HECHO_EMPRESA, CAMPOS_PERFIL_DECLARABLES, esConceptoReservadoDePerfil } from "./src/adi/continuidad/empresa.js";
 import { LIBRO_TOPE_BYTES } from "./src/adi/continuidad/libro.js";
 
 let PASS = 0, FAIL = 0;
@@ -31,7 +31,8 @@ H("2 · el check de `memoria_empresa` usa EXACTAMENTE el vocabulario de `continu
   const claseCheck = /check \(clase in \(([^)]+)\)\)/.exec(sql);
   ok(!!claseCheck, "el check de `clase` existe", sql.slice(0, 200));
   const clasesSql = claseCheck ? claseCheck[1].split(",").map((s) => s.trim().replace(/'/g, "")) : [];
-  ok(JSON.stringify(clasesSql) === JSON.stringify(CLASES_HECHO_EMPRESA.filter((c) => c !== "perfil")), `★ CARNADA · clases del SQL (${clasesSql.join("·")}) = CLASES_HECHO_EMPRESA sin "perfil" (${CLASES_HECHO_EMPRESA.filter((c) => c !== "perfil").join("·")}) — si alguien cambia una lista sin la otra, esto arde`);
+  /* la clase «perfil» vive acá desde el 2026-10-03 (owner, decisión 3 del bloque 2): el check SQL y la lista del código son LA MISMA, completa */
+  ok(JSON.stringify([...clasesSql].sort()) === JSON.stringify([...CLASES_HECHO_EMPRESA].sort()) && clasesSql.includes("perfil"), `★ CARNADA · clases del SQL (${clasesSql.join("·")}) = CLASES_HECHO_EMPRESA (${CLASES_HECHO_EMPRESA.join("·")}), con «perfil» — si alguien cambia una lista sin la otra, esto arde`);
 
   const origenCheck = /check \(origen in \(([^)]+)\)\)/.exec(sql);
   const origenesSql = origenCheck ? origenCheck[1].split(",").map((s) => s.trim().replace(/'/g, "")) : [];
@@ -40,6 +41,33 @@ H("2 · el check de `memoria_empresa` usa EXACTAMENTE el vocabulario de `continu
   const estadoCheck = /check \(estado in \(([^)]+)\)\)/.exec(sql);
   const estadosSql = estadoCheck ? estadoCheck[1].split(",").map((s) => s.trim().replace(/'/g, "")) : [];
   ok(JSON.stringify(estadosSql) === JSON.stringify(ESTADOS_HECHO_EMPRESA), `★ CARNADA · estados del SQL (${estadosSql.join("·")}) = ESTADOS_HECHO_EMPRESA (${ESTADOS_HECHO_EMPRESA.join("·")})`);
+}
+
+/* ═══ 2b · LA CLASE «PERFIL» (owner 2026-10-03): el SQL y el código dicen LO MISMO de qué es un perfil y qué conceptos reserva ═══ */
+H("2b · la clase «perfil»: los campos, el origen y los conceptos reservados del SQL = los de `empresa.js`; la función de aportar los valida; todo idempotente");
+{
+  const lista = (re) => { const m = re.exec(sql); return m ? m[1].split(",").map((s) => s.trim().replace(/'/g, "")) : null; };
+  const camposSql = lista(/memoria_empresa_perfil_forma\s+check \(clase <> 'perfil' or \(concepto in \(([^)]+)\)/);
+  ok(!!camposSql && JSON.stringify(camposSql) === JSON.stringify([...CAMPOS_PERFIL_DECLARABLES]), `★ CARNADA · los campos del check de forma (${(camposSql || []).join("·")}) = CAMPOS_PERFIL_DECLARABLES (${CAMPOS_PERFIL_DECLARABLES.join("·")})`);
+  ok(/memoria_empresa_perfil_forma\s+check \(clase <> 'perfil' or \(concepto in \([^)]+\) and origen = 'declarado'\)\)/.test(sql), "el perfil es SIEMPRE «declarado» (nunca medido ni de documento)");
+  const reservadosSql = lista(/memoria_empresa_perfil_reservado\s+check \(clase = 'perfil' or \(lower\(btrim\(concepto\)\) not in \(([^)]+)\)/);
+  ok(!!reservadosSql && reservadosSql.every((c) => esConceptoReservadoDePerfil(c)) && reservadosSql.length === 6, `★ CARNADA · los conceptos reservados del SQL (${(reservadosSql || []).join("·")}) los reserva TODOS el código`);
+  const delCodigo = ["sector", "tipoProducto", "tipo_producto", "modeloComercial", "modelo_comercial", "pais", "PAIS", "perfil:sector", "Perfil:Pais"];
+  ok(delCodigo.every((c) => esConceptoReservadoDePerfil(c)) && !esConceptoReservadoDePerfil("plazo_de_cobro") && !esConceptoReservadoDePerfil("sectorial"), "y el código no reserva de más ni de menos: los cuatro campos (también en snake_case y con otras mayúsculas) y el prefijo viejo; un concepto cualquiera no");
+  ok(reservadosSql && ["sector", "tipoproducto", "tipo_producto", "modelocomercial", "modelo_comercial", "pais"].every((c) => reservadosSql.includes(c)) && /lower\(btrim\(concepto\)\) not like 'perfil:%'/.test(sql), "el SQL reserva los cuatro campos (en minúscula, snake_case incluido) y el prefijo viejo `perfil:`");
+  // la función de aportar valida lo mismo que los checks (con mensaje), y admite la omisión sin valor
+  const fAportar = /create or replace function public\.adi_aportar_hecho_empresa[\s\S]*?\n\$\$;/.exec(sql);
+  const cuerpo = fAportar ? fAportar[0] : "";
+  ok(/p_clase not in \('criterio', 'hecho', 'documento', 'perfil'\)/.test(cuerpo) && /if p_clase = 'perfil' then/.test(cuerpo) && /not in \('sector', 'tipoProducto', 'modeloComercial', 'pais'\)/.test(cuerpo) && /p_origen <> 'declarado'/.test(cuerpo) && /p_estado is distinct from 'omitido'/.test(cuerpo), "`adi_aportar_hecho_empresa` admite la clase «perfil» y la valida: campo conocido, origen «declarado», código en valor.texto (la omisión no lo lleva)");
+  ok(/lower\(trim\(p_concepto\)\) like 'perfil:%'/.test(cuerpo) && /es de perfil: el perfil de la empresa se declara con la clase «perfil»/.test(cuerpo), "y rechaza un criterio/hecho/documento con un concepto de perfil, diciendo cómo se declara");
+  // confirmar/retirar/leer NO filtran ni validan por clase: lo que vale para un criterio vale para un perfil (se confirma, se retira, se lee)
+  const resto = sql.slice(sql.indexOf("create or replace function public.adi_confirmar_hecho_empresa"), sql.indexOf("-- 3 · EL LIBRO DE CONVERSACIÓN"));
+  ok(resto.length > 500 && !/\bclase\b/.test(resto.replace(/--[^\n]*/g, "")), "confirmar · retirar · leer no filtran ni validan por clase (un perfil se confirma, se retira y se lee como cualquier otra fila)");
+  // idempotencia: cada constraint se suelta antes de agregarse; el check de clase lleva nombre para poder reemplazarse
+  ok(["memoria_empresa_clase_check", "memoria_empresa_perfil_forma", "memoria_empresa_perfil_reservado"].every((n) => new RegExp(`drop constraint if exists ${n};\\s*\\n\\s*alter table public\\.memoria_empresa add constraint ${n}`).test(sql)), "★ idempotente: cada constraint de la clase «perfil» se suelta (if exists) antes de agregarse — correr la 015 dos veces es inocuo, y una base con el check viejo se actualiza");
+  // la 015 es la ÚNICA migración que se tocó: ninguna otra menciona la clase «perfil» de memoria_empresa
+  const otras = ["012_perfil_empresa.sql", "013_perfil_taxonomia_siembra.sql", "009_conversaciones.sql"].map((f) => readFileSync(new URL(`./db/migraciones/${f}`, import.meta.url), "utf8"));
+  ok(otras.every((t) => !/memoria_empresa/.test(t)), "ninguna migración anterior menciona `memoria_empresa`: la clase se amplió solo en la 015");
 }
 
 /* ═══ 3 · EL TOPE DE 16KB del libro — el mismo número en el código y en el `check` de la base ═══ */

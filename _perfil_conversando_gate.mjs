@@ -18,9 +18,8 @@
  *       limitación; un valor inválido se rechaza con las opciones y no se guarda nada; reinicio (la base del bloque 1): el
  *       perfil sigue; sin perfil, lo que no lo necesita funciona igual y no pregunta; tres empresas intercaladas sin cruce.
  *       Corre contra el código real sobre la memoria durable (doble de Supabase) y sobre la memoria del proceso.
- *   §4  LAS CARNADAS del guion: el código de antes (el perfil se rechazaba) y ocho defectos (repite la pregunta, pregunta lo
- *       que no hace falta, inventa un valor, origen equivocado, mezcla empresas, la Entrega no lee el perfil, no declara la
- *       limitación, ignora la omisión): el guion TIENE que ponerse rojo en cada una.
+ *   §4  LAS CARNADAS del guion: el código de antes (el perfil se rechazaba) y nueve defectos (repite la pregunta, pregunta lo
+ *       que no hace falta, inventa un valor, origen equivocado, guarda el perfil como «hecho», mezcla empresas, la Entrega no lee el perfil, no declara la limitación, ignora la omisión): el guion TIENE que ponerse rojo en cada una.
  *   §5  CONVERSACIONES AL AZAR (semilla fija) contra un modelo independiente: nunca pregunta dos veces lo ya respondido u
  *       omitido, siempre pregunta lo que hace falta, nunca un valor fuera de la taxonomía, el origen siempre «declarado»,
  *       cero cruce entre empresas. Las mismas cuatro carnadas.
@@ -116,26 +115,50 @@ function verificarRotulos(rotulos, preguntas) {
   ok(TRATO.test("¿Qué haces tú con lo que vendes?") && TRATO.test("Si su empresa vende más de una cosa") && !TRATO.test(PC.ROTULOS_PERFIL.sector.pregunta), "★ CARNADA · el control de trato marca la segunda persona y deja pasar la tercera");
 }
 
-H("1b · la memoria: el concepto reservado del perfil no se declara por la vía genérica y no se lista como un hecho");
+H("1b · la memoria: la clase «perfil» solo entra por la vía del perfil (el campo es el concepto) y no se lista como un hecho");
 {
+  { /* (i) la vía genérica y el almacén rechazan lo que no es del perfil: un almacén vacío para estas pruebas */
   const store = crearAlmacenEnMemoria();
   const r1 = await EMP.declararHecho(store, "t1", { clase: "perfil", concepto: "sector", valor: { texto: "distribucion" } });
   const r2 = await EMP.declararHecho(store, "t1", { clase: "hecho", concepto: "perfil:sector", valor: { texto: "distribucion" } });
   const r3 = await EMP.declararHecho(store, "t1", { clase: "criterio", concepto: "Perfil:Sector", valor: { texto: "fabricacion" } });
-  ok(!r1.ok && !r2.ok && !r3.ok, "★ por la vía genérica ni la clase «perfil» ni el concepto reservado (con mayúsculas tampoco) entran: un hecho cualquiera no se salta la validación de la taxonomía", JSON.stringify([r1, r2, r3]));
+  const r4 = await EMP.declararHecho(store, "t1", { clase: "hecho", concepto: "sector", valor: { texto: "distribucion" } });
+  const r5 = await EMP.declararHecho(store, "t1", { clase: "hecho", concepto: "Tipo_Producto", valor: { texto: "vence" } });
+  const r6 = await EMP.declararHecho(store, "t1", { clase: "documento", concepto: "pais", valor: { texto: "CL" }, origen: "documento", documento: { nombre: "x.pdf", tipo: "pdf", parte: "p1" } });
+  ok(!r1.ok && !r2.ok && !r3.ok, "★ por la vía genérica ni la clase «perfil» ni el prefijo viejo (con mayúsculas tampoco) entran: un hecho cualquiera no se salta la validación de la taxonomía", JSON.stringify([r1, r2, r3]));
+  ok(!r4.ok && !r5.ok && !r6.ok, "★ CARNADA · un «hecho» (o un documento) con el concepto de un campo de perfil —«sector», «Tipo_Producto», «pais»— se rechaza por la vía genérica", JSON.stringify([r4, r5, r6]));
+  const o1 = await EMP.omitirCampo(store, "t1", { clase: "hecho", concepto: "sector" });
+  const o2 = await EMP.omitirCampo(store, "t1", { clase: "perfil", concepto: "sector" });
+  ok(!o1.ok && !o2.ok, "★ la omisión genérica tampoco guarda un campo de perfil (se omite por su propia vía)", JSON.stringify([o1, o2]));
   ok((await store.leerHechosEmpresa("t1")).length === 0, "y no quedó guardado nada");
+  // el almacén (la base) repite la regla: un perfil guardado como «hecho», un «hecho» con concepto de perfil, o un perfil que no es «declarado», se RECHAZAN
+  const fila = (extra) => ({ id: "f1", clase: "hecho", concepto: "x", eje: null, entidad: null, periodo: null, valor: { raw: null, unidad: null, texto: "distribucion" }, origen: "declarado", estado: "pendiente", declaradoEn: relojDeGate(), conversacionId: null, ...extra });
+  const rechaza = async (extra) => { try { await store.guardarHechoEmpresa("t1", fila(extra)); return false; } catch (e) { return e && e.name === "ErrorDeAlmacen"; } };
+  ok(await rechaza({ clase: "hecho", concepto: "perfil:sector" }) && await rechaza({ clase: "hecho", concepto: "sector" }) && await rechaza({ clase: "criterio", concepto: "pais" }) && await rechaza({ clase: "perfil", concepto: "perfil:sector" }) && await rechaza({ clase: "perfil", concepto: "moneda" }) && await rechaza({ clase: "perfil", concepto: "sector", origen: "medido" }) && await rechaza({ clase: "perfil", concepto: "sector", origen: "documento" }), "★ CARNADA · el almacén rechaza un perfil guardado como «hecho» (con o sin el prefijo viejo), un criterio con concepto de perfil, un perfil de un campo que no existe o con origen que no es «declarado»");
+  let guardoBien = true; try { await store.guardarHechoEmpresa("t1", fila({ id: "f2", clase: "perfil", concepto: "sector" })); await store.guardarHechoEmpresa("t1", fila({ id: "f3", clase: "hecho", concepto: "plazo_de_cobro" })); } catch (_e) { guardoBien = false; }
+  ok(guardoBien && (await store.leerHechosEmpresa("t1")).length === 2, "y lo bien formado sí entra: un perfil de un campo «declarado», y un hecho cualquiera");
+  }
+  /* (ii) por su propia vía, el perfil se guarda, se confirma y se lee */
+  const store = crearAlmacenEnMemoria();
   const ok1 = await EMP.declararPerfilCampo(store, "t1", { campo: "sector", codigo: "distribucion" }, { conversacionId: "c1" });
-  ok(ok1.ok && ok1.estado === "pendiente" && ok1.entendido.origen === "declarado" && ok1.entendido.clase === "hecho" && ok1.entendido.concepto === "perfil:sector", "por su propia vía: se guarda «declarado», pendiente, con el concepto reservado (clase «hecho»: la 015 no admite «perfil»)");
+  ok(ok1.ok && ok1.estado === "pendiente" && ok1.entendido.origen === "declarado" && ok1.entendido.clase === "perfil" && ok1.entendido.concepto === "sector", "por su propia vía: se guarda «declarado», pendiente, con la clase «perfil» y el campo como concepto (sin prefijo)");
   await EMP.confirmarHecho(store, "t1", ok1.id, { resolverConflicto: true });
   const mem = await EMP.memoriaDeEmpresa(store, "t1");
   ok(mem.hechos.length === 0, "la vista de «memoria de empresa» NO lista las filas de perfil como hechos (se leen validadas, con `leerPerfilDeclarado`)");
   const e = await EMP.leerPerfilDeclarado(store, "t1");
   ok(e.vigentes.sector && e.vigentes.sector.valor === "distribucion" && e.vigentes.sector.origen === "declarado" && e.vigentes.sector.confirmacion && e.vigentes.sector.confirmacion.por !== undefined, "leído: vigente, origen «declarado» y el sello de confirmación APARTE");
   // falla cerrado: una fila de perfil escrita por fuera de la puerta, con un valor que la taxonomía no tiene o con otro origen, NO se sirve
-  await store.guardarHechoEmpresa("t1", { id: "x1", clase: "hecho", concepto: "perfil:pais", eje: null, entidad: null, periodo: null, valor: { raw: null, unidad: null, texto: "Atlántida" }, origen: "declarado", estado: "vigente", declaradoEn: relojDeGate(), conversacionId: null });
-  await store.guardarHechoEmpresa("t1", { id: "x2", clase: "hecho", concepto: "perfil:modeloComercial", eje: null, entidad: null, periodo: null, valor: { raw: null, unidad: null, texto: "comercios" }, origen: "medido", estado: "vigente", declaradoEn: relojDeGate(), conversacionId: null });
-  const e2 = await EMP.leerPerfilDeclarado(store, "t1");
+  // (el almacén «sin muro de forma» deja guardar filas que la base rechazaría: así se prueba al LECTOR, defensa en profundidad)
+  const crudo = crearAlmacenEnMemoria({ sinMuroDeForma: true });
+  const fx = (id, clase, concepto, texto, origen = "declarado") => ({ id, clase, concepto, eje: null, entidad: null, periodo: null, valor: { raw: null, unidad: null, texto }, origen, estado: "vigente", declaradoEn: relojDeGate(), conversacionId: null });
+  await crudo.guardarHechoEmpresa("t1", fx("x1", "perfil", "pais", "Atlántida"));
+  await crudo.guardarHechoEmpresa("t1", fx("x2", "perfil", "modeloComercial", "comercios", "medido"));
+  await crudo.guardarHechoEmpresa("t1", fx("x3", "hecho", "sector", "distribucion"));
+  await crudo.guardarHechoEmpresa("t1", fx("x4", "hecho", "perfil:sector", "fabricacion"));
+  const e2 = await EMP.leerPerfilDeclarado(crudo, "t1");
   ok(!e2.vigentes.pais && !e2.vigentes.modeloComercial, "★ FALLA CERRADO: una fila con un código fuera de la taxonomía o con un origen que no es «declarado» NO cuenta (nunca se sirve un valor que la taxonomía no avala)");
+  ok(!e2.vigentes.sector && Object.keys(e2.pendientes).length === 0, "★ CARNADA · un perfil guardado como «hecho» (con el campo como concepto o con el prefijo viejo) NO cuenta como perfil: solo cuenta la clase «perfil»");
+  ok((await EMP.memoriaDeEmpresa(crudo, "t1")).hechos.length === 0, "y tampoco se lista entre los hechos de la memoria");
   // el valor se valida contra la taxonomía, exacto
   const V = (campo, cod, sector) => EMP.validarValorDePerfil(campo, cod, { sector });
   ok(V("sector", "distribucion").ok && !V("sector", "Distribución").ok && !V("sector", "DISTRIBUCION").ok && !V("sector", "").ok && !V("sector", 3).ok && !V("sector", null).ok && !V("pais", "cl").ok && V("pais", "CL").ok, "el valor es el CÓDIGO exacto de una opción: ni el rótulo, ni mayúsculas, ni vacío, ni un número");
@@ -204,7 +227,7 @@ H("2 · `necesitaPerfil`: solo lo que hace falta para lo pedido; si no falta nad
 }
 
 /* ═══ 3-5 · LOS BANCOS: la puerta real (memoria durable sobre el doble de Supabase) y la puerta con el defecto inyectado ═ */
-const filasDeStore = (rows) => (rows || []).filter((f) => String(f.concepto || "").startsWith("perfil:")).map((f) => ({ id: f.id, concepto: f.concepto, estado: f.estado, origen: f.origen, valor: f.valor, confirmacion: f.confirmacion || null, clase: f.clase }));
+const filasDeStore = (rows) => (rows || []).filter((f) => f.clase === "perfil" || EMP.esConceptoReservadoDePerfil(f.concepto)).map((f) => ({ id: f.id, concepto: f.concepto, estado: f.estado, origen: f.origen, valor: f.valor, confirmacion: f.confirmacion || null, clase: f.clase }));
 
 /* (a) la puerta REAL contra el doble de Supabase: lo durable (con reinicio de la base) */
 async function bancoDurable({ empresas = EMPRESAS_P, latenciaMaxMs = 2, semilla = SEMILLA } = {}) {
@@ -223,9 +246,9 @@ async function bancoDurable({ empresas = EMPRESAS_P, latenciaMaxMs = 2, semilla 
 }
 
 /* (b) la puerta con las acciones INYECTADAS sobre una memoria del proceso: el código real, o con un defecto (la carnada) */
-async function bancoInyectado({ envolverStore = (s) => s, envolverAcciones = (a) => a, empresas = EMPRESAS_P, nombre = "puerta · memoria del proceso" } = {}) {
+async function bancoInyectado({ envolverStore = (s) => s, envolverAcciones = (a) => a, empresas = EMPRESAS_P, nombre = "puerta · memoria del proceso", sinMuro = false } = {}) {
   const ent0 = await armarEntornoDoble({ empresas, latenciaMaxMs: 0, durable: false });   // el doble solo resuelve QUIÉN es cada empresa (token → tenant)
-  const store = envolverStore(crearAlmacenEnMemoria());
+  const store = envolverStore(crearAlmacenEnMemoria({ sinMuroDeForma: sinMuro }));
   let manejarPuerta = ent0.manejarPuerta, llamar;
   const armar = () => {
     const acc = envolverAcciones(crearAcciones({ continuidad: store, conocimiento: CONOC, ahora: relojDeGate }), store);
@@ -330,8 +353,8 @@ async function guion(banco) {
   const basura = ["xyz", 123, "", { texto: "mayorista" }, ["distribucion"], "DISTRIBUCION", "distribución", { raw: 3 }];
   const g3 = await L("gamma", "aportarContexto", { conversacionId: gconv, aportes: basura.map((v) => ({ clase: "perfil", concepto: "sector", valor: v })) });
   R("V2 CUALQUIER valor fuera de la taxonomía se rechaza (texto libre, número, vacío, lista, mayúsculas, tilde)", g3.ok && g3.resultados.length === basura.length && g3.resultados.every((x) => x.estado === "rechazado"), JSON.stringify(g3.resultados.map((x) => x.estado)));
-  const g4 = await L("gamma", "aportarContexto", { conversacionId: gconv, aportes: [{ clase: "perfil", concepto: "tipoProducto", valor: "vence" }, { clase: "perfil", concepto: "pais", valor: "Chile" }, { clase: "perfil", concepto: "moneda", valor: "CLP" }, { clase: "perfil", concepto: "tamano", valor: "micro" }, { clase: "hecho", concepto: "perfil:sector", valor: "distribucion" }] });
-  R("V3 sin sector no hay tipo de producto; un rótulo de país no vale; moneda y tamaño no se declaran conversando; el concepto reservado no entra por la vía genérica", g4.ok && g4.resultados.length === 5 && g4.resultados.every((x) => x.estado === "rechazado"), JSON.stringify(g4.resultados.map((x) => x.motivo && x.motivo.slice(0, 50))));
+  const g4 = await L("gamma", "aportarContexto", { conversacionId: gconv, aportes: [{ clase: "perfil", concepto: "tipoProducto", valor: "vence" }, { clase: "perfil", concepto: "pais", valor: "Chile" }, { clase: "perfil", concepto: "moneda", valor: "CLP" }, { clase: "perfil", concepto: "tamano", valor: "micro" }, { clase: "hecho", concepto: "perfil:sector", valor: "distribucion" }, { clase: "hecho", concepto: "sector", valor: "distribucion" }] });
+  R("V3 sin sector no hay tipo de producto; un rótulo de país no vale; moneda y tamaño no se declaran conversando; ni el prefijo viejo ni el campo de perfil como «hecho» entran por la vía genérica", g4.ok && g4.resultados.length === 6 && g4.resultados.every((x) => x.estado === "rechazado"), JSON.stringify(g4.resultados.map((x) => x.motivo && x.motivo.slice(0, 50))));
   R("V3 y el país rechazado trae SUS opciones (los países de la taxonomía)", (g4.resultados[1] || {}).validos && JSON.stringify(g4.resultados[1].validos.map((o) => o.codigo)) === JSON.stringify(TAXONOMIA_PERFIL.pais));
   R("V4 NADA se guardó: ADI no inventa ni corrige un valor", (await banco.filas("gamma")).length === 0, JSON.stringify(await banco.filas("gamma")));
   const g5 = await L("gamma", "consultar", { encargo: encComercial(gconv) });
@@ -341,8 +364,8 @@ async function guion(banco) {
 
   // ── ORIGEN: todo lo guardado es «declarado» y con un valor de la taxonomía ─────────────────────────────────────────
   const todas = { alfa: await banco.filas("alfa"), beta: await banco.filas("beta"), gamma: await banco.filas("gamma") };
-  const lista = (f) => TAXONOMIA_PERFIL[EMP.LISTA_DE_CAMPO_PERFIL[f.concepto.slice(EMP.PREFIJO_PERFIL.length)]] || [];
-  R("O1 TODO lo guardado: origen «declarado», clase hecho con el concepto reservado, valor dentro de la taxonomía", Object.values(todas).flat().every((f) => f.origen === "declarado" && f.clase === "hecho" && (f.estado === "omitido" ? !(f.valor && f.valor.texto) : lista(f).includes(f.valor && f.valor.texto))), JSON.stringify(todas));
+  const lista = (f) => TAXONOMIA_PERFIL[EMP.LISTA_DE_CAMPO_PERFIL[f.concepto]] || [];
+  R("O1 TODO lo guardado: origen «declarado», clase «perfil» con el campo como concepto, valor dentro de la taxonomía", Object.values(todas).flat().every((f) => f.origen === "declarado" && f.clase === "perfil" && EMP.campoDeConceptoDePerfil(f.concepto) === f.concepto &&(f.estado === "omitido" ? !(f.valor && f.valor.texto) : lista(f).includes(f.valor && f.valor.texto))), JSON.stringify(todas));
   R("O2 lo confirmado conserva su origen y trae el sello de confirmación APARTE", todas.alfa.filter((f) => f.estado === "vigente").length === 2 && todas.alfa.filter((f) => f.estado === "vigente").every((f) => f.origen === "declarado" && f.confirmacion && f.confirmacion.cuando));
 
   // ── REINICIO: el perfil sigue (la base del bloque 1) y no se pregunta de nuevo ─────────────────────────────────────
@@ -430,6 +453,7 @@ const CARNADAS = {
   },
   "INVENTA un valor (acepta lo que no está en la taxonomía)": {
     debenFallar: ["V1", "V2", "V4"],
+    sinMuro: true,   // el defecto guarda perfiles de campos que no existen (moneda, tamaño): para medir al GUION, el almacén no los rechaza
     acciones: (acc, store) => ({
       ...acc,
       aportarContexto: async (a) => {
@@ -437,7 +461,7 @@ const CARNADAS = {
         const idx = (a.aportes || []).map((x, i) => [x, i]).filter(([x]) => x && x.clase === "perfil");
         for (const [x, i] of idx) {
           if (r.resultados && r.resultados[i] && r.resultados[i].estado === "rechazado" && typeof x.valor === "string" && x.valor.trim()) {
-            await store.guardarHechoEmpresa(a.tenant.id, { id: `inv${i}`, clase: "hecho", concepto: `perfil:${x.concepto}`, eje: null, entidad: null, periodo: null, valor: { raw: null, unidad: null, texto: x.valor }, origen: "declarado", estado: "vigente", declaradoEn: relojDeGate(), conversacionId: null });
+            await store.guardarHechoEmpresa(a.tenant.id, { id: `inv${i}`, clase: "perfil", concepto: x.concepto, eje: null, entidad: null, periodo: null, valor: { raw: null, unidad: null, texto: x.valor }, origen: "declarado", estado: "vigente", declaradoEn: relojDeGate(), conversacionId: null });
             r.resultados[i] = { id: `inv${i}`, estado: "pendiente", entendido: { clase: "perfil", concepto: x.concepto, valor: x.valor, origen: "declarado" }, paraConfirmar: true };
           }
         }
@@ -447,7 +471,13 @@ const CARNADAS = {
   },
   "guarda con el ORIGEN equivocado («medido»)": {
     debenFallar: ["O1"],
-    store: (s) => ({ ...s, guardarHechoEmpresa: (t, h) => s.guardarHechoEmpresa(t, String(h.concepto).startsWith("perfil:") ? { ...h, origen: "medido" } : h) }),
+    sinMuro: true,   // la base rechaza un perfil «medido»: para medir al GUION, el almacén de esta carnada no lo rechaza
+    store: (s) => ({ ...s, guardarHechoEmpresa: (t, h) => s.guardarHechoEmpresa(t, h.clase === "perfil" ? { ...h, origen: "medido" } : h) }),
+  },
+  "guarda el perfil como «hecho» (la clase de ANTES, con el almacén que no lo rechaza)": {
+    debenFallar: ["A5"],
+    sinMuro: true,
+    store: (s) => ({ ...s, guardarHechoEmpresa: (t, h) => s.guardarHechoEmpresa(t, h.clase === "perfil" ? { ...h, clase: "hecho" } : h) }),
   },
   "MEZCLA empresas (la memoria ignora de quién es cada fila)": {
     debenFallar: ["X1", "X2"],
@@ -462,7 +492,7 @@ const CARNADAS = {
     const estado = { ocultar: false };
     return {
       debenFallar: ["A5", "A7", "R2"],
-      store: (s) => ({ ...s, leerHechosEmpresa: async (t) => (estado.ocultar ? (await s.leerHechosEmpresa(t)).filter((h) => !String(h.concepto || "").startsWith("perfil:")) : s.leerHechosEmpresa(t)) }),
+      store: (s) => ({ ...s, leerHechosEmpresa: async (t) => (estado.ocultar ? (await s.leerHechosEmpresa(t)).filter((h) => h.clase !== "perfil") : s.leerHechosEmpresa(t)) }),
       acciones: (acc) => ({ ...acc, consultar: async (a) => { estado.ocultar = true; try { return await acc.consultar(a); } finally { estado.ocultar = false; } } }),
     };
   })(),
@@ -482,7 +512,7 @@ const CARNADAS = {
 
 H("4 · las CARNADAS del guion: con cada defecto (y con el código de ANTES) el guion TIENE que ponerse rojo");
 for (const [nombre, def] of Object.entries(CARNADAS)) {
-  const banco = await bancoInyectado({ envolverStore: def.store || ((s) => s), envolverAcciones: def.acciones || ((a) => a), nombre });
+  const banco = await bancoInyectado({ envolverStore: def.store || ((s) => s), envolverAcciones: def.acciones || ((a) => a), nombre, sinMuro: Boolean(def.sinMuro) });
   let res;
   try { res = await guion(banco); } catch (e) { res = [{ id: "EXCEPCIÓN", ok: false, det: String(e && e.message) }]; }
   const rojos = res.filter((r) => !r.ok).map((r) => r.id);
@@ -615,7 +645,7 @@ async function correrAzar({ banco, empresas, semilla, pasos, verTodo = true }) {
       const campo = EMP.campoDeConceptoDePerfil(f.concepto);
       if (!campo) { V(`${E.id}: fila de perfil con un concepto que no es un campo (${f.concepto})`); continue; }
       if (f.origen !== "declarado") V(`${E.id}: ORIGEN ${f.origen} en ${f.concepto} (siempre «declarado»)`);
-      if (f.clase !== "hecho") V(`${E.id}: clase ${f.clase} en ${f.concepto}`);
+      if (f.clase !== "perfil") V(`${E.id}: clase ${f.clase} en ${f.concepto} (el perfil es clase «perfil»)`);
       if (f.estado === "omitido") continue;
       const v = f.valor && f.valor.texto;
       if (!taxo(campo).includes(v)) V(`${E.id}: VALOR FUERA DE LA TAXONOMÍA guardado (${campo}=${v})`);

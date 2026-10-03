@@ -36,7 +36,7 @@
 import { TAXONOMIA_PERFIL, SECTORES_CON_TIPO_PRODUCTO } from "../../config/contract/taxonomiaPerfil.js";
 import { PIEZAS_CONOCIMIENTO } from "../conocimiento/piezas.js";
 import { ADI_CONOCIMIENTO } from "../../config/voiceFlags.js";
-import { CAMPOS_PERFIL_DECLARABLES, LISTA_DE_CAMPO_PERFIL, yaFueOmitido, conceptoDePerfil } from "../continuidad/empresa.js";
+import { CAMPOS_PERFIL_DECLARABLES, LISTA_DE_CAMPO_PERFIL, yaFueOmitido, conceptoDePerfil, CLASE_PERFIL } from "../continuidad/empresa.js";
 
 /* ═══ 1 · LOS RÓTULOS Y LOS SIGNIFICADOS (la propuesta aprobada, una sola vez) ═══════════════════════════════════════ */
 export const ROTULOS_PERFIL = Object.freeze({
@@ -254,7 +254,7 @@ export async function armarPerfilConversando({ store, tenantId, conversacionId =
   const omitidosAqui = [];
   for (const c of CAMPOS_PERFIL_DECLARABLES) {
     const tieneOmision = estado && estado.omitidos && Array.isArray(estado.omitidos[c]) && estado.omitidos[c].length > 0;
-    if (conocidos[c] == null && tieneOmision && await yaFueOmitido(store, tenantId, { concepto: conceptoDePerfil(c) }, { conversacionId })) omitidosAqui.push(c);
+    if (conocidos[c] == null && tieneOmision && await yaFueOmitido(store, tenantId, { clase: CLASE_PERFIL, concepto: conceptoDePerfil(c) }, { conversacionId })) omitidosAqui.push(c);
   }
 
   const n = necesitaPerfil(encargo, { conocidos, omitidos: omitidosAqui, activo, catalogo });

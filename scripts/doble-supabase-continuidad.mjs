@@ -55,6 +55,10 @@ export function canonico(x) {
 const _UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const _TOPE_ESTADO = 16384;
 const _ESTADOS = ["pendiente", "vigente", "retirado", "omitido"];
+/* la 015 (clase «perfil»): los cuatro campos, tal cual los escribe el SQL — NO se importan de `src/` a propósito: el doble
+ * repite la base, y `_migracion_015_gate` vigila que el SQL y el código no diverjan. */
+const _CAMPOS_DE_PERFIL = ["sector", "tipoProducto", "modeloComercial", "pais"];
+const _CONCEPTOS_DE_PERFIL_RESERVADOS = ["sector", "tipoproducto", "tipo_producto", "modelocomercial", "modelo_comercial", "pais"];
 
 /* firma de cada función: argumentos que acepta, cuáles son obligatorios, y desde qué migración existe */
 const FUNCIONES = {
@@ -99,11 +103,23 @@ export function crearSupabaseFalso({ secretoJwt, semilla = 20261002, latenciaMax
   const filasDe = (tenant) => memoria.filter((f) => f.tenant_id === tenant);
 
   function aportar(tenant, a) {
-    if (!["criterio", "hecho", "documento"].includes(a.p_clase)) throw new _ErrorSql("P0001", `clase «${a.p_clase}» no admitida (criterio | hecho | documento — el perfil no se declara por esta vía)`);
+    if (!["criterio", "hecho", "documento", "perfil"].includes(a.p_clase)) throw new _ErrorSql("P0001", `clase «${a.p_clase}» no admitida (criterio | hecho | documento | perfil)`);
     const origen = a.p_origen === undefined ? "declarado" : a.p_origen;
     if (!["declarado", "documento"].includes(origen)) throw new _ErrorSql("P0001", `origen «${origen}» no admitido en la memoria de empresa (declarado | documento)`);
     if (a.p_concepto == null || String(a.p_concepto).trim().length === 0) throw new _ErrorSql("P0001", "falta el concepto del hecho");
     const est = a.p_estado === undefined ? "vigente" : a.p_estado;
+    /* ★ la clase «perfil» y los conceptos de perfil van JUNTOS o no entran (la 015: la validación de la función y los checks
+     * `memoria_empresa_perfil_forma` / `memoria_empresa_perfil_reservado`, repetidos tal cual). El código de la opción lo valida el
+     * código (la taxonomía), no la base. */
+    const concepto = String(a.p_concepto).trim();
+    if (a.p_clase === "perfil") {
+      if (!_CAMPOS_DE_PERFIL.includes(concepto)) throw new _ErrorSql("P0001", `clase «perfil» exige el concepto de uno de sus campos (${_CAMPOS_DE_PERFIL.join(" | ")}): «${a.p_concepto}» no lo es`);
+      if (origen !== "declarado") throw new _ErrorSql("P0001", `el perfil de la empresa solo se declara (origen declarado), nunca «${origen}»`);
+      const t = a.p_valor && typeof a.p_valor === "object" ? a.p_valor.texto : undefined;
+      if (est !== "omitido" && (typeof t !== "string" || t.trim().length === 0)) throw new _ErrorSql("P0001", "el perfil exige el código de la opción elegida en valor.texto");
+    } else if (_CONCEPTOS_DE_PERFIL_RESERVADOS.includes(concepto.toLowerCase()) || concepto.toLowerCase().startsWith("perfil:")) {
+      throw new _ErrorSql("P0001", `el concepto «${a.p_concepto}» es de perfil: el perfil de la empresa se declara con la clase «perfil», no como ${a.p_clase}`);
+    }
     if (!_ESTADOS.includes(est)) throw new _ErrorSql("P0001", `estado «${est}» no admitido`);
     if (origen === "documento" && a.p_documento == null) throw new _ErrorSql("P0001", "un hecho de documento exige {documento:{nombre,tipo,parte,...}}");
     if ((origen === "documento") !== (a.p_documento != null)) throw new _ErrorSql("23514", "viola memoria_empresa_documento_si_origen_documento", 409);

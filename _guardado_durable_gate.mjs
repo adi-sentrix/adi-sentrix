@@ -170,6 +170,45 @@ H("1 · D1 · una sola interfaz de almacén, asíncrona: la memoria y Supabase l
   // el libro de una empresa NO lo abre otra aunque presente su conversacionId
   ok((await mem.leerLibro("e2", "cv-e1")) === null && (await (await h.almacenDe("e1")).leerLibro("e1", "cv-e2")) === null, "el libro de una empresa no lo abre otra con su conversacionId — en memoria (llave por empresa) ni en Supabase (el pase)");
 
+  /* EL PERFIL (clase «perfil», owner 2026-10-03): la MISMA batería contra memoria y Supabase → el mismo resultado; y la base
+   * (el doble, que repite los checks de la 015) RECHAZA lo que no sea un perfil bien formado: un perfil guardado como «hecho»
+   * y un «hecho» con concepto de perfil. */
+  async function bateriaPerfil(store, tid) {
+    const T = [];
+    const d = await EMP.declararPerfilCampo(store, tid, { campo: "sector", codigo: "distribucion" }, { actorLabel: "t", conversacionId: "c1" });
+    T.push(["declarar el sector", d.ok, d.estado, d.paraConfirmar, d.entendido.clase, d.entendido.concepto, d.entendido.origen]);
+    const d2 = await EMP.declararPerfilCampo(store, tid, { campo: "sector", codigo: "distribucion" }, { conversacionId: "c1" });
+    T.push(["mismo valor → duplicado, mismo id", d2.duplicado === true, d2.id === d.id]);
+    T.push(["pendiente: no es vigente", Object.keys((await EMP.leerPerfilDeclarado(store, tid)).vigentes), Object.keys((await EMP.leerPerfilDeclarado(store, tid)).pendientes)]);
+    const c = await EMP.confirmarHecho(store, tid, d.id, { actorLabel: "jc", resolverConflicto: true });
+    const e1 = await EMP.leerPerfilDeclarado(store, tid);
+    T.push(["confirmar → vigente, declarado, con sello", c.ok, e1.vigentes.sector && e1.vigentes.sector.valor, e1.vigentes.sector && e1.vigentes.sector.origen, Boolean(e1.vigentes.sector && e1.vigentes.sector.confirmacion && e1.vigentes.sector.confirmacion.por)]);
+    const tipo = await EMP.declararPerfilCampo(store, tid, { campo: "tipoProducto", codigo: "vence" }, {});
+    const fuera = await EMP.declararPerfilCampo(store, tid, { campo: "pais", codigo: "Chile" }, {});
+    T.push(["tipo de producto con el sector declarado · un país fuera de la taxonomía se rechaza", tipo.ok, fuera.ok, Array.isArray(fuera.validos)]);
+    const o = await EMP.omitirPerfilCampo(store, tid, "pais", { conversacionId: "c9" });
+    const o2 = await EMP.omitirPerfilCampo(store, tid, "pais", { conversacionId: "c9" });
+    T.push(["omitir el país: una vez; la segunda es la misma omisión", o.ok, o2.duplicado === true, Object.keys((await EMP.leerPerfilDeclarado(store, tid)).omitidos)]);
+    const nuevo = await EMP.declararPerfilCampo(store, tid, { campo: "sector", codigo: "fabricacion" }, {});
+    T.push(["otro sector: pendiente con conflicto, no pisa lo confirmado", nuevo.estado, nuevo.conflictoCon === d.id, (await EMP.leerPerfilDeclarado(store, tid)).vigentes.sector.valor]);
+    T.push(["la memoria de empresa NO lo lista como hechos", (await EMP.memoriaDeEmpresa(store, tid)).hechos.length]);
+    return T;
+  }
+  const pMem = await bateriaPerfil(crearAlmacenEnMemoria(), "e5"), pSup = await bateriaPerfil(await h.almacenDe("e5"), "e5");
+  ok(JSON.stringify(pMem) === JSON.stringify(pSup) && pMem[0][1] === true, "★ el PERFIL (declarar · duplicar · confirmar · taxonomía · omitir · conflicto) da el MISMO resultado en memoria y en Supabase", JSON.stringify({ mem: pMem, sup: pSup }).slice(0, 700));
+  const filasPerfil = h.db.filasDeEmpresa("e5").memoria;
+  ok(filasPerfil.length > 0 && filasPerfil.every((f) => f.clase === "perfil" && ["sector", "tipoProducto", "modeloComercial", "pais"].includes(f.concepto) && f.origen === "declarado"), "en la base: TODA fila del perfil es clase «perfil», con el campo como concepto (sin prefijo) y origen «declarado»", JSON.stringify(filasPerfil.map((f) => [f.clase, f.concepto, f.origen])));
+  {
+    const sup2 = await h.almacenDe("e5");
+    const fila = (extra) => ({ clase: "perfil", concepto: "sector", eje: null, entidad: null, periodo: null, valor: { raw: null, unidad: null, texto: "distribucion" }, origen: "declarado", documento: null, estado: "pendiente", conversacionId: null, ...extra });
+    const rechazada = async (extra) => { try { await sup2.guardarHechoEmpresa("e5", fila(extra)); return false; } catch (e) { return esErrorDeAlmacen(e); } };
+    const antes = h.db.filasDeEmpresa("e5").memoria.length;
+    ok(await rechazada({ clase: "hecho" }) && await rechazada({ clase: "hecho", concepto: "perfil:sector" }) && await rechazada({ clase: "criterio", concepto: "Tipo_Producto" }) && await rechazada({ clase: "documento", concepto: "pais", origen: "documento", documento: { nombre: "x", tipo: "pdf", parte: "1" } }), "★ CARNADA · la base rechaza un perfil guardado como «hecho» y un «hecho»/criterio/documento con el concepto de un campo de perfil (con o sin el prefijo viejo, con otras mayúsculas o en snake_case)");
+    ok(await rechazada({ concepto: "moneda" }) && await rechazada({ concepto: "perfil:sector" }) && await rechazada({ origen: "documento", documento: { nombre: "x", tipo: "pdf", parte: "1" } }) && await rechazada({ valor: null }) && await rechazada({ valor: { raw: 3, unidad: null, texto: null } }), "★ CARNADA · la base rechaza un perfil de un campo que no existe, el que no es «declarado» y el que no trae el código de la opción");
+    ok(!(await rechazada({ estado: "omitido", valor: null })), "pero admite la omisión de un campo del perfil (sin valor)");
+    ok(h.db.filasDeEmpresa("e5").memoria.length === antes + 1, "y de todo lo rechazado NO quedó nada guardado (solo la omisión que sí entra)");
+  }
+
   /* CARNADA D1-a · el consumidor ANTIGUO (síncrono) contra el almacén asíncrono */
   const consumidorAntiguo = (store, t) => store.leerHechosEmpresa(t).filter((x) => x.estado === "vigente");
   let tipoError = null;

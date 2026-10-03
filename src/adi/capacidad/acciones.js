@@ -289,7 +289,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       catalogo,
       conversacionId: conversacionId || null,
       hechosAportados: [...memoria.hechos, ...perfilPlegado],
-      pendientesDeConfirmar: pendientes.filter((h) => !esConceptoReservadoDePerfil(h.concepto)),
+      pendientesDeConfirmar: pendientes.filter((h) => h.clase !== "perfil" && !esConceptoReservadoDePerfil(h.concepto)),
       estadoVigente,
     };
   }

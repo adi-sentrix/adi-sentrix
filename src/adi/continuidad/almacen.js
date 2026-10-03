@@ -54,6 +54,8 @@
  * Puro en el sentido de que NINGÚN módulo de `continuidad/` importa esto para usarlo por su cuenta: cada
  * función de `empresa.js`/`libro.js`/`retomar.js` recibe el almacén como primer o segundo parámetro. */
 
+import { formaDeFilaDeMemoria } from "./empresa.js";
+
 /** Un almacén que no pudo leer o escribir (la base no respondió, rechazó el pase, la función no existe porque la
  * migración no corrió). No lleva dato del cliente: solo la operación y el motivo de la base. */
 export class ErrorDeAlmacen extends Error {
@@ -84,7 +86,11 @@ export function verificarAlmacen(store) {
  * ASÍNCRONO A PROPÓSITO (ver la cabecera): cada método es `async`, así que un consumidor que lo use como si fuera
  * síncrono ve una promesa donde esperaba un arreglo y falla en el acto — el mismo defecto que antes solo
  * aparecía contra Supabase. */
-export function crearAlmacenEnMemoria() {
+/* `sinMuroDeForma` existe SOLO para los candados de falla cerrada: deja guardar una fila que la base rechazaría (una de
+ * clase «perfil» con un origen que no es «declarado», un hecho con el concepto de un campo de perfil), para probar que
+ * los lectores la IGNORAN aunque algún día llegara. Por omisión el almacén en memoria repite los checks de forma de
+ * la 015 (`empresa.js:formaDeFilaDeMemoria`): probar contra la memoria vale contra la base. */
+export function crearAlmacenEnMemoria({ sinMuroDeForma = false } = {}) {
   const hechosPorTenant = new Map();
   const librosPorConversacion = new Map();
   let contadorId = 0;
@@ -97,6 +103,10 @@ export function crearAlmacenEnMemoria() {
       return (hechosPorTenant.get(tenantId) || []).map(_clon);
     },
     async guardarHechoEmpresa(tenantId, hecho) {
+      if (!sinMuroDeForma) {
+        const forma = formaDeFilaDeMemoria(hecho);
+        if (!forma.ok) throw new ErrorDeAlmacen("guardarHechoEmpresa", forma.motivo);
+      }
       const arr = hechosPorTenant.get(tenantId) || [];
       const copia = _clon(hecho);
       arr.push(copia);

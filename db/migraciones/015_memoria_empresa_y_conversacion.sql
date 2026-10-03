@@ -15,9 +15,11 @@
 --       `pack.perfil.diario` (007) y `pack.perfil.contexto` (011) — REVISIÓN 2 del supervisor, textual: «UNA
 --       memoria de empresa que absorbe diario y contexto, con migración de datos», en vez de una TERCERA tabla
 --       de memoria al lado de esas dos). Guarda SOLO lo que la empresa DECLARA o APORTA (criterios, hechos,
---       documentos) — nunca un dato medido: eso sigue viviendo en `fact_pack_versions`. El PERFIL (sector, tipo
---       de producto, país, modelo comercial, banda, moneda) NO se mueve acá: sigue en las columnas de `tenants`
---       (012/013) — esta migración solo le agrega el origen que le faltaba (pieza 3).
+--       documentos) — nunca un dato medido: eso sigue viviendo en `fact_pack_versions`. La FICHA del perfil (sector,
+--       tipo de producto, país, modelo comercial, banda, moneda) NO se mueve acá: sigue en las columnas de `tenants`
+--       (012/013) — esta migración solo le agrega el origen que le faltaba (pieza 3). Lo que la persona le declara a
+--       ADI CONVERSANDO del perfil (owner 2026-10-03, bloque 2 de la etapa 2) sí se guarda acá, con la clase «perfil»
+--       (el campo como concepto, el código de la opción en valor.texto, origen «declarado», pendiente hasta confirmar).
 --   2 · `conversaciones.estado` — la columna NUEVA donde vive el libro de conversación (`continuidad/libro.js`).
 --       Ley del owner (2026-09-26, textual): «el libro de conversación va como `estado` en la tabla
 --       `conversaciones` de la migración 009, no en tabla nueva» — así que esta migración NO crea
@@ -55,8 +57,11 @@
 create table if not exists public.memoria_empresa (
   id              uuid        primary key default gen_random_uuid(),
   tenant_id       text        not null references public.tenants(id) on delete cascade,
-  -- 'perfil' NO vive acá (sigue en `tenants`, 012/013): esta tabla es solo criterio·hecho·documento.
-  clase           text        not null check (clase in ('criterio', 'hecho', 'documento')),
+  -- 'perfil' = lo que la persona declaró CONVERSANDO de la empresa (sector, tipoProducto, modeloComercial, pais; concepto =
+  -- el campo, valor.texto = el código de una opción de la taxonomía, SIEMPRE origen 'declarado'). Entra solo por la vía del
+  -- perfil (`continuidad/empresa.js:declararPerfilCampo`, que valida la taxonomía) — ver los dos checks de forma más abajo.
+  -- La ficha del perfil medido/declarado al cargar sigue en `tenants` (012/013): es OTRA cosa y esta clase no la reemplaza.
+  clase           text        not null constraint memoria_empresa_clase_check check (clase in ('criterio', 'hecho', 'documento', 'perfil')),
   concepto        text        not null check (length(trim(concepto)) > 0),
   eje             text,
   entidad         text,
@@ -77,8 +82,23 @@ create table if not exists public.memoria_empresa (
     check ((origen = 'documento') = (documento is not null))
 );
 
+-- ── los dos checks de FORMA de la clase «perfil» (idempotentes: drop if exists + add, como el resto del archivo) ──────
+-- (a) un perfil es de UN campo conocido (el concepto, tal cual) y SIEMPRE «declarado» — nunca medido ni de documento;
+-- (b) al revés: un criterio/hecho/documento NO puede llevar el concepto de un campo de perfil (ni en snake_case, ni con
+--     otras mayúsculas, ni con el prefijo viejo `perfil:`) — si no, un «hecho» cualquiera se saltaría la validación de la
+--     taxonomía que solo la vía del perfil hace. El código de la opción (la taxonomía) lo valida el código, no la base.
+alter table public.memoria_empresa drop constraint if exists memoria_empresa_clase_check;
+alter table public.memoria_empresa add constraint memoria_empresa_clase_check
+  check (clase in ('criterio', 'hecho', 'documento', 'perfil'));
+alter table public.memoria_empresa drop constraint if exists memoria_empresa_perfil_forma;
+alter table public.memoria_empresa add constraint memoria_empresa_perfil_forma
+  check (clase <> 'perfil' or (concepto in ('sector', 'tipoProducto', 'modeloComercial', 'pais') and origen = 'declarado'));
+alter table public.memoria_empresa drop constraint if exists memoria_empresa_perfil_reservado;
+alter table public.memoria_empresa add constraint memoria_empresa_perfil_reservado
+  check (clase = 'perfil' or (lower(btrim(concepto)) not in ('sector', 'tipoproducto', 'tipo_producto', 'modelocomercial', 'modelo_comercial', 'pais') and lower(btrim(concepto)) not like 'perfil:%'));
+
 comment on table public.memoria_empresa is
-  'La memoria única de empresa (Etapa 2, owner 2026-09-25/26): criterios declarados, hechos declarados y documentos, cada uno con origen, confirmación, vigencia e historia. Absorbe en su diseño lo que hoy vive en pack.perfil.diario (007) y pack.perfil.contexto (011) — la migración de esos DATOS es un paso de despliegue aparte; mientras tanto `continuidad/empresa.js:memoriaDeEmpresa` los traduce EN LECTURA para que nada se pierda. El perfil (sector/tipo_producto/país/modelo_comercial/banda/moneda) sigue en `tenants` (012/013): no es de esta tabla.';
+  'La memoria única de empresa (Etapa 2, owner 2026-09-25/26): criterios declarados, hechos declarados, documentos y —clase perfil, owner 2026-10-03— lo que la persona declaró conversando del perfil de la empresa (sector, tipoProducto, modeloComercial, pais), cada uno con origen, confirmación, vigencia e historia. Absorbe en su diseño lo que hoy vive en pack.perfil.diario (007) y pack.perfil.contexto (011) — la migración de esos DATOS es un paso de despliegue aparte; mientras tanto `continuidad/empresa.js:memoriaDeEmpresa` los traduce EN LECTURA para que nada se pierda. La ficha del perfil que se declara al cargar (sector/tipo_producto/país/modelo_comercial/banda/moneda) sigue en `tenants` (012/013): no es de esta tabla.';
 
 create index if not exists memoria_empresa_por_tenant on public.memoria_empresa (tenant_id, estado, clase);
 -- la llave de colisión que usa `continuidad/empresa.js:claveDeHecho` (clase, concepto, eje, entidad, período) —
@@ -137,14 +157,31 @@ begin
   if v_tenant is null then
     raise exception 'sin pase: no se declara nada sin saber de qué empresa es';
   end if;
-  if p_clase not in ('criterio', 'hecho', 'documento') then
-    raise exception 'clase «%» no admitida (criterio | hecho | documento — el perfil no se declara por esta vía)', p_clase;
+  if p_clase is null or p_clase not in ('criterio', 'hecho', 'documento', 'perfil') then
+    raise exception 'clase «%» no admitida (criterio | hecho | documento | perfil)', p_clase;
   end if;
   if p_origen not in ('declarado', 'documento') then
     raise exception 'origen «%» no admitido en la memoria de empresa (declarado | documento)', p_origen;
   end if;
   if p_concepto is null or length(trim(p_concepto)) = 0 then
     raise exception 'falta el concepto del hecho';
+  end if;
+  -- la clase «perfil» y los conceptos de perfil van JUNTOS o no entran (los mismos dos checks de la tabla, con mensaje):
+  -- el perfil es de un campo conocido y «declarado»; un criterio/hecho/documento no puede llevar el concepto de un campo
+  -- de perfil — esa puerta es de `declararPerfilCampo`, que valida el código contra la taxonomía.
+  if p_clase = 'perfil' then
+    if trim(p_concepto) not in ('sector', 'tipoProducto', 'modeloComercial', 'pais') then
+      raise exception 'clase «perfil» exige el concepto de uno de sus campos (sector | tipoProducto | modeloComercial | pais): «%» no lo es', p_concepto;
+    end if;
+    if p_origen <> 'declarado' then
+      raise exception 'el perfil de la empresa solo se declara (origen declarado), nunca «%»', p_origen;
+    end if;
+    if p_estado is distinct from 'omitido' and (p_valor is null or jsonb_typeof(p_valor -> 'texto') is distinct from 'string' or length(trim(p_valor ->> 'texto')) = 0) then
+      raise exception 'el perfil exige el código de la opción elegida en valor.texto';
+    end if;
+  elsif lower(trim(p_concepto)) in ('sector', 'tipoproducto', 'tipo_producto', 'modelocomercial', 'modelo_comercial', 'pais')
+     or lower(trim(p_concepto)) like 'perfil:%' then
+    raise exception 'el concepto «%» es de perfil: el perfil de la empresa se declara con la clase «perfil», no como %', p_concepto, p_clase;
   end if;
   if p_estado not in ('pendiente', 'vigente', 'retirado', 'omitido') then
     raise exception 'estado «%» no admitido', p_estado;

@@ -30,14 +30,13 @@
  * lo valida contra la taxonomía cerrada (`config/contract/taxonomiaPerfil.js`); lo que no está en la lista se
  * rechaza diciendo cuáles son las válidas — nunca se inventa ni se «aproxima» un valor.
  *
- * CÓMO SE GUARDA (decisión de forma, sin migración nueva): la tabla `memoria_empresa` de la 015 solo admite
- * `clase in ('criterio','hecho','documento')` («el perfil no se declara por esta vía»), así que una fila de perfil
- * viaja como `clase:"hecho"` con el concepto RESERVADO `perfil:<campo>` (`PREFIJO_PERFIL`) y el código en
- * `valor.texto`. Es la MISMA representación en la memoria del proceso y en Supabase, así que una prueba contra la
- * memoria vale contra la base. El concepto reservado NO se puede declarar por la vía genérica (`declararHecho` lo
- * rechaza): la única puerta de entrada es `declararPerfilCampo`, la que valida la taxonomía. Si el owner prefiere
- * que la base lo diga explícito (`clase = 'perfil'`), es ampliar el check de la 015 antes de aplicarla y quitar
- * esta codificación — ningún otro módulo conoce el prefijo: leer, declarar y omitir un campo de perfil
+ * CÓMO SE GUARDA (decisión 3 del bloque 2, owner 2026-10-03): una fila de perfil es `clase:"perfil"`, con el CAMPO
+ * como concepto (`sector`, `tipoProducto`, `modeloComercial`, `pais` — sin prefijo) y el código en `valor.texto`. La
+ * 015 admite esa clase (su check la lista y dos checks de forma la ligan a los cuatro campos y a «declarado»); es la
+ * MISMA representación en la memoria del proceso y en Supabase, así que una prueba contra la memoria vale contra la
+ * base. La clase «perfil» y los conceptos de perfil NO se pueden declarar por la vía genérica (`declararHecho` y
+ * `omitirCampo` los rechazan; el almacén en memoria y la base también): la única puerta de entrada es
+ * `declararPerfilCampo`, la que valida la taxonomía. Leer, declarar y omitir un campo de perfil
  * (`leerPerfilDeclarado`, `declararPerfilCampo`, `omitirPerfilCampo`) viven todos acá. `memoriaDeEmpresa` NO lista
  * estas filas entre los hechos (son perfil, no «un hecho»): el perfil se ve por `leerPerfilDeclarado`.
  *
@@ -68,17 +67,37 @@ export const CLASES_HECHO_EMPRESA = ["perfil", "criterio", "hecho", "documento"]
 export const CAMPOS_PERFIL_DECLARABLES = Object.freeze(["sector", "tipoProducto", "modeloComercial", "pais"]);
 /** campo (camelCase, el de `tenant.perfil`) → su lista en la taxonomía (snake_case, la de la base). UNA sola tabla. */
 export const LISTA_DE_CAMPO_PERFIL = Object.freeze({ sector: "sector", tipoProducto: "tipo_producto", modeloComercial: "modelo_comercial", pais: "pais" });
-/** el concepto RESERVADO con el que una fila de perfil viaja en la memoria (la 015 no admite `clase:"perfil"`). */
-export const PREFIJO_PERFIL = "perfil:";
-export const conceptoDePerfil = (campo) => `${PREFIJO_PERFIL}${campo}`;
-/** campoDeConcepto("perfil:sector") → "sector" · null si el concepto no es de perfil o el campo no existe. */
+/** la clase con la que una fila de perfil vive en la memoria (la 015 la admite desde el 2026-10-03). */
+export const CLASE_PERFIL = "perfil";
+/** el concepto de una fila de perfil ES el campo, tal cual (sin prefijo): ver la cabecera, «CÓMO SE GUARDA». */
+export const conceptoDePerfil = (campo) => String(campo);
+/** campoDeConceptoDePerfil("sector") → "sector" · null si el concepto no es EXACTAMENTE uno de los campos del perfil. */
 export function campoDeConceptoDePerfil(concepto) {
   const c = String(concepto == null ? "" : concepto).trim();
-  if (!c.startsWith(PREFIJO_PERFIL)) return null;
-  const campo = c.slice(PREFIJO_PERFIL.length);
-  return CAMPOS_PERFIL_DECLARABLES.includes(campo) ? campo : null;
+  return CAMPOS_PERFIL_DECLARABLES.includes(c) ? c : null;
 }
-export const esConceptoReservadoDePerfil = (concepto) => String(concepto == null ? "" : concepto).trim().toLowerCase().startsWith(PREFIJO_PERFIL);
+/* los conceptos que SOLO una fila de clase «perfil» puede llevar: los cuatro campos (con otras mayúsculas o en el
+ * snake_case de la taxonomía también) y el prefijo viejo `perfil:`. La MISMA lista que el check de la 015
+ * (`memoria_empresa_perfil_reservado`): `_migracion_015_gate` vigila que no diverjan. */
+const _CONCEPTOS_RESERVADOS = Object.freeze([...CAMPOS_PERFIL_DECLARABLES.map((c) => c.toLowerCase()), ...Object.values(LISTA_DE_CAMPO_PERFIL)]);
+export const esConceptoReservadoDePerfil = (concepto) => {
+  const c = String(concepto == null ? "" : concepto).trim().toLowerCase();
+  return _CONCEPTOS_RESERVADOS.includes(c) || c.startsWith("perfil:");
+};
+/** formaDeFilaDeMemoria(fila) → { ok, motivo? } · la regla de FORMA que la base aplica con sus checks y que el almacén en
+ *  memoria repite para que probar contra la memoria valga contra la base: la clase «perfil» ⇔ el concepto de un campo del
+ *  perfil (exacto) con origen «declarado»; un criterio/hecho/documento nunca lleva un concepto de perfil. */
+export function formaDeFilaDeMemoria(fila) {
+  if (!_es(fila)) return { ok: false, motivo: "la fila no es un objeto" };
+  const clase = _normTxt(fila.clase);
+  if (clase === CLASE_PERFIL) {
+    if (!campoDeConceptoDePerfil(fila.concepto)) return { ok: false, motivo: `clase «perfil» exige el concepto de uno de sus campos (${CAMPOS_PERFIL_DECLARABLES.join(" | ")}): «${fila.concepto}» no lo es` };
+    if (_normTxt(fila.origen) !== "declarado") return { ok: false, motivo: `el perfil de la empresa solo se declara (origen declarado), nunca «${fila.origen}»` };
+    return { ok: true };
+  }
+  if (esConceptoReservadoDePerfil(fila.concepto)) return { ok: false, motivo: `el concepto «${fila.concepto}» es de perfil: el perfil de la empresa se declara con la clase «perfil», no como ${fila.clase}` };
+  return { ok: true };
+}
 
 /** validarValorDePerfil(campo, codigo, { sector? }) → { ok, codigo?, motivo?, validos? }
  *  ADI NO interpreta lenguaje: el valor ya viene TIPADO (el código de una opción). Acá solo se comprueba que ese código
@@ -205,9 +224,9 @@ export async function declararHecho(store, tenantId, aporte, { actorLabel = null
   const clase = _normTxt(aporte.clase);
   if (!CLASES_HECHO_EMPRESA.includes(clase)) return { ok: false, motivo: `clase desconocida «${aporte.clase}» (${CLASES_HECHO_EMPRESA.join(" · ")})` };
   /* el perfil se declara por su propia vía (`declararPerfilCampo`, que valida la taxonomía); acá, por la vía
-   * genérica, ni como clase ni como el concepto reservado con el que una fila de perfil viaja en la memoria — si
-   * no, un hecho cualquiera con ese concepto se saltaría la validación. El motivo que viaja al LLM va en palabras
-   * de negocio, sin nombres internos (supervisor 2026-09-26). */
+   * genérica, ni como clase ni con el concepto de un campo de perfil — si no, un hecho cualquiera con ese concepto se
+   * saltaría la validación. El motivo que viaja al LLM va en palabras de negocio, sin nombres internos (supervisor
+   * 2026-09-26). */
   if (clase === "perfil" || esConceptoReservadoDePerfil(aporte.concepto)) return { ok: false, motivo: "el perfil de la empresa se declara por su propia vía (clase «perfil», con el valor de una de las opciones ofrecidas), no como un hecho de la memoria" };
 
   const origen = _normTxt(aporte.origen || "declarado");
@@ -265,10 +284,10 @@ async function _colisionarYGuardar(store, tenantId, candidato, aporte) {
   return { ok: true, id: guardado.id, estado: guardado.estado, entendido: guardado, paraConfirmar: true };
 }
 
-/* ── EL PERFIL DECLARADO (bloque 2): leer, declarar y omitir un campo — todo lo que conoce el prefijo reservado ── */
+/* ── EL PERFIL DECLARADO (bloque 2): leer, declarar y omitir un campo — todo lo que conoce la clase «perfil» ── */
 
 /** leerPerfilDeclarado(store, tenantId) → { vigentes, pendientes, omitidos } — cada uno `{ [campo]: ... }`.
- *  Solo cuenta una fila de perfil BIEN FORMADA: concepto reservado de un campo que existe, origen «declarado» y un
+ *  Solo cuenta una fila de perfil BIEN FORMADA: clase «perfil» con el concepto de un campo que existe, origen «declarado» y un
  *  código que está en la taxonomía. Cualquier otra cosa (una fila escrita por fuera de `declararPerfilCampo`, un
  *  código que la taxonomía ya no tiene) se IGNORA — falla cerrado: nunca se sirve un sector que la taxonomía no avala.
  *  `omitidos[campo]` = la lista de omisiones (cada una con la conversación en que se omitió). Una sola lectura. */
@@ -280,7 +299,7 @@ function _perfilDeLasFilas(todos) {
   const masReciente = (a, b) => (!a || String(b.declaradoEn || "") >= String(a.declaradoEn || "") ? b : a);
   for (const h of todos) {
     const campo = campoDeConceptoDePerfil(h.concepto);
-    if (!campo || h.clase !== "hecho") continue;
+    if (!campo || h.clase !== CLASE_PERFIL) continue;
     if (h.estado === "omitido") { (out.omitidos[campo] = out.omitidos[campo] || []).push({ id: h.id, conversacionId: h.conversacionId || null, declaradoEn: h.declaradoEn || null }); continue; }
     if (h.estado !== "vigente" && h.estado !== "pendiente") continue;
     if (_normTxt(h.origen) !== "declarado") continue;
@@ -311,12 +330,12 @@ export async function declararPerfilCampo(store, tenantId, { campo, codigo, sect
    * pendiente DISTINTA de ese mismo campo se retira (con su motivo; nunca se borra) — si no, repetir un valor anterior
    * devolvería la fila vieja y «lo último que dijo» no sería lo último que se lee (hallado con las conversaciones al azar). */
   for (const h of filas) {
-    if (h.estado === "pendiente" && h.clase === "hecho" && h.concepto === conceptoDePerfil(campo) && !(h.valor && h.valor.texto === v.codigo)) {
+    if (h.estado === "pendiente" && h.clase === CLASE_PERFIL && h.concepto === conceptoDePerfil(campo) && !(h.valor && h.valor.texto === v.codigo)) {
       await store.actualizarHechoEmpresa(tenantId, h.id, { estado: "retirado", retiradoMotivo: "reemplazada por una declaración posterior de la misma persona, todavía sin confirmar", retiradoPor: actorLabel || null, retiradoEn: _ahora() });
     }
   }
   const candidato = {
-    clase: "hecho", concepto: conceptoDePerfil(campo), eje: null, entidad: null, periodo: null,
+    clase: CLASE_PERFIL, concepto: conceptoDePerfil(campo), eje: null, entidad: null, periodo: null,
     valor: { raw: null, unidad: null, texto: v.codigo }, origen: "declarado", documento: null, confirmacion: null,
     estado: "pendiente", declaradoEn: _ahora(), actorLabel: actorLabel || null, conversacionId: conversacionId || null, reemplaza: null,
   };
@@ -333,8 +352,8 @@ export async function omitirPerfilCampo(store, tenantId, campo, { actorLabel = n
   const e = await leerPerfilDeclarado(store, tenantId);
   if (e.vigentes[campo]) return { ok: false, motivo: `el campo ${campo} ya está declarado: no se omite lo que la empresa ya dijo (para cambiarlo, se declara el valor nuevo)` };
   const concepto = conceptoDePerfil(campo);
-  if (await yaFueOmitido(store, tenantId, { concepto }, { conversacionId })) return { ok: true, duplicado: true };
-  return await omitirCampo(store, tenantId, { clase: "hecho", concepto }, { actorLabel, conversacionId });
+  if (await yaFueOmitido(store, tenantId, { clase: CLASE_PERFIL, concepto }, { conversacionId })) return { ok: true, duplicado: true };
+  return await _guardarOmision(store, tenantId, { clase: CLASE_PERFIL, concepto }, { actorLabel, conversacionId });
 }
 
 /** confirmarHecho(store, tenantId, id, opts?) → ResultadoAporte
@@ -392,6 +411,12 @@ export async function retirarHecho(store, tenantId, id, { motivo = null, actorLa
 export async function omitirCampo(store, tenantId, { clase = "hecho", concepto, eje = null, entidad = null } = {}, { actorLabel = null, conversacionId = null } = {}) {
   if (!tenantId) return { ok: false, motivo: "sin empresa: no se omite nada sin saber de qué empresa es" };
   if (!concepto || !String(concepto).trim()) return { ok: false, motivo: "falta el concepto a omitir" };
+  // un campo del perfil se omite por su propia vía (`omitirPerfilCampo`), igual que se declara por la suya
+  if (_normTxt(clase) === CLASE_PERFIL || esConceptoReservadoDePerfil(concepto)) return { ok: false, motivo: "el perfil de la empresa se omite por su propia vía (clase «perfil»), no como un hecho de la memoria" };
+  return _guardarOmision(store, tenantId, { clase, concepto, eje, entidad }, { actorLabel, conversacionId });
+}
+/* la escritura común de una omisión (la comparten `omitirCampo` y `omitirPerfilCampo`): cada vía valida ANTES de llamarla. */
+async function _guardarOmision(store, tenantId, { clase = "hecho", concepto, eje = null, entidad = null } = {}, { actorLabel = null, conversacionId = null } = {}) {
   const candidato = {
     clase: _normTxt(clase), concepto: String(concepto).trim(), eje, entidad, periodo: null, valor: null,
     origen: "declarado", documento: null, confirmacion: null, estado: "omitido", declaradoEn: _ahora(),
@@ -404,8 +429,8 @@ export async function omitirCampo(store, tenantId, { clase = "hecho", concepto, 
 /** yaFueOmitido(store, tenantId, {concepto, eje?, entidad?}, {conversacionId?}) → boolean
  * true si YA se preguntó y se declinó: en la MISMA conversación siempre; en otra, solo si el omitido no traía
  * `conversacionId` (una omisión "para siempre", nunca inferida — la marca explícita la pone quien llama). */
-export async function yaFueOmitido(store, tenantId, { concepto, eje = null, entidad = null } = {}, { conversacionId = null } = {}) {
-  const todos = ((await store.leerHechosEmpresa(tenantId)) || []).filter((h) => h.estado === "omitido" && _pasaFiltro(h, { concepto, eje, entidad }));
+export async function yaFueOmitido(store, tenantId, { clase = null, concepto, eje = null, entidad = null } = {}, { conversacionId = null } = {}) {
+  const todos = ((await store.leerHechosEmpresa(tenantId)) || []).filter((h) => h.estado === "omitido" && _pasaFiltro(h, { clase, concepto, eje, entidad }));
   return todos.some((h) => !h.conversacionId || (conversacionId && String(h.conversacionId) === String(conversacionId)));
 }
 
@@ -480,8 +505,8 @@ export function migrarLegado({ diario = null, contexto = null } = {}) {
  * legado correspondiente NO se repite — así, el día que una migración de datos real copie diario/contexto a la
  * tabla, `memoriaDeEmpresa` deja de traducir por sí sola sin que nadie tenga que tocar este módulo. */
 export async function memoriaDeEmpresa(store, tenantId, { legado = null } = {}) {
-  // las filas de perfil (concepto reservado) no son «hechos»: se leen con `leerPerfilDeclarado`, validadas contra la taxonomía
-  const vigentes = (await leerVigentes(store, tenantId, {})).filter((h) => !esConceptoReservadoDePerfil(h.concepto));
+  // las filas de perfil (clase «perfil») no son «hechos»: se leen con `leerPerfilDeclarado`, validadas contra la taxonomía
+  const vigentes = (await leerVigentes(store, tenantId, {})).filter((h) => _normTxt(h.clase) !== CLASE_PERFIL && !esConceptoReservadoDePerfil(h.concepto));
   const yaMigrados = new Set(vigentes.filter((h) => h.migradoDeLegado).map((h) => `${h.migradoDeLegado}:${_normTxt(h.concepto)}:${_normTxt(h.entidad || "")}`));
   const legadoTraducido = legado ? migrarLegado(legado).filter((h) => !yaMigrados.has(`${h.migradoDeLegado}:${_normTxt(h.concepto)}:${_normTxt(h.entidad || "")}`)) : [];
   return { hechos: [...vigentes, ...legadoTraducido] };

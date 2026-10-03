@@ -349,7 +349,7 @@ const mig = { "011": false, "012": false, "013": false, "014": false, "015": fal
   mig["015"] = mem.ok && cv.ok && !_sinFuncion(fAportar) && fLeer.ok && fLeerE.ok;
   chequeo(mem.ok, "015 · la tabla `memoria_empresa` existe", _txt(mem).slice(0, 200));
   chequeo(cv.ok, "015 · `conversaciones.estado` (el libro de conversación) existe", _txt(cv).slice(0, 200));
-  chequeo(!fAportar.ok && !_sinFuncion(fAportar) && /clase/.test(_txt(fAportar)), "015 · adi_aportar_hecho_empresa existe y rechaza la clase «perfil» (el perfil no se declara por esta vía)", _txt(fAportar).slice(0, 220));
+  chequeo(!fAportar.ok && !_sinFuncion(fAportar) && /clase/.test(_txt(fAportar)), "015 · adi_aportar_hecho_empresa existe, admite la clase «perfil» y rechaza un perfil con un concepto que no es un campo suyo (aquí «x»)", _txt(fAportar).slice(0, 220));
   chequeo(fConf.ok && fRet.ok, "015 · adi_confirmar_hecho_empresa y adi_retirar_hecho_empresa existen (sobre un id que no existe devuelven cero filas, sin error)", `${_txt(fConf)} ${_txt(fRet)}`.slice(0, 220));
   chequeo(fLeer.ok && fLeerE.ok, "015 · adi_leer_memoria_empresa y adi_leer_estado_conversacion existen", `${_txt(fLeer)} ${_txt(fLeerE)}`.slice(0, 220));
   chequeo(!fGuardarE.ok && !_sinFuncion(fGuardarE) && /objeto/.test(_txt(fGuardarE)), "015 · adi_guardar_estado_conversacion existe y rechaza un libro que no es un objeto", _txt(fGuardarE).slice(0, 220));
