@@ -296,7 +296,19 @@ alter table public.conversaciones drop constraint if exists conversaciones_estad
 alter table public.conversaciones add constraint conversaciones_estado_tamano_check
   check (pg_column_size(estado) <= 16384);
 
+-- ── EL ORIGEN DEL HILO (Etapa 2, bloque 1 · defecto D3) ───────────────────────────────────────────────────────
+-- Un libro de conversación se guarda como una fila de `conversaciones` con título vacío y cero mensajes (el
+-- libro guarda referencias, nunca una frase). Sin una marca estructural, `adi_listar_conversaciones` (010) la
+-- listaría en el Historial de la app de un usuario PRO como una fila fantasma. La marca es el ORIGEN DEL HILO,
+-- un dato del propio libro (`estado ->> 'origen'`, `'complemento'`): lo SELLA la base al guardar (la función de
+-- abajo lo escribe ella misma, no confía en quien llama), un hilo del chat de la app no lo trae (su `estado` es
+-- `'{}'`, ⇒ origen `'app'` por omisión), y el Historial solo lista `origen = 'app'`. NO es un filtro por título
+-- vacío ni por conteo de mensajes: un hilo del Complemento con título o con mensajes seguiría sin aparecer, y un
+-- hilo de la app vacío (recién abierto) seguiría apareciendo. No agrega ninguna columna: vive dentro de `estado`.
+-- (Alternativa descartada por ahora: una columna `origen` aparte — es una migración con decisión del owner.)
+
 -- ── LEER el libro de una conversación ────────────────────────────────────────────────────────────────────────
+-- Solo devuelve un LIBRO (origen 'complemento'): una fila de la app (estado '{}') no es un libro.
 create or replace function public.adi_leer_estado_conversacion(p_hilo_id text)
 returns table (hilo_id text, estado jsonb, actualizado_en timestamptz)
 language sql
@@ -304,7 +316,8 @@ security invoker
 as $$
   select c.hilo_id, c.estado, c.actualizado_en
     from public.conversaciones c
-   where c.tenant_id = adi.tenant_actual() and c.hilo_id = p_hilo_id;
+   where c.tenant_id = adi.tenant_actual() and c.hilo_id = p_hilo_id
+     and c.estado ->> 'origen' = 'complemento';
 $$;
 
 grant execute on function public.adi_leer_estado_conversacion(text) to adi_tenant;
@@ -328,6 +341,8 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant text := adi.tenant_actual();
+  v_estado jsonb;
+  v_n      integer;
 begin
   if v_tenant is null or p_hilo_id is null or length(trim(p_hilo_id)) = 0 then
     raise exception 'sin empresa o sin hilo: no se guarda un libro anónimo';
@@ -335,15 +350,23 @@ begin
   if p_estado is null or jsonb_typeof(p_estado) <> 'object' then
     raise exception 'el libro de conversación tiene que ser un objeto';
   end if;
-  if pg_column_size(p_estado) > 16384 then
+  -- ★ EL ORIGEN LO SELLA LA BASE (D3): este hilo es del Complemento, lo diga o no quien llama.
+  v_estado := jsonb_set(p_estado, '{origen}', to_jsonb('complemento'::text));
+  if pg_column_size(v_estado) > 16384 then
     raise exception 'el libro de conversación supera el tamaño máximo (16KB)';
   end if;
 
   insert into public.conversaciones as c (tenant_id, hilo_id, titulo, mensajes, estado, actor_id, actor_label, actor_rol)
-  values (v_tenant, p_hilo_id, '', '[]'::jsonb, p_estado, p_actor_id, p_actor_label, p_actor_rol)
+  values (v_tenant, p_hilo_id, '', '[]'::jsonb, v_estado, p_actor_id, p_actor_label, p_actor_rol)
   on conflict (tenant_id, hilo_id) do update
     set estado         = excluded.estado,
-        actualizado_en = now();
+        actualizado_en = now()
+    -- nunca se escribe un libro ENCIMA de un hilo del chat de la app (lo haría desaparecer de su Historial)
+    where coalesce(c.estado ->> 'origen', 'app') = 'complemento';
+  get diagnostics v_n = row_count;
+  if v_n = 0 then
+    raise exception 'ese hilo es una conversación del chat de la app: no se guarda un libro encima';
+  end if;
 
   return query
     select c.hilo_id, c.estado, c.actualizado_en
@@ -353,6 +376,44 @@ end;
 $$;
 
 grant execute on function public.adi_guardar_estado_conversacion(text, jsonb, uuid, text, text) to adi_tenant;
+
+-- ── EL HISTORIAL DE LA APP NO VE LOS HILOS DEL COMPLEMENTO (D3) ──────────────────────────────────────────────
+-- Las dos funciones de lectura del Historial (010) se redefinen con la MISMA firma y la MISMA lógica (plan pro,
+-- ocultas) más UNA condición estructural: solo hilos de origen 'app'. Mismo patrón de 013 sobre 012 y de esta
+-- misma migración sobre `adi_declarar_perfil_empresa`: `create or replace`, sin reescribir la migración vieja.
+-- ⚠️ SI ALGUNA VEZ SE VUELVE A REDEFINIR `adi_listar_conversaciones` (una migración 016), tiene que conservar la
+-- condición de origen: `_guardado_durable_gate` lee este archivo y la verificación en vivo
+-- (`scripts/verificar-supabase.mjs`, sección «continuidad») lo comprueba contra la base.
+create or replace function public.adi_listar_conversaciones(p_limite integer default 50)
+returns table (hilo_id text, titulo text, actualizado_en timestamptz, mensajes integer)
+language sql
+security invoker
+as $$
+  select c.hilo_id, c.titulo, c.actualizado_en, jsonb_array_length(c.mensajes)
+    from public.conversaciones c
+   where c.tenant_id = adi.tenant_actual()
+     and c.oculta_en is null            -- quitada del panel: la fila queda, la lista no la muestra
+     and adi.plan_actual() = 'pro'      -- sin plan, el historial no existe para esta empresa
+     and coalesce(c.estado ->> 'origen', 'app') = 'app'   -- los hilos del Complemento no son del Historial de la app
+   order by c.actualizado_en desc
+   limit greatest(1, least(coalesce(p_limite, 50), 200));
+$$;
+
+create or replace function public.adi_leer_conversacion(p_hilo_id text)
+returns table (hilo_id text, titulo text, mensajes jsonb, actualizado_en timestamptz)
+language sql
+security invoker
+as $$
+  select c.hilo_id, c.titulo, c.mensajes, c.actualizado_en
+    from public.conversaciones c
+   where c.tenant_id = adi.tenant_actual() and c.hilo_id = p_hilo_id
+     and c.oculta_en is null
+     and adi.plan_actual() = 'pro'
+     and coalesce(c.estado ->> 'origen', 'app') = 'app';
+$$;
+
+grant execute on function public.adi_listar_conversaciones(integer) to adi_tenant;
+grant execute on function public.adi_leer_conversacion(text)        to adi_tenant;
 
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════

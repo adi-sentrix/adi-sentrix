@@ -34,6 +34,24 @@ Conectar Etapa 3 es, en el punto de entrada del endpoint/puerta:
 const almacen = baseConfigurada(env) ? crearAlmacenSupabase({ url, apikey, pase }) : crearAlmacenEnMemoria();
 ```
 
+> **ACTUALIZADO (Etapa 2, bloque 1 · guardado durable, 2026-10-02) — lo de arriba y los ejemplos de abajo se leen así:**
+> 1. **La interfaz del almacén es UNA y es ASÍNCRONA** (memoria y Supabase): todo `almacen.*`, y toda función de
+>    `empresa.js` que lo usa, se ESPERA con `await`. La nota que decía «ninguna línea cambia al enchufar Supabase» era
+>    falsa (el adaptador era asíncrono y los consumidores síncronos: `.filter is not a function`); los ejemplos de abajo
+>    están escritos en la forma síncrona original — léalos con `await` delante de cada llamada al almacén.
+> 2. `leerLibro` y `guardarLibro` reciben la **empresa primero**: `leerLibro(tenantId, conversacionId)`,
+>    `guardarLibro(tenantId, libro)` (en memoria es la llave de aislamiento).
+> 3. **«No existe» y «no se pudo leer» son cosas distintas**: lo primero devuelve `null`/`[]`; lo segundo LANZA
+>    `ErrorDeAlmacen`, y la acción responde `{ok:false, memoria:"no_disponible"}` (falla cerrado).
+> 4. **El orden de cada acción** es leer (base) → tramo síncrono del Core (`capacidad/aislamiento.js:conTenantActivo`) →
+>    escribir (base): ningún `await` entre `initTenant` y el cálculo, para que dos empresas atendidas a la vez no se mezclen.
+> 5. **La puerta** usa la memoria del proceso salvo con `ADI_MEMORIA_DURABLE=true` (y la migración 015 aplicada), que arma
+>    UN almacén de Supabase POR PEDIDO con el pase de la empresa de esa llamada.
+> 6. **El libro es un hilo del Complemento** (`origen: "complemento"`, sellado por la base): el Historial de la app solo
+>    lista `origen = 'app'` (migración 015, defecto D3).
+> Candado: `_guardado_durable_gate.mjs`. Verificación contra la base real: `scripts/verificar-supabase.mjs` (secciones 6-7)
+> y `scripts/guion_continuidad_staging.mjs`.
+
 ## 2 · Dónde se llama, por acción del diseño §E (`_ADI_DISENO_FLUJO_V2.md`)
 
 ### `consultar(encargo)` → `componerEntrega(resolucion, ctx)` (hoy en `entrega/componer.js`, SIN estos campos)

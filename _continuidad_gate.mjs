@@ -53,8 +53,8 @@ H("2 · mismo aporte dos veces → mismo id (nunca se pisa, nunca se duplica al 
 {
   const store = crearAlmacenEnMemoria();
   const aporte = { clase: "hecho", concepto: "benchmark_declarado", entidad: "Jumbo", valor: { raw: 25, unidad: "pct" } };
-  const r1 = declararHecho(store, TENANT, aporte, { actorLabel: "jc" });
-  const r2 = declararHecho(store, TENANT, aporte, { actorLabel: "jc" });
+  const r1 = await declararHecho(store, TENANT, aporte, { actorLabel: "jc" });
+  const r2 = await declararHecho(store, TENANT, aporte, { actorLabel: "jc" });
   ok(r1.ok && r2.ok, "las dos declaraciones se aceptan", JSON.stringify({ r1, r2 }));
   ok(r1.id === r2.id, "★ mismo id: la segunda vez es el MISMO hecho, no uno nuevo", `r1.id=${r1.id} r2.id=${r2.id}`);
   ok(r2.duplicado === true, "la segunda declaración se marca «duplicado» (mismo valor, no hay nada nuevo)");
@@ -62,7 +62,7 @@ H("2 · mismo aporte dos veces → mismo id (nunca se pisa, nunca se duplica al 
   // ya NO deja nada "vigente" al nacer — este aporte, sin confirmar, sigue "pendiente". La ley que este caso
   // prueba (mismo aporte dos veces → una sola fila, nunca dos al azar) sigue intacta: se verifica sobre el
   // TOTAL de filas de esa llave, no sobre `leerVigentes` (que hoy da 0, correctamente — nada se confirmó).
-  ok(leerVigentes(store, TENANT).length === 0 && store.leerHechosEmpresa(TENANT).length === 1, "sigue habiendo UNA sola fila con esa llave (pendiente, nadie la confirmó todavía)");
+  ok((await leerVigentes(store, TENANT)).length === 0 && (await store.leerHechosEmpresa(TENANT)).length === 1, "sigue habiendo UNA sola fila con esa llave (pendiente, nadie la confirmó todavía)");
 }
 H("2b · determinismo de los ids del libro — E<n>.h<k>, nunca al azar");
 {
@@ -96,9 +96,9 @@ H("4 · sin conversacionId devuelto: se abre un libro nuevo y la memoria de EMPR
   // deja nada vigente — para probar que la memoria de EMPRESA (lo que la empresa YA SABE, confirmado) sobrevive
   // a perder el libro, este caso confirma el criterio antes de "perder" la conversación (si se dejara pendiente,
   // seguiría sin ser dato — lo probado acá es otra cosa: que lo YA CONFIRMADO no depende del libro).
-  const declarado = declararHecho(store, TENANT, { clase: "criterio", concepto: "benchmark_margen", valor: { raw: 22, unidad: "pct" } }, { actorLabel: "jc", conversacionId: "c-vieja" });
-  confirmarHecho(store, TENANT, declarado.id, { actorLabel: "jc", resolverConflicto: true });
-  const antes = leerVigentes(store, TENANT);
+  const declarado = await declararHecho(store, TENANT, { clase: "criterio", concepto: "benchmark_margen", valor: { raw: 22, unidad: "pct" } }, { actorLabel: "jc", conversacionId: "c-vieja" });
+  await confirmarHecho(store, TENANT, declarado.id, { actorLabel: "jc", resolverConflicto: true });
+  const antes = await leerVigentes(store, TENANT);
   ok(antes.length === 1, "la empresa ya tiene un criterio declarado (y confirmado) antes de «perder» el libro");
 
   // el anfitrión no trae conversacionId: se emite uno NUEVO (nunca se reconstruye desde prosa)
@@ -107,7 +107,7 @@ H("4 · sin conversacionId devuelto: se abre un libro nuevo y la memoria de EMPR
   ok(libroPerdido.conversacionId !== "c-vieja" && !!libroPerdido.conversacionId, "id de conversación NUEVO, distinto del anterior", libroPerdido.conversacionId);
   ok(libroPerdido.entregas.length === 0 && libroPerdido.turno === 0, "★ el libro nuevo pierde el HISTORIAL de la conversación (eso sí se pierde)");
 
-  const despues = leerVigentes(store, TENANT);
+  const despues = await leerVigentes(store, TENANT);
   ok(despues.length === 1 && despues[0].concepto === "benchmark_margen" && despues[0].valor.raw === 22, "★ la memoria de EMPRESA sigue intacta: no se perdió el criterio declarado, solo el libro");
   void libroAnterior;
 }
@@ -185,14 +185,14 @@ H("8 · un declarado frente a un hecho de origen «medido» — los DOS sobreviv
   const store = crearAlmacenEnMemoria();
   // se simula lo que un futuro productor (o una migración de datos real) dejaría en la tabla: un hecho "medido"
   // — hoy `declararHecho` NUNCA produce uno (ver §9), pero la ley tiene que sostenerse igual si algo lo trajera.
-  const medido = store.guardarHechoEmpresa(TENANT, {
+  const medido = await store.guardarHechoEmpresa(TENANT, {
     id: "h-medido-1", clase: "hecho", concepto: "margen_del_periodo", entidad: "Jumbo", periodo: "2025-12",
     valor: { raw: 21.5, unidad: "pct" }, origen: "medido", documento: null, confirmacion: null,
     estado: "vigente", declaradoEn: new Date().toISOString(), actorLabel: null, conversacionId: null, reemplaza: null,
   });
-  const r = declararHecho(store, TENANT, { clase: "hecho", concepto: "margen_del_periodo", entidad: "Jumbo", periodo: "2025-12", valor: { raw: 25, unidad: "pct" } }, { actorLabel: "jc" });
+  const r = await declararHecho(store, TENANT, { clase: "hecho", concepto: "margen_del_periodo", entidad: "Jumbo", periodo: "2025-12", valor: { raw: 25, unidad: "pct" } }, { actorLabel: "jc" });
   ok(r.ok && r.estado === "pendiente" && r.conflictoCon === medido.id, "★ el declarado entra «pendiente», señalando el conflicto — NUNCA pisa al medido", JSON.stringify(r));
-  const todos = store.leerHechosEmpresa(TENANT);
+  const todos = await store.leerHechosEmpresa(TENANT);
   const sigueMedido = todos.find((h) => h.id === medido.id);
   ok(sigueMedido && sigueMedido.estado === "vigente" && sigueMedido.valor.raw === 21.5, "★ el «medido» sigue VIGENTE, sin tocar — los DOS quedan");
   const declaradoNuevo = todos.find((h) => h.id === r.id);
@@ -203,20 +203,20 @@ H("8 · un declarado frente a un hecho de origen «medido» — los DOS sobreviv
 H("9 · CARNADA · esta memoria NUNCA acepta declarar un hecho de origen «medido» o «supuesto»");
 {
   const store = crearAlmacenEnMemoria();
-  const r1 = declararHecho(store, TENANT, { clase: "hecho", concepto: "x", valor: { raw: 1 }, origen: "medido" });
-  const r2 = declararHecho(store, TENANT, { clase: "hecho", concepto: "x", valor: { raw: 1 }, origen: "supuesto" });
+  const r1 = await declararHecho(store, TENANT, { clase: "hecho", concepto: "x", valor: { raw: 1 }, origen: "medido" });
+  const r2 = await declararHecho(store, TENANT, { clase: "hecho", concepto: "x", valor: { raw: 1 }, origen: "supuesto" });
   ok(r1.ok === false && /origen/.test(r1.motivo), "★ CARNADA · «medido» se RECHAZA de raíz", r1.motivo);
   ok(r2.ok === false && /origen/.test(r2.motivo), "★ CARNADA · «supuesto» se RECHAZA de raíz (eso es del motor de escenarios, no de la empresa)", r2.motivo);
-  ok(leerVigentes(store, TENANT).length === 0, "nada quedó guardado de los dos intentos rechazados");
+  ok((await leerVigentes(store, TENANT)).length === 0, "nada quedó guardado de los dos intentos rechazados");
 }
 
 /* ═══ 10 · LA CONFIRMACIÓN NUNCA CAMBIA EL ORIGEN ═══ */
 H("10 · confirmar un hecho declarado lo deja declarado — la confirmación es un sello aparte");
 {
   const store = crearAlmacenEnMemoria();
-  const r = declararHecho(store, TENANT, { clase: "documento", concepto: "plazo_de_pago", entidad: "Jumbo", valor: { raw: 45, unidad: "days" }, origen: "documento", documento: { nombre: "Contrato Jumbo 2026", tipo: "contrato", parte: "cláusula 4", extraidoPor: "anfitrion", sello: "extraido" } });
+  const r = await declararHecho(store, TENANT, { clase: "documento", concepto: "plazo_de_pago", entidad: "Jumbo", valor: { raw: 45, unidad: "days" }, origen: "documento", documento: { nombre: "Contrato Jumbo 2026", tipo: "contrato", parte: "cláusula 4", extraidoPor: "anfitrion", sello: "extraido" } });
   ok(r.ok && r.entendido.origen === "documento", "nace con origen «documento»");
-  const c = confirmarHecho(store, TENANT, r.id, { actorLabel: "jc", medio: "chat-anfitrion" });
+  const c = await confirmarHecho(store, TENANT, r.id, { actorLabel: "jc", medio: "chat-anfitrion" });
   ok(c.ok && c.entendido.origen === "documento", "★ tras confirmar, el ORIGEN sigue siendo «documento» — nunca pasa a «medido» ni a «declarado»");
   ok(c.entendido.confirmacion && c.entendido.confirmacion.por === "jc" && c.entendido.confirmacion.medio === "chat-anfitrion", "el sello de confirmación queda completo (quién, cuándo, medio, sobre qué)");
   ok(c.entendido.valor.raw === 45, "el VALOR tampoco cambia al confirmar");
@@ -224,34 +224,34 @@ H("10 · confirmar un hecho declarado lo deja declarado — la confirmación es 
 H("10b · confirmar resolviendo un conflicto pendiente promueve a vigente y retira al viejo");
 {
   const store = crearAlmacenEnMemoria();
-  const v1 = declararHecho(store, TENANT, { clase: "criterio", concepto: "benchmark_margen", valor: { raw: 22, unidad: "pct" } });
-  const v2 = declararHecho(store, TENANT, { clase: "criterio", concepto: "benchmark_margen", valor: { raw: 25, unidad: "pct" } });
+  const v1 = await declararHecho(store, TENANT, { clase: "criterio", concepto: "benchmark_margen", valor: { raw: 22, unidad: "pct" } });
+  const v2 = await declararHecho(store, TENANT, { clase: "criterio", concepto: "benchmark_margen", valor: { raw: 25, unidad: "pct" } });
   ok(v2.estado === "pendiente" && v2.conflictoCon === v1.id, "el segundo choca con el primero: pendiente");
-  const c = confirmarHecho(store, TENANT, v2.id, { actorLabel: "jc", resolverConflicto: true });
+  const c = await confirmarHecho(store, TENANT, v2.id, { actorLabel: "jc", resolverConflicto: true });
   ok(c.ok && c.entendido.estado === "vigente" && c.entendido.origen === "declarado", "al confirmar con `resolverConflicto`, pasa a vigente — el origen SIGUE siendo declarado");
-  const viejo = store.leerHechosEmpresa(TENANT).find((h) => h.id === v1.id);
+  const viejo = (await store.leerHechosEmpresa(TENANT)).find((h) => h.id === v1.id);
   ok(viejo.estado === "retirado", "el viejo queda retirado (con su historia, nunca borrado)");
-  ok(leerVigentes(store, TENANT, { concepto: "benchmark_margen" }).length === 1, "una sola vigente para esa llave, al final");
+  ok((await leerVigentes(store, TENANT, { concepto: "benchmark_margen" })).length === 1, "una sola vigente para esa llave, al final");
 }
 
 /* ═══ 11 · RETIRAR — nunca borra ═══ */
 H("11 · retirar un hecho lo marca «retirado», nunca lo borra (queda como historia)");
 {
   const store = crearAlmacenEnMemoria();
-  const r = declararHecho(store, TENANT, { clase: "hecho", concepto: "nota", valor: { texto: "algo" } });
-  const ret = retirarHecho(store, TENANT, r.id, { motivo: "ya no aplica", actorLabel: "jc" });
+  const r = await declararHecho(store, TENANT, { clase: "hecho", concepto: "nota", valor: { texto: "algo" } });
+  const ret = await retirarHecho(store, TENANT, r.id, { motivo: "ya no aplica", actorLabel: "jc" });
   ok(ret.ok && ret.entendido.estado === "retirado", "queda retirado");
-  ok(leerVigentes(store, TENANT).length === 0, "ya no aparece entre los vigentes");
-  ok(leerHistoria(store, TENANT).some((h) => h.id === r.id), "★ pero SIGUE en la historia — nunca desaparece");
+  ok((await leerVigentes(store, TENANT)).length === 0, "ya no aparece entre los vigentes");
+  ok((await leerHistoria(store, TENANT)).some((h) => h.id === r.id), "★ pero SIGUE en la historia — nunca desaparece");
 }
 
 /* ═══ 12 · «PREFIERO NO DECIRLO» — no se vuelve a preguntar en la misma conversación ═══ */
 H("12 · un campo omitido no se vuelve a preguntar en la MISMA conversación");
 {
   const store = crearAlmacenEnMemoria();
-  omitirCampo(store, TENANT, { clase: "hecho", concepto: "margen_objetivo" }, { actorLabel: "jc", conversacionId: "c5" });
-  ok(yaFueOmitido(store, TENANT, { concepto: "margen_objetivo" }, { conversacionId: "c5" }), "en la misma conversación, ya fue omitido");
-  ok(!yaFueOmitido(store, TENANT, { concepto: "margen_objetivo" }, { conversacionId: "c6" }), "en OTRA conversación, sin marca «para siempre», puede volver a preguntarse");
+  await omitirCampo(store, TENANT, { clase: "hecho", concepto: "margen_objetivo" }, { actorLabel: "jc", conversacionId: "c5" });
+  ok(await yaFueOmitido(store, TENANT, { concepto: "margen_objetivo" }, { conversacionId: "c5" }), "en la misma conversación, ya fue omitido");
+  ok(!(await yaFueOmitido(store, TENANT, { concepto: "margen_objetivo" }, { conversacionId: "c6" })), "en OTRA conversación, sin marca «para siempre», puede volver a preguntarse");
 }
 
 /* ═══ 13 · MIGRACIÓN EN LECTURA — diario (007) y contexto (011), sin perder nada ═══ */
@@ -268,12 +268,12 @@ H("13 · migrarLegado/memoriaDeEmpresa traducen diario y contexto sin perder nad
   ok(traducidos.some((h) => h.concepto === "contexto_del_negocio" && /distribuidora/.test(h.valor.texto)), "el contexto viaja completo");
 
   const store = crearAlmacenEnMemoria();
-  const mem1 = memoriaDeEmpresa(store, TENANT, { legado });
+  const mem1 = await memoriaDeEmpresa(store, TENANT, { legado });
   ok(mem1.hechos.length === 3, "sin nada migrado todavía, la vista unificada trae los tres del legado");
 
   // ahora se "migra de verdad" la tesis (una fila real en la tabla, con `migradoDeLegado`)
-  store.guardarHechoEmpresa(TENANT, { ...traducidos[0], id: "h-tesis-1" });
-  const mem2 = memoriaDeEmpresa(store, TENANT, { legado });
+  await store.guardarHechoEmpresa(TENANT, { ...traducidos[0], id: "h-tesis-1" });
+  const mem2 = await memoriaDeEmpresa(store, TENANT, { legado });
   ok(mem2.hechos.length === 3, "★ sigue siendo TRES (la tesis ya no se duplica: una real + dos traducidas al vuelo)");
   ok(mem2.hechos.filter((h) => h.concepto === "tesis_de_la_relacion").length === 1, "ni una tesis de más, ni una de menos");
 }

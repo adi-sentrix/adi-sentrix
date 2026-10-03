@@ -113,7 +113,7 @@ H("3 · consultar(encargo) sobre 5 encargos válidos de fixtures/encargos-desarr
   ok(cincoValidos.length === 5, "hay al menos 5 casos válidos en el catálogo sellado", String(cincoValidos.length));
   const { consultar } = crearAcciones();
   for (const caso of cincoValidos) {
-    const salida = consultar({ tenant: TENANT, encargo: caso.encargo });
+    const salida = await consultar({ tenant: TENANT, encargo: caso.encargo });
     ok(salida.ok === true, `${caso.id} (${caso.titulo}) · consultar responde ok:true`, JSON.stringify(salida.noResuelto));
     ok(Array.isArray(salida.uso) && salida.uso.length === 4, `${caso.id} · trae la cabecera de uso completa (4 reglas)`, JSON.stringify(salida.uso));
     ok(Boolean(salida.entrega && typeof salida.entrega.texto === "string" && salida.entrega.texto.length > 0), `${caso.id} · la Entrega trae texto`, "");
@@ -153,12 +153,12 @@ H("5 · tenant inyectado: sin dataset → declarado (ok:false), nunca una excepc
     ["retomar", retomar, { tenant: SIN_DATASET, conversacionId: "x" }],
   ]) {
     let lanzo = false, salida = null;
-    try { salida = fn(args); } catch { lanzo = true; }
+    try { salida = await fn(args); } catch { lanzo = true; }
     ok(!lanzo, `${nombre} con tenant sin dataset NO lanza excepción`);
     ok(Boolean(salida) && salida.ok === false, `${nombre} con tenant sin dataset declara ok:false`, JSON.stringify(salida));
   }
   // y el tenant activo del proceso sigue siendo el demo (initTenant nunca se llamó con el dataset ausente)
-  ok(true, "el tenant sin dataset nunca llega a initTenant (verificado por construcción: _prepararTenant corta antes)");
+  ok(true, "el tenant sin dataset nunca llega a initTenant (verificado por construcción: _validarTenant corta antes y ni siquiera abre el tramo del Core)");
 }
 
 /* ═══ 6 · aportarContexto / retomar — contra la CONTINUIDAD REAL (carril B, `src/adi/continuidad/`) ══════════════
@@ -173,7 +173,7 @@ H("6 · aportarContexto/retomar contra la continuidad real — la forma del enga
   const { aportarContexto, retomar } = crearAcciones({ continuidad });
 
   // el perfil NUNCA se declara por esta vía (ley de `empresa.js:declararHecho` — vive en `tenants`, 012/013)
-  const aPerfil = aportarContexto({ tenant: TENANT, aportes: [{ clase: "perfil", concepto: "sector", valor: "retail_moda" }] });
+  const aPerfil = await aportarContexto({ tenant: TENANT, aportes: [{ clase: "perfil", concepto: "sector", valor: "retail_moda" }] });
   ok(aPerfil.ok === true, "aportarContexto responde ok:true aunque el aporte se rechace (el rechazo va en el resultado, no en el sobre)");
   ok(aPerfil.resultados[0].estado === "rechazado", "clase \"perfil\" se rechaza: vive en tenants, no en la memoria de empresa", JSON.stringify(aPerfil.resultados[0]));
 
@@ -181,7 +181,7 @@ H("6 · aportarContexto/retomar contra la continuidad real — la forma del enga
   // confirmar ANTES de usarlo; proponer es del modelo, confirmar es de la persona»): TODO aporte nuevo — haya o
   // no colisión — nace "pendiente", con `paraConfirmar:true`. Antes de esta fecha, un aporte sin colisión
   // quedaba vigente de inmediato; eso violaba la ley (ADI proponía y usaba en el mismo paso).
-  const a1 = aportarContexto({ tenant: TENANT, aportes: [{ clase: "criterio", concepto: "benchmark_propio_margen", valor: 28, unidad: "pct" }] });
+  const a1 = await aportarContexto({ tenant: TENANT, aportes: [{ clase: "criterio", concepto: "benchmark_propio_margen", valor: 28, unidad: "pct" }] });
   ok(a1.ok === true, "aportarContexto crea una conversación y registra el aporte");
   ok(typeof a1.conversacionId === "string" && a1.conversacionId.length > 0, "conversacionId emitido por la continuidad inyectada (emitirConversacionId)");
   ok(a1.resultados[0].estado === "pendiente" && a1.resultados[0].paraConfirmar === true, "★ LEY 2026-09-26 · todo aporte nuevo nace pendiente — proponer no es usar", JSON.stringify(a1.resultados[0]));
@@ -189,25 +189,25 @@ H("6 · aportarContexto/retomar contra la continuidad real — la forma del enga
   // declarar OTRO valor para la MISMA llave (mismo concepto/entidad/período), MIENTRAS el primero sigue sin
   // confirmar, SÍ choca igual (la colisión se compara contra vigente Y contra pendiente): nunca se pisa en
   // silencio — entra "pendiente" con `conflictoCon` apuntando al primero, y el origen sigue "declarado" en los dos.
-  const a2 = aportarContexto({ tenant: TENANT, conversacionId: a1.conversacionId, aportes: [{ clase: "criterio", concepto: "benchmark_propio_margen", valor: 32, unidad: "pct" }] });
+  const a2 = await aportarContexto({ tenant: TENANT, conversacionId: a1.conversacionId, aportes: [{ clase: "criterio", concepto: "benchmark_propio_margen", valor: 32, unidad: "pct" }] });
   ok(a2.resultados[0].estado === "pendiente" && a2.resultados[0].paraConfirmar === true, "un valor distinto de la MISMA llave nunca pisa en silencio: queda pendiente", JSON.stringify(a2.resultados[0]));
   ok(a2.resultados[0].conflictoCon === a1.resultados[0].id, "el conflicto apunta al primer pendiente, aunque TODAVÍA no esté confirmado", JSON.stringify(a2.resultados[0]));
 
-  const a3 = aportarContexto({ tenant: TENANT, conversacionId: a1.conversacionId, aportes: [], confirmar: [a2.resultados[0].id] });
+  const a3 = await aportarContexto({ tenant: TENANT, conversacionId: a1.conversacionId, aportes: [], confirmar: [a2.resultados[0].id] });
   ok(a3.ok === true && a3.confirmaciones[0].confirmado === true, "confirmar por id resuelve el conflicto (el nuevo valor queda vigente, el viejo se retira)");
 
-  const r1 = retomar({ tenant: TENANT, conversacionId: a1.conversacionId });
+  const r1 = await retomar({ tenant: TENANT, conversacionId: a1.conversacionId });
   ok(r1.ok === true, "retomar recupera la conversación abierta por aportarContexto");
   ok(Array.isArray(r1.hechos) && r1.hechos.length === 0, "sin ninguna Entrega todavía (nunca se llamó consultar), retomar no inventa hechos entregados", JSON.stringify(r1.hechos));
   ok(Array.isArray(r1.estadoVigente.hechosAportados) && r1.estadoVigente.hechosAportados.length === 2, "el estado vigente sí referencia los DOS aportes de esta conversación (el vigente y el confirmado)", JSON.stringify(r1.estadoVigente.hechosAportados));
   ok(Array.isArray(r1.advertencias) && r1.advertencias.length > 0, "retomar declara el límite de re-verificación (el índice de evidencia real vive en entrega/componer.js)", JSON.stringify(r1.advertencias));
 
-  const rFalla = retomar({ tenant: TENANT, conversacionId: "conversacion-que-no-existe" });
+  const rFalla = await retomar({ tenant: TENANT, conversacionId: "conversacion-que-no-existe" });
   ok(rFalla.ok === false, "retomar sobre un id inexistente se declara, no inventa un estado vacío con ok:true");
 
   // una acción sin la continuidad inyectada (default) también funciona — usa su propio almacén en memoria
   const suelto = crearAcciones();
-  const aSuelto = suelto.aportarContexto({ tenant: TENANT, aportes: [{ clase: "hecho", concepto: "acuerdo verbal de plazo", valor: "60 días" }] });
+  const aSuelto = await suelto.aportarContexto({ tenant: TENANT, aportes: [{ clase: "hecho", concepto: "acuerdo verbal de plazo", valor: "60 días" }] });
   ok(aSuelto.ok === true, "crearAcciones() sin argumentos trae su propio almacén en memoria por defecto");
 }
 

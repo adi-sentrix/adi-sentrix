@@ -25,6 +25,13 @@ export const LIBRO_TOPE_BYTES = 16 * 1024;
 export const ENTREGAS_TOPE = 12;
 export const SUPUESTOS_VIVOS_TOPE = 3; // = SUPUESTOS_USUARIO_MAX (oracle/conversationScope.js, encargo/esquema.js)
 export const VERSION_LIBRO = "libro/v1";
+/* EL ORIGEN DEL HILO (Etapa 2, bloque 1 · D3): un libro de conversación es SIEMPRE un hilo del Complemento. Es el
+ * dato ESTRUCTURAL con el que la base distingue estos hilos de los del chat de la app (`adi_listar_conversaciones`,
+ * migración 015, solo lista `origen = 'app'`): ninguna fila fantasma —título vacío, cero mensajes— aparece en el
+ * Historial de un usuario PRO, y no hay filtro por título vacío ni por conteo de mensajes. La base lo SELLA
+ * ella misma al guardar (`adi_guardar_estado_conversacion`); acá se escribe también para que lo guardado y lo
+ * leído sean idénticos. Cuando «retomar» llegue al chat directo (etapa 4), ese hilo llevará SU origen. */
+export const ORIGEN_LIBRO = "complemento";
 
 /* tamaño en bytes de lo que de verdad se guarda (UTF-8, no `.length` de JS que cuenta unidades UTF-16) —
  * `TextEncoder` funciona igual en Node y en runtime edge, a diferencia de `Buffer` (regla del repo: nada que
@@ -45,6 +52,7 @@ export function emitirConversacionId() {
 export function libroNuevo({ conversacionId = null, versionId = null } = {}) {
   return {
     version: VERSION_LIBRO,
+    origen: ORIGEN_LIBRO,
     conversacionId: conversacionId || emitirConversacionId(),
     versionIdInicial: versionId || null,
     turno: 0,
@@ -106,7 +114,11 @@ export function recortarATope(libro) {
 
 /** registrarEntrega(libro, entrada) → Libro · avanza el turno, asigna ids `E<n>.h<k>`/`E<n>.u<k>` estables,
  * declara el cambio de versión si lo hay (§B: «los ids anteriores quedan con su versión») y aplica el tope.
- * entrada = { versionId, temas?, entidades?, cierre?, hechos?: [{sujeto,metrica,valor,unidad,periodo,universoId?,origen?}], universos?: [...] } */
+ * entrada = { versionId, temas?, entidades?, cierre?, hechos?: [{sujeto,metrica,valor,unidad,periodo,universoId?,origen?}], universos?: [...],
+ *             entregadaEn?, periodo? }
+ * `entregadaEn` (cuándo se entregó, ISO — lo pone quien llama con SU reloj: esta función no lee la hora) y `periodo`
+ * (el período de los datos que la Entrega declara en su Marco) quedan con la Entrega: «lo entregado se conserva tal
+ * cual» incluye CUÁNDO y SOBRE QUÉ CARGA se entregó, para que un retomar posterior pueda mostrarlo sin recalcular. */
 export function registrarEntrega(libro, entrada = {}) {
   const turno = libro.turno + 1;
   const cambio = detectarCambioVersion(libro, entrada.versionId);
@@ -117,6 +129,7 @@ export function registrarEntrega(libro, entrada = {}) {
     temas: Array.isArray(entrada.temas) ? entrada.temas.slice() : [],
     entidades: Array.isArray(entrada.entidades) ? entrada.entidades.slice() : [],
     cierre: entrada.cierre || null, hechos, universos, recortada: false,
+    entregadaEn: entrada.entregadaEn || null, periodo: entrada.periodo || null,
   };
   const L = {
     ...libro, turno,

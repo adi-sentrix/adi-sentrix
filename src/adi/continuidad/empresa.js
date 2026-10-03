@@ -88,27 +88,39 @@ function _pasaFiltro(h, f) {
 const _nuevoId = (store) => (typeof store.nuevoIdHecho === "function" ? store.nuevoIdHecho() : `h${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`);
 const _ahora = () => new Date().toISOString();
 
-/** leerVigentes(store, tenantId, filtro?) → HechoEmpresa[] · solo `estado:"vigente"`. */
-export function leerVigentes(store, tenantId, filtro = {}) {
-  const todos = (store.leerHechosEmpresa(tenantId) || []).filter((h) => h.estado === "vigente");
+/* ═══ TODAS LAS FUNCIONES QUE TOCAN EL ALMACÉN SON ASÍNCRONAS (Etapa 2, bloque 1 · guardado durable) ═══════════════
+ * El almacén es UNA sola interfaz y es asíncrona (`almacen.js`): cada `store.*` se ESPERA. Antes estas funciones
+ * trataban la respuesta del almacén como un arreglo ya resuelto y reventaban contra el de Supabase
+ * (`.filter is not a function`). Las funciones puras (`claveDeHecho`, `migrarLegado`, `hechoDePerfilCampo`) siguen
+ * síncronas: no tocan el almacén. NINGUNA de estas funciones usa el estado global del tenant (`tenantStore`): el
+ * tenant llega como `tenantId` por parámetro, así que se pueden esperar fuera del tramo del Core sin riesgo
+ * (el aislamiento de ese tramo es de `capacidad/aislamiento.js`).
+ *
+ * OJO, DOCUMENTADO: leer-y-luego-escribir de `declararHecho`/`confirmarHecho` NO es atómico entre llamadas
+ * concurrentes de la MISMA empresa; quien necesite esa garantía (las acciones de la capacidad) las serializa por
+ * empresa con `serializar.js`. Entre instancias del servidor no hay candado de proceso: eso lo da la base. */
+
+/** leerVigentes(store, tenantId, filtro?) → Promise<HechoEmpresa[]> · solo `estado:"vigente"`. */
+export async function leerVigentes(store, tenantId, filtro = {}) {
+  const todos = ((await store.leerHechosEmpresa(tenantId)) || []).filter((h) => h.estado === "vigente");
   return todos.filter((h) => _pasaFiltro(h, filtro));
 }
 
-/** leerHistoria(store, tenantId, filtro?) → HechoEmpresa[] · vigentes + retirados, en orden de declaración —
+/** leerHistoria(store, tenantId, filtro?) → Promise<HechoEmpresa[]> · vigentes + retirados, en orden de declaración —
  * para auditar una llave completa (qué se dijo, cuándo, qué lo reemplazó). Los omitidos NO son historia de un
  * valor (nunca hubo valor): se leen aparte con `estado:"omitido"` en el filtro si hace falta. */
-export function leerHistoria(store, tenantId, filtro = {}) {
-  const todos = (store.leerHechosEmpresa(tenantId) || []).filter((h) => h.estado === "vigente" || h.estado === "retirado");
+export async function leerHistoria(store, tenantId, filtro = {}) {
+  const todos = ((await store.leerHechosEmpresa(tenantId)) || []).filter((h) => h.estado === "vigente" || h.estado === "retirado");
   return todos.filter((h) => _pasaFiltro(h, filtro)).sort((a, b) => String(a.declaradoEn || "").localeCompare(String(b.declaradoEn || "")));
 }
 
-/** leerPendientes(store, tenantId, filtro?) → HechoEmpresa[] · solo `estado:"pendiente"` — lo que ADI PROPUSO
+/** leerPendientes(store, tenantId, filtro?) → Promise<HechoEmpresa[]> · solo `estado:"pendiente"` — lo que ADI PROPUSO
  * (declarado o leído de un documento) y la persona todavía NO confirmó (ley 2026-09-26, cabecera de
  * `declararHecho`). Existe para que quien exponga "el estado" (`conocerEmpresa`/`capacidad/acciones.js`) pueda
  * mostrarlo SEPARADO de `leerVigentes` — nunca mezclado como si ya fuera dato: un pendiente se anuncia como
  * "pendiente de confirmar", jamás se usa en una Entrega ni se cuenta como parte de lo que la empresa "ya sabe". */
-export function leerPendientes(store, tenantId, filtro = {}) {
-  const todos = (store.leerHechosEmpresa(tenantId) || []).filter((h) => h.estado === "pendiente");
+export async function leerPendientes(store, tenantId, filtro = {}) {
+  const todos = ((await store.leerHechosEmpresa(tenantId)) || []).filter((h) => h.estado === "pendiente");
   return todos.filter((h) => _pasaFiltro(h, filtro));
 }
 
@@ -127,7 +139,7 @@ export function leerPendientes(store, tenantId, filtro = {}) {
  * salida directa (sin pasar por "pendiente") es declarar EXACTAMENTE el mismo valor que YA está vigente — ahí no
  * hay nada nuevo que confirmar, es la misma afirmación de vuelta. `confirmarHecho` es el ÚNICO camino que promueve
  * un "pendiente" a "vigente" (con o sin conflicto que resolver: ver su cabecera) — y NUNCA toca el origen. */
-export function declararHecho(store, tenantId, aporte, { actorLabel = null, conversacionId = null } = {}) {
+export async function declararHecho(store, tenantId, aporte, { actorLabel = null, conversacionId = null } = {}) {
   if (!tenantId) return { ok: false, motivo: "sin empresa: no se declara nada sin saber de qué empresa es" };
   if (!_es(aporte)) return { ok: false, motivo: "el aporte tiene que ser un objeto" };
 
@@ -161,13 +173,15 @@ export function declararHecho(store, tenantId, aporte, { actorLabel = null, conv
   // "mismo aporte dos veces → mismo id, nunca dos filas nuevas al azar" — y un valor DISTINTO mientras la
   // primera sigue sin confirmar tiene que declararse en conflicto igual que si ya estuviera vigente).
   const clave = claveDeHecho(candidato);
-  const colision = [...leerVigentes(store, tenantId, {}), ...leerPendientes(store, tenantId, {})].find((h) => claveDeHecho(h) === clave);
+  // UNA sola lectura del almacén (antes eran dos: vigentes y pendientes) — misma regla, un viaje a la base menos.
+  const todosLosHechos = (await store.leerHechosEmpresa(tenantId)) || [];
+  const colision = [...todosLosHechos.filter((h) => h.estado === "vigente"), ...todosLosHechos.filter((h) => h.estado === "pendiente")].find((h) => claveDeHecho(h) === clave);
 
   if (colision) {
     /* (a) mismo valor que el YA vigente: nada nuevo que declarar ni que confirmar — se toca la confirmación si
      * vino, NUNCA el origen ni el valor. Es la ÚNICA salida directa (no pasa por "pendiente"). */
     if (_mismoValorDeclarado(candidato.valor, colision.valor)) {
-      if (aporte.confirmacion) store.actualizarHechoEmpresa(tenantId, colision.id, { confirmacion: aporte.confirmacion });
+      if (aporte.confirmacion) await store.actualizarHechoEmpresa(tenantId, colision.id, { confirmacion: aporte.confirmacion });
       return { ok: true, id: colision.id, estado: colision.estado, entendido: colision, duplicado: true, paraConfirmar: colision.estado === "pendiente" };
     }
     /* (b) valor DISTINTO del vigente — con reemplazo EXPLÍCITO (`aporte.reemplaza`) o sin él, da IGUAL: nunca se
@@ -175,11 +189,11 @@ export function declararHecho(store, tenantId, aporte, { actorLabel = null, conv
      * aporte nombró explícitamente a qué hecho reemplaza, ese vínculo viaja ya en `reemplaza` (queda escrito, pero
      * el retiro real del vigente ocurre RECIÉN al confirmar — `confirmarHecho({resolverConflicto:true})`, nunca acá). */
     const reemplazaExplicito = aporte.reemplaza && String(aporte.reemplaza) === String(colision.id);
-    const guardado = store.guardarHechoEmpresa(tenantId, { ...candidato, id: _nuevoId(store), reemplaza: reemplazaExplicito ? colision.id : null });
+    const guardado = await store.guardarHechoEmpresa(tenantId, { ...candidato, id: _nuevoId(store), reemplaza: reemplazaExplicito ? colision.id : null });
     return { ok: true, id: guardado.id, estado: "pendiente", entendido: guardado, conflictoCon: colision.id, paraConfirmar: true };
   }
 
-  const guardado = store.guardarHechoEmpresa(tenantId, { ...candidato, id: _nuevoId(store) });
+  const guardado = await store.guardarHechoEmpresa(tenantId, { ...candidato, id: _nuevoId(store) });
   return { ok: true, id: guardado.id, estado: guardado.estado, entendido: guardado, paraConfirmar: true };
 }
 
@@ -191,9 +205,9 @@ export function declararHecho(store, tenantId, aporte, { actorLabel = null, conv
  * vigente, o sin él porque era la primera vez que se declaraba esa llave — `declararHecho` ya no deja nada
  * "vigente" de entrada) deje de serlo. Si además había un `conflictoCon` real (otro vigente con la misma llave),
  * ese otro se retira acá — nunca antes de confirmar. */
-export function confirmarHecho(store, tenantId, id, { actorLabel = null, medio = "chat-anfitrion", resolverConflicto = false } = {}) {
+export async function confirmarHecho(store, tenantId, id, { actorLabel = null, medio = "chat-anfitrion", resolverConflicto = false } = {}) {
   if (!tenantId) return { ok: false, motivo: "sin empresa: no se confirma nada sin saber de qué empresa es" };
-  const todos = store.leerHechosEmpresa(tenantId) || [];
+  const todos = (await store.leerHechosEmpresa(tenantId)) || [];
   const h = todos.find((x) => String(x.id) === String(id));
   if (!h) return { ok: false, motivo: `hecho «${id}» no existe` };
 
@@ -207,21 +221,21 @@ export function confirmarHecho(store, tenantId, id, { actorLabel = null, medio =
     // ambos estados, así que confirmar tiene que poder retirar cualquiera de los dos, nunca dejar un pendiente
     // huérfano compitiendo con el que se acaba de promover).
     const otro = todos.find((x) => (x.estado === "vigente" || x.estado === "pendiente") && String(x.id) !== String(h.id) && claveDeHecho(x) === clave);
-    if (otro) store.actualizarHechoEmpresa(tenantId, otro.id, { estado: "retirado" });
+    if (otro) await store.actualizarHechoEmpresa(tenantId, otro.id, { estado: "retirado" });
     cambios.estado = "vigente";
     if (otro) cambios.reemplaza = otro.id;
   }
 
-  const actualizado = store.actualizarHechoEmpresa(tenantId, id, cambios);
+  const actualizado = await store.actualizarHechoEmpresa(tenantId, id, cambios);
   if (!actualizado) return { ok: false, motivo: `hecho «${id}» no existe` };
   return { ok: true, id, estado: actualizado.estado, entendido: actualizado };
 }
 
 /** retirarHecho(store, tenantId, id, opts?) → { ok, id?, entendido?, motivo? }
  * Nunca borra: pasa a `"retirado"` con quién y por qué — la misma disciplina que `access_audit` (007/009/011). */
-export function retirarHecho(store, tenantId, id, { motivo = null, actorLabel = null } = {}) {
+export async function retirarHecho(store, tenantId, id, { motivo = null, actorLabel = null } = {}) {
   if (!tenantId) return { ok: false, motivo: "sin empresa: no se retira nada sin saber de qué empresa es" };
-  const actualizado = store.actualizarHechoEmpresa(tenantId, id, { estado: "retirado", retiradoMotivo: motivo || null, retiradoPor: actorLabel || null, retiradoEn: _ahora() });
+  const actualizado = await store.actualizarHechoEmpresa(tenantId, id, { estado: "retirado", retiradoMotivo: motivo || null, retiradoPor: actorLabel || null, retiradoEn: _ahora() });
   if (!actualizado) return { ok: false, motivo: `hecho «${id}» no existe` };
   return { ok: true, id, entendido: actualizado };
 }
@@ -231,7 +245,7 @@ export function retirarHecho(store, tenantId, id, { motivo = null, actorLabel = 
  * (decisión del supervisor con las palabras del owner: no se repite en la MISMA conversación; en otra, solo si
  * una Entrega lo necesita y dice para qué — esa política de CUÁNDO preguntar es de la Etapa 3/`necesitaPerfil`,
  * fuera de esta pieza; acá solo se guarda el hecho de que se omitió, con su conversación de origen). */
-export function omitirCampo(store, tenantId, { clase = "hecho", concepto, eje = null, entidad = null } = {}, { actorLabel = null, conversacionId = null } = {}) {
+export async function omitirCampo(store, tenantId, { clase = "hecho", concepto, eje = null, entidad = null } = {}, { actorLabel = null, conversacionId = null } = {}) {
   if (!tenantId) return { ok: false, motivo: "sin empresa: no se omite nada sin saber de qué empresa es" };
   if (!concepto || !String(concepto).trim()) return { ok: false, motivo: "falta el concepto a omitir" };
   const candidato = {
@@ -239,15 +253,15 @@ export function omitirCampo(store, tenantId, { clase = "hecho", concepto, eje = 
     origen: "declarado", documento: null, confirmacion: null, estado: "omitido", declaradoEn: _ahora(),
     actorLabel: actorLabel || null, conversacionId: conversacionId || null, reemplaza: null,
   };
-  const guardado = store.guardarHechoEmpresa(tenantId, { ...candidato, id: _nuevoId(store) });
+  const guardado = await store.guardarHechoEmpresa(tenantId, { ...candidato, id: _nuevoId(store) });
   return { ok: true, id: guardado.id, entendido: guardado };
 }
 
 /** yaFueOmitido(store, tenantId, {concepto, eje?, entidad?}, {conversacionId?}) → boolean
  * true si YA se preguntó y se declinó: en la MISMA conversación siempre; en otra, solo si el omitido no traía
  * `conversacionId` (una omisión "para siempre", nunca inferida — la marca explícita la pone quien llama). */
-export function yaFueOmitido(store, tenantId, { concepto, eje = null, entidad = null } = {}, { conversacionId = null } = {}) {
-  const todos = (store.leerHechosEmpresa(tenantId) || []).filter((h) => h.estado === "omitido" && _pasaFiltro(h, { concepto, eje, entidad }));
+export async function yaFueOmitido(store, tenantId, { concepto, eje = null, entidad = null } = {}, { conversacionId = null } = {}) {
+  const todos = ((await store.leerHechosEmpresa(tenantId)) || []).filter((h) => h.estado === "omitido" && _pasaFiltro(h, { concepto, eje, entidad }));
   return todos.some((h) => !h.conversacionId || (conversacionId && String(h.conversacionId) === String(conversacionId)));
 }
 
@@ -321,8 +335,8 @@ export function migrarLegado({ diario = null, contexto = null } = {}) {
  * no toca el pack). Si un hecho vigente YA trae `migradoDeLegado` con el mismo origen+concepto+entidad, el
  * legado correspondiente NO se repite — así, el día que una migración de datos real copie diario/contexto a la
  * tabla, `memoriaDeEmpresa` deja de traducir por sí sola sin que nadie tenga que tocar este módulo. */
-export function memoriaDeEmpresa(store, tenantId, { legado = null } = {}) {
-  const vigentes = leerVigentes(store, tenantId, {});
+export async function memoriaDeEmpresa(store, tenantId, { legado = null } = {}) {
+  const vigentes = await leerVigentes(store, tenantId, {});
   const yaMigrados = new Set(vigentes.filter((h) => h.migradoDeLegado).map((h) => `${h.migradoDeLegado}:${_normTxt(h.concepto)}:${_normTxt(h.entidad || "")}`));
   const legadoTraducido = legado ? migrarLegado(legado).filter((h) => !yaMigrados.has(`${h.migradoDeLegado}:${_normTxt(h.concepto)}:${_normTxt(h.entidad || "")}`)) : [];
   return { hechos: [...vigentes, ...legadoTraducido] };

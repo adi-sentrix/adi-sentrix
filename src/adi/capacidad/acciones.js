@@ -8,10 +8,9 @@
  * «PURAS», EN EL SENTIDO DE ESTE REPOSITORIO: determinísticas dado el MISMO `tenant.dataset` y el MISMO encargo —
  * la misma garantía que ya tienen `validarEncargo`/`componerEntrega`, que tampoco son puras en el sentido
  * estricto de la programación funcional (leen el tenant activo de `data/tenantStore.js`, la ÚNICA puerta del dato
- * del Core — ver su cabecera). Cada acción de acá llama `initTenant(tenant.dataset)` ANTES de tocar el Core, así
- * que el resultado depende solo de lo que el LLAMADOR inyectó, nunca de una sesión anterior que haya quedado
- * activa por accidente — esa es toda la superficie de "pureza" que este corte necesita y la única que se puede
- * dar sin reescribir el Core para que reciba el dataset por parámetro en cada función.
+ * del Core — ver su cabecera). El resultado depende solo de lo que el LLAMADOR inyectó, nunca de una sesión
+ * anterior que haya quedado activa por accidente: el tramo que toca el Core entra con `conTenantActivo`
+ * (`aislamiento.js`), que fija la empresa, calcula SIN ESPERAR NADA y restaura lo que había.
  *
  * NUNCA VIAJA EL ARCHIVO DEL CLIENTE (ley del owner): `tenant.dataset` es el PACK ya calculado (la misma forma
  * que `initTenant` recibe en toda la casa — `TENANT_DEMO`, o `packActivo(...).pack` en producción), nunca el
@@ -24,17 +23,32 @@
  * forma que ya devuelve `data/tenantService.server.js:packActivo`/`handleData` para el estado "activo". `puerta.js`
  * arma este objeto DESPUÉS de verificar el token; ninguna acción de acá vuelve a verificar nada de identidad.
  *
+ * ═══ ETAPA 2, BLOQUE 1 · GUARDADO DURABLE (owner 2026-10-02) — LAS CUATRO ACCIONES SON ASÍNCRONAS ═════════════
+ * El almacén (`continuidad/almacen.js`) es UNA interfaz asíncrona, la misma para la memoria en proceso y para
+ * Supabase (`almacenSupabase.js`). La nota anterior de este archivo —«ninguna línea cambia al enchufar Supabase»—
+ * era FALSA: las acciones eran síncronas y trataban lo que devolvía el almacén como un arreglo ya resuelto
+ * (`.filter is not a function`). Ahora cada acción es `async` y ESPERA al almacén.
+ *
+ * EL ORDEN DE CADA ACCIÓN (defecto D2): LEER de la base → ENTRAR AL TRAMO DEL CORE (`conTenantActivo`: initTenant +
+ * validarEncargo/componerEntrega, SÍNCRONO, sin `await` adentro) → SALIR → ESCRIBIR a la base. Entre `initTenant` y
+ * el cálculo no hay ninguna espera, así que dos empresas atendidas a la vez en el mismo servidor no se mezclan
+ * (`_guardado_durable_gate.mjs` lo prueba intercalando al azar, y el orden viejo —carnada— sí las mezcla).
+ *
+ * LA FALLA ES VISIBLE (contrato de `almacen.js`): si el almacén no puede leer o guardar, la acción responde
+ * `{ok:false, memoria:"no_disponible"}` — nunca trata «no pude leer» como «no existe» (eso abriría un libro vacío
+ * con el mismo id y lo guardaría encima del real). `consultar` es la excepción honesta: si el CÁLCULO salió bien y
+ * lo único que falló es GUARDAR la conversación, entrega la Entrega (las cifras son verdaderas) y declara
+ * `continuidad.guardada:false` con su motivo — nunca finge que la conversación quedó guardada.
+ *
+ * LAS ESCRITURAS DE UNA MISMA CONVERSACIÓN / EMPRESA SE SERIALIZAN (`continuidad/serializar.js`): leer-calcular-
+ * guardar el libro no es atómico, y dos llamadas cruzadas de la misma conversación perderían una Entrega («el pasado
+ * no se reescribe»). Es un candado DE PROCESO: no protege entre instancias del hosting (eso es de la base).
+ *
  * ═══ CORTE 9 (owner 2026-09-26) — LA CONTINUIDAD REAL, YA NO EL DOBLE ═══════════════════════════════════════════
  * `continuidadMemoria.js` (el doble en memoria de esta pieza) se RETIRA: el carril B publicó la continuidad real
  * en `src/adi/continuidad/` (memoria de empresa + libro de conversación + estado vigente + retomar, sobre un
- * ALMACÉN inyectable — `continuidad/almacen.js`). Lo que este archivo llamaba `continuidad` (con las cinco
- * funciones del doble: `nuevaConversacion`/`obtenerEstado`/`registrarAporte`/`confirmarAporte`/`listarAportes`)
- * pasa a ser, LITERAL, el ALMACÉN de `_ADI_CONTINUIDAD_INTEGRACION.md` §1: `crearAlmacenEnMemoria()` por defecto
- * en los gates y en la puerta (un proceso, una instancia — ver `puerta.js`), o `crearAlmacenSupabase(...)` el día
- * que el owner autorice aplicar la migración 015 (HOY no aplicada: este archivo NUNCA la importa por defecto).
- * Las funciones PURAS de `continuidad/` (`empresa.js`, `libro.js`, `estadoVigente.js`, `retomar.js`) se llaman
- * directo desde acá, con el almacén como primer parámetro — el mismo patrón que ya usa el resto del repo para
- * separar cálculo de transporte.
+ * ALMACÉN inyectable — `continuidad/almacen.js`). Las funciones de `continuidad/` se llaman directo desde acá, con
+ * el almacén como primer parámetro.
  *
  * LO QUE ESTE CORTE CONECTA (`_ADI_CONTINUIDAD_INTEGRACION.md` §2) Y LO QUE DEJA DECLARADO COMO LÍMITE:
  *   · `consultar` abre/reusa el libro de conversación, registra lo entregado como referencias (tabla de Cifras:
@@ -50,16 +64,14 @@
  *     `consultar` para lo medido), pero todavía no se CRUZAN en una sola Entrega. Reportado al supervisor.
  *   · LÍMITE DECLARADO (`retomar`, ver su cabecera más abajo): el `reverificar()` real exige reconstruir el
  *     índice de evidencia de la versión activa (`notario/evidencia.js:indiceDeEvidencia`), que hoy solo se arma
- *     DENTRO de `entrega/componer.js` corriendo los playbooks del turno — tocar eso está fuera de lo que este
- *     corte puede hacer sin meterse en `entrega/componer.js` (congelado). `retomar` queda con `reverificar:null`,
+ *     DENTRO de `entrega/componer.js` corriendo los playbooks del turno. `retomar` queda con `reverificar:null`,
  *     que es el comportamiento YA DISEÑADO de `continuidad/retomar.js` para este caso: falla cerrado,
  *     `estadoReverificacion:"sin_reverificar"` para todo, nunca un veredicto inventado. */
-import { initTenant, getTenantData } from "../../data/tenantStore.js";
 import { validarEncargo } from "../encargo/validar.js";
 import { componerEntrega } from "../entrega/componer.js";
 import { construirCatalogo } from "./catalogo.js";
 import { construirPerfilCliente } from "../../config/contract/perfilCliente.js";
-import { crearAlmacenEnMemoria } from "../continuidad/almacen.js";
+import { crearAlmacenEnMemoria, esErrorDeAlmacen } from "../continuidad/almacen.js";
 import { memoriaDeEmpresa, declararHecho, confirmarHecho, hechoDePerfilCampo, leerPendientes } from "../continuidad/empresa.js";
 import {
   libroNuevo, emitirConversacionId, detectarCambioVersion, registrarEntrega,
@@ -67,6 +79,8 @@ import {
 } from "../continuidad/libro.js";
 import { estadoVigenteDe, eventosDeContinuidad, lineaDeContinuidad } from "../continuidad/estadoVigente.js";
 import { retomar as reverificarConversacion } from "../continuidad/retomar.js";
+import { serializarPorClave } from "../continuidad/serializar.js";
+import { conTenantActivo } from "./aislamiento.js";
 
 /* ── LA CABECERA DE USO (plan v2, Etapa 3 · «una cabecera de USO para el LLM») ───────────────────────────────────
  * Viaja en CADA `consultar(...)`. Cuatro reglas, en el vocabulario de negocio del contrato (nunca "boleta" ni
@@ -82,14 +96,17 @@ export const CABECERA_DE_USO = Object.freeze([
   "Redacte con total libertad — resuma, ordene, adapte el tono al lector — y nombre la simulación o la entidad exacta SOLO cuando haya ambigüedad real sobre a cuál se refiere la cifra.",
 ]);
 
-/* ── preparar el tenant inyectado: la ÚNICA vez que estas acciones tocan `data/tenantStore.js` ──────────────── */
-function _prepararTenant(tenant) {
+/* ── validar la FORMA del tenant inyectado — SIN tocar el estado global del Core (eso es `conTenantActivo`) ────── */
+function _validarTenant(tenant) {
   if (!tenant || typeof tenant !== "object" || !tenant.dataset || typeof tenant.dataset !== "object") {
     return { ok: false, motivo: "tenant inválido: falta el dataset ya calculado (nunca se recibe un archivo del cliente acá)" };
   }
-  initTenant(tenant.dataset);
   return { ok: true };
 }
+
+/* la respuesta cuando el almacén no pudo leer o guardar: palabras de negocio, sin el mensaje de la base. */
+const MOTIVO_SIN_MEMORIA = "la memoria de la empresa no está disponible en este momento (no se pudo leer o guardar en la base): no se entrega nada que dependa de ella — reintente en unos minutos.";
+const _sinMemoria = (e) => ({ ok: false, memoria: "no_disponible", motivo: MOTIVO_SIN_MEMORIA, operacion: (e && e.operacion) || null });
 
 /* ── forma mínima de un aporte (aportarContexto) — sin leer prosa: valida CAMPOS, no interpreta texto ─────────── */
 const _CLASES_DE_APORTE = ["perfil", "criterio", "hecho", "documento"];
@@ -155,16 +172,17 @@ function _hechosDeLaEntrega(entregaJson) {
   }));
 }
 
-/** crearAcciones({ continuidad? }) → { conocerEmpresa, consultar, aportarContexto, retomar }
+/** crearAcciones({ continuidad?, ahora? }) → { conocerEmpresa, consultar, aportarContexto, retomar }
  *
- *  `continuidad` es el ALMACÉN inyectable de `src/adi/continuidad/almacen.js` (owner: «deja escrito el punto de
- *  enganche» — corte 9: YA ESTÁ enganchado). Por defecto, `crearAlmacenEnMemoria()` — la misma instancia que usan
- *  los gates y la que `puerta.js` comparte por proceso (nunca una por request: perdería la conversación entre
- *  llamadas). El día que el owner autorice aplicar la migración 015, se inyecta `crearAlmacenSupabase({url,
- *  apikey, pase})` (`continuidad/almacenSupabase.js`, escrito y sin usar) desde donde se arme la puerta —
- *  NINGUNA línea de este archivo cambia: es exactamente el "almacén" que `_ADI_CONTINUIDAD_INTEGRACION.md` §1
- *  describe. */
-export function crearAcciones({ continuidad = crearAlmacenEnMemoria() } = {}) {
+ *  `continuidad` es el ALMACÉN inyectable de `src/adi/continuidad/almacen.js` — UNA interfaz asíncrona para la
+ *  memoria en proceso (`crearAlmacenEnMemoria()`, el default: la misma instancia que usan los gates) y para
+ *  Supabase (`crearAlmacenSupabase({url, apikey, pase})`, que `puerta.js` arma POR PEDIDO con el pase de la empresa
+ *  de esa llamada — un almacén Supabase nunca se comparte entre empresas). Las cuatro acciones esperan a ese
+ *  almacén; ninguna lo supone síncrono.
+ *
+ *  `ahora` es el reloj de la acción (devuelve un ISO): solo estampa CUÁNDO se entregó cada Entrega en el libro; los
+ *  gates lo fijan para que la prueba no dependa de la hora. */
+export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = () => new Date().toISOString() } = {}) {
   const store = continuidad; // alias local: acá adentro es, literal, el almacén de `continuidad/almacen.js`
 
   /* 1 · conocerEmpresa({ tenant, conversacionId? }) → la ficha completa de la empresa activa + el catálogo
@@ -175,30 +193,47 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria() } = {}) {
    * `hechosAportados` es SOLO lo VIGENTE (`memoriaDeEmpresa`, ya filtra por `estado:"vigente"`) — lo único que
    * cuenta como dato. `pendientesDeConfirmar` (corrección 2026-09-26, ley del owner: «proponer es del modelo,
    * confirmar es de la persona») va APARTE, nunca mezclado: un pendiente se anuncia como pendiente, jamás se
-   * cuenta como lo que la empresa "ya sabe" — el LLM se lo devuelve a la persona antes de usarlo. */
-  function conocerEmpresa({ tenant, conversacionId = null } = {}) {
-    const prep = _prepararTenant(tenant);
-    if (!prep.ok) return { ok: false, motivo: prep.motivo };
+   * cuenta como lo que la empresa "ya sabe" — el LLM se lo devuelve a la persona antes de usarlo.
+   *
+   * ORDEN: leer la memoria y el libro (base) → tramo del Core (perfil + catálogo) → armar la respuesta. */
+  async function conocerEmpresa({ tenant, conversacionId = null } = {}) {
+    const forma = _validarTenant(tenant);
+    if (!forma.ok) return { ok: false, motivo: forma.motivo };
 
     const tenantId = tenant.id || null;
-    const datosDelTenant = getTenantData();
-    const perfil = construirPerfilCliente(datosDelTenant);
-    const catalogo = construirCatalogo();
+    const datosDelTenant = tenant.dataset;
 
     // migración EN LECTURA de lo legado (007 diario / 011 contexto) — hoy vive en la versión activa del pack
     // (`_ADI_CONTINUIDAD_INTEGRACION.md`, cabecera de `continuidad/empresa.js`): `memoriaDeEmpresa` lo traduce
     // sin que este archivo tenga que saber cómo.
     const legado = {
-      diario: (datosDelTenant && datosDelTenant.perfil && datosDelTenant.perfil.diario) || null,
-      contexto: (datosDelTenant && datosDelTenant.perfil && datosDelTenant.perfil.contexto) || null,
+      diario: (datosDelTenant.perfil && datosDelTenant.perfil.diario) || null,
+      contexto: (datosDelTenant.perfil && datosDelTenant.perfil.contexto) || null,
     };
-    const memoria = memoriaDeEmpresa(store, tenantId, { legado });
+
+    // 1 · LEER (base) — todo ANTES de tocar el estado global del Core
+    let memoria, pendientes, libro;
+    try {
+      [memoria, pendientes, libro] = await Promise.all([
+        memoriaDeEmpresa(store, tenantId, { legado }),
+        leerPendientes(store, tenantId, {}),
+        conversacionId ? store.leerLibro(tenantId, conversacionId) : Promise.resolve(null),
+      ]);
+    } catch (e) {
+      if (esErrorDeAlmacen(e)) return _sinMemoria(e);
+      throw e;
+    }
+
+    // 2 · EL TRAMO DEL CORE (síncrono, sin await): el perfil y el catálogo salen del dataset de ESTA empresa
+    const { perfil, catalogo } = conTenantActivo(datosDelTenant, () => ({
+      perfil: construirPerfilCliente(datosDelTenant),
+      catalogo: construirCatalogo(),
+    }));
+
+    // 3 · armar la respuesta (puro)
     const perfilPlegado = Object.entries(perfil.campos || {})
       .map(([campo, v]) => hechoDePerfilCampo(campo, { codigo: v && v.valor, procedencia: v && v.procedencia }))
       .filter(Boolean);
-    const pendientes = leerPendientes(store, tenantId, {});
-
-    const libro = conversacionId ? store.leerLibro(conversacionId) : null;
     const estadoVigente = libro ? estadoVigenteDe(libro, { versionIdActual: tenant.version || null }) : null;
 
     // el NOMBRE DE LA EMPRESA sale primero del propio dataset cargado (`datosDelTenant.nombre` — "ADI Demo", el
@@ -227,91 +262,121 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria() } = {}) {
    * LA CONTINUIDAD DE ESTE TURNO (`_ADI_CONTINUIDAD_INTEGRACION.md` §2), TODO en esta capa, CERO líneas tocadas
    * de `entrega/componer.js`: abre o reusa el libro de conversación, avanza criterio/supuestos vivos/premisas con
    * lo que `validarEncargo` YA resolvió y lo que `componerEntrega` YA expuso (`entrega.procedencia.libroPremisas`),
-   * registra lo entregado como referencias, y antepone UNA línea de la casa al texto SOLO si hubo un evento. */
-  function consultar({ tenant, encargo } = {}) {
-    const prep = _prepararTenant(tenant);
-    if (!prep.ok) return { ok: false, motivo: prep.motivo, uso: CABECERA_DE_USO };
+   * registra lo entregado como referencias, y antepone UNA línea de la casa al texto SOLO si hubo un evento.
+   *
+   * ORDEN (D2): 1 · LEER el libro (base) → 2 · TRAMO DEL CORE (initTenant + validarEncargo + componerEntrega, síncrono)
+   * → 3 · avanzar el libro (puro) → 4 · ESCRIBIR el libro (base). Con `conversacionId`, todo el recorrido se
+   * serializa por conversación (dos consultas cruzadas de la misma conversación no se pisan el libro). */
+  async function consultar({ tenant, encargo } = {}) {
+    const forma = _validarTenant(tenant);
+    if (!forma.ok) return { ok: false, motivo: forma.motivo, uso: CABECERA_DE_USO };
 
-    const resolucion = validarEncargo(encargo, {});
-    /* FAMILIA 5 (§7.3·48d): `componerEntrega` ya pasa TODA la Entrega por `verificarEntrega` antes de que salga (`entrega/componer.js:servirConGarantia`): el invariante del universo propio (§7.3·17) la declina entera, y una oración que el verificador rechaza se retira y se declara. Acá no se audita por segunda vez (era la tercera copia de la regla 18). */
-    const salida = componerEntrega(resolucion);
-
-    const versionIdActivo = tenant.version != null ? tenant.version : null;
+    const tenantId = tenant.id || null;
     const conversacionIdEntrante = (encargo && typeof encargo.conversacionId === "string" && encargo.conversacionId) || null;
-    let libro = conversacionIdEntrante ? store.leerLibro(conversacionIdEntrante) : null;
-    const esNueva = !libro;
-    if (!libro) {
-      libro = libroNuevo({ versionId: versionIdActivo });
-    }
-    const cambioVersion = detectarCambioVersion(libro, versionIdActivo);
 
-    const eventosBase = { cambioVersion, cifrasReverificadas: [], premisasFalsas: [], criterioCambio: null, supuestosVivosRelevantes: [] };
-
-    if (salida.ok && salida.entrega) {
-      // § criterio (§4·2 del contrato del encargo, ya resuelto por `validarEncargo` — nunca se infiere acá)
-      const criterioAntes = libro.criterioVigente;
-      if (resolucion.criterio) libro = actualizarCriterio(libro, resolucion.criterio);
-      if (resolucion.criterio && resolucion.criterio.origen === "usuario" && JSON.stringify(criterioAntes && criterioAntes.valor) !== JSON.stringify(libro.criterioVigente && libro.criterioVigente.valor)) {
-        eventosBase.criterioCambio = { de: _etiquetaCriterio(criterioAntes), a: _etiquetaCriterio(libro.criterioVigente) };
+    const trabajo = async () => {
+      // 1 · LEER (base) — antes de entrar al tramo del Core
+      let libroLeido = null;
+      if (conversacionIdEntrante) {
+        try { libroLeido = await store.leerLibro(tenantId, conversacionIdEntrante); }
+        catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), entrega: null, noResuelto: [], uso: CABECERA_DE_USO }; throw e; }
       }
 
-      // § premisas — el veredicto YA lo calculó `componerEntrega` (mismo `libroDeHechos` que juzga la Entrega,
-      // expuesto en `procedencia.libroPremisas`): esta capa solo LEE, nunca re-juzga (ley «premisa-adoptada»).
-      const libroPremisas = salida.entrega.procedencia && salida.entrega.procedencia.libroPremisas;
-      for (const p of (resolucion.premisas || [])) {
-        const H = libroPremisas && libroPremisas.porId ? libroPremisas.porId.get(String(p.id)) : null;
-        if (!H) continue;
-        libro = registrarPremisa(libro, { id: p.id, hecho: p, veredicto: H.veredicto, verdadId: (H.derivados && H.derivados[0]) || null });
-        if (H.veredicto === "falsa") eventosBase.premisasFalsas.push({ id: p.id, texto: H.verdad || H.motivo || p.id });
-      }
-
-      // § supuestos vivos — «relevante» = ya estaba vivo ANTES de este turno (un supuesto recién declarado en
-      // este mismo encargo no es una sorpresa de continuidad: el usuario lo acaba de pedir).
-      const vivosAntes = new Set((libro.supuestosVivos || []).map((s) => s.id));
-      for (const s of (resolucion.supuestos || [])) {
-        libro = agregarSupuestoVivo(libro, { id: s.id, concepto: s.tipo, tipo: s.tipo, valor: s.valor, unidad: s.unidad, alcance: s.alcance });
-        if (vivosAntes.has(s.id)) eventosBase.supuestosVivosRelevantes.push({ id: s.id, texto: _etiquetaSupuesto(s) });
-      }
-
-      // § lo entregado, como referencias (paso 8) — ver `_hechosDeLaEntrega`
-      const hechosParaLibro = _hechosDeLaEntrega(salida.entrega);
-      const entidadesEntregadas = [...new Set(hechosParaLibro.map((h) => h.sujeto).filter(Boolean))];
-      const cierres = [...new Set((resolucion.partes || []).map((p) => p.cierre).filter(Boolean))];
-      libro = registrarEntrega(libro, {
-        versionId: versionIdActivo,
-        temas: salida.entrega.temasCubiertos || [],
-        entidades: entidadesEntregadas,
-        cierre: cierres.length === 1 ? cierres[0] : (cierres.length ? cierres.join("+") : null),
-        hechos: hechosParaLibro,
-        universos: salida.entrega.universos || [],
+      // 2 · EL TRAMO DEL CORE — síncrono, sin una sola espera entre `initTenant` y el cálculo
+      const { resolucion, salida } = conTenantActivo(tenant.dataset, () => {
+        const resolucion = validarEncargo(encargo, {});
+        /* FAMILIA 5 (§7.3·48d): `componerEntrega` ya pasa TODA la Entrega por `verificarEntrega` antes de que salga (`entrega/componer.js:servirConGarantia`): el invariante del universo propio (§7.3·17) la declina entera, y una oración que el verificador rechaza se retira y se declara. Acá no se audita por segunda vez (era la tercera copia de la regla 18). */
+        return { resolucion, salida: componerEntrega(resolucion) };
       });
-    }
 
-    store.guardarLibro(libro);
+      // 3 · avanzar el libro (puro — no toca el Core ni la base)
+      const versionIdActivo = tenant.version != null ? tenant.version : null;
+      let libro = libroLeido;
+      const esNueva = !libro;
+      if (!libro) {
+        libro = libroNuevo({ versionId: versionIdActivo });
+      }
+      const cambioVersion = detectarCambioVersion(libro, versionIdActivo);
 
-    const estadoVigente = estadoVigenteDe(libro, { versionIdActual: versionIdActivo });
-    const eventos = eventosDeContinuidad(eventosBase);
-    const lineaContinuidad = lineaDeContinuidad(eventos);
-    const textoConContinuidad = salida.ok && lineaContinuidad ? `${lineaContinuidad}\n\n${salida.texto}` : (salida.ok ? salida.texto : "");
+      const eventosBase = { cambioVersion, cifrasReverificadas: [], premisasFalsas: [], criterioCambio: null, supuestosVivosRelevantes: [] };
 
-    return {
-      ok: Boolean(salida.ok),
-      entrega: salida.ok ? { texto: textoConContinuidad, json: salida.entrega } : null,
-      noResuelto: resolucion.noResuelto || [],
-      uso: CABECERA_DE_USO,
-      continuidad: {
-        conversacionId: libro.conversacionId,
-        nueva: esNueva,
-        motivoNueva: esNueva ? (conversacionIdEntrante ? "el conversacionId indicado no existe: se abrió una conversación nueva" : "no llegó un conversacionId: se abrió una conversación nueva") : null,
-        estadoVigente,
-      },
-      meta: {
-        conversacionId: libro.conversacionId,
-        motivo: salida.motivo || null,
-        avisos: resolucion.avisos || [],
-        criterio: resolucion.criterio || null,
-      },
+      if (salida.ok && salida.entrega) {
+        // § criterio (§4·2 del contrato del encargo, ya resuelto por `validarEncargo` — nunca se infiere acá)
+        const criterioAntes = libro.criterioVigente;
+        if (resolucion.criterio) libro = actualizarCriterio(libro, resolucion.criterio);
+        if (resolucion.criterio && resolucion.criterio.origen === "usuario" && JSON.stringify(criterioAntes && criterioAntes.valor) !== JSON.stringify(libro.criterioVigente && libro.criterioVigente.valor)) {
+          eventosBase.criterioCambio = { de: _etiquetaCriterio(criterioAntes), a: _etiquetaCriterio(libro.criterioVigente) };
+        }
+
+        // § premisas — el veredicto YA lo calculó `componerEntrega` (mismo `libroDeHechos` que juzga la Entrega,
+        // expuesto en `procedencia.libroPremisas`): esta capa solo LEE, nunca re-juzga (ley «premisa-adoptada»).
+        const libroPremisas = salida.entrega.procedencia && salida.entrega.procedencia.libroPremisas;
+        for (const p of (resolucion.premisas || [])) {
+          const H = libroPremisas && libroPremisas.porId ? libroPremisas.porId.get(String(p.id)) : null;
+          if (!H) continue;
+          libro = registrarPremisa(libro, { id: p.id, hecho: p, veredicto: H.veredicto, verdadId: (H.derivados && H.derivados[0]) || null });
+          if (H.veredicto === "falsa") eventosBase.premisasFalsas.push({ id: p.id, texto: H.verdad || H.motivo || p.id });
+        }
+
+        // § supuestos vivos — «relevante» = ya estaba vivo ANTES de este turno (un supuesto recién declarado en
+        // este mismo encargo no es una sorpresa de continuidad: el usuario lo acaba de pedir).
+        const vivosAntes = new Set((libro.supuestosVivos || []).map((s) => s.id));
+        for (const s of (resolucion.supuestos || [])) {
+          libro = agregarSupuestoVivo(libro, { id: s.id, concepto: s.tipo, tipo: s.tipo, valor: s.valor, unidad: s.unidad, alcance: s.alcance });
+          if (vivosAntes.has(s.id)) eventosBase.supuestosVivosRelevantes.push({ id: s.id, texto: _etiquetaSupuesto(s) });
+        }
+
+        // § lo entregado, como referencias (paso 8) — ver `_hechosDeLaEntrega`
+        const hechosParaLibro = _hechosDeLaEntrega(salida.entrega);
+        const entidadesEntregadas = [...new Set(hechosParaLibro.map((h) => h.sujeto).filter(Boolean))];
+        const cierres = [...new Set((resolucion.partes || []).map((p) => p.cierre).filter(Boolean))];
+        libro = registrarEntrega(libro, {
+          versionId: versionIdActivo,
+          temas: salida.entrega.temasCubiertos || [],
+          entidades: entidadesEntregadas,
+          cierre: cierres.length === 1 ? cierres[0] : (cierres.length ? cierres.join("+") : null),
+          hechos: hechosParaLibro,
+          universos: salida.entrega.universos || [],
+          entregadaEn: ahora(),
+          periodo: (salida.entrega.marco && salida.entrega.marco.periodo) || null,
+        });
+      }
+
+      // 4 · ESCRIBIR (base) — después de salir del tramo del Core. Si SOLO falla guardar, la Entrega (verdadera) se
+      // entrega igual y se DECLARA que la conversación no quedó guardada: nunca se finge una continuidad que no existe.
+      let guardada = true;
+      let operacionFallida = null;
+      try { await store.guardarLibro(tenantId, libro); }
+      catch (e) { if (!esErrorDeAlmacen(e)) throw e; guardada = false; operacionFallida = e.operacion || null; }
+
+      const estadoVigente = estadoVigenteDe(libro, { versionIdActual: versionIdActivo });
+      const eventos = eventosDeContinuidad(eventosBase);
+      const lineaContinuidad = lineaDeContinuidad(eventos);
+      const textoConContinuidad = salida.ok && lineaContinuidad ? `${lineaContinuidad}\n\n${salida.texto}` : (salida.ok ? salida.texto : "");
+
+      return {
+        ok: Boolean(salida.ok),
+        entrega: salida.ok ? { texto: textoConContinuidad, json: salida.entrega } : null,
+        noResuelto: resolucion.noResuelto || [],
+        uso: CABECERA_DE_USO,
+        continuidad: {
+          conversacionId: libro.conversacionId,
+          nueva: esNueva,
+          motivoNueva: esNueva ? (conversacionIdEntrante ? "el conversacionId indicado no existe: se abrió una conversación nueva" : "no llegó un conversacionId: se abrió una conversación nueva") : null,
+          estadoVigente,
+          guardada,
+          ...(guardada ? {} : { motivoNoGuardada: "la conversación no se pudo guardar en la memoria de la empresa: esta respuesta es correcta, pero retomarla más tarde no va a encontrar este turno.", operacion: operacionFallida }),
+        },
+        meta: {
+          conversacionId: libro.conversacionId,
+          motivo: salida.motivo || null,
+          avisos: resolucion.avisos || [],
+          criterio: resolucion.criterio || null,
+        },
+      };
     };
+
+    return conversacionIdEntrante ? serializarPorClave(`libro|${tenantId}|${conversacionIdEntrante}`, trabajo) : trabajo();
   }
 
   /* 3 · aportarContexto({ tenant, conversacionId?, aportes?, confirmar? }) → registra lo que el usuario declaró
@@ -325,59 +390,77 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria() } = {}) {
    * la ÚNICA salida directa es declarar EXACTAMENTE el mismo valor ya vigente (nada nuevo que confirmar). Un
    * aporte con colisión de valor queda además con `conflictoCon`. Ningún pendiente cuenta como dato: no aparece
    * en `hechosAportados` de `conocerEmpresa` (solo vigentes), solo en `pendientesDeConfirmar`. Confirmar
-   * (`confirmarHecho`) es lo único que promueve a `"vigente"` — y NUNCA toca el origen (ley del owner, textual). */
-  function aportarContexto({ tenant, conversacionId = null, aportes = [], confirmar = [] } = {}) {
-    const prep = _prepararTenant(tenant);
-    if (!prep.ok) return { ok: false, motivo: prep.motivo };
+   * (`confirmarHecho`) es lo único que promueve a `"vigente"` — y NUNCA toca el origen (ley del owner, textual).
+   *
+   * NO TOCA EL CORE: no usa el estado global del tenant (los aportes y el libro viajan con `tenantId`), así que no
+   * entra a `conTenantActivo`. Los aportes se procesan EN ORDEN, de a uno (el segundo ve al primero), y toda la
+   * acción se serializa por conversación Y por empresa (el libro y la memoria se leen-y-escriben). */
+  async function aportarContexto({ tenant, conversacionId = null, aportes = [], confirmar = [] } = {}) {
+    const forma = _validarTenant(tenant);
+    if (!forma.ok) return { ok: false, motivo: forma.motivo };
 
     const tenantId = tenant.id || null;
     const idDeConversacion = conversacionId || emitirConversacionId();
-    let libro = store.leerLibro(idDeConversacion) || libroNuevo({ conversacionId: idDeConversacion, versionId: tenant.version != null ? tenant.version : null });
+    const versionIdActivo = tenant.version != null ? tenant.version : null;
 
-    const listaAportes = Array.isArray(aportes) ? aportes : [];
-    const listaConfirmar = Array.isArray(confirmar) ? confirmar : [];
+    const trabajo = async () => {
+      try {
+        let libro = (await store.leerLibro(tenantId, idDeConversacion)) || libroNuevo({ conversacionId: idDeConversacion, versionId: versionIdActivo });
 
-    const resultados = listaAportes.map((crudo) => {
-      const { valido, motivo, entendido } = _entenderAporte(crudo);
-      if (!valido) return { id: null, estado: "rechazado", motivo, recibido: crudo };
+        const listaAportes = Array.isArray(aportes) ? aportes : [];
+        const listaConfirmar = Array.isArray(confirmar) ? confirmar : [];
 
-      const aporte = {
-        clase: entendido.clase,
-        concepto: entendido.concepto,
-        entidad: entendido.entidad,
-        periodo: entendido.periodo,
-        valor: _valorParaEmpresa(entendido.valor, entendido.unidad),
-        origen: entendido.clase === "documento" ? "documento" : "declarado",
-        documento: entendido.documento,
-      };
-      const r = declararHecho(store, tenantId, aporte, { actorLabel: "anfitrion", conversacionId: idDeConversacion });
-      if (!r.ok) return { id: null, estado: "rechazado", motivo: r.motivo, recibido: crudo };
+        const resultados = [];
+        for (const crudo of listaAportes) {
+          const { valido, motivo, entendido } = _entenderAporte(crudo);
+          if (!valido) { resultados.push({ id: null, estado: "rechazado", motivo, recibido: crudo }); continue; }
 
-      if (r.id) libro = registrarHechoAportado(libro, r.id);
+          const aporte = {
+            clase: entendido.clase,
+            concepto: entendido.concepto,
+            entidad: entendido.entidad,
+            periodo: entendido.periodo,
+            valor: _valorParaEmpresa(entendido.valor, entendido.unidad),
+            origen: entendido.clase === "documento" ? "documento" : "declarado",
+            documento: entendido.documento,
+          };
+          const r = await declararHecho(store, tenantId, aporte, { actorLabel: "anfitrion", conversacionId: idDeConversacion });
+          if (!r.ok) { resultados.push({ id: null, estado: "rechazado", motivo: r.motivo, recibido: crudo }); continue; }
 
-      return {
-        id: r.id,
-        estado: r.estado,
-        entendido: { clase: entendido.clase, concepto: entendido.concepto, entidad: entendido.entidad, periodo: entendido.periodo, valor: entendido.valor, unidad: entendido.unidad },
-        conflictoCon: r.conflictoCon || null,
-        paraConfirmar: r.estado === "pendiente",
-      };
-    });
+          if (r.id) libro = registrarHechoAportado(libro, r.id);
 
-    const confirmaciones = listaConfirmar.map((id) => {
-      const r = confirmarHecho(store, tenantId, id, { actorLabel: "anfitrion", medio: "chat-anfitrion", resolverConflicto: true });
-      return { id, confirmado: Boolean(r.ok) };
-    });
+          resultados.push({
+            id: r.id,
+            estado: r.estado,
+            entendido: { clase: entendido.clase, concepto: entendido.concepto, entidad: entendido.entidad, periodo: entendido.periodo, valor: entendido.valor, unidad: entendido.unidad },
+            conflictoCon: r.conflictoCon || null,
+            paraConfirmar: r.estado === "pendiente",
+          });
+        }
 
-    store.guardarLibro(libro);
+        const confirmaciones = [];
+        for (const id of listaConfirmar) {
+          const r = await confirmarHecho(store, tenantId, id, { actorLabel: "anfitrion", medio: "chat-anfitrion", resolverConflicto: true });
+          confirmaciones.push({ id, confirmado: Boolean(r.ok) });
+        }
 
-    return {
-      ok: true,
-      conversacionId: idDeConversacion,
-      resultados,
-      confirmaciones,
-      estadoVigente: estadoVigenteDe(libro, { versionIdActual: tenant.version != null ? tenant.version : null }),
+        await store.guardarLibro(tenantId, libro);
+
+        return {
+          ok: true,
+          conversacionId: idDeConversacion,
+          resultados,
+          confirmaciones,
+          estadoVigente: estadoVigenteDe(libro, { versionIdActual: versionIdActivo }),
+        };
+      } catch (e) {
+        if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId: idDeConversacion };
+        throw e;
+      }
     };
+
+    // libro de la conversación (afuera) → memoria de la empresa (adentro): SIEMPRE ese orden, para no cruzar candados
+    return serializarPorClave(`libro|${tenantId}|${idDeConversacion}`, () => serializarPorClave(`memoria|${tenantId}`, trabajo));
   }
 
   /* 4 · retomar({ tenant, conversacionId }) → el estado vigente + los hechos de las últimas Entregas
@@ -391,13 +474,17 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria() } = {}) {
    * §2, nota de "retomar": "Construirlo es responsabilidad de quien conecte esta pieza al índice de evidencia
    * real, no de `continuidad/`"). Por eso `reverificar` va `null`: es el comportamiento YA DISEÑADO por
    * `continuidad/retomar.js` para este caso — cada hecho vuelve con `estadoReverificacion:"sin_reverificar"`,
-   * nunca un veredicto inventado. */
-  function retomar({ tenant, conversacionId } = {}) {
-    const prep = _prepararTenant(tenant);
-    if (!prep.ok) return { ok: false, motivo: prep.motivo };
+   * nunca un veredicto inventado.
+   *
+   * SOLO LEE: no toca el Core ni escribe — lo que se entregó se devuelve tal cual quedó guardado. */
+  async function retomar({ tenant, conversacionId } = {}) {
+    const forma = _validarTenant(tenant);
+    if (!forma.ok) return { ok: false, motivo: forma.motivo };
     if (!conversacionId || typeof conversacionId !== "string") return { ok: false, motivo: "falta conversacionId" };
 
-    const libro = store.leerLibro(conversacionId);
+    let libro;
+    try { libro = await store.leerLibro(tenant.id || null, conversacionId); }
+    catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId }; throw e; }
     if (!libro) return { ok: false, motivo: "no existe una conversación con ese id", conversacionId };
 
     const r = reverificarConversacion(libro, { versionIdActual: tenant.version != null ? tenant.version : null, reverificar: null });
@@ -407,6 +494,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria() } = {}) {
       conversacionId,
       estadoVigente: r.estadoVigente,
       hechos: r.hechos,
+      entregas: r.entregas,
       lineaContinuidad: r.lineaContinuidad,
       advertencias: [
         "este corte no re-verifica los hechos contra la versión de datos activa (falta conectar el índice de evidencia real del Core desde `entrega/componer.js`, reportado al supervisor): todo hecho entregado vuelve con estadoReverificacion:\"sin_reverificar\".",

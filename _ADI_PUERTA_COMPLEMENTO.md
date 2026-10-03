@@ -3,6 +3,14 @@
 > Estado: CONSTRUIDO, detrás de la bandera `ADI_COMPLEMENTO` (apagada en todos los perfiles). Sin desplegar, sin
 > piloto — nada de lo que sigue corre hasta que el owner encienda la bandera y dé la palabra de gasto (la puerta
 > misma no gasta: cero llamadas a un modelo, ver más abajo).
+>
+> **ACTUALIZADO (Etapa 2, bloque 1 · guardado durable, 2026-10-02):** la continuidad ya no es el doble en memoria
+> (`continuidadMemoria.js` se retiró en el corte 9): `crearAcciones({ continuidad })` recibe un almacén ASÍNCRONO
+> (`continuidad/almacen.js`) y las cuatro acciones se esperan. La puerta usa la memoria DEL PROCESO por defecto (se
+> pierde al reiniciar) y, con `ADI_MEMORIA_DURABLE=true` —y la migración 015 aplicada—, arma UN almacén de Supabase POR
+> PEDIDO con el pase de la empresa de esa llamada (`manejarPuerta(request, env)`; los candados le pasan una tercera
+> costura de inyección, nunca producción). Con la bandera encendida y la base sin responder, las acciones dicen «memoria no
+> disponible» (falla cerrado): nunca caen en silencio a la memoria del proceso. Candado: `_guardado_durable_gate.mjs`.
 
 Esta pieza es la PUERTA por la que un anfitrión externo (Claude, ChatGPT) entra a la capacidad de ADI. No lee
 prosa, no llama a ningún modelo, no decide nada de negocio: verifica identidad, resuelve el tenant desde el token

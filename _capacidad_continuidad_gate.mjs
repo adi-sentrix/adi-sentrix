@@ -40,14 +40,14 @@ H("1 · consultar dos veces con el mismo conversacionId — el turno avanza, la 
 {
   const { consultar } = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
 
-  const r1 = consultar({ tenant: TENANT_V1, encargo: ENCARGO_JUMBO_VENTAS });
+  const r1 = await consultar({ tenant: TENANT_V1, encargo: ENCARGO_JUMBO_VENTAS });
   ok(r1.ok === true, "primera consulta responde ok:true", JSON.stringify(r1.noResuelto));
   ok(r1.continuidad.nueva === true, "la primera consulta abre una conversación NUEVA (no había conversacionId)");
   ok(typeof r1.continuidad.conversacionId === "string" && r1.continuidad.conversacionId.length > 0, "conversacionId emitido");
   ok(r1.continuidad.estadoVigente.turno === 1, "estadoVigente.turno = 1 tras la primera Entrega", String(r1.continuidad.estadoVigente.turno));
 
   const encargo2 = { ...ENCARGO_JUMBO_VENTAS, conversacionId: r1.continuidad.conversacionId };
-  const r2 = consultar({ tenant: TENANT_V1, encargo: encargo2 });
+  const r2 = await consultar({ tenant: TENANT_V1, encargo: encargo2 });
   ok(r2.ok === true, "segunda consulta (mismo conversacionId) responde ok:true", JSON.stringify(r2.noResuelto));
   ok(r2.continuidad.nueva === false, "la segunda consulta REUSA la conversación — nunca la declara nueva");
   ok(r2.continuidad.conversacionId === r1.continuidad.conversacionId, "el conversacionId es EXACTAMENTE el mismo entre ambas Entregas");
@@ -59,7 +59,7 @@ H("1 · consultar dos veces con el mismo conversacionId — el turno avanza, la 
 H("2 · turno sin evento (conversación nueva, misma versión de datos) → cero texto de continuidad");
 {
   const { consultar } = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
-  const sinContinuidad = consultar({ tenant: TENANT_V1, encargo: { version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], entidades: [{ nombre: "Jumbo" }] }] } });
+  const sinContinuidad = await consultar({ tenant: TENANT_V1, encargo: { version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], entidades: [{ nombre: "Jumbo" }] }] } });
   ok(sinContinuidad.ok === true, "consulta responde ok:true", JSON.stringify(sinContinuidad.noResuelto));
   const MARCAS_DE_EVENTO = ["los datos cambiaron desde la Entrega", "ya no vale lo mismo", "ya no está en los datos vigentes", "no coincide con lo entregado", "el criterio cambió: ahora ordena por", "sigue vivo el supuesto"];
   const conMarca = MARCAS_DE_EVENTO.filter((m) => sinContinuidad.entrega.texto.includes(m));
@@ -72,11 +72,11 @@ H("2 · turno sin evento (conversación nueva, misma versión de datos) → cero
 H("3 · la versión de datos cambia entre dos turnos de la MISMA conversación → una línea de la casa, antepuesta");
 {
   const { consultar } = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
-  const r1 = consultar({ tenant: TENANT_V1, encargo: ENCARGO_JUMBO_VENTAS });
+  const r1 = await consultar({ tenant: TENANT_V1, encargo: ENCARGO_JUMBO_VENTAS });
   ok(r1.ok === true, "primer turno (versión 1) responde ok:true");
 
   const encargo2 = { ...ENCARGO_JUMBO_VENTAS, conversacionId: r1.continuidad.conversacionId };
-  const r2 = consultar({ tenant: TENANT_V2, encargo: encargo2 }); // MISMO dataset, versión declarada distinta
+  const r2 = await consultar({ tenant: TENANT_V2, encargo: encargo2 }); // MISMO dataset, versión declarada distinta
   ok(r2.ok === true, "segundo turno (versión 2, mismo conversacionId) responde ok:true");
 
   const primeraLinea = r2.entrega.texto.split("\n\n")[0];
@@ -93,22 +93,22 @@ H("4 · aportarContexto: un valor que choca con otro declarado queda pendiente; 
 
   // ley 2026-09-26 («proponer es del modelo, confirmar es de la persona»): el PRIMER declarado también nace
   // pendiente — nada se usa como dato antes de que la persona lo confirme.
-  const a1 = aportarContexto({ tenant: TENANT_V1, aportes: [{ clase: "criterio", concepto: "benchmark_propio_margen", valor: 28, unidad: "pct" }] });
+  const a1 = await aportarContexto({ tenant: TENANT_V1, aportes: [{ clase: "criterio", concepto: "benchmark_propio_margen", valor: 28, unidad: "pct" }] });
   ok(a1.ok === true && a1.resultados[0].estado === "pendiente" && a1.resultados[0].paraConfirmar === true, "★ LEY 2026-09-26 · el primer declarado TAMBIÉN nace pendiente, sin colisión ni excepción", JSON.stringify(a1.resultados[0]));
 
   // un segundo valor para la MISMA llave choca IGUAL mientras el primero sigue sin confirmar (la colisión se
   // compara contra vigente Y contra pendiente — así "mismo aporte dos veces" nunca duplica filas al azar).
-  const a2 = aportarContexto({ tenant: TENANT_V1, conversacionId: a1.conversacionId, aportes: [{ clase: "criterio", concepto: "benchmark_propio_margen", valor: 32, unidad: "pct" }] });
+  const a2 = await aportarContexto({ tenant: TENANT_V1, conversacionId: a1.conversacionId, aportes: [{ clase: "criterio", concepto: "benchmark_propio_margen", valor: 32, unidad: "pct" }] });
   ok(a2.resultados[0].estado === "pendiente" && a2.resultados[0].paraConfirmar === true, "un valor DISTINTO de la misma llave nunca pisa en silencio: entra pendiente", JSON.stringify(a2.resultados[0]));
   ok(a2.resultados[0].conflictoCon === a1.resultados[0].id, "el pendiente declara CONTRA QUÉ hecho choca, aunque ese otro tampoco esté confirmado todavía");
 
-  const a3 = aportarContexto({ tenant: TENANT_V1, conversacionId: a1.conversacionId, aportes: [], confirmar: [a2.resultados[0].id] });
+  const a3 = await aportarContexto({ tenant: TENANT_V1, conversacionId: a1.conversacionId, aportes: [], confirmar: [a2.resultados[0].id] });
   ok(a3.confirmaciones[0].confirmado === true, "confirmar por id resuelve el conflicto");
 
   // `conocerEmpresa`/`memoriaDeEmpresa` publican solo VIGENTES (la historia completa —incluido el retirado— es
   // responsabilidad de `leerHistoria`, que `_continuidad_gate.mjs` ya prueba a nivel de `continuidad/` puro; acá
   // se comprueba lo que esta capa expone): el ÚNICO vigente es el valor NUEVO, y su origen sigue "declarado".
-  const c1 = conocerEmpresa({ tenant: TENANT_V1, conversacionId: a1.conversacionId });
+  const c1 = await conocerEmpresa({ tenant: TENANT_V1, conversacionId: a1.conversacionId });
   const memoria = c1.hechosAportados.filter((h) => h.concepto === "benchmark_propio_margen");
   ok(memoria.length === 1, "conocerEmpresa publica el vigente (el retirado ya no es \"lo que la empresa declara hoy\")", String(memoria.length));
   ok(Boolean(memoria[0]) && memoria[0].valor.raw === 32 && memoria[0].estado === "vigente", "el vigente, tras confirmar, es el valor NUEVO (32)", JSON.stringify(memoria[0]));
@@ -126,19 +126,19 @@ H("5 · un hecho declarado y una cifra medida de la MISMA entidad/concepto convi
   const { aportarContexto, consultar } = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
 
   // lo MEDIDO — la cifra real de la boleta para Jumbo, por el camino de siempre (consultar, sin tocar componerEntrega)
-  const medido = consultar({ tenant: TENANT_V1, encargo: ENCARGO_JUMBO_VENTAS });
+  const medido = await consultar({ tenant: TENANT_V1, encargo: ENCARGO_JUMBO_VENTAS });
   ok(medido.ok === true, "la cifra medida (boleta real) se sirve normalmente");
   const filaJumbo = medido.entrega.json.cifras.filas.find((f) => f.valores["Entidad / grupo"] === "Jumbo");
   ok(Boolean(filaJumbo) && filaJumbo.procedencia === "medido", "la fila de Jumbo declara su procedencia \"medido\"", JSON.stringify(filaJumbo));
 
   // lo DECLARADO — el usuario aporta SU PROPIA cifra de venta para Jumbo, en la MISMA conversación. Ley
   // 2026-09-26: nace "pendiente" (nadie lo confirmó todavía) — igual conviene con el medido sin bloquearse.
-  const declarado = aportarContexto({ tenant: TENANT_V1, conversacionId: medido.continuidad.conversacionId, aportes: [{ clase: "hecho", concepto: "ventas", entidad: "Jumbo", valor: 999999999, unidad: "clp" }] });
+  const declarado = await aportarContexto({ tenant: TENANT_V1, conversacionId: medido.continuidad.conversacionId, aportes: [{ clase: "hecho", concepto: "ventas", entidad: "Jumbo", valor: 999999999, unidad: "clp" }] });
   ok(declarado.ok === true && declarado.resultados[0].estado === "pendiente" && declarado.resultados[0].paraConfirmar === true, "el declarado se registra (pendiente de confirmar) sin que el medido lo bloquee", JSON.stringify(declarado.resultados[0]));
 
   // AMBOS quedan visibles y NINGUNO se alteró: el medido sigue siendo la cifra de la boleta (no el 999999999
   // declarado) y el declarado sigue etiquetado "declarado" (nunca se promovió a "medido" por coincidir de concepto).
-  const medidoDeNuevo = consultar({ tenant: TENANT_V1, encargo: { ...ENCARGO_JUMBO_VENTAS, conversacionId: medido.continuidad.conversacionId } });
+  const medidoDeNuevo = await consultar({ tenant: TENANT_V1, encargo: { ...ENCARGO_JUMBO_VENTAS, conversacionId: medido.continuidad.conversacionId } });
   const filaJumbo2 = medidoDeNuevo.entrega.json.cifras.filas.find((f) => f.valores["Entidad / grupo"] === "Jumbo");
   ok(filaJumbo2.valores["Valor"] === filaJumbo.valores["Valor"], "el medido NO cambió: el aporte declarado no reescribió la cifra de la boleta", `${filaJumbo.valores["Valor"]} vs ${filaJumbo2.valores["Valor"]}`);
   ok(declarado.resultados[0].entendido.valor === 999999999, "el declarado conserva SU valor tal cual se aportó (999999999), no el de la boleta");
@@ -148,11 +148,11 @@ H("5 · un hecho declarado y una cifra medida de la MISMA entidad/concepto convi
 H("6 · retomar sobre una conversación con Entregas — re-verificado, honesto sobre lo que no puede comprobar hoy");
 {
   const { consultar, retomar } = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
-  const r1 = consultar({ tenant: TENANT_V1, encargo: ENCARGO_JUMBO_VENTAS });
+  const r1 = await consultar({ tenant: TENANT_V1, encargo: ENCARGO_JUMBO_VENTAS });
   const cid = r1.continuidad.conversacionId;
-  consultar({ tenant: TENANT_V1, encargo: { ...ENCARGO_JUMBO_VENTAS, conversacionId: cid } }); // segundo turno
+  await consultar({ tenant: TENANT_V1, encargo: { ...ENCARGO_JUMBO_VENTAS, conversacionId: cid } }); // segundo turno
 
-  const ret = retomar({ tenant: TENANT_V1, conversacionId: cid });
+  const ret = await retomar({ tenant: TENANT_V1, conversacionId: cid });
   ok(ret.ok === true, "retomar recupera la conversación", JSON.stringify(ret.motivo));
   ok(Array.isArray(ret.hechos) && ret.hechos.length > 0, "retomar trae los hechos entregados en los dos turnos", String(ret.hechos.length));
   ok(ret.hechos.every((h) => h.estadoReverificacion === "sin_reverificar"), "★ HONESTO · sin el índice de evidencia real conectado, TODO hecho vuelve \"sin_reverificar\" — nunca un veredicto inventado (falla cerrado)", JSON.stringify([...new Set(ret.hechos.map((h) => h.estadoReverificacion))]));
@@ -170,7 +170,7 @@ H("7 · CARNADA · un tenant/tenantId colado en encargo.* o en aportes.* se igno
   // falla, PARA") — así que el intento ni siquiera llega a resolver una parte, mucho menos a cambiar de tenant:
   // se declara `campo_desconocido`, nunca se usa para decidir de qué empresa es la respuesta.
   const encargoConTenantAjeno = { ...ENCARGO_JUMBO_VENTAS, tenant: "empresa-ajena", tenantId: "otra-empresa-000", empresa: "Falabella Corp" };
-  const rAjeno = consultar({ tenant: TENANT_V1, encargo: encargoConTenantAjeno });
+  const rAjeno = await consultar({ tenant: TENANT_V1, encargo: encargoConTenantAjeno });
   ok(rAjeno.ok === false, "un encargo con campos de tenant colados se RECHAZA entero (esquema de la raíz) — no se cuela ni se usa", JSON.stringify(rAjeno.noResuelto));
   const motivos = (rAjeno.noResuelto || []).map((n) => n.motivo);
   ok(["tenant", "tenantId", "empresa"].every((k) => (rAjeno.noResuelto || []).some((n) => n.valor === k && n.motivo === "campo_desconocido")), "las tres claves ajenas quedan declaradas como \"campo_desconocido\", una por una", JSON.stringify(rAjeno.noResuelto));
@@ -178,12 +178,12 @@ H("7 · CARNADA · un tenant/tenantId colado en encargo.* o en aportes.* se igno
 
   // el MISMO encargo, sin los campos colados, sirve la Entrega normal del tenant INYECTADO (demo, con Jumbo) —
   // la prueba de que lo único que decide la empresa servida es el parámetro `tenant`, nunca el encargo.
-  const rLimpio = consultar({ tenant: TENANT_V1, encargo: ENCARGO_JUMBO_VENTAS });
+  const rLimpio = await consultar({ tenant: TENANT_V1, encargo: ENCARGO_JUMBO_VENTAS });
   ok(rLimpio.ok === true && rLimpio.entrega.texto.includes("Jumbo"), "sin los campos ajenos, el mismo encargo sirve la Entrega del tenant inyectado (demo, con Jumbo)");
 
   // un tenant colado DENTRO de un aporte (forma libre, sin el esquema estricto del encargo) tampoco se lee: sigue
   // sin existir un solo lugar de `acciones.js` que acepte "de qué empresa es esto" desde el cuerpo de la llamada.
-  const aporteConTenantAjeno = aportarContexto({ tenant: TENANT_V1, aportes: [{ clase: "hecho", concepto: "acuerdo_verbal", valor: "60 días", tenant: "empresa-ajena", tenantId: "otra-empresa-000" }] });
+  const aporteConTenantAjeno = await aportarContexto({ tenant: TENANT_V1, aportes: [{ clase: "hecho", concepto: "acuerdo_verbal", valor: "60 días", tenant: "empresa-ajena", tenantId: "otra-empresa-000" }] });
   ok(aporteConTenantAjeno.ok === true && aporteConTenantAjeno.resultados[0].estado !== "rechazado", "aportarContexto también ignora un tenant colado dentro de un aporte — declara el hecho igual", JSON.stringify(aporteConTenantAjeno.resultados[0]));
 }
 
@@ -197,17 +197,17 @@ H("8 · CARNADA · un aporte sin confirmar jamás cuenta como dato — solo apar
 {
   const { aportarContexto, conocerEmpresa } = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
 
-  const a1 = aportarContexto({ tenant: TENANT_V1, aportes: [{ clase: "hecho", concepto: "plazo_de_pago_pactado", entidad: "Jumbo", valor: 90, unidad: "days" }] });
+  const a1 = await aportarContexto({ tenant: TENANT_V1, aportes: [{ clase: "hecho", concepto: "plazo_de_pago_pactado", entidad: "Jumbo", valor: 90, unidad: "days" }] });
   ok(a1.ok === true && a1.resultados[0].estado === "pendiente", "el aporte nace pendiente (nadie lo confirmó)", JSON.stringify(a1.resultados[0]));
 
-  const c1 = conocerEmpresa({ tenant: TENANT_V1, conversacionId: a1.conversacionId });
+  const c1 = await conocerEmpresa({ tenant: TENANT_V1, conversacionId: a1.conversacionId });
   ok(!c1.hechosAportados.some((h) => h.concepto === "plazo_de_pago_pactado"), "★ CARNADA · el pendiente NUNCA aparece en hechosAportados (nunca cuenta como dato)", JSON.stringify(c1.hechosAportados.filter((h) => h.concepto === "plazo_de_pago_pactado")));
   ok(c1.pendientesDeConfirmar.some((h) => h.id === a1.resultados[0].id && h.concepto === "plazo_de_pago_pactado" && h.estado === "pendiente"), "el pendiente SÍ aparece, aparte, anunciado como \"pendiente de confirmar\" — nunca se esconde", JSON.stringify(c1.pendientesDeConfirmar));
 
   // confirmarlo lo mueve de una lista a la otra — recién ahí cuenta como dato
-  const a2 = aportarContexto({ tenant: TENANT_V1, conversacionId: a1.conversacionId, aportes: [], confirmar: [a1.resultados[0].id] });
+  const a2 = await aportarContexto({ tenant: TENANT_V1, conversacionId: a1.conversacionId, aportes: [], confirmar: [a1.resultados[0].id] });
   ok(a2.confirmaciones[0].confirmado === true, "confirmar promueve el pendiente");
-  const c2 = conocerEmpresa({ tenant: TENANT_V1, conversacionId: a1.conversacionId });
+  const c2 = await conocerEmpresa({ tenant: TENANT_V1, conversacionId: a1.conversacionId });
   ok(c2.hechosAportados.some((h) => h.concepto === "plazo_de_pago_pactado" && h.estado === "vigente"), "recién CONFIRMADO, el hecho pasa a hechosAportados (ahora sí cuenta como dato)", JSON.stringify(c2.hechosAportados.filter((h) => h.concepto === "plazo_de_pago_pactado")));
   ok(!c2.pendientesDeConfirmar.some((h) => h.concepto === "plazo_de_pago_pactado"), "y deja de aparecer en pendientesDeConfirmar (ya no hay nada que confirmar)");
 }

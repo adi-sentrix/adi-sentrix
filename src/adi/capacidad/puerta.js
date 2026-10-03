@@ -30,20 +30,49 @@
  *   describe la forma. */
 import { crearAcciones } from "./acciones.js";
 import { crearAlmacenEnMemoria } from "../continuidad/almacen.js";
+import { crearAlmacenSupabase } from "../continuidad/almacenSupabase.js";
 import { handleData } from "../../data/tenantService.server.js";
+import { baseConfigurada } from "../../data/supabaseRest.js";
+import { emitirPase } from "../../data/paseTenant.js";
 import { verifyAccessCode } from "../llm/accessToken.js";
 
 const _json = (obj, status = 200, extraHeaders = null) =>
   new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", ...(extraHeaders || {}) } });
 
-/* ── LA CONTINUIDAD, COMPARTIDA POR PROCESO (corte 9, owner 2026-09-26) — el MISMO patrón que el rate limit de
- * más abajo (`_golpesPorIp`/`_golpesGlobal`, módulo-level): una instancia por isolate, no una por request — si
- * cada llamada creara su propio almacén, `aportarContexto`/`retomar` jamás encontrarían la conversación de la
- * llamada anterior dentro del MISMO proceso (best-effort por instancia, la misma advertencia que ya deja escrita
- * el rate limit: no es una persistencia durable — eso es `crearAlmacenSupabase`, el día que la migración 015 se
- * aplique). `crearAcciones` recibe este almacén siempre, nunca uno nuevo por pedido. */
+/* ── LA CONTINUIDAD: DOS CAMINOS, UNA SOLA INTERFAZ (corte 9 + Etapa 2, bloque 1 · guardado durable) ─────────────
+ *   · POR DEFECTO (hoy): la memoria DEL PROCESO — el MISMO patrón que el rate limit de más abajo
+ *     (`_golpesPorIp`/`_golpesGlobal`, módulo-level): una instancia por isolate, no una por request — si cada
+ *     llamada creara su propio almacén, `aportarContexto`/`retomar` jamás encontrarían la conversación de la
+ *     llamada anterior dentro del MISMO proceso. NO es durable: se pierde en cada reinicio y no se comparte entre
+ *     instancias del hosting.
+ *   · CON `ADI_MEMORIA_DURABLE=true`: Supabase, UN ALMACÉN POR PEDIDO con el pase de la empresa de ESA llamada
+ *     (`crearAlmacenSupabase`): la base la aísla por RLS, nunca por este código. Es una bandera propia —y apagada—
+ *     porque exige la migración 015 aplicada (decisión del owner): encenderla sin la 015 hace que las acciones
+ *     respondan «memoria no disponible» (falla cerrado), no que el Complemento siga como si nada. Con la bandera
+ *     encendida NUNCA se cae en silencio a la memoria del proceso: sería servir amnesia como si fuera memoria.
+ * `crearAcciones` recibe SIEMPRE un almacén ya armado; las acciones esperan a ese almacén sea cual sea. */
 const _almacenDelProceso = crearAlmacenEnMemoria();
 const _acciones = crearAcciones({ continuidad: _almacenDelProceso });
+
+const _memoriaDurableEncendida = (env) => String((env && env.ADI_MEMORIA_DURABLE) || "").trim() === "true";
+
+/** `opciones` (solo para los candados — la costura de inyección, como `handleData(body, env, {cliente})`):
+ *    `acciones`   → un `crearAcciones(...)` ya armado (se usa tal cual)
+ *    `almacen`    → un almacén ya armado (se envuelve con `crearAcciones`)
+ *    `cliente`    → el cliente de la base que `handleData` usa para el pack (doble sin red)
+ *    `transporte` → el transporte HTTP del almacén de Supabase (doble sin red)
+ *  En producción no se pasa nada: `api/adi-capacidad/[accion].js` llama `manejarPuerta(request, process.env)`. */
+async function _accionesParaElPedido(tenant, env, { acciones = null, almacen = null, transporte = null } = {}) {
+  if (acciones) return { ok: true, acciones };
+  if (almacen) return { ok: true, acciones: crearAcciones({ continuidad: almacen }) };
+  if (!_memoriaDurableEncendida(env)) return { ok: true, acciones: _acciones };
+  if (!baseConfigurada(env)) return { ok: false, motivo: "la memoria durable está encendida pero la base no está configurada en este entorno." };
+  // el pase sale del tenant YA VERIFICADO por el token (`tenant.id` lo resolvió `handleData`), nunca de un argumento
+  const p = await emitirPase({ tenantId: tenant.id, secreto: (env && env.SUPABASE_JWT_SECRET) || "" });
+  if (!p.ok) return { ok: false, motivo: "no se pudo emitir el pase de la empresa para la memoria durable." };
+  const store = crearAlmacenSupabase({ url: env.SUPABASE_URL, apikey: env.SUPABASE_ANON_KEY, pase: p.pase, ...(transporte ? { transporte } : {}) });
+  return { ok: true, acciones: crearAcciones({ continuidad: store }) };
+}
 
 /* ── LA BANDERA (apagada por defecto) ────────────────────────────────────────────────────────────────────────── */
 const _flagEncendida = (env) => String((env && env.ADI_COMPLEMENTO) || "").trim() === "true";
@@ -88,9 +117,9 @@ function _bearerDe(request) {
 /** resolverTenantDesdeElToken(code, env) → { ok:true, tenant:{id,nombre,dataset,version,sello} } | { ok:false, motivo }
  *  Reusa `tenantService.server.js:handleData` — LA MISMA función que ya usa `/api/adi-data` para servir el pack de
  *  una sesión firmada — así que la puerta y la app hablan la misma verdad sobre "de qué empresa es esta sesión". */
-async function resolverTenantDesdeElToken(code, env) {
+async function resolverTenantDesdeElToken(code, env, { cliente = null } = {}) {
   if (!code) return { ok: false, motivo: "sin sesión: falta el bearer" };
-  const r = await handleData({ access: code, tenantSolicitado: null }, env);
+  const r = await handleData({ access: code, tenantSolicitado: null }, env, cliente ? { cliente } : {});
   if (!r.ok) return { ok: false, motivo: r.motivo || "sesión inválida o vencida" };
   if (!r.dataset) {
     return { ok: false, motivo: r.sinDatos ? "esta empresa todavía no cargó datos" : "sin dato activo para esta sesión" };
@@ -192,11 +221,13 @@ async function _despachar(nombreAccion, argsCrudos, { tenant, acciones }) {
   const { limpio, ignorado } = _declararTenantIgnorado(argsCrudos || {});
   const advertencias = ignorado.length ? [`se ignoró el/los argumento(s) ${ignorado.join(", ")}: el tenant de esta sesión sale del token, nunca de la llamada.`] : [];
 
+  /* las cuatro acciones son ASÍNCRONAS (el almacén lo es): se ESPERAN. Nada del estado de una empresa vive en este
+   * archivo entre una espera y otra — el tramo que toca el Core es síncrono y vive adentro de la acción. */
   let salida;
-  if (nombreAccion === "conocerEmpresa") salida = acciones.conocerEmpresa({ tenant, conversacionId: limpio.conversacionId ?? null });
-  else if (nombreAccion === "consultar") salida = acciones.consultar({ tenant, encargo: limpio.encargo });
-  else if (nombreAccion === "aportarContexto") salida = acciones.aportarContexto({ tenant, conversacionId: limpio.conversacionId ?? null, aportes: limpio.aportes || [], confirmar: limpio.confirmar || [] });
-  else salida = acciones.retomar({ tenant, conversacionId: limpio.conversacionId });
+  if (nombreAccion === "conocerEmpresa") salida = await acciones.conocerEmpresa({ tenant, conversacionId: limpio.conversacionId ?? null });
+  else if (nombreAccion === "consultar") salida = await acciones.consultar({ tenant, encargo: limpio.encargo });
+  else if (nombreAccion === "aportarContexto") salida = await acciones.aportarContexto({ tenant, conversacionId: limpio.conversacionId ?? null, aportes: limpio.aportes || [], confirmar: limpio.confirmar || [] });
+  else salida = await acciones.retomar({ tenant, conversacionId: limpio.conversacionId });
 
   if (!advertencias.length) return salida;
   return { ...salida, advertencias: [...(salida.advertencias || []), ...advertencias] };
@@ -275,7 +306,7 @@ export function construirOpenApi(baseUrl = "https://app.adiai.cl") {
 /** manejarPuerta(request, env) → Response. `request` es un `Request` Web-estándar (Node 18+/edge); `env` trae
  *  `ADI_COMPLEMENTO` y `ADI_TOKEN_SECRET` (inyectable, igual que `handleData(body, env)` — nunca lee
  *  `process.env` directo, así un gate le pasa un env de fixture sin tocar el proceso real). */
-export async function manejarPuerta(request, env) {
+export async function manejarPuerta(request, env, opciones = {}) {
   if (!_flagEncendida(env)) {
     return _json({ ok: false, disponible: false, motivo: "el Complemento está deshabilitado en este entorno (bandera ADI_COMPLEMENTO apagada)." }, 200);
   }
@@ -296,13 +327,17 @@ export async function manejarPuerta(request, env) {
   const clave = _claveDeLimite(request, code);
   if (_limitado(clave)) return _json({ ok: false, motivo: "demasiadas llamadas — espera unos minutos y prueba de nuevo" }, 429, { "retry-after": "600" });
 
-  const resTenant = await resolverTenantDesdeElToken(code, env);
+  const resTenant = await resolverTenantDesdeElToken(code, env, opciones);
   if (!resTenant.ok) return _json({ ok: false, motivo: resTenant.motivo }, 401);
 
   let cuerpo;
   try { cuerpo = await request.json(); } catch { cuerpo = {}; }
 
-  const ctx = { tenant: resTenant.tenant, acciones: _acciones };
+  // las acciones de ESTE pedido: la memoria del proceso (hoy) o un almacén de Supabase con el pase de ESTA empresa
+  const acc = await _accionesParaElPedido(resTenant.tenant, env, opciones);
+  if (!acc.ok) return _json({ ok: false, memoria: "no_disponible", motivo: acc.motivo }, 200);
+
+  const ctx = { tenant: resTenant.tenant, acciones: acc.acciones };
 
   try {
     if (cuerpo && cuerpo.jsonrpc) {

@@ -23,6 +23,11 @@
 import { readFileSync } from "node:fs";
 import { crearClienteRest } from "../src/data/supabaseRest.js";
 import { emitirPase } from "../src/data/paseTenant.js";
+import { crearAlmacenSupabase } from "../src/adi/continuidad/almacenSupabase.js";
+import { esErrorDeAlmacen } from "../src/adi/continuidad/almacen.js";
+import * as EMP from "../src/adi/continuidad/empresa.js";
+import { libroNuevo, registrarEntrega, ORIGEN_LIBRO } from "../src/adi/continuidad/libro.js";
+import { TAXONOMIA_PERFIL } from "../src/config/contract/taxonomiaPerfil.js";
 
 // ── el entorno ────────────────────────────────────────────────────────────────────────────────────────
 try {
@@ -274,6 +279,184 @@ console.log("\n5 · EL PRODUCTO · lo que `handleData` le entrega de verdad al n
 
   const demo = await handleData({ op: "demo" }, ENV);
   chequeo(demo.ok && demo.esDemo === true, "«mirar el demo» responde el ejemplo, marcado como tal");
+}
+
+/* ═══ ETAPA 2 · BLOQUE 1 (guardado durable) · SECCIONES 6 Y 7 — PREPARADAS, NUNCA CORRIDAS TODAVÍA ═══════════════════
+ * Las migraciones 012, 013, 014 y 015 están ESCRITAS Y NO APLICADAS (el owner las aplica en el SQL Editor, en ese orden,
+ * y son idempotentes). Estas dos secciones se escribieron SIN poder llamar a la base: las ejerce, sin red, el doble de
+ * `scripts/doble-supabase-continuidad.mjs` desde `_guardado_durable_gate.mjs`, pero lo que este script comprueba es lo
+ * que un doble NO puede: que Postgres acepte el SQL, que el muro (RLS + `security definer`) aísle de verdad y que el
+ * pase de una empresa no toque lo de otra. La 6 es SOLO LECTURA (más rechazos a propósito que no escriben nada); la 7
+ * ESCRIBE en `memoria_empresa` y en `conversaciones` (append-only: deja rastro — al final imprime el SQL para limpiarlo).
+ * Si falta alguna migración, la sección lo dice y la 7 se salta. Corre DESPUÉS de las secciones 0-5 (las de siempre). */
+
+// ── 6 · LAS MIGRACIONES 011-015 · ¿están aplicadas, y dicen lo que el código cree? (solo lectura) ─────────────────
+console.log("\n6 · LAS MIGRACIONES 011-015 · ¿están aplicadas y coinciden con el código? (solo lectura)");
+const _txt = (r) => `${r.motivo || ""} ${r.detalle || ""}`.trim();
+const _sinFuncion = (r) => /PGRST202|Could not find the function/i.test(_txt(r));
+const _sinColumna = (r) => !r.ok && /does not exist|42703|PGRST204/i.test(_txt(r));
+const _canon = (x) => Array.isArray(x) ? x.map(_canon) : (x && typeof x === "object" ? Object.keys(x).sort().reduce((o, k) => { o[k] = _canon(x[k]); return o; }, {}) : x);
+const _iguales = (a, b) => JSON.stringify(_canon(a)) === JSON.stringify(_canon(b));
+const mig = { "011": false, "012": false, "013": false, "014": false, "015": false };
+{
+  const r11 = await db.llamarFuncion("adi_leer_contexto", {}, { pase });
+  mig["011"] = r11.ok;
+  chequeo(r11.ok, "011 · «Tu negocio»: la función adi_leer_contexto existe", _txt(r11).slice(0, 200));
+
+  const COLS_PERFIL = "sector_codigo,sector_procedencia,pais_codigo,pais_procedencia,modelo_comercial_codigo,modelo_comercial_procedencia,tamano_banda_codigo,tamano_banda_procedencia,moneda,moneda_procedencia";
+  const r12 = await db.seleccionar("tenants", { pase, columnas: `id,${COLS_PERFIL}`, limite: 1 });
+  mig["012"] = r12.ok;
+  chequeo(r12.ok, "012 · `tenants` tiene las columnas del perfil de empresa (sector, país, modelo comercial, banda, moneda y sus procedencias)", _txt(r12).slice(0, 200));
+  const tax = await db.seleccionar("perfil_taxonomia", { pase, columnas: "campo,codigo" });
+  chequeo(tax.ok, "012 · la tabla `perfil_taxonomia` existe y se puede leer", _txt(tax).slice(0, 200));
+
+  const r13 = await db.seleccionar("tenants", { pase, columnas: "id,tipo_producto_codigo,tipo_producto_procedencia", limite: 1 });
+  const r13viejo = await db.seleccionar("tenants", { pase, columnas: "id,subsector_codigo", limite: 1 });
+  mig["013"] = r13.ok && _sinColumna(r13viejo);
+  chequeo(r13.ok, "013 · `tenants.tipo_producto_codigo` existe (el antiguo «subsector» se renombró)", _txt(r13).slice(0, 200));
+  chequeo(_sinColumna(r13viejo), "013 · y `subsector_codigo` YA NO existe", r13viejo.ok ? "sigue existiendo: la 013 no corrió completa" : undefined);
+  if (tax.ok) {
+    for (const [campo, lista] of Object.entries(TAXONOMIA_PERFIL)) {
+      const enBase = tax.filas.filter((f) => f.campo === campo).map((f) => f.codigo).sort();
+      chequeo(_iguales(enBase, [...lista].sort()), `013 · la taxonomía sembrada de «${campo}» es IGUAL a la del código (${lista.length} códigos)`, `en la base: ${enBase.join(",")}`);
+    }
+    const ajenos = [...new Set(tax.filas.map((f) => f.campo))].filter((c) => !(c in TAXONOMIA_PERFIL));
+    chequeo(ajenos.length === 0, "013 · y no sobra ningún campo en la base (p. ej. «subsector» de la 012)", ajenos.join(","));
+  }
+  const PERFIL_VACIO = { p_sector_codigo: null, p_sector_procedencia: null, p_tipo_producto_codigo: null, p_tipo_producto_procedencia: null, p_pais_codigo: null, p_pais_procedencia: null, p_modelo_comercial_codigo: null, p_modelo_comercial_procedencia: null, p_tamano_banda_codigo: null, p_tamano_banda_procedencia: null, p_moneda: null };
+  /* RECHAZOS A PROPÓSITO: se llama con valores inválidos para que la base los rechace con SU mensaje — eso prueba que la
+   * función y el trigger existen y mandan, sin escribirle un perfil a nadie. */
+  const rSector = await db.llamarFuncion("adi_declarar_perfil_empresa", { ...PERFIL_VACIO, p_sector_codigo: "sector_que_no_existe" }, { pase });
+  chequeo(!rSector.ok && !_sinFuncion(rSector) && /lista autorizada|taxonom/i.test(_txt(rSector)), "013 · declarar un sector fuera de la taxonomía se RECHAZA (el trigger manda)", _txt(rSector).slice(0, 220));
+  const rTipo = await db.llamarFuncion("adi_declarar_perfil_empresa", { ...PERFIL_VACIO, p_sector_codigo: "servicios", p_tipo_producto_codigo: "vence" }, { pase });
+  chequeo(!rTipo.ok && !_sinFuncion(rTipo), "013 · «servicios» con un tipo de producto se RECHAZA (la regla sector↔tipo es estructural)", _txt(rTipo).slice(0, 220));
+
+  const r14 = await db.seleccionar("tenants", { pase, columnas: "id,piso_materialidad_cobranza_pct,piso_materialidad_cobranza_procedencia", limite: 1 });
+  const f14 = await db.llamarFuncion("adi_declarar_piso_materialidad_cobranza", { p_pct: 5, p_procedencia: "medido" }, { pase });
+  mig["014"] = r14.ok && !_sinFuncion(f14);
+  chequeo(r14.ok, "014 · `tenants` tiene las columnas del piso de materialidad de cobranza", _txt(r14).slice(0, 200));
+  chequeo(!f14.ok && !_sinFuncion(f14) && /0\.001|0\.10|entre/.test(_txt(f14)), "014 · declarar un piso fuera de rango (5 → 500 %) se RECHAZA con el mensaje de la función", _txt(f14).slice(0, 220));
+
+  const mem = await db.seleccionar("memoria_empresa", { pase, columnas: "id,clase,concepto,origen,estado,declarado_en,conversacion_id,reemplaza", limite: 1 });
+  const cv = await db.seleccionar("conversaciones", { pase, columnas: "hilo_id,estado", limite: 1 });
+  const fAportar = await db.llamarFuncion("adi_aportar_hecho_empresa", { p_clase: "perfil", p_concepto: "x", p_eje: null, p_entidad: null, p_periodo: null, p_valor: null, p_origen: "declarado", p_documento: null, p_estado: "pendiente", p_reemplaza: null, p_conversacion_id: null, p_actor_label: null, p_actor_rol: null }, { pase });
+  const UUID0 = "00000000-0000-4000-8000-000000000000";
+  const fConf = await db.llamarFuncion("adi_confirmar_hecho_empresa", { p_id: UUID0, p_confirmacion: null, p_estado: null, p_reemplaza: null, p_actor_label: null, p_actor_rol: null }, { pase });
+  const fRet = await db.llamarFuncion("adi_retirar_hecho_empresa", { p_id: UUID0, p_motivo: null, p_actor_label: null, p_actor_rol: null }, { pase });
+  const fLeer = await db.llamarFuncion("adi_leer_memoria_empresa", {}, { pase });
+  const fLeerE = await db.llamarFuncion("adi_leer_estado_conversacion", { p_hilo_id: "verificacion-no-existe" }, { pase });
+  const fGuardarE = await db.llamarFuncion("adi_guardar_estado_conversacion", { p_hilo_id: "verificacion-no-objeto", p_estado: [], p_actor_id: null, p_actor_label: null, p_actor_rol: null }, { pase });
+  mig["015"] = mem.ok && cv.ok && !_sinFuncion(fAportar) && fLeer.ok && fLeerE.ok;
+  chequeo(mem.ok, "015 · la tabla `memoria_empresa` existe", _txt(mem).slice(0, 200));
+  chequeo(cv.ok, "015 · `conversaciones.estado` (el libro de conversación) existe", _txt(cv).slice(0, 200));
+  chequeo(!fAportar.ok && !_sinFuncion(fAportar) && /clase/.test(_txt(fAportar)), "015 · adi_aportar_hecho_empresa existe y rechaza la clase «perfil» (el perfil no se declara por esta vía)", _txt(fAportar).slice(0, 220));
+  chequeo(fConf.ok && fRet.ok, "015 · adi_confirmar_hecho_empresa y adi_retirar_hecho_empresa existen (sobre un id que no existe devuelven cero filas, sin error)", `${_txt(fConf)} ${_txt(fRet)}`.slice(0, 220));
+  chequeo(fLeer.ok && fLeerE.ok, "015 · adi_leer_memoria_empresa y adi_leer_estado_conversacion existen", `${_txt(fLeer)} ${_txt(fLeerE)}`.slice(0, 220));
+  chequeo(!fGuardarE.ok && !_sinFuncion(fGuardarE) && /objeto/.test(_txt(fGuardarE)), "015 · adi_guardar_estado_conversacion existe y rechaza un libro que no es un objeto", _txt(fGuardarE).slice(0, 220));
+
+  const atrasadas = Object.entries(mig).filter(([, v]) => !v).map(([k]) => k);
+  if (atrasadas.length) {
+    console.log(`\n  ⚠️ FALTA APLICAR: ${atrasadas.join(" · ")}. Están en db/migraciones/ y se pegan ENTERAS en el SQL Editor de Supabase, EN ORDEN (011 → 012 → 013 → 014 → 015); son idempotentes.`);
+  } else {
+    console.log("\n  ✓ las migraciones 011-015 están aplicadas");
+  }
+}
+
+// ── 7 · LA MEMORIA DE EMPRESA Y EL LIBRO DE CONVERSACIÓN (015) · guardar, leer, confirmar, el Historial y el muro ───
+console.log("\n7 · LA MEMORIA Y EL LIBRO (015) · con el adaptador REAL: guardar → leer idéntico, el Historial y el muro (ESCRIBE, append-only)");
+const trazaDeVerificacion = { hilos: [], concepto: null };
+if (!mig["015"]) {
+  console.log("  · se salta: falta la migración 015 (ver arriba). Aplicarla y volver a correr.");
+} else {
+  try {
+    const corrida = Date.now().toString(36);
+    const CONCEPTO = `verificacion_${corrida}`;
+    const HILO = `verificacion-${corrida}`, HILO2 = `verificacion-sin-origen-${corrida}`, HILO_APP = `verificacion-app-${corrida}`, HILO_VIGIA = `verificacion-vigia-${corrida}`;
+    trazaDeVerificacion.hilos = [HILO, HILO2, HILO_APP, HILO_VIGIA]; trazaDeVerificacion.concepto = CONCEPTO;
+    const store = crearAlmacenSupabase({ url: SUPABASE_URL, apikey: SUPABASE_ANON_KEY, pase });
+    const storeAjeno = crearAlmacenSupabase({ url: SUPABASE_URL, apikey: SUPABASE_ANON_KEY, pase: paseAjeno });
+
+    // — la memoria de empresa, con las funciones REALES de `continuidad/empresa.js` sobre el adaptador REAL —
+    const aporte = { clase: "hecho", concepto: CONCEPTO, entidad: "VERIFICACION", valor: { raw: 45, unidad: "days", texto: "45 días · verificación" } };
+    const a = await EMP.declararHecho(store, EMPRESA, aporte, { actorLabel: "verificación", conversacionId: HILO });
+    chequeo(a.ok && a.estado === "pendiente" && a.paraConfirmar === true && /^[0-9a-f-]{36}$/.test(String(a.id)), "declarar un hecho lo guarda PENDIENTE y la base le da un uuid (proponer no es usar)", JSON.stringify(a).slice(0, 220));
+    chequeo((await EMP.leerVigentes(store, EMPRESA, { concepto: CONCEPTO })).length === 0 && (await EMP.leerPendientes(store, EMPRESA, { concepto: CONCEPTO })).length === 1, "…y figura como pendiente, nunca como vigente");
+    const a2 = await EMP.declararHecho(store, EMPRESA, aporte, { actorLabel: "verificación" });
+    chequeo(a2.ok && a2.duplicado === true && a2.id === a.id, "declarar lo MISMO otra vez devuelve el mismo hecho (no crea otra fila)");
+    const c = await EMP.confirmarHecho(store, EMPRESA, a.id, { actorLabel: "verificación", resolverConflicto: true });
+    chequeo(c.ok && c.estado === "vigente" && c.entendido.origen === "declarado" && Boolean(c.entendido.confirmacion), "confirmar lo promueve a vigente, con su sello de confirmación y el origen sigue «declarado»", JSON.stringify(c).slice(0, 220));
+    const b = await EMP.declararHecho(store, EMPRESA, { ...aporte, valor: { raw: 60, unidad: "days", texto: "60 días · verificación" }, reemplaza: a.id }, { actorLabel: "verificación" });
+    const vigTrasProponer = await EMP.leerVigentes(store, EMPRESA, { concepto: CONCEPTO });
+    chequeo(b.ok && b.estado === "pendiente" && b.conflictoCon === a.id && vigTrasProponer.length === 1 && vigTrasProponer[0].valor.raw === 45, "un valor DISTINTO queda pendiente con su conflicto y NO retira lo ya confirmado hasta que la persona confirme", JSON.stringify({ b: b.estado, vig: vigTrasProponer.map((x) => x.valor.raw) }));
+    const c2 = await EMP.confirmarHecho(store, EMPRESA, b.id, { actorLabel: "verificación", resolverConflicto: true });
+    const vigFinal = await EMP.leerVigentes(store, EMPRESA, { concepto: CONCEPTO });
+    const hist = await EMP.leerHistoria(store, EMPRESA, { concepto: CONCEPTO });
+    chequeo(c2.ok && vigFinal.length === 1 && vigFinal[0].valor.raw === 60 && hist.some((h) => h.valor.raw === 45 && h.estado === "retirado"), "confirmar el nuevo deja UNA sola vigente (60) y el viejo queda en la historia como retirado", JSON.stringify(hist.map((h) => `${h.valor.raw}:${h.estado}`)));
+    const om = await EMP.omitirCampo(store, EMPRESA, { clase: "hecho", concepto: `${CONCEPTO}_omitido` }, { actorLabel: "verificación", conversacionId: HILO });
+    chequeo(om.ok && (await EMP.yaFueOmitido(store, EMPRESA, { concepto: `${CONCEPTO}_omitido` }, { conversacionId: HILO })), "«prefiero no decirlo» se guarda como omitido y no se vuelve a preguntar");
+
+    // — el libro de conversación: guardar → leer, IDÉNTICO —
+    let libro = libroNuevo({ conversacionId: HILO, versionId: 1 });
+    libro = registrarEntrega(libro, { versionId: 1, temas: ["comercial"], entidades: ["VERIFICACION"], cierre: "cifra", hechos: [{ sujeto: "VERIFICACION", metrica: "Venta", valor: "$1.0M", origen: "medido" }], entregadaEn: new Date().toISOString(), periodo: { tipo: "cerrado", texto: "año cerrado" } });
+    await store.guardarLibro(EMPRESA, libro);
+    const leido = await store.leerLibro(EMPRESA, HILO);
+    chequeo(Boolean(leido) && _iguales(leido, libro), "guardar el libro y leerlo da EXACTAMENTE lo mismo (jsonb reordena las claves: la comparación es canónica)", leido ? undefined : "no volvió");
+    chequeo(Boolean(leido) && leido.origen === ORIGEN_LIBRO, `el libro lleva el origen del hilo («${ORIGEN_LIBRO}»)`);
+    chequeo((await store.leerLibro(EMPRESA, "verificacion-no-existe")) === null, "un libro que no existe devuelve null (no un error: «no existe» no es «falló»)");
+
+    // — D3 · la base SELLA el origen aunque quien guarda no lo diga —
+    const sinOrigen = await db.llamarFuncion("adi_guardar_estado_conversacion", { p_hilo_id: HILO2, p_estado: { version: "libro/v1", conversacionId: HILO2 }, p_actor_id: null, p_actor_label: "verificación", p_actor_rol: null }, { pase });
+    chequeo(sinOrigen.ok && sinOrigen.filas[0] && sinOrigen.filas[0].estado && sinOrigen.filas[0].estado.origen === "complemento", "D3 · guardar un libro SIN origen: la base le pone `origen: complemento` ella misma", _txt(sinOrigen).slice(0, 200));
+
+    // — D3 · el Historial de la app no ve los hilos del Complemento —
+    const plan = await db.seleccionar("tenants", { pase, columnas: "id,plan", limite: 1 });
+    if (plan.ok && plan.filas[0] && plan.filas[0].plan === "pro") {
+      const app = await db.llamarFuncion("adi_guardar_conversacion", { p_hilo_id: HILO_APP, p_titulo: "verificación del historial", p_mensajes: [{ role: "user", text: "hola" }], p_actor_id: null, p_actor_label: "verificación", p_actor_rol: null }, { pase });
+      const vigia = await db.llamarFuncion("adi_guardar_conversacion", { p_hilo_id: HILO_VIGIA, p_titulo: "", p_mensajes: [], p_actor_id: null, p_actor_label: "verificación", p_actor_rol: null }, { pase });
+      chequeo(app.ok && vigia.ok, "se crean dos hilos del chat de la app (uno con título y otro recién abierto, vacío)", `${_txt(app)} ${_txt(vigia)}`.trim());
+      const lista = await db.llamarFuncion("adi_listar_conversaciones", { p_limite: 200 }, { pase });
+      const hilos = lista.ok ? lista.filas.map((f) => f.hilo_id) : [];
+      chequeo(lista.ok && hilos.includes(HILO_APP) && hilos.includes(HILO_VIGIA), "D3 · el Historial lista los hilos de la app, incluido el vacío (no es un filtro por título vacío)", _txt(lista).slice(0, 200));
+      chequeo(lista.ok && !hilos.includes(HILO) && !hilos.includes(HILO2), "★ D3 · y NO lista los hilos del Complemento (el libro): ninguna fila fantasma en el Historial de un usuario PRO");
+      const abre = await db.llamarFuncion("adi_leer_conversacion", { p_hilo_id: HILO }, { pase });
+      chequeo(abre.ok && abre.filas.length === 0, "D3 · el Historial tampoco puede ABRIR un hilo del Complemento");
+      const encima = await db.llamarFuncion("adi_guardar_estado_conversacion", { p_hilo_id: HILO_APP, p_estado: { version: "libro/v1", conversacionId: HILO_APP }, p_actor_id: null, p_actor_label: null, p_actor_rol: null }, { pase });
+      chequeo(!encima.ok && /conversación del chat de la app/.test(_txt(encima)), "D3 · guardar un libro ENCIMA de un hilo de la app se rechaza (no lo haría desaparecer del Historial)", _txt(encima).slice(0, 200));
+    } else {
+      console.log(`  · el Historial NO se puede verificar: la empresa «${EMPRESA}» no es plan pro (el Historial es de pago). Para probarlo: update public.tenants set plan = 'pro' where id = '${EMPRESA}';`);
+    }
+
+    // — el tope de 16 KB —
+    const grande = await db.llamarFuncion("adi_guardar_estado_conversacion", { p_hilo_id: `${HILO}-grande`, p_estado: { version: "libro/v1", conversacionId: `${HILO}-grande`, relleno: "x".repeat(20000) }, p_actor_id: null, p_actor_label: null, p_actor_rol: null }, { pase });
+    chequeo(!grande.ok && /16KB|tamaño|check/i.test(_txt(grande)), "un libro de más de 16 KB se rechaza (la base lo respalda aunque el código se olvide de recortar)", _txt(grande).slice(0, 200));
+
+    // — EL MURO: lo único que un doble no puede probar —
+    console.log("\n  EL MURO · un pase de OTRA empresa no alcanza esta memoria ni este libro");
+    const antesFila = await store.leerHechosEmpresa(EMPRESA);
+    const memAjena = await db.llamarFuncion("adi_leer_memoria_empresa", {}, { pase: paseAjeno });
+    chequeo(memAjena.ok && memAjena.filas.length === 0, "⚠️ un pase ajeno lee CERO filas de la memoria de empresa", memAjena.ok ? `devolvió ${memAjena.filas.length}` : _txt(memAjena));
+    const libAjeno = await db.llamarFuncion("adi_leer_estado_conversacion", { p_hilo_id: HILO }, { pase: paseAjeno });
+    chequeo(libAjeno.ok && libAjeno.filas.length === 0, "⚠️ …y CERO filas del libro de esta conversación", libAjeno.ok ? `devolvió ${libAjeno.filas.length}` : _txt(libAjeno));
+    const confAjena = await db.llamarFuncion("adi_confirmar_hecho_empresa", { p_id: b.id, p_confirmacion: { por: "intruso" }, p_estado: "retirado", p_reemplaza: null, p_actor_label: "intruso", p_actor_rol: null }, { pase: paseAjeno });
+    const retAjena = await db.llamarFuncion("adi_retirar_hecho_empresa", { p_id: b.id, p_motivo: "intruso", p_actor_label: "intruso", p_actor_rol: null }, { pase: paseAjeno });
+    const despuesFila = await store.leerHechosEmpresa(EMPRESA);
+    chequeo(_iguales(antesFila, despuesFila), "⚠️ un pase ajeno NO PUEDE confirmar ni retirar un hecho de esta empresa (la memoria quedó idéntica)", `${_txt(confAjena)} · ${_txt(retAjena)}`.slice(0, 200));
+    const apAjeno = await db.llamarFuncion("adi_aportar_hecho_empresa", { p_clase: "hecho", p_concepto: "intruso", p_eje: null, p_entidad: null, p_periodo: null, p_valor: null, p_origen: "declarado", p_documento: null, p_estado: "pendiente", p_reemplaza: null, p_conversacion_id: null, p_actor_label: null, p_actor_rol: null }, { pase: paseAjeno });
+    chequeo(!apAjeno.ok, "⚠️ un pase de una empresa que no existe no puede ESCRIBIR memoria (la clave foránea lo rechaza)", apAjeno.ok ? "LA ESCRIBIÓ" : _txt(apAjeno).slice(0, 160));
+    const gdAjeno = await db.llamarFuncion("adi_guardar_estado_conversacion", { p_hilo_id: HILO, p_estado: { version: "libro/v1", conversacionId: HILO, intruso: true }, p_actor_id: null, p_actor_label: null, p_actor_rol: null }, { pase: paseAjeno });
+    const libroDespues = await store.leerLibro(EMPRESA, HILO);
+    chequeo(!gdAjeno.ok && Boolean(libroDespues) && _iguales(libroDespues, libro), "⚠️ …ni guardar un libro a nombre de otra: el libro de esta empresa quedó idéntico", gdAjeno.ok ? "LO ESCRIBIÓ" : _txt(gdAjeno).slice(0, 160));
+    const directo = await db.insertar("memoria_empresa", { pase, filas: { tenant_id: EMPRESA, clase: "hecho", concepto: `${CONCEPTO}_directo`, origen: "declarado", estado: "vigente" } });
+    chequeo(!directo.ok, "⚠️ ni siquiera la propia empresa puede INSERTAR directo en `memoria_empresa`: solo por las funciones (no hay política de escritura)", directo.ok ? "INSERTÓ DIRECTO" : _txt(directo).slice(0, 160));
+    await db.actualizar("memoria_empresa", { pase, filtros: { id: `eq.${b.id}` }, cambios: { estado: "retirado", valor: { raw: 999 } } });
+    const trasUpdate = await EMP.leerHistoria(store, EMPRESA, { concepto: CONCEPTO });
+    chequeo(_iguales(await store.leerHechosEmpresa(EMPRESA), despuesFila) && trasUpdate.length === hist.length, "⚠️ ni UPDATE directo: la memoria quedó idéntica (el valor de un hecho es inmutable)");
+  } catch (e) {
+    chequeo(false, "la sección 7 terminó con una EXCEPCIÓN (no con un control en falso)", esErrorDeAlmacen(e) ? `${e.operacion}: ${e.motivo}` : String(e && e.stack || e).slice(0, 400));
+  }
+  console.log("\n  Para borrar el rastro de la sección 7 (la memoria es append-only: el pase no puede borrar), en el SQL Editor:");
+  console.log(`    delete from public.memoria_empresa where concepto like 'verificacion_%' and tenant_id = '${EMPRESA}';`);
+  console.log(`    delete from public.conversaciones where hilo_id like 'verificacion-%' and tenant_id = '${EMPRESA}';`);
 }
 
 // ── cierre ────────────────────────────────────────────────────────────────────────────────────────────

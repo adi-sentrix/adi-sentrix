@@ -39,5 +39,14 @@ export function retomar(libro, { versionIdActual = null, reverificar = null } = 
   const eventos = eventosDeContinuidad({ cambioVersion, cifrasReverificadas });
   const estadoVigente = estadoVigenteDe(libro, { versionIdActual });
 
-  return { estadoVigente, hechos, eventos, lineaContinuidad: lineaDeContinuidad(eventos) };
+  /* LO ENTREGADO, TAL CUAL QUEDÓ (Etapa 2, bloque 1): cada Entrega con SU número, SU versión de carga, CUÁNDO se
+   * entregó y el período que declaró — para que quien retoma vea que E1 y E2 son las mismas que se entregaron,
+   * sin recomponerlas. Se copia lo guardado; nada se recalcula (el pasado no se reescribe). */
+  const entregas = (libro.entregas || []).map((e) => ({
+    n: e.n, turno: e.turno, versionId: e.versionId || null, entregadaEn: e.entregadaEn || null, periodo: e.periodo || null,
+    temas: Array.isArray(e.temas) ? e.temas.slice() : [], entidades: Array.isArray(e.entidades) ? e.entidades.slice() : [],
+    cierre: e.cierre || null, recortada: Boolean(e.recortada),
+  }));
+
+  return { estadoVigente, hechos, entregas, eventos, lineaContinuidad: lineaDeContinuidad(eventos) };
 }
