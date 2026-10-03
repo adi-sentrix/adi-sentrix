@@ -21,6 +21,8 @@ dev.log
 
 # API keys (Paso 5) - nunca commitear
 .env
+# contraseña de la base de STAGING para aplicar migraciones (scripts/aplicar-migracion-staging.mjs) - nunca commitear
+.env.staging-db
 
 # Build de Vite (lo genera el host · Vercel corre `vite build`) — nunca commitear
 dist/
