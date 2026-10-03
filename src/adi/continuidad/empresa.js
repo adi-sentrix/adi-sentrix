@@ -16,13 +16,30 @@
  * para que quien arme la evidencia del turno (`entrega/componer.js`, fuera del alcance de esta pieza) los use tal
  * cual — ver `_ADI_CONTINUIDAD_INTEGRACION.md`.
  *
- * EL PERFIL (sector, tipo de producto, país, modelo comercial, banda de tamaño, moneda) NO se guarda acá: vive
- * en las columnas de `tenants` (migraciones 012/013) detrás de `adi_declarar_perfil_empresa` y se lee con
- * `config/contract/perfilCliente.js` — ninguno de los dos se toca en esta pieza (Etapa 3, «perfil conversando»,
- * `_ADI_PLAN_PRODUCTO_V2.md` B4, no es esta etapa). Lo único que este módulo aporta sobre el perfil es
- * `hechoDePerfilCampo`, un traductor PURO y de SOLO LECTURA (nunca escribe, nunca se llama desde `declararHecho`)
- * para que la vista unificada de «memoria de empresa» (`memoriaDeEmpresa`) pueda mostrar el perfil junto a los
- * criterios/hechos/documentos sin inventar una segunda tabla ni una segunda verdad.
+ * EL PERFIL (sector, tipo de producto, país, modelo comercial, banda de tamaño, moneda). El que viene de las
+ * columnas de `tenants` (migraciones 012/013, detrás de `adi_declarar_perfil_empresa`) se lee con
+ * `config/contract/perfilCliente.js` y este módulo no lo toca: `hechoDePerfilCampo` es un traductor PURO y de SOLO
+ * LECTURA para que la vista unificada de «memoria de empresa» (`memoriaDeEmpresa`) muestre el perfil junto a los
+ * criterios/hechos/documentos sin una segunda tabla ni una segunda verdad.
+ *
+ * ═══ ETAPA 2, BLOQUE 2 · EL PERFIL SE COMPLETA CONVERSANDO (owner 2026-09-25, aprobado; 2026-10-03) ═══════════════
+ * El perfil que el anfitrión (el LLM) le saca a la persona conversando se guarda ACÁ, en la memoria de la empresa,
+ * con origen «declarado» (nunca otro) y sigue la misma ley que todo aporte: nace «pendiente» y solo
+ * `confirmarHecho` lo hace vigente (la confirmación es un sello aparte y no cambia el origen). ADI NO interpreta
+ * lenguaje: el anfitrión devuelve el valor TIPADO (el código de una opción de la taxonomía) y `declararPerfilCampo`
+ * lo valida contra la taxonomía cerrada (`config/contract/taxonomiaPerfil.js`); lo que no está en la lista se
+ * rechaza diciendo cuáles son las válidas — nunca se inventa ni se «aproxima» un valor.
+ *
+ * CÓMO SE GUARDA (decisión de forma, sin migración nueva): la tabla `memoria_empresa` de la 015 solo admite
+ * `clase in ('criterio','hecho','documento')` («el perfil no se declara por esta vía»), así que una fila de perfil
+ * viaja como `clase:"hecho"` con el concepto RESERVADO `perfil:<campo>` (`PREFIJO_PERFIL`) y el código en
+ * `valor.texto`. Es la MISMA representación en la memoria del proceso y en Supabase, así que una prueba contra la
+ * memoria vale contra la base. El concepto reservado NO se puede declarar por la vía genérica (`declararHecho` lo
+ * rechaza): la única puerta de entrada es `declararPerfilCampo`, la que valida la taxonomía. Si el owner prefiere
+ * que la base lo diga explícito (`clase = 'perfil'`), es ampliar el check de la 015 antes de aplicarla y quitar
+ * esta codificación — ningún otro módulo conoce el prefijo: leer, declarar y omitir un campo de perfil
+ * (`leerPerfilDeclarado`, `declararPerfilCampo`, `omitirPerfilCampo`) viven todos acá. `memoriaDeEmpresa` NO lista
+ * estas filas entre los hechos (son perfil, no «un hecho»): el perfil se ve por `leerPerfilDeclarado`.
  *
  * VIGENCIA E HISTORIA, NUNCA EN SILENCIO. Cada fila es INMUTABLE una vez guardada (ver `almacen.js`): un cambio
  * de valor es una fila NUEVA con `reemplaza: idViejo`, y la fila vieja pasa a `estado:"retirado"` — nunca un
@@ -41,7 +58,46 @@
  *
  * Puro: sin I/O directo — todo pasa por el `store` inyectado (`almacen.js`). */
 
+import { TAXONOMIA_PERFIL, validarTipoProductoDeSector } from "../../config/contract/taxonomiaPerfil.js";
+
 export const CLASES_HECHO_EMPRESA = ["perfil", "criterio", "hecho", "documento"];
+
+/* ── el perfil declarado conversando (ver la cabecera, «ETAPA 2, BLOQUE 2») ────────────────────────────────────── */
+/** los campos del perfil que la persona declara (nunca el tamaño —se deriva— ni la moneda —se declara al cargar—),
+ *  en el orden en que ADI los pregunta (la propuesta §6: sector → tipo de producto → a quién vende → país). */
+export const CAMPOS_PERFIL_DECLARABLES = Object.freeze(["sector", "tipoProducto", "modeloComercial", "pais"]);
+/** campo (camelCase, el de `tenant.perfil`) → su lista en la taxonomía (snake_case, la de la base). UNA sola tabla. */
+export const LISTA_DE_CAMPO_PERFIL = Object.freeze({ sector: "sector", tipoProducto: "tipo_producto", modeloComercial: "modelo_comercial", pais: "pais" });
+/** el concepto RESERVADO con el que una fila de perfil viaja en la memoria (la 015 no admite `clase:"perfil"`). */
+export const PREFIJO_PERFIL = "perfil:";
+export const conceptoDePerfil = (campo) => `${PREFIJO_PERFIL}${campo}`;
+/** campoDeConcepto("perfil:sector") → "sector" · null si el concepto no es de perfil o el campo no existe. */
+export function campoDeConceptoDePerfil(concepto) {
+  const c = String(concepto == null ? "" : concepto).trim();
+  if (!c.startsWith(PREFIJO_PERFIL)) return null;
+  const campo = c.slice(PREFIJO_PERFIL.length);
+  return CAMPOS_PERFIL_DECLARABLES.includes(campo) ? campo : null;
+}
+export const esConceptoReservadoDePerfil = (concepto) => String(concepto == null ? "" : concepto).trim().toLowerCase().startsWith(PREFIJO_PERFIL);
+
+/** validarValorDePerfil(campo, codigo, { sector? }) → { ok, codigo?, motivo?, validos? }
+ *  ADI NO interpreta lenguaje: el valor ya viene TIPADO (el código de una opción). Acá solo se comprueba que ese código
+ *  exista en la taxonomía cerrada del campo, y que un tipo de producto calce con el sector (la regla dura de la
+ *  taxonomía). Si no, se rechaza diciendo cuáles son los válidos — nunca se corrige ni se aproxima. */
+export function validarValorDePerfil(campo, codigo, { sector = null } = {}) {
+  if (!CAMPOS_PERFIL_DECLARABLES.includes(campo)) return { ok: false, motivo: `«${campo}» no es un campo del perfil que se declare (${CAMPOS_PERFIL_DECLARABLES.join(" · ")})`, validos: [...CAMPOS_PERFIL_DECLARABLES] };
+  const lista = TAXONOMIA_PERFIL[LISTA_DE_CAMPO_PERFIL[campo]] || [];
+  if (typeof codigo !== "string" || !codigo.trim() || !lista.includes(codigo.trim())) {
+    return { ok: false, motivo: `«${codigo == null ? "" : String(codigo)}» no es un valor válido de ${campo}: se declara el código de una de las opciones (${lista.join(" · ")})`, validos: [...lista] };
+  }
+  const limpio = codigo.trim();
+  if (campo === "tipoProducto") {
+    if (!sector) return { ok: false, motivo: "el tipo de producto solo se declara cuando el sector ya está declarado (aplica a distribución, fabricación y minorista)", validos: [...lista], falta: "sector" };
+    const v = validarTipoProductoDeSector(sector, limpio);
+    if (!v.ok) return { ok: false, motivo: v.motivo, validos: [...lista] };
+  }
+  return { ok: true, codigo: limpio };
+}
 /* subconjunto de `notario/hechos.js:ORIGENES` — acá NUNCA "medido" ni "supuesto" (ver cabecera). */
 export const ORIGENES_HECHO_EMPRESA = ["declarado", "documento"];
 export const ESTADOS_HECHO_EMPRESA = ["pendiente", "vigente", "retirado", "omitido"];
@@ -67,7 +123,10 @@ export function claveDeHecho(h) {
  * declaraciones entre sí, que pueden no traer `raw` — solo `texto`, ej. una tesis o un criterio en palabras). */
 function _mismoValorDeclarado(a, b) {
   if (a == null || b == null) return a === b;
-  const ra = Number(a.raw), rb = Number(b.raw);
+  /* `Number(null)` es 0: sin esta guarda, dos valores SOLO de texto (raw nulo) se leían como «el mismo número 0» y una
+   * declaración con otro texto para la misma llave se tragaba como duplicado, sin conflicto (hallado en el bloque 2 con el
+   * perfil: un segundo sector no se registraba). El número solo compara cuando LOS DOS lo traen. */
+  const ra = a.raw == null || a.raw === "" ? NaN : Number(a.raw), rb = b.raw == null || b.raw === "" ? NaN : Number(b.raw);
   if (Number.isFinite(ra) && Number.isFinite(rb)) {
     if (_normTxt(a.unidad || "") !== _normTxt(b.unidad || "")) return false;
     return Math.abs(ra - rb) < 1e-9 || Math.abs(ra - rb) <= Math.abs(rb || 1) * 0.0005;
@@ -145,9 +204,11 @@ export async function declararHecho(store, tenantId, aporte, { actorLabel = null
 
   const clase = _normTxt(aporte.clase);
   if (!CLASES_HECHO_EMPRESA.includes(clase)) return { ok: false, motivo: `clase desconocida «${aporte.clase}» (${CLASES_HECHO_EMPRESA.join(" · ")})` };
-  /* el perfil vive en la ficha de la empresa (`tenants`, migraciones 012/013) y se declara por su propia vía; el
-   * motivo que viaja al LLM va en palabras de negocio, sin nombres internos (supervisor 2026-09-26). */
-  if (clase === "perfil") return { ok: false, motivo: "el perfil de la empresa se declara por su propia vía, no como un hecho de la memoria" };
+  /* el perfil se declara por su propia vía (`declararPerfilCampo`, que valida la taxonomía); acá, por la vía
+   * genérica, ni como clase ni como el concepto reservado con el que una fila de perfil viaja en la memoria — si
+   * no, un hecho cualquiera con ese concepto se saltaría la validación. El motivo que viaja al LLM va en palabras
+   * de negocio, sin nombres internos (supervisor 2026-09-26). */
+  if (clase === "perfil" || esConceptoReservadoDePerfil(aporte.concepto)) return { ok: false, motivo: "el perfil de la empresa se declara por su propia vía (clase «perfil», con el valor de una de las opciones ofrecidas), no como un hecho de la memoria" };
 
   const origen = _normTxt(aporte.origen || "declarado");
   if (!ORIGENES_HECHO_EMPRESA.includes(origen)) return { ok: false, motivo: `origen «${aporte.origen}» no admitido en la memoria de empresa (${ORIGENES_HECHO_EMPRESA.join(" · ")})` };
@@ -168,6 +229,13 @@ export async function declararHecho(store, tenantId, aporte, { actorLabel = null
     estado: "pendiente", declaradoEn: _ahora(), actorLabel: actorLabel || null, conversacionId: conversacionId || null, reemplaza: null,
   };
 
+  return _colisionarYGuardar(store, tenantId, candidato, aporte);
+}
+
+/* LA ESCRITURA COMÚN (la comparten la vía genérica `declararHecho` y la del perfil `declararPerfilCampo`): compara la
+ * llave contra lo vigente y lo pendiente, y guarda SIEMPRE «pendiente» (o devuelve el duplicado). Cada vía valida
+ * ANTES de llamarla; esta función no valida nada y no decide qué se puede declarar. */
+async function _colisionarYGuardar(store, tenantId, candidato, aporte) {
   // la llave se compara contra lo VIGENTE **y contra lo PENDIENTE** (corrección 2026-09-26: desde que nace
   // "pendiente", una llave declarada dos veces antes de confirmarse tiene que seguir siendo LA MISMA fila —
   // "mismo aporte dos veces → mismo id, nunca dos filas nuevas al azar" — y un valor DISTINTO mientras la
@@ -197,6 +265,78 @@ export async function declararHecho(store, tenantId, aporte, { actorLabel = null
   return { ok: true, id: guardado.id, estado: guardado.estado, entendido: guardado, paraConfirmar: true };
 }
 
+/* ── EL PERFIL DECLARADO (bloque 2): leer, declarar y omitir un campo — todo lo que conoce el prefijo reservado ── */
+
+/** leerPerfilDeclarado(store, tenantId) → { vigentes, pendientes, omitidos } — cada uno `{ [campo]: ... }`.
+ *  Solo cuenta una fila de perfil BIEN FORMADA: concepto reservado de un campo que existe, origen «declarado» y un
+ *  código que está en la taxonomía. Cualquier otra cosa (una fila escrita por fuera de `declararPerfilCampo`, un
+ *  código que la taxonomía ya no tiene) se IGNORA — falla cerrado: nunca se sirve un sector que la taxonomía no avala.
+ *  `omitidos[campo]` = la lista de omisiones (cada una con la conversación en que se omitió). Una sola lectura. */
+export async function leerPerfilDeclarado(store, tenantId) {
+  return _perfilDeLasFilas((await store.leerHechosEmpresa(tenantId)) || []);
+}
+function _perfilDeLasFilas(todos) {
+  const out = { vigentes: {}, pendientes: {}, omitidos: {} };
+  const masReciente = (a, b) => (!a || String(b.declaradoEn || "") >= String(a.declaradoEn || "") ? b : a);
+  for (const h of todos) {
+    const campo = campoDeConceptoDePerfil(h.concepto);
+    if (!campo || h.clase !== "hecho") continue;
+    if (h.estado === "omitido") { (out.omitidos[campo] = out.omitidos[campo] || []).push({ id: h.id, conversacionId: h.conversacionId || null, declaradoEn: h.declaradoEn || null }); continue; }
+    if (h.estado !== "vigente" && h.estado !== "pendiente") continue;
+    if (_normTxt(h.origen) !== "declarado") continue;
+    const codigo = h.valor && typeof h.valor.texto === "string" ? h.valor.texto : null;
+    if (!codigo || !(TAXONOMIA_PERFIL[LISTA_DE_CAMPO_PERFIL[campo]] || []).includes(codigo)) continue;
+    const fila = { id: h.id, valor: codigo, origen: "declarado", declaradoEn: h.declaradoEn || null, confirmacion: h.confirmacion || null };
+    const destino = h.estado === "vigente" ? out.vigentes : out.pendientes;
+    destino[campo] = masReciente(destino[campo], fila);
+  }
+  return out;
+}
+
+/** declararPerfilCampo(store, tenantId, { campo, codigo, sectorDelDataset? }, opts?) → ResultadoAporte | { ok:false, motivo, validos }
+ *  La ÚNICA puerta de entrada del perfil a la memoria. Valida contra la taxonomía (`validarValorDePerfil`) y guarda con
+ *  origen «declarado»; nace «pendiente» como todo aporte (la persona lo confirma con `confirmarHecho`). El sector con el
+ *  que se juzga un tipo de producto es el de la ficha de la empresa si lo hay, y si no el de la memoria. */
+export async function declararPerfilCampo(store, tenantId, { campo, codigo, sectorDelDataset = null } = {}, { actorLabel = null, conversacionId = null } = {}) {
+  if (!tenantId) return { ok: false, motivo: "sin empresa: no se declara nada sin saber de qué empresa es" };
+  const filas = (await store.leerHechosEmpresa(tenantId)) || [];
+  let sector = sectorDelDataset || null;
+  if (campo === "tipoProducto" && !sector) {
+    const e = _perfilDeLasFilas(filas);
+    sector = (e.vigentes.sector && e.vigentes.sector.valor) || (e.pendientes.sector && e.pendientes.sector.valor) || null;
+  }
+  const v = validarValorDePerfil(campo, codigo, { sector });
+  if (!v.ok) return { ok: false, motivo: v.motivo, validos: v.validos, ...(v.falta ? { falta: v.falta } : {}) };
+  /* UNA sola propuesta pendiente por campo: lo último que la persona dijo es lo que queda por confirmar. Una propuesta
+   * pendiente DISTINTA de ese mismo campo se retira (con su motivo; nunca se borra) — si no, repetir un valor anterior
+   * devolvería la fila vieja y «lo último que dijo» no sería lo último que se lee (hallado con las conversaciones al azar). */
+  for (const h of filas) {
+    if (h.estado === "pendiente" && h.clase === "hecho" && h.concepto === conceptoDePerfil(campo) && !(h.valor && h.valor.texto === v.codigo)) {
+      await store.actualizarHechoEmpresa(tenantId, h.id, { estado: "retirado", retiradoMotivo: "reemplazada por una declaración posterior de la misma persona, todavía sin confirmar", retiradoPor: actorLabel || null, retiradoEn: _ahora() });
+    }
+  }
+  const candidato = {
+    clase: "hecho", concepto: conceptoDePerfil(campo), eje: null, entidad: null, periodo: null,
+    valor: { raw: null, unidad: null, texto: v.codigo }, origen: "declarado", documento: null, confirmacion: null,
+    estado: "pendiente", declaradoEn: _ahora(), actorLabel: actorLabel || null, conversacionId: conversacionId || null, reemplaza: null,
+  };
+  return _colisionarYGuardar(store, tenantId, candidato, {});
+}
+
+/** omitirPerfilCampo(store, tenantId, campo, opts?) → { ok, id?, duplicado?, motivo? }
+ *  «Prefiero no decirlo»: usa `omitirCampo`/`yaFueOmitido` (la política de cuándo volver a preguntar es de
+ *  `capacidad/perfilConversando.js`). Omitir lo ya declarado no tiene sentido y se rechaza; omitir dos veces en la
+ *  misma conversación es la misma omisión. */
+export async function omitirPerfilCampo(store, tenantId, campo, { actorLabel = null, conversacionId = null } = {}) {
+  if (!tenantId) return { ok: false, motivo: "sin empresa: no se omite nada sin saber de qué empresa es" };
+  if (!CAMPOS_PERFIL_DECLARABLES.includes(campo)) return { ok: false, motivo: `«${campo}» no es un campo del perfil (${CAMPOS_PERFIL_DECLARABLES.join(" · ")})` };
+  const e = await leerPerfilDeclarado(store, tenantId);
+  if (e.vigentes[campo]) return { ok: false, motivo: `el campo ${campo} ya está declarado: no se omite lo que la empresa ya dijo (para cambiarlo, se declara el valor nuevo)` };
+  const concepto = conceptoDePerfil(campo);
+  if (await yaFueOmitido(store, tenantId, { concepto }, { conversacionId })) return { ok: true, duplicado: true };
+  return await omitirCampo(store, tenantId, { clase: "hecho", concepto }, { actorLabel, conversacionId });
+}
+
 /** confirmarHecho(store, tenantId, id, opts?) → ResultadoAporte
  * La confirmación es un SELLO APARTE (`{por, cuando, medio, sobre}`) — NUNCA cambia el origen (ley del owner,
  * textual: «un dato confirmado de un contrato sigue viniendo del contrato»). `resolverConflicto:true` promueve
@@ -220,8 +360,12 @@ export async function confirmarHecho(store, tenantId, id, { actorLabel = null, m
     // sin confirmar todavía para la misma llave — corrección 2026-09-26: `declararHecho` ya compara contra
     // ambos estados, así que confirmar tiene que poder retirar cualquiera de los dos, nunca dejar un pendiente
     // huérfano compitiendo con el que se acaba de promover).
-    const otro = todos.find((x) => (x.estado === "vigente" || x.estado === "pendiente") && String(x.id) !== String(h.id) && claveDeHecho(x) === clave);
-    if (otro) await store.actualizarHechoEmpresa(tenantId, otro.id, { estado: "retirado" });
+    /* TODOS los competidores de la misma llave se retiran —no solo el primero—: si no, una declaración que quedó pendiente
+     * detrás de otra (p. ej. un valor pendiente y luego otro, con uno ya vigente) reaparecería «por confirmar» después
+     * de que otra se confirmó (bloque 2, hallado con las conversaciones al azar). Con un solo competidor, igual que antes. */
+    const otros = todos.filter((x) => (x.estado === "vigente" || x.estado === "pendiente") && String(x.id) !== String(h.id) && claveDeHecho(x) === clave);
+    for (const o of otros) await store.actualizarHechoEmpresa(tenantId, o.id, { estado: "retirado" });
+    const otro = otros.find((x) => x.estado === "vigente") || otros[0] || null;
     cambios.estado = "vigente";
     if (otro) cambios.reemplaza = otro.id;
   }
@@ -336,7 +480,8 @@ export function migrarLegado({ diario = null, contexto = null } = {}) {
  * legado correspondiente NO se repite — así, el día que una migración de datos real copie diario/contexto a la
  * tabla, `memoriaDeEmpresa` deja de traducir por sí sola sin que nadie tenga que tocar este módulo. */
 export async function memoriaDeEmpresa(store, tenantId, { legado = null } = {}) {
-  const vigentes = await leerVigentes(store, tenantId, {});
+  // las filas de perfil (concepto reservado) no son «hechos»: se leen con `leerPerfilDeclarado`, validadas contra la taxonomía
+  const vigentes = (await leerVigentes(store, tenantId, {})).filter((h) => !esConceptoReservadoDePerfil(h.concepto));
   const yaMigrados = new Set(vigentes.filter((h) => h.migradoDeLegado).map((h) => `${h.migradoDeLegado}:${_normTxt(h.concepto)}:${_normTxt(h.entidad || "")}`));
   const legadoTraducido = legado ? migrarLegado(legado).filter((h) => !yaMigrados.has(`${h.migradoDeLegado}:${_normTxt(h.concepto)}:${_normTxt(h.entidad || "")}`)) : [];
   return { hechos: [...vigentes, ...legadoTraducido] };

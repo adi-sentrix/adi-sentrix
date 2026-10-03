@@ -31,6 +31,7 @@
 import { crearAcciones } from "./acciones.js";
 import { crearAlmacenEnMemoria } from "../continuidad/almacen.js";
 import { crearAlmacenSupabase } from "../continuidad/almacenSupabase.js";
+import { CAMPOS_PERFIL_DECLARABLES } from "../continuidad/empresa.js";
 import { handleData } from "../../data/tenantService.server.js";
 import { baseConfigurada } from "../../data/supabaseRest.js";
 import { emitirPase } from "../../data/paseTenant.js";
@@ -61,17 +62,20 @@ const _memoriaDurableEncendida = (env) => String((env && env.ADI_MEMORIA_DURABLE
  *    `almacen`    → un almacén ya armado (se envuelve con `crearAcciones`)
  *    `cliente`    → el cliente de la base que `handleData` usa para el pack (doble sin red)
  *    `transporte` → el transporte HTTP del almacén de Supabase (doble sin red)
+ *    `conocimiento` → { activo?, catalogo? } del conocimiento del oficio (de él depende qué campos del perfil hacen falta:
+ *                     `perfilConversando.js`); sin esto manda la bandera `ADI_CONOCIMIENTO`, apagada en todos los perfiles
  *  En producción no se pasa nada: `api/adi-capacidad/[accion].js` llama `manejarPuerta(request, process.env)`. */
-async function _accionesParaElPedido(tenant, env, { acciones = null, almacen = null, transporte = null } = {}) {
+async function _accionesParaElPedido(tenant, env, { acciones = null, almacen = null, transporte = null, conocimiento = null } = {}) {
+  const extra = conocimiento ? { conocimiento } : {};
   if (acciones) return { ok: true, acciones };
-  if (almacen) return { ok: true, acciones: crearAcciones({ continuidad: almacen }) };
-  if (!_memoriaDurableEncendida(env)) return { ok: true, acciones: _acciones };
+  if (almacen) return { ok: true, acciones: crearAcciones({ continuidad: almacen, ...extra }) };
+  if (!_memoriaDurableEncendida(env)) return { ok: true, acciones: conocimiento ? crearAcciones({ continuidad: _almacenDelProceso, ...extra }) : _acciones };
   if (!baseConfigurada(env)) return { ok: false, motivo: "la memoria durable está encendida pero la base no está configurada en este entorno." };
   // el pase sale del tenant YA VERIFICADO por el token (`tenant.id` lo resolvió `handleData`), nunca de un argumento
   const p = await emitirPase({ tenantId: tenant.id, secreto: (env && env.SUPABASE_JWT_SECRET) || "" });
   if (!p.ok) return { ok: false, motivo: "no se pudo emitir el pase de la empresa para la memoria durable." };
   const store = crearAlmacenSupabase({ url: env.SUPABASE_URL, apikey: env.SUPABASE_ANON_KEY, pase: p.pase, ...(transporte ? { transporte } : {}) });
-  return { ok: true, acciones: crearAcciones({ continuidad: store }) };
+  return { ok: true, acciones: crearAcciones({ continuidad: store, ...extra }) };
 }
 
 /* ── LA BANDERA (apagada por defecto) ────────────────────────────────────────────────────────────────────────── */
@@ -154,7 +158,7 @@ export const MCP_TOOLS = [
   },
   {
     name: "consultar",
-    description: "Responde CUALQUIER encargo soportado por el catálogo (ver conocerEmpresa): una cifra, una lectura del negocio, una decisión priorizada, una comparación entre dos entidades del mismo eje, una simulación con un supuesto declarado, o la definición de un concepto. El encargo es un objeto tipado (Encargo v1) — nunca una pregunta en texto libre: usted ya interpretó lo que el usuario pidió; esta herramienta calcula y verifica, no interpreta.",
+    description: "Responde CUALQUIER encargo soportado por el catálogo (ver conocerEmpresa): una cifra, una lectura del negocio, una decisión priorizada, una comparación entre dos entidades del mismo eje, una simulación con un supuesto declarado, o la definición de un concepto. El encargo es un objeto tipado (Encargo v1) — nunca una pregunta en texto libre: usted ya interpretó lo que el usuario pidió; esta herramienta calcula y verifica, no interpreta. Si lo consultado depende de un dato del perfil de la empresa que todavía no se declaró, la respuesta trae un bloque «perfil» con UNA pregunta y sus opciones (y lo que quedó por confirmar o sin aplicar por una omisión): se le hace a la persona una sola vez y la respuesta vuelve con aportarContexto; la consulta se responde igual sin ese dato.",
     inputSchema: {
       type: "object",
       properties: {
@@ -171,7 +175,7 @@ export const MCP_TOOLS = [
   },
   {
     name: "aportarContexto",
-    description: "Registra lo que el usuario declaró por su cuenta — su perfil (sector, tipo de producto, país, modelo comercial), un criterio propio, un hecho de negocio, o un dato extraído de un documento que el usuario compartió. NUNCA se usa para cifras que ADI ya calcula: eso se pide con consultar. Un aporte que choca con un dato medido queda declarado, no reemplaza lo medido.",
+    description: "Registra lo que el usuario declaró por su cuenta: un campo del perfil de la empresa (sector, tipo de producto, modelo comercial o país), un criterio propio, un hecho de negocio, o un dato extraído de un documento que el usuario compartió. NUNCA se usa para cifras que ADI ya calcula: eso se pide con consultar. Todo aporte queda como «declarado» y PENDIENTE: léale a la persona lo entendido y, cuando lo confirme, mande los ids en «confirmar»; recién confirmado cuenta como dato, y un valor distinto de uno ya confirmado no lo reemplaza hasta que se confirme. Perfil: lo pide ADI —consultar devuelve el bloque «perfil» con la pregunta y sus opciones cuando lo que se consulta lo necesita—; clase «perfil», «concepto» = el campo y «valor» = el CÓDIGO de la opción que la persona eligió (nunca un valor deducido de los datos); un valor que no sea una de las opciones se rechaza y se devuelven las válidas. Si la persona prefiere no responder, mande el campo en «omitir»: ADI no se lo vuelve a preguntar en esa conversación y declara qué queda sin aplicar. Lo declarado queda en la memoria de la empresa, no en la conversación.",
     inputSchema: {
       type: "object",
       properties: {
@@ -182,7 +186,7 @@ export const MCP_TOOLS = [
             type: "object",
             properties: {
               clase: { type: "string", enum: ["perfil", "criterio", "hecho", "documento"] },
-              concepto: { type: "string", description: "Qué se está declarando (ej. 'sector', 'benchmark propio', el nombre del hecho)." },
+              concepto: { type: "string", description: "Qué se está declarando: con clase 'perfil', el campo (sector · tipoProducto · modeloComercial · pais); con las otras clases, ej. 'benchmark propio' o el nombre del hecho." },
               entidad: { type: ["string", "null"] },
               periodo: { type: ["string", "null"] },
               valor: {},
@@ -195,6 +199,7 @@ export const MCP_TOOLS = [
           default: [],
         },
         confirmar: { type: "array", items: { type: "string" }, description: "Ids de aportes previos (pendientes) que el usuario acaba de confirmar.", default: [] },
+        omitir: { type: "array", items: { type: "string", enum: [...CAMPOS_PERFIL_DECLARABLES] }, description: "Campos del perfil que la persona prefirió no decir: ADI no los vuelve a preguntar en esta conversación y declara qué queda sin aplicar.", default: [] },
       },
       additionalProperties: false,
     },
@@ -226,7 +231,7 @@ async function _despachar(nombreAccion, argsCrudos, { tenant, acciones }) {
   let salida;
   if (nombreAccion === "conocerEmpresa") salida = await acciones.conocerEmpresa({ tenant, conversacionId: limpio.conversacionId ?? null });
   else if (nombreAccion === "consultar") salida = await acciones.consultar({ tenant, encargo: limpio.encargo });
-  else if (nombreAccion === "aportarContexto") salida = await acciones.aportarContexto({ tenant, conversacionId: limpio.conversacionId ?? null, aportes: limpio.aportes || [], confirmar: limpio.confirmar || [] });
+  else if (nombreAccion === "aportarContexto") salida = await acciones.aportarContexto({ tenant, conversacionId: limpio.conversacionId ?? null, aportes: limpio.aportes || [], confirmar: limpio.confirmar || [], omitir: limpio.omitir || [] });
   else salida = await acciones.retomar({ tenant, conversacionId: limpio.conversacionId });
 
   if (!advertencias.length) return salida;

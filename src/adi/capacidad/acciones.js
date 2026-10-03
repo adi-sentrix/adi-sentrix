@@ -72,7 +72,13 @@ import { componerEntrega } from "../entrega/componer.js";
 import { construirCatalogo } from "./catalogo.js";
 import { construirPerfilCliente } from "../../config/contract/perfilCliente.js";
 import { crearAlmacenEnMemoria, esErrorDeAlmacen } from "../continuidad/almacen.js";
-import { memoriaDeEmpresa, declararHecho, confirmarHecho, hechoDePerfilCampo, leerPendientes } from "../continuidad/empresa.js";
+import {
+  memoriaDeEmpresa, declararHecho, confirmarHecho, hechoDePerfilCampo, leerPendientes,
+  leerPerfilDeclarado, declararPerfilCampo, omitirPerfilCampo, esConceptoReservadoDePerfil, CAMPOS_PERFIL_DECLARABLES,
+} from "../continuidad/empresa.js";
+import { conPerfilDeclarado, armarPerfilConversando, opcionesDeCampo, textoDeLimitacion } from "./perfilConversando.js";
+import { PIEZAS_CONOCIMIENTO } from "../conocimiento/piezas.js";
+import { ADI_CONOCIMIENTO } from "../../config/voiceFlags.js";
 import {
   libroNuevo, emitirConversacionId, detectarCambioVersion, registrarEntrega,
   actualizarCriterio, agregarSupuestoVivo, registrarPremisa, registrarHechoAportado,
@@ -143,6 +149,24 @@ function _valorParaEmpresa(valorCrudo, unidadDelCampo) {
   return { raw: null, unidad: unidadDelCampo || null, texto: valorCrudo != null ? String(valorCrudo) : null };
 }
 
+/* ── el aporte de PERFIL: el valor llega TIPADO (el código de una opción), nunca prosa que ADI tenga que interpretar ──
+ * Se acepta el texto del código a secas o dentro de `{texto}` (la forma que el resto de la puerta ya usa); cualquier otra
+ * cosa no es un código y `declararPerfilCampo` la rechaza diciendo cuáles son los válidos. */
+function _codigoDePerfil(valor) {
+  if (typeof valor === "string") return valor.trim();
+  if (valor && typeof valor === "object" && !Array.isArray(valor) && typeof valor.texto === "string") return valor.texto.trim();
+  return null;
+}
+/* el sector de la ficha de la empresa (`tenants`), si lo trae y es un texto — para juzgar un tipo de producto */
+function _sectorDeLaFicha(dataset) {
+  const s = dataset && dataset.perfil && dataset.perfil.sector;
+  return s && typeof s.valor === "string" && s.valor ? s.valor : null;
+}
+/* lo válido, para que el anfitrión pueda reintentar: las opciones de la taxonomía con su rótulo (nunca solo códigos mudos) */
+function _validosParaElAnfitrion(campo, validos) {
+  return CAMPOS_PERFIL_DECLARABLES.includes(campo) ? opcionesDeCampo(campo) : validos;
+}
+
 /* ── etiquetas cortas para los eventos de continuidad (texto de la CASA, nunca del LLM) ─────────────────────── */
 function _etiquetaCriterio(c) {
   if (!c) return null;
@@ -181,9 +205,16 @@ function _hechosDeLaEntrega(entregaJson) {
  *  almacén; ninguna lo supone síncrono.
  *
  *  `ahora` es el reloj de la acción (devuelve un ISO): solo estampa CUÁNDO se entregó cada Entrega en el libro; los
- *  gates lo fijan para que la prueba no dependa de la hora. */
-export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = () => new Date().toISOString() } = {}) {
+ *  gates lo fijan para que la prueba no dependa de la hora.
+ *
+ *  `conocimiento` ({ activo?, catalogo? }) es la costura del PERFIL CONVERSANDO (bloque 2): decide si el conocimiento
+ *  del oficio está encendido (default: la bandera `ADI_CONOCIMIENTO`, apagada en todos los perfiles) y con qué catálogo
+ *  de piezas — de eso depende qué campos del perfil hacen falta (`perfilConversando.js:necesitaPerfil`). En producción
+ *  no se pasa nada; los candados la encienden. */
+export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = () => new Date().toISOString(), conocimiento = {} } = {}) {
   const store = continuidad; // alias local: acá adentro es, literal, el almacén de `continuidad/almacen.js`
+  const conocimientoActivo = conocimiento && conocimiento.activo != null ? Boolean(conocimiento.activo) : ADI_CONOCIMIENTO;
+  const catalogoDePiezas = conocimiento && Array.isArray(conocimiento.catalogo) ? conocimiento.catalogo : PIEZAS_CONOCIMIENTO;
 
   /* 1 · conocerEmpresa({ tenant, conversacionId? }) → la ficha completa de la empresa activa + el catálogo
    * generado (contrato §E) + la memoria de empresa VIGENTE (criterios/hechos/documentos que la empresa declaró,
@@ -212,21 +243,24 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
     };
 
     // 1 · LEER (base) — todo ANTES de tocar el estado global del Core
-    let memoria, pendientes, libro;
+    let memoria, pendientes, libro, estadoPerfil;
     try {
-      [memoria, pendientes, libro] = await Promise.all([
+      [memoria, pendientes, libro, estadoPerfil] = await Promise.all([
         memoriaDeEmpresa(store, tenantId, { legado }),
         leerPendientes(store, tenantId, {}),
         conversacionId ? store.leerLibro(tenantId, conversacionId) : Promise.resolve(null),
+        leerPerfilDeclarado(store, tenantId),
       ]);
     } catch (e) {
       if (esErrorDeAlmacen(e)) return _sinMemoria(e);
       throw e;
     }
 
-    // 2 · EL TRAMO DEL CORE (síncrono, sin await): el perfil y el catálogo salen del dataset de ESTA empresa
-    const { perfil, catalogo } = conTenantActivo(datosDelTenant, () => ({
-      perfil: construirPerfilCliente(datosDelTenant),
+    // 2 · EL TRAMO DEL CORE (síncrono, sin await): el perfil y el catálogo salen del dataset de ESTA empresa, con el perfil
+    // que la empresa declaró conversando (solo lo confirmado) — la ficha de `tenants`, si la hay, manda sobre la memoria
+    const datasetConPerfil = conPerfilDeclarado(datosDelTenant, estadoPerfil.vigentes);
+    const { perfil, catalogo } = conTenantActivo(datasetConPerfil, () => ({
+      perfil: construirPerfilCliente(datasetConPerfil),
       catalogo: construirCatalogo(),
     }));
 
@@ -246,11 +280,16 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       ok: true,
       empresa: { id: tenant.id || (datosDelTenant && datosDelTenant.id) || null, nombre: (datosDelTenant && datosDelTenant.nombre) || tenant.nombre || null },
       datos: { version: tenant.version || null, sello: tenant.sello || null, periodo: catalogo.periodos, moneda: catalogo.moneda },
-      perfil: { campos: perfil.campos, faltantes: perfil.faltantes, completo: perfil.completo },
+      perfil: {
+        campos: perfil.campos, faltantes: perfil.faltantes, completo: perfil.completo,
+        // lo que la persona declaró del perfil y falta confirmar (no cuenta como dato) y lo que prefirió no decir
+        ...(Object.keys(estadoPerfil.pendientes).length ? { porConfirmar: CAMPOS_PERFIL_DECLARABLES.filter((c) => estadoPerfil.pendientes[c]).map((c) => ({ id: estadoPerfil.pendientes[c].id, campo: c, valor: estadoPerfil.pendientes[c].valor, origen: "declarado" })) } : {}),
+        ...(Object.keys(estadoPerfil.omitidos).length ? { omitidos: CAMPOS_PERFIL_DECLARABLES.filter((c) => estadoPerfil.omitidos[c] && !estadoPerfil.vigentes[c]) } : {}),
+      },
       catalogo,
       conversacionId: conversacionId || null,
       hechosAportados: [...memoria.hechos, ...perfilPlegado],
-      pendientesDeConfirmar: pendientes,
+      pendientesDeConfirmar: pendientes.filter((h) => !esConceptoReservadoDePerfil(h.concepto)),
       estadoVigente,
     };
   }
@@ -282,11 +321,21 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), entrega: null, noResuelto: [], uso: CABECERA_DE_USO }; throw e; }
       }
 
+      // 1b · EL PERFIL QUE LA EMPRESA DECLARÓ CONVERSANDO (bloque 2) — también ANTES del tramo del Core. Si la base no
+      // responde, la consulta sigue SIN ese perfil (sin perfil el Core funciona igual) y lo declara: nunca finge.
+      let estadoPerfil = null;
+      let perfilNoDisponible = false;
+      try { estadoPerfil = await leerPerfilDeclarado(store, tenantId); }
+      catch (e) { if (!esErrorDeAlmacen(e)) throw e; perfilNoDisponible = true; }
+      // lo CONFIRMADO alimenta a la Entrega y a Knowledge (la ficha de `tenants`, si la trae, manda); sin nada que agregar
+      // es EL MISMO dataset (cero diferencia con lo de antes del bloque)
+      const dataset = estadoPerfil ? conPerfilDeclarado(tenant.dataset, estadoPerfil.vigentes) : tenant.dataset;
+
       // 2 · EL TRAMO DEL CORE — síncrono, sin una sola espera entre `initTenant` y el cálculo
-      const { resolucion, salida } = conTenantActivo(tenant.dataset, () => {
+      const { resolucion, salida, perfilCliente } = conTenantActivo(dataset, () => {
         const resolucion = validarEncargo(encargo, {});
         /* FAMILIA 5 (§7.3·48d): `componerEntrega` ya pasa TODA la Entrega por `verificarEntrega` antes de que salga (`entrega/componer.js:servirConGarantia`): el invariante del universo propio (§7.3·17) la declina entera, y una oración que el verificador rechaza se retira y se declara. Acá no se audita por segunda vez (era la tercera copia de la regla 18). */
-        return { resolucion, salida: componerEntrega(resolucion) };
+        return { resolucion, salida: componerEntrega(resolucion), perfilCliente: estadoPerfil ? construirPerfilCliente(dataset) : null };
       });
 
       // 3 · avanzar el libro (puro — no toca el Core ni la base)
@@ -354,11 +403,28 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       const lineaContinuidad = lineaDeContinuidad(eventos);
       const textoConContinuidad = salida.ok && lineaContinuidad ? `${lineaContinuidad}\n\n${salida.texto}` : (salida.ok ? salida.texto : "");
 
+      // 5 · EL PERFIL CONVERSANDO: qué falta de lo que se pidió (una sola pregunta, nunca repetida), lo por confirmar y lo
+      // limitado por una omisión. `null` cuando no hay nada que decir: «si no falta nada, no pide nada».
+      let bloquePerfil = null;
+      if (perfilNoDisponible) bloquePerfil = { disponible: false, motivo: "no se pudo leer el perfil que la empresa declaró (la memoria no respondió): esta consulta se respondió sin él." };
+      else if (salida.ok && estadoPerfil) {
+        try {
+          bloquePerfil = await armarPerfilConversando({
+            store, tenantId, conversacionId: libro.conversacionId, encargo: resolucion, perfilCliente, estado: estadoPerfil,
+            activo: conocimientoActivo, catalogo: catalogoDePiezas,
+          });
+        } catch (e) {
+          if (!esErrorDeAlmacen(e)) throw e;
+          bloquePerfil = { disponible: false, motivo: "no se pudo leer el perfil que la empresa declaró (la memoria no respondió): esta consulta se respondió sin él." };
+        }
+      }
+
       return {
         ok: Boolean(salida.ok),
         entrega: salida.ok ? { texto: textoConContinuidad, json: salida.entrega } : null,
         noResuelto: resolucion.noResuelto || [],
         uso: CABECERA_DE_USO,
+        ...(bloquePerfil ? { perfil: bloquePerfil } : {}),
         continuidad: {
           conversacionId: libro.conversacionId,
           nueva: esNueva,
@@ -380,9 +446,10 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
   }
 
   /* 3 · aportarContexto({ tenant, conversacionId?, aportes?, confirmar? }) → registra lo que el usuario declaró
-   * (criterio, hecho, documento — el perfil se rechaza acá: vive en `tenants`, ver `empresa.js:declararHecho`) en
-   * la MEMORIA DE EMPRESA real (`continuidad/empresa.js`). Nunca pisa un medido — esta memoria no tiene medidos
-   * (ley «un declarado nunca pisa un medido», satisfecha por construcción, ver la cabecera de `empresa.js`).
+   * (criterio, hecho, documento y —bloque 2— un campo del PERFIL: sector, tipo de producto, modelo comercial, país, con
+   * el código de una opción de la taxonomía; `omitir` = «prefiero no decirlo») en la MEMORIA DE EMPRESA real
+   * (`continuidad/empresa.js`). Nunca pisa un medido — esta memoria no tiene medidos (ley «un declarado nunca pisa un
+   * medido», satisfecha por construcción, ver la cabecera de `empresa.js`).
    *
    * CORRECCIÓN (owner 2026-09-26, ley aprobada): «un dato declarado o leído de un documento se devuelve para
    * confirmar ANTES de usarlo; proponer es del modelo, confirmar es de la persona.» TODO aporte nuevo (haya o
@@ -395,7 +462,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
    * NO TOCA EL CORE: no usa el estado global del tenant (los aportes y el libro viajan con `tenantId`), así que no
    * entra a `conTenantActivo`. Los aportes se procesan EN ORDEN, de a uno (el segundo ve al primero), y toda la
    * acción se serializa por conversación Y por empresa (el libro y la memoria se leen-y-escriben). */
-  async function aportarContexto({ tenant, conversacionId = null, aportes = [], confirmar = [] } = {}) {
+  async function aportarContexto({ tenant, conversacionId = null, aportes = [], confirmar = [], omitir = [] } = {}) {
     const forma = _validarTenant(tenant);
     if (!forma.ok) return { ok: false, motivo: forma.motivo };
 
@@ -414,6 +481,25 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         for (const crudo of listaAportes) {
           const { valido, motivo, entendido } = _entenderAporte(crudo);
           if (!valido) { resultados.push({ id: null, estado: "rechazado", motivo, recibido: crudo }); continue; }
+
+          // EL PERFIL (bloque 2): el anfitrión devuelve el valor TIPADO (el código de una opción); ADI lo valida contra la
+          // taxonomía y lo guarda como «declarado»/pendiente. Un valor fuera de la taxonomía se rechaza diciendo los válidos.
+          if (entendido.clase === "perfil") {
+            const codigo = _codigoDePerfil(entendido.valor);
+            const rp = await declararPerfilCampo(store, tenantId, { campo: entendido.concepto, codigo, sectorDelDataset: _sectorDeLaFicha(tenant.dataset) }, { actorLabel: "anfitrion", conversacionId: idDeConversacion });
+            if (!rp.ok) {
+              resultados.push({ id: null, estado: "rechazado", motivo: rp.motivo, ...(rp.validos ? { validos: _validosParaElAnfitrion(entendido.concepto, rp.validos) } : {}), recibido: crudo });
+              continue;
+            }
+            if (rp.id) libro = registrarHechoAportado(libro, rp.id);
+            resultados.push({
+              id: rp.id, estado: rp.estado,
+              entendido: { clase: "perfil", concepto: entendido.concepto, valor: codigo, origen: "declarado" },
+              conflictoCon: rp.conflictoCon || null,
+              paraConfirmar: rp.estado === "pendiente",
+            });
+            continue;
+          }
 
           const aporte = {
             clase: entendido.clase,
@@ -444,6 +530,14 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
           confirmaciones.push({ id, confirmado: Boolean(r.ok) });
         }
 
+        // «prefiero no decirlo» (bloque 2): se guarda la omisión de ESA conversación —ADI no vuelve a preguntar ese campo en
+        // ella— y se declara qué queda limitado. Solo campos del perfil; lo ya declarado no se omite.
+        const omitidos = [];
+        for (const campo of (Array.isArray(omitir) ? omitir : [])) {
+          const ro = await omitirPerfilCampo(store, tenantId, campo, { actorLabel: "anfitrion", conversacionId: idDeConversacion });
+          omitidos.push(ro.ok ? { campo, ok: true, ...(ro.duplicado ? { yaOmitido: true } : {}), limitacion: textoDeLimitacion(campo) } : { campo, ok: false, motivo: ro.motivo });
+        }
+
         await store.guardarLibro(tenantId, libro);
 
         return {
@@ -451,6 +545,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
           conversacionId: idDeConversacion,
           resultados,
           confirmaciones,
+          ...(omitidos.length ? { omitidos } : {}),
           estadoVigente: estadoVigenteDe(libro, { versionIdActual: versionIdActivo }),
         };
       } catch (e) {
