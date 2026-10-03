@@ -346,7 +346,7 @@ H("3 · D2 · leer → tramo síncrono (initTenant + Core) → salir → escribi
   };
   const srcAcc = leer("./src/adi/capacidad/acciones.js");
   ok(auditarAislamiento(srcAcc).length === 0, "acciones.js: ninguna llamada directa a `initTenant` y NINGÚN `await` dentro de un tramo `conTenantActivo`", JSON.stringify(auditarAislamiento(srcAcc)));
-  ok(auditarAislamiento(srcAcc.replace("const resolucion = validarEncargo(encargo, {});", "const resolucion = (await store.leerLibro(tenantId, \"x\"), validarEncargo(encargo, {}));")).some((x) => /await/.test(x)), "★ CARNADA D2 · si alguien le pone un `await` al tramo del Core, la auditoría lo marca");
+  ok(auditarAislamiento(srcAcc.replace("const resolucion = validarEncargo(encargo, { libro: libroLeido });", "const resolucion = (await store.leerLibro(tenantId, \"x\"), validarEncargo(encargo, { libro: libroLeido }));")).some((x) => /await/.test(x)), "★ CARNADA D2 · si alguien le pone un `await` al tramo del Core, la auditoría lo marca");
   ok(auditarAislamiento(srcAcc.replace("async function consultar({ tenant, encargo } = {}) {", "async function consultar({ tenant, encargo } = {}) { initTenant(tenant.dataset);")).some((x) => /initTenant/.test(x)), "★ CARNADA D2 · y si vuelve a llamar `initTenant` directo, también");
 
   /* el CONTROL funcional: llamadas concurrentes de empresas distintas, con latencia aleatoria de semilla fija */

@@ -184,6 +184,40 @@ export function limpiarOfertasEnPie(libro) {
   return { ...libro, ofertasEnPie: [] };
 }
 
+/* ═══ CITAR UNA RESPUESTA ANTERIOR (Etapa 2, bloque 3 · owner 2026-10-03) ═════════════════════════════════════════════════
+ * `encargo.contexto` (`E1`, `E1.h3`, `E1.u1`) apunta a lo que una Entrega YA entregó en ESTA conversación. Esta función es la ÚNICA que
+ * traduce un id al contenido del libro, y lo trae TAL CUAL quedó guardado —sus hechos con id, la versión de la carga con que se entregó,
+ * cuándo y el período—: nunca recalcula nada («el pasado no se reescribe»; revisar si una cifra cambió con los datos nuevos es del bloque 4).
+ * Un id que no resuelve vuelve con su MOTIVO en palabras de negocio, para que quien consulta sepa qué pasó (no «no disponible» a secas).
+ * Puro: sin I/O, sin red. El formato del id lo valida `encargo/validar.js` antes de llamar (un id mal formado no llega acá). */
+const _ID_DE_CONTEXTO = /^E(\d+)(?:\.([hu])(\d+))?$/;
+const _cabeceraDeEntrega = (e) => ({ n: e.n, versionId: e.versionId || null, entregadaEn: e.entregadaEn || null, periodo: e.periodo || null, temas: Array.isArray(e.temas) ? e.temas.slice() : [], entidades: Array.isArray(e.entidades) ? e.entidades.slice() : [], cierre: e.cierre || null, recortada: Boolean(e.recortada) });
+
+/** resolverContexto(libro, id) → { ok:true, tipo:"entrega"|"hecho"|"universo", id, entrega, hecho?, universo? } | { ok:false, id, detalle } */
+export function resolverContexto(libro, id) {
+  const m = _ID_DE_CONTEXTO.exec(String(id == null ? "" : id));
+  if (!m) return { ok: false, id, detalle: "el id no tiene la forma de una referencia a lo entregado (E3, E3.h2, E3.u1)" };
+  if (!libro) return { ok: false, id, detalle: "esta conversación no tiene Entregas que citar: falta el conversacionId, o la conversación no existe" };
+  const n = Number(m[1]);
+  const entregas = Array.isArray(libro.entregas) ? libro.entregas : [];
+  const e = entregas.find((x) => x && x.n === n);
+  if (!e) {
+    if (!entregas.length) return { ok: false, id, detalle: `la conversación todavía no tiene ninguna Entrega: ${id} no existe` };
+    if (n >= 1 && n <= (libro.turno || 0)) return { ok: false, id, detalle: `la Entrega E${n} ya no se conserva en la conversación (el libro recorta las más viejas por tamaño)` };
+    const primera = entregas[0].n, ultima = entregas[entregas.length - 1].n;
+    return { ok: false, id, detalle: `la conversación tiene ${primera === ultima ? `la Entrega E${primera}` : `las Entregas E${primera} a E${ultima}`}: ${id} no existe` };
+  }
+  const entrega = _cabeceraDeEntrega(e);
+  if (!m[2]) return { ok: true, tipo: "entrega", id, entrega, hechos: (Array.isArray(e.hechos) ? e.hechos : []).map((h) => ({ ...h })), universos: (Array.isArray(e.universos) ? e.universos : []).map((u) => ({ ...u })) };
+  if (e.recortada) return { ok: false, id, detalle: `la Entrega E${n} se recortó por tamaño: ya no conserva sus ${m[2] === "h" ? "hechos" : "universos"}` };
+  const lista = (m[2] === "h" ? e.hechos : e.universos) || [];
+  /* un HECHO se cita por su id (`registrarEntrega` siempre lo emite como `E<n>.h<k>`). Un UNIVERSO se cita por su POSICIÓN (`E<n>.u<k>` = el k-ésimo universo de esa Entrega): el libro conserva el id
+   * con que el compositor lo nombró (`p1`, `p1_Lider`), que no es el que se cita; si la lista trae justo ese id, también resuelve. */
+  const hallado = m[2] === "h" ? lista.find((x) => x && x.id === id) : (lista[Number(m[3]) - 1] || lista.find((x) => x && x.id === id));
+  if (!hallado) return { ok: false, id, detalle: `la Entrega E${n} ${lista.length ? `tiene ${m[2] === "h" ? `los hechos ${lista[0].id} a ${lista[lista.length - 1].id}` : `${lista.length} universo${lista.length === 1 ? "" : "s"} (E${n}.u1${lista.length > 1 ? ` a E${n}.u${lista.length}` : ""})`}` : `no tiene ${m[2] === "h" ? "hechos" : "universos"}`}: ${id} no existe` };
+  return m[2] === "h" ? { ok: true, tipo: "hecho", id, entrega, hecho: { ...hallado } } : { ok: true, tipo: "universo", id, entrega, universo: { ...hallado } };
+}
+
 /** registrarHechoAportado(libro, hechoEmpresaId) → Libro · referencia (id) a un hecho de `memoria_empresa` que
  * esta conversación aportó — el libro NUNCA copia el valor, solo la referencia (ley: «las conversaciones solo
  * guardan referencias»). */

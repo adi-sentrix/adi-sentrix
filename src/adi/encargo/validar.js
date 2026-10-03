@@ -23,6 +23,7 @@ import { assumptionValid } from "../../config/contract/assumptionRegistry.js";
 import { serieRealDe } from "../sentrix/capability.js";
 import { CRITERIOS } from "../agente/prioridadIntegrada.js";   // SOLO el dato `CRITERIOS` (§3); nunca `criterioDeLaPregunta`
 import { conjuntoConocido } from "../notario/conjuntosDeLaCasa.js";   // §7.3·11: el catálogo ESTÁTICO de conjuntos de la casa (nombre → eje) — carga · benchmark · estado, nunca una lista a mano acá
+import { resolverContexto } from "../continuidad/libro.js";   // Etapa 2, bloque 3: la cita `contexto: E1` se resuelve contra el libro de la conversación (puro, sin I/O)
 import {
   PARTES_MAX, SUPUESTOS_USUARIO_MAX, CIERRES, EJES, TIPOS_DE_PREMISA, USAR_VALORES, PROFUNDIDAD_VALORES,
   INICIATIVA_VALORES, CAMPOS_RAIZ, CAMPOS_PARTE, conceptoDeDefinicionValido, ejesConProductor, cruceBloqueadoDe, productorDe,
@@ -613,7 +614,8 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
 }
 
 /* ── EL VALIDADOR ────────────────────────────────────────────────────────────────────────────────────────────── */
-/** validarEncargo(encargo, ctx) → Resolucion. `ctx = { tenant?, versionId?, indice? }`: el tenant/versionId activos
+/** validarEncargo(encargo, ctx) → Resolucion. `ctx = { tenant?, versionId?, indice?, libro? }` (`libro`: el libro de la conversación, o `null` si no la hay —
+ *  Etapa 2, bloque 3—; si la clave ni existe, `contexto` no resuelve nada, como en la Etapa 1): el tenant/versionId activos
  *  ya gobiernan `entityIndex.js` (se cambian con `initTenant`/`onTenantChange` ANTES de llamar, como el resto del
  *  Core) — acá solo se leen por si un llamador quiere dejar constancia de con qué corrió; `ctx.indice`, si viene,
  *  REEMPLAZA el índice liviano por defecto (inyectable para un gate que arma un tenant sintético sin re-inicializar
@@ -683,14 +685,24 @@ export function validarEncargo(encargo, ctx = {}) {
   // el compositor cae al default ("completa") — el MISMO patrón que `profundidad_invalida` arriba.
   if (encargo.iniciativa != null && !INICIATIVA_VALORES.includes(encargo.iniciativa)) noResueltoUsarProfundidad.push(nuevoNoResuelto({ campo: "iniciativa", valor: encargo.iniciativa, motivo: "iniciativa_invalida" }));
 
-  /* § contexto (§4·6) — sin libro de conversación en esta etapa: cualquier contexto pedido está no disponible */
+  /* § contexto (§4·6) — SIN `ctx.libro` (quien valida no tiene una conversación: la Etapa 1) cualquier contexto pedido está no disponible, byte a byte como siempre.
+   * CON `ctx.libro` (Etapa 2, bloque 3: la capacidad lo pasa; `null` = «la conversación no tiene libro») cada id se RESUELVE contra lo que esa conversación ya entregó
+   * (`continuidad/libro.js:resolverContexto`, puro): lo que resuelve va a `contextoResuelto` —tal cual quedó guardado, sin recalcular—, lo que no, a `noResuelto` con su motivo
+   * (`contexto_no_disponible` + el detalle de por qué: no existe esa Entrega, se recortó, no tiene ese hecho). Un id mal formado se declara igual en los dos casos. */
   const noResueltoContexto = [];
+  const contextoResuelto = [];
+  const conLibro = Object.prototype.hasOwnProperty.call(ctx || {}, "libro");
   if (_es(encargo.contexto)) {
     const idOk = /^E\d+(?:\.[hu]\d+)?$/;
     const idsDeContexto = [encargo.contexto.entregaRef, ...(Array.isArray(encargo.contexto.hechosRef) ? encargo.contexto.hechosRef : []), encargo.contexto.universoRef].filter(_str);
     for (const cid of idsDeContexto) {
       if (!idOk.test(cid)) noResueltoContexto.push(nuevoNoResuelto({ campo: "contexto", valor: cid, motivo: "contexto_mal_formado" }));
-      else noResueltoContexto.push(nuevoNoResuelto({ campo: "contexto", valor: cid, motivo: "contexto_no_disponible" }));
+      else if (!conLibro) noResueltoContexto.push(nuevoNoResuelto({ campo: "contexto", valor: cid, motivo: "contexto_no_disponible" }));
+      else {
+        const r = resolverContexto(ctx.libro, cid);
+        if (r.ok) contextoResuelto.push(r);
+        else noResueltoContexto.push(nuevoNoResuelto({ campo: "contexto", valor: cid, motivo: "contexto_no_disponible", detalle: r.detalle }));
+      }
     }
   }
 
@@ -715,5 +727,6 @@ export function validarEncargo(encargo, ctx = {}) {
     premisas: premisasValidas,
     noResuelto: [...noResueltoSupuestos, ...noResueltoCriterio, ...noResueltoPremisas, ...noResueltoUsarProfundidad, ...noResueltoContexto, ...noResueltoPartes],
     avisos: [...avisosRaiz, ...avisosDeParte],
+    ...(contextoResuelto.length ? { contextoResuelto } : {}),   // solo cuando hubo una cita que resolvió: sin cita, la Resolución es la de siempre
   };
 }

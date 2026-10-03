@@ -56,12 +56,13 @@
  *     el libro de hechos interno de `entrega/componer.js`), avanza criterio y supuestos vivos desde `resolucion`
  *     (ya resueltos por `validarEncargo`, sin tocar `componerEntrega`), y juzga las premisas leyendo
  *     `salida.entrega.procedencia.libroPremisas` — un campo YA EXPUESTO por `componerEntrega` para esto mismo.
- *   · LÍMITE DECLARADO (no se resuelve acá, congelado en `entrega/componer.js` durante esta etapa, ver
- *     `_ADI_CONTINUIDAD_INTEGRACION.md` §3): plegar `memoriaDeEmpresa().hechos` como FIGS con `.origen` dentro del
- *     libro de hechos del turno (para que un declarado que choca con un medido dispare el hecho `discrepancia` de
- *     `notario/hechos.js`) es trabajo de `entrega/componer.js`. Este corte no lo hace: un declarado y un medido
- *     conviven, cada uno visible por su propio camino (`conocerEmpresa`/`aportarContexto` para lo declarado,
- *     `consultar` para lo medido), pero todavía no se CRUZAN en una sola Entrega. Reportado al supervisor.
+ *   · LO DECLARADO EN LA ENTREGA (Etapa 2, bloque 3 · owner 2026-10-03; antes era un límite declarado de este corte): `consultar` lee la
+ *     memoria, y lo VIGENTE (confirmado) entra POR ESTA CAPA sin tocar `entrega/componer.js` (la etapa 1 está cerrada): un criterio de la
+ *     empresa es su umbral «declarado por la empresa» (`conCriteriosDeEmpresa`: va al perfil de la empresa que el Core resuelve en `initTenant`, el camino de
+ *     `umbral()`) y un hecho declarado se muestra al lado de lo medido de la misma métrica y entidad, con su origen y la diferencia (`loDeclarado.js`). Un
+ *     pendiente nunca entra; lo que no tiene lugar en la Entrega se queda en la memoria. La cita `contexto: E1` se resuelve contra el libro
+ *     de la conversación (`validarEncargo(encargo, { libro })`) y trae lo que esa Entrega entregó, sin recalcularlo. Sin nada declarado y sin
+ *     cita, la Entrega sale byte-idéntica a la de antes.
  *   · LÍMITE DECLARADO (`retomar`, ver su cabecera más abajo): el `reverificar()` real exige reconstruir el
  *     índice de evidencia de la versión activa (`notario/evidencia.js:indiceDeEvidencia`), que hoy solo se arma
  *     DENTRO de `entrega/componer.js` corriendo los playbooks del turno. `retomar` queda con `reverificar:null`,
@@ -74,9 +75,13 @@ import { construirPerfilCliente } from "../../config/contract/perfilCliente.js";
 import { crearAlmacenEnMemoria, esErrorDeAlmacen } from "../continuidad/almacen.js";
 import {
   memoriaDeEmpresa, declararHecho, confirmarHecho, hechoDePerfilCampo, leerPendientes,
-  leerPerfilDeclarado, declararPerfilCampo, omitirPerfilCampo, esConceptoReservadoDePerfil, CAMPOS_PERFIL_DECLARABLES,
+  leerPerfilDeclarado, perfilDeLasFilas, declararPerfilCampo, omitirPerfilCampo, esConceptoReservadoDePerfil, CAMPOS_PERFIL_DECLARABLES,
 } from "../continuidad/empresa.js";
 import { conPerfilDeclarado, armarPerfilConversando, opcionesDeCampo, textoDeLimitacion } from "./perfilConversando.js";
+import {
+  clasificarLoDeclarado, contrastarHechos, textoDeLoDeclarado, antecedentesDe, textoDeAntecedentes, lugarDeAporte, validarCriterio, declarable, esReferenciaDeLaCasa, USO_DE_LO_DECLARADO,
+} from "./loDeclarado.js";
+import { conCriteriosDeEmpresa, setBenchmarkOverride, ETIQUETA_ORIGEN, ORIGEN } from "../../config/businessPolicy.js";
 import { PIEZAS_CONOCIMIENTO } from "../conocimiento/piezas.js";
 import { ADI_CONOCIMIENTO } from "../../config/voiceFlags.js";
 import {
@@ -287,6 +292,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         ...(Object.keys(estadoPerfil.omitidos).length ? { omitidos: CAMPOS_PERFIL_DECLARABLES.filter((c) => estadoPerfil.omitidos[c] && !estadoPerfil.vigentes[c]) } : {}),
       },
       catalogo,
+      declarable: declarable(),   // bloque 3: qué se puede declarar con lugar en la Entrega (criterios y hechos), con la forma exacta del aporte
       conversacionId: conversacionId || null,
       hechosAportados: [...memoria.hechos, ...perfilPlegado],
       pendientesDeConfirmar: pendientes.filter((h) => h.clase !== "perfil" && !esConceptoReservadoDePerfil(h.concepto)),
@@ -321,21 +327,39 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), entrega: null, noResuelto: [], uso: CABECERA_DE_USO }; throw e; }
       }
 
-      // 1b · EL PERFIL QUE LA EMPRESA DECLARÓ CONVERSANDO (bloque 2) — también ANTES del tramo del Core. Si la base no
-      // responde, la consulta sigue SIN ese perfil (sin perfil el Core funciona igual) y lo declara: nunca finge.
+      // 1b · LO QUE LA EMPRESA DECLARÓ Y CONFIRMÓ (bloques 2 y 3) — también ANTES del tramo del Core, con UNA sola lectura de la
+      // memoria: el perfil que declaró conversando (bloque 2) y sus criterios y hechos (bloque 3). Si la base no responde, la
+      // consulta sigue SIN ellos (sin perfil ni declarados el Core funciona igual) y lo declara: nunca finge.
       let estadoPerfil = null;
       let perfilNoDisponible = false;
-      try { estadoPerfil = await leerPerfilDeclarado(store, tenantId); }
-      catch (e) { if (!esErrorDeAlmacen(e)) throw e; perfilNoDisponible = true; }
+      let loDeclarado = { criterios: [], hechos: [] };
+      try {
+        const filasDeLaMemoria = (await store.leerHechosEmpresa(tenantId)) || [];
+        estadoPerfil = perfilDeLasFilas(filasDeLaMemoria);
+        loDeclarado = clasificarLoDeclarado(filasDeLaMemoria);   // SOLO lo vigente (confirmado): un pendiente nunca entra
+      } catch (e) { if (!esErrorDeAlmacen(e)) throw e; perfilNoDisponible = true; }
       // lo CONFIRMADO alimenta a la Entrega y a Knowledge (la ficha de `tenants`, si la trae, manda); sin nada que agregar
       // es EL MISMO dataset (cero diferencia con lo de antes del bloque)
-      const dataset = estadoPerfil ? conPerfilDeclarado(tenant.dataset, estadoPerfil.vigentes) : tenant.dataset;
+      const datasetConPerfil = estadoPerfil ? conPerfilDeclarado(tenant.dataset, estadoPerfil.vigentes) : tenant.dataset;
+      // los criterios que la empresa declaró y confirmó SON sus umbrales («declarado por la empresa»): van al perfil de la empresa que el Core resuelve en `initTenant`
+      // (el mismo camino de `umbral()`); sin ninguno es EL MISMO dataset (cero diferencia con lo de antes del bloque)
+      const { dataset, aplicados: criteriosAplicados } = conCriteriosDeEmpresa(datasetConPerfil, Object.fromEntries(loDeclarado.criterios.map((c) => [c.llave, c.valor])));
+      const benchmarkDeclarado = loDeclarado.criterios.find((c) => c.llave === "benchmark");
 
       // 2 · EL TRAMO DEL CORE — síncrono, sin una sola espera entre `initTenant` y el cálculo
-      const { resolucion, salida, perfilCliente } = conTenantActivo(dataset, () => {
-        const resolucion = validarEncargo(encargo, {});
+      const { resolucion, salida, perfilCliente, hechosContrastados } = conTenantActivo(dataset, () => {
+        // el benchmark declarado pisa también el benchmark embebido por fila del dato (la vara de la empresa, como C.2): lo limpia el siguiente `initTenant` (el de `conTenantActivo` al salir)
+        if (benchmarkDeclarado) setBenchmarkOverride(benchmarkDeclarado.valor);
+        // `libro: libroLeido` = la cita `contexto: E1` se resuelve contra lo que ESTA conversación ya entregó (bloque 3)
+        const resolucion = validarEncargo(encargo, { libro: libroLeido });
         /* FAMILIA 5 (§7.3·48d): `componerEntrega` ya pasa TODA la Entrega por `verificarEntrega` antes de que salga (`entrega/componer.js:servirConGarantia`): el invariante del universo propio (§7.3·17) la declina entera, y una oración que el verificador rechaza se retira y se declara. Acá no se audita por segunda vez (era la tercera copia de la regla 18). */
-        return { resolucion, salida: componerEntrega(resolucion), perfilCliente: estadoPerfil ? construirPerfilCliente(dataset) : null };
+        const salida = componerEntrega(resolucion);
+        // lo declarado al lado de lo medido de la MISMA métrica y la MISMA entidad (la Entrega ya compuesta no se toca)
+        const marcoPeriodo = salida.ok && salida.entrega && salida.entrega.marco && salida.entrega.marco.periodo;
+        const hechosContrastados = salida.ok && salida.entrega && loDeclarado.hechos.length
+          ? contrastarHechos({ hechos: loDeclarado.hechos, libro: salida.entrega.procedencia && salida.entrega.procedencia.libro, resolucion, periodos: marcoPeriodo ? [marcoPeriodo.texto, marcoPeriodo.rango, typeof marcoPeriodo.valor === "string" ? marcoPeriodo.valor : null] : [] })
+          : [];
+        return { resolucion, salida, perfilCliente: estadoPerfil ? construirPerfilCliente(dataset) : null, hechosContrastados };
       });
 
       // 3 · avanzar el libro (puro — no toca el Core ni la base)
@@ -401,7 +425,26 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       const estadoVigente = estadoVigenteDe(libro, { versionIdActual: versionIdActivo });
       const eventos = eventosDeContinuidad(eventosBase);
       const lineaContinuidad = lineaDeContinuidad(eventos);
-      const textoConContinuidad = salida.ok && lineaContinuidad ? `${lineaContinuidad}\n\n${salida.texto}` : (salida.ok ? salida.texto : "");
+      let textoConContinuidad = salida.ok && lineaContinuidad ? `${lineaContinuidad}\n\n${salida.texto}` : (salida.ok ? salida.texto : "");
+
+      // 4b · LO QUE ESTA ENTRADA NUEVA AGREGA A LA ENTREGA (bloque 3) — solo si hay una cita que resolvió o algo declarado en juego; sin ellos
+      // el texto y la respuesta son EXACTAMENTE los de antes. La Entrega compuesta no se toca: se agregan, al final, el antecedente que se citó
+      // (tal cual quedó guardado, sin recalcular) y lo declarado al lado de lo medido.
+      const usarPedido = resolucion.encargo && typeof resolucion.encargo.usar === "string" ? resolucion.encargo.usar : null;
+      const antecedentes = salida.ok && resolucion.contextoResuelto ? antecedentesDe(resolucion.contextoResuelto, { versionActiva: versionIdActivo }) : [];
+      const declarado = salida.ok && (criteriosAplicados.length || hechosContrastados.length) ? {
+        criterios: loDeclarado.criterios.map((c) => {
+          const a = criteriosAplicados.find((x) => x.llave === c.llave);
+          return { id: c.id, concepto: c.concepto, rotulo: c.rotulo, valor: c.valor, unidad: c.unidad, origen: c.origen, etiquetaDeOrigen: ETIQUETA_ORIGEN[ORIGEN.EMPRESA], sello: c.sello, aplicadoComo: "umbral de la empresa", ...(a ? { desplaza: { valor: a.desplaza.valor, origen: a.desplaza.origen, etiquetaDeOrigen: ETIQUETA_ORIGEN[a.desplaza.origen] || null } } : {}) };
+        }),
+        hechos: hechosContrastados.map((h) => ({ id: h.id, concepto: h.concepto, rotulo: h.rotulo, entidad: h.entidad, periodo: h.periodo, valor: h.valor, unidad: h.unidad, origen: h.origen, etiquetaDeOrigen: ETIQUETA_ORIGEN[ORIGEN.EMPRESA], sello: h.sello, estado: h.estado, medido: h.medido, diferencia: h.diferencia })),
+        ...(usarPedido ? { usar: { pedido: usarPedido, aplicado: "medido", nota: "ADI no calcula sobre lo declarado ni lo pone en lugar de lo medido: lo declarado se muestra al lado, con su origen." } } : {}),
+        uso: USO_DE_LO_DECLARADO,
+      } : null;
+      if (salida.ok) {
+        const agregado = [textoDeAntecedentes(antecedentes), textoDeLoDeclarado({ hechos: hechosContrastados, usar: usarPedido })].filter(Boolean).join("\n\n");
+        if (agregado) textoConContinuidad = `${textoConContinuidad}\n\n${agregado}`;
+      }
 
       // 5 · EL PERFIL CONVERSANDO: qué falta de lo que se pidió (una sola pregunta, nunca repetida), lo por confirmar y lo
       // limitado por una omisión. `null` cuando no hay nada que decir: «si no falta nada, no pide nada».
@@ -425,6 +468,8 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         noResuelto: resolucion.noResuelto || [],
         uso: CABECERA_DE_USO,
         ...(bloquePerfil ? { perfil: bloquePerfil } : {}),
+        ...(declarado ? { declarado } : {}),
+        ...(antecedentes.length ? { antecedentes } : {}),
         continuidad: {
           conversacionId: libro.conversacionId,
           nueva: esNueva,
@@ -501,6 +546,15 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
             continue;
           }
 
+          // UN CRITERIO CON LUGAR EN LA ENTREGA (bloque 3): el concepto es el id de una referencia de la casa y el valor un número en su
+          // unidad y su rango — se valida AQUÍ (ADI no lee lenguaje: es una tabla cerrada), y lo que no sirve se rechaza diciendo por qué.
+          // Un criterio con otro concepto no se rechaza: se guarda, y `lugar` dice que no se usa en la Entrega.
+          if (entendido.clase === "criterio" && esReferenciaDeLaCasa(entendido.concepto)) {
+            const vc = _valorParaEmpresa(entendido.valor, entendido.unidad);
+            const rv = validarCriterio({ concepto: entendido.concepto, raw: vc.raw, unidad: vc.unidad, entidad: entendido.entidad, periodo: entendido.periodo });
+            if (!rv.ok) { resultados.push({ id: null, estado: "rechazado", motivo: rv.motivo, recibido: crudo }); continue; }
+          }
+
           const aporte = {
             clase: entendido.clase,
             concepto: entendido.concepto,
@@ -521,6 +575,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
             entendido: { clase: entendido.clase, concepto: entendido.concepto, entidad: entendido.entidad, periodo: entendido.periodo, valor: entendido.valor, unidad: entendido.unidad },
             conflictoCon: r.conflictoCon || null,
             paraConfirmar: r.estado === "pendiente",
+            lugar: lugarDeAporte(entendido),   // dónde se usaría cuando se confirme (o que se queda en la memoria): se dice AL DECLARARLO
           });
         }
 

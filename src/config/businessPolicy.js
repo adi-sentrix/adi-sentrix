@@ -288,8 +288,14 @@ export function umbral(key, consulta = null) {
   if (deConsulta !== undefined) return { valor: deConsulta, origen: ORIGEN.CONSULTA };
   const deConversacion = criterioOverrideDe(key);
   if (deConversacion !== undefined) return { valor: deConversacion, origen: ORIGEN.EMPRESA };
-  const dePerfil = _perfilVal(key);
-  if (dePerfil !== undefined) return { valor: dePerfil, origen: ORIGEN.EMPRESA };
+  return umbralDePerfil(getTenantData() && getTenantData().perfil, key);
+}
+
+/** umbralDePerfil(perfil, key) → { valor, origen } · las DOS últimas capas de `umbral()` sobre un perfil dado: lo que la empresa declaró en su perfil («empresa») → el criterio general de ADI («adi») → nada («sin_declarar»).
+ *  La MISMA regla que `umbral()` aplica al perfil del tenant activo (la llama él), para poder preguntar qué regiría con OTRO perfil sin activar esa empresa (`conCriteriosDeEmpresa`, abajo). */
+export function umbralDePerfil(perfil, key) {
+  const v = perfil ? perfil[key] : undefined;
+  if (typeof v === "number" && isFinite(v)) return { valor: v, origen: ORIGEN.EMPRESA };
   const deConfig = POLICY_CONFIG[key];
   if (Number.isFinite(deConfig)) return { valor: deConfig, origen: ORIGEN.ADI };
   return { valor: null, origen: ORIGEN.SIN_DECLARAR };
@@ -424,4 +430,41 @@ export function procedenciaDeUmbrales(claves, consulta = null) {
     if (cl.length) out.push(`${fam.prefijo}${cl.join("; ")}.`);
   }
   return out;
+}
+
+/* ══ LOS CRITERIOS QUE LA EMPRESA DECLARA CONVERSANDO Y CONFIRMA (Etapa 2, bloque 3 · owner 2026-10-03) ═══════════════════
+ * Un criterio que la empresa declaró por el anfitrión (clase «criterio», memoria de empresa) y confirmó ES un umbral «declarado por la empresa»: es lo que la
+ * empresa DECLARA en su perfil, y entra por EL MISMO camino —el perfil del tenant, la capa 2 de arriba—: `initTenant` lo resuelve ANTES de que se arme nada derivado del
+ * dato (la proyección del dato, los estados, los rankings), así que todo el Core ve UN solo valor, y `umbral()` dice su origen («empresa» = «declarado por la empresa»)
+ * por la regla de siempre. Un mecanismo paralelo (fijarlo después de `initTenant`) dejaba figuras de la proyección con el valor viejo y el Marco con el nuevo.
+ * Dos tablas de datos y una función:
+ *   · `POLICY_DE_REFERENCIA`: el id con que la casa nombra una referencia (`notario/lexico.js`, las claves con `referencia: true` = REFERENCIAS_DE_LA_CASA del
+ *     contrato) → la llave de POLICY que ese criterio fija. El anfitrión declara el CONCEPTO TIPADO (el id), nunca una frase: ADI no lee lenguaje. Un criterio
+ *     cuyo concepto no está acá no tiene lugar en la Entrega y se queda en la memoria (nunca se fuerza). `_usar_lo_declarado_gate` vigila que cada referencia del
+ *     léxico tenga su llave y que cada llave exista en `POLICY_CONFIG`.
+ *   · `conCriteriosDeEmpresa(dataset, { llave: valor })`: el dataset con esos valores en su perfil (copia: nunca muta el original; sin nada que agregar devuelve EL MISMO
+ *     objeto) y, por cada uno, lo que quedó desplazado (`umbralDePerfil` ANTES de aplicarlo: el valor y el origen que regían hasta ahí) — nada se sustituye en silencio.
+ *     Lo que declara la empresa conversando y confirma manda sobre lo que traía su perfil (la declaración más reciente y explícita). El `benchmark` además fija el
+ *     override de la vara (`setBenchmarkOverride`, la mecánica de C.2): el benchmark embebido por fila del dato no lo puede dejar sin efecto. */
+export const POLICY_DE_REFERENCIA = Object.freeze({
+  benchmark: "benchmark",
+  nivel_carga: "targetCarga",
+  umbral_materialidad: "materialidadFocoPctVenta",
+  piso_rotacion: "rotacionMin",
+  techo_cobertura: "dohMax",
+  umbral_frenado: "frenadoDiasSinVenta",
+});
+
+/** conCriteriosDeEmpresa(dataset, { [llaveDePolicy]: número }) → { dataset, aplicados: [{ llave, valor, desplaza: { valor, origen } }] } · ignora lo que no es una llave de POLICY o no es un número finito. */
+export function conCriteriosDeEmpresa(dataset, valores) {
+  if (!dataset || typeof dataset !== "object") return { dataset, aplicados: [] };
+  const base = dataset.perfil && typeof dataset.perfil === "object" ? dataset.perfil : {};
+  const nuevos = {};
+  const aplicados = [];
+  for (const [llave, v] of Object.entries(valores || {})) {
+    if (!Object.prototype.hasOwnProperty.call(POLICY_CONFIG, llave) || typeof v !== "number" || !isFinite(v)) continue;
+    aplicados.push({ llave, valor: v, desplaza: umbralDePerfil(base, llave) });
+    nuevos[llave] = v;
+  }
+  return { dataset: aplicados.length ? { ...dataset, perfil: { ...base, ...nuevos } } : dataset, aplicados };
 }

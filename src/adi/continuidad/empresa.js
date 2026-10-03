@@ -294,6 +294,8 @@ async function _colisionarYGuardar(store, tenantId, candidato, aporte) {
 export async function leerPerfilDeclarado(store, tenantId) {
   return _perfilDeLasFilas((await store.leerHechosEmpresa(tenantId)) || []);
 }
+/** perfilDeLasFilas(filas) → { vigentes, pendientes, omitidos } · lo mismo que `leerPerfilDeclarado`, sobre filas que quien llama YA leyó (una sola lectura de la memoria por consulta: Etapa 2, bloque 3). */
+export function perfilDeLasFilas(filas) { return _perfilDeLasFilas(filas); }
 function _perfilDeLasFilas(todos) {
   const out = { vigentes: {}, pendientes: {}, omitidos: {} };
   const masReciente = (a, b) => (!a || String(b.declaradoEn || "") >= String(a.declaradoEn || "") ? b : a);
