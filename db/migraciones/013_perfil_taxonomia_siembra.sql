@@ -74,6 +74,13 @@ alter table public.perfil_taxonomia add constraint perfil_taxonomia_campo_check
 -- ni al trigger de más abajo — se limpia acá para que la migración deje la base consistente con el código.
 delete from public.perfil_taxonomia where campo = 'subsector';
 
+-- El formato del código (corrección 2026-10-03, tras el error 23514 en staging): la 012 solo admitía minúsculas
+-- (`^[a-z0-9_]{1,40}$`), pero el país es ISO alfa-2 en MAYÚSCULAS ('CL'), igual que en taxonomiaPerfil.js. Se
+-- conserva la regla de minúsculas para los demás campos y el país se admite SOLO en su forma ISO. Idempotente.
+alter table public.perfil_taxonomia drop constraint if exists perfil_taxonomia_codigo_check;
+alter table public.perfil_taxonomia add constraint perfil_taxonomia_codigo_check
+  check ((campo <> 'pais' and codigo ~ '^[a-z0-9_]{1,40}$') or (campo = 'pais' and codigo ~ '^[A-Z]{2}$'));
+
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════
 -- 3 · EL TRIGGER · valida tipo_producto (renombrado) Y LA REGLA NUEVA sector↔tipo_producto

@@ -1091,6 +1091,15 @@ H("18c · db/migraciones/013_perfil_taxonomia_siembra.sql — el rename y la reg
     (filasPorCampo[m[1]] ||= []).push(m[2]);
   }
   ok(Object.keys(filasPorCampo).length === 5, `la migración siembra los cinco campos (encontrados: ${Object.keys(filasPorCampo).join(",")})`);
+  /* (corrección 2026-10-03, error 23514 en staging) cada fila sembrada cumple el check de formato del código VIGENTE tras la
+   * 013 —el que la propia 013 redefine—; sin esto, una semilla que la base rechaza pasaba verde sobre TEXTO. */
+  ok(/drop constraint if exists perfil_taxonomia_codigo_check/.test(sql) && /add constraint perfil_taxonomia_codigo_check\s+check \(\(campo <> 'pais' and codigo ~ '\^\[a-z0-9_\]\{1,40\}\$'\) or \(campo = 'pais' and codigo ~ '\^\[A-Z\]\{2\}\$'\)\)/.test(sql),
+    "la 013 redefine el formato del código ANTES de sembrar: minúsculas en los demás campos; el país SOLO en ISO alfa-2 mayúsculas");
+  const _formatoOk = (campo, codigo) => (campo !== "pais" && /^[a-z0-9_]{1,40}$/.test(codigo)) || (campo === "pais" && /^[A-Z]{2}$/.test(codigo));
+  const _malas = Object.entries(filasPorCampo).flatMap(([c, l]) => l.filter((x) => !_formatoOk(c, x)).map((x) => `${c}:${x}`));
+  ok(_malas.length === 0, "★ CARNADA · toda fila sembrada cumple el formato que la base exige (la falla de 'CL' en staging)", _malas.join(" "));
+  ok(!_formatoOk("sector", "CL") && _formatoOk("pais", "CL") && !_formatoOk("pais", "cl1"), "★ CONTROL · el formato rechaza mayúsculas fuera de país y acepta 'CL' en país");
+  ok(sql.indexOf("add constraint perfil_taxonomia_codigo_check") < sql.indexOf("insert into public.perfil_taxonomia"), "★ ORDEN · el formato se redefine ANTES del primer insert");
   for (const [campo, lista] of Object.entries(TAXONOMIA_PERFIL)) {
     ok(JSON.stringify(filasPorCampo[campo]) === JSON.stringify(lista),
       `★ UNA SOLA VERDAD · la siembra SQL de "${campo}" es BYTE-IDÉNTICA (mismo orden) al array de taxonomiaPerfil.js`,
