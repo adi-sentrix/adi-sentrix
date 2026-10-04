@@ -305,7 +305,9 @@ console.log("\n── (g) carnadas ──");
 console.log("\n── inmutabilidad ──");
 ok("ORIGEN está Object.freeze()ado", Object.isFrozen(ORIGEN));
 ok("ETIQUETA_ORIGEN está Object.freeze()ado", Object.isFrozen(ETIQUETA_ORIGEN));
-ok("ETIQUETA_ORIGEN tiene las cuatro llaves de ORIGEN, ninguna más", Object.keys(ETIQUETA_ORIGEN).sort().join(",") === Object.values(ORIGEN).sort().join(","));
+/* §7.3·58 (bloque 3, procedencia): ORIGEN suma «documental» (lo que dice un archivo que no es la plantilla oficial). Ese origen NUNCA lo devuelve `umbral()` (lo pendiente no se usa y lo confirmado pasa a «empresa» con su rastro): su frase lleva el nombre
+ * del documento y la escribe `etiquetaDeProcedencia`, no la tabla fija. La tabla sigue cubriendo los CUATRO orígenes que `umbral()` puede devolver, ninguno más. */
+ok("ETIQUETA_ORIGEN tiene las cuatro llaves de ORIGEN que umbral() puede devolver (empresa, adi, consulta, sin_declarar), ninguna más", Object.keys(ETIQUETA_ORIGEN).sort().join(",") === Object.values(ORIGEN).filter((o) => o !== ORIGEN.DOCUMENTAL).sort().join(",") && ORIGEN.DOCUMENTAL === "documental" && !Object.prototype.hasOwnProperty.call(ETIQUETA_ORIGEN, ORIGEN.DOCUMENTAL));
 
 /* ── ETAPA 3 (e) · LA PANTALLA lee la fuente única, con procedencia, y sin marcar «frenado» sin umbral ────────
  * `buildMesaCapital()` (mesaCapital.js) es la única entrada de la cara Capital. Se compara SU salida contra

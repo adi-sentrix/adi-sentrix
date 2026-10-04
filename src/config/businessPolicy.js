@@ -122,11 +122,17 @@ export const criterioOverrideDe = (policyKey) => _criterioOverride[policyKey];
 const _clearCriterioOverrides = () => { for (const k of Object.keys(_criterioOverride)) delete _criterioOverride[k]; };
 
 // ── CAPA 2 · resolución del perfil del tenant (defensiva: solo números finitos) ─────────────────────────────────────
-const _perfilVal = (key) => {
-  const p = getTenantData() && getTenantData().perfil;
-  const v = p ? p[key] : undefined;
-  return (typeof v === "number" && isFinite(v)) ? v : undefined;
-};
+/** valorUsableDelPerfil(perfil, key) → el número que la empresa declaró en su perfil para esa llave, o `undefined`. Solo cuenta lo USABLE: un valor que el perfil anota como tomado de un DOCUMENTO
+ *  que la empresa NO confirmó (`perfil.procedenciaDeLlaves[key] = { origen: "documento", confirmado: false }`) no se usa —lo pendiente no rige, igual que en el bloque 3—: es lo que dice un archivo,
+ *  no lo que la empresa declaró. (Sin `procedenciaDeLlaves`, todo valor del perfil es una declaración de la empresa: así ha sido siempre.) Sin constantes del módulo: se evalúa al cargarlo. */
+export function valorUsableDelPerfil(perfil, key) {
+  const v = perfil ? perfil[key] : undefined;
+  if (!(typeof v === "number" && isFinite(v))) return undefined;
+  const pr = perfil.procedenciaDeLlaves && typeof perfil.procedenciaDeLlaves === "object" ? perfil.procedenciaDeLlaves[key] : null;
+  if (pr && pr.origen === "documento" && pr.confirmado !== true) return undefined;
+  return v;
+}
+const _perfilVal = (key) => valorUsableDelPerfil(getTenantData() && getTenantData().perfil, key);
 // el default VIGENTE de una llave (perfil del tenant ?? config) — lo que "olvidá el criterio" restaura (criteria.js)
 export const tenantPolicyDefault = (key) => { const v = _perfilVal(key); return v !== undefined ? v : POLICY_CONFIG[key]; };
 
@@ -270,7 +276,19 @@ export const costModelOf = () => (_costModelOverride != null ? _costModelOverrid
  * para un tenant con override de conversación de `target_carga` (hoy esa función solo mira el perfil, no C.2; ver
  * diseño §3.2 «pasan a ser alias…») y esta etapa declara explícitamente «sin consumidores: la suite no se mueve».
  * Se deja para la etapa que las consuma, con el owner al tanto (informe de esta etapa). */
-export const ORIGEN = Object.freeze({ EMPRESA: "empresa", ADI: "adi", CONSULTA: "consulta", SIN_DECLARAR: "sin_declarar" });
+export const ORIGEN = Object.freeze({ EMPRESA: "empresa", ADI: "adi", CONSULTA: "consulta", SIN_DECLARAR: "sin_declarar", DOCUMENTAL: "documental" });
+
+/* ══ LAS DOS DEFINICIONES QUE ESTE BLOQUE AJUSTA: DECLARADO Y DOCUMENTAL (owner 2026-10-03, Etapa 2 · bloque 3, decisión §7.3·58) ═════════════════
+ * «Una sola función de origen escribe la procedencia; ningún composer escribe la frase a mano.» El origen de una llave lo resuelve `procedenciaDeLlave` (más abajo) y devuelve
+ * { origen, fuente, confirmado }; la FRASE sale de la tabla de aquí (`ETIQUETA_ORIGEN`) a través de `etiquetaDeProcedencia`: es el único sitio de la casa donde está escrita.
+ *   · DECLARADO («declarado por la empresa», `ORIGEN.EMPRESA`) solo cuando hubo un ACTO EXPLÍCITO DE DECLARACIÓN: (a) el perfil de la empresa (`tenant.perfil`; en el Complemento, el perfil o los
+ *     criterios que la empresa confirmó, `conCriteriosDeEmpresa`), (b) un criterio dicho en el chat y confirmado, (c) un PARÁMETRO de la plantilla oficial cuyo contrato le pregunta a la empresa su
+ *     decisión, llenado por ella y con rastro (plantilla·hoja·celda) —hoy, en la v2, solo identidad, período y moneda: ninguna política—, o (d) un valor documental que la empresa confirmó adoptar
+ *     (pasa a declarado conservando el rastro: «declarado por la empresa, tomado de <documento>»).
+ *   · DOCUMENTAL («según <documento>», `ORIGEN.DOCUMENTAL`; «sin confirmar» si la empresa no lo confirmó): un valor que dice un documento o un archivo que NO es la plantilla oficial (el Excel de un
+ *     proveedor, un contrato, un PDF), AUNQUE la columna se llame «meta», «benchmark» u «objetivo». Nunca «declarado por la empresa» mientras no se confirme; y lo pendiente NO se usa (no llega a
+ *     `POLICY`: `valorUsableDelPerfil`). «Viene de un archivo» jamás se convierte solo en «declarado por la empresa».
+ *   · Sin declaración y sin documento: el criterio general de ADI, ajustable por la empresa. Lo planteado en una consulta conserva su frase («planteado en la consulta»). Nada más se reclasifica. */
 
 /** Cómo se NOMBRA cada origen en superficie — una sola redacción para toda la casa (pantalla, indicador, Entrega). */
 export const ETIQUETA_ORIGEN = Object.freeze({
@@ -279,26 +297,87 @@ export const ETIQUETA_ORIGEN = Object.freeze({
   [ORIGEN.CONSULTA]: "planteado en la consulta",
   [ORIGEN.SIN_DECLARAR]: "sin umbral declarado",
 });
+/** Las MISMAS etiquetas en femenino, para un sustantivo femenino («Simulación planteada en la consulta»): la concordancia es del idioma, el origen es el mismo. */
+export const ETIQUETA_ORIGEN_FEMENINO = Object.freeze({
+  [ORIGEN.EMPRESA]: "declarada por la empresa",
+  [ORIGEN.ADI]: "criterio general de ADI, ajustable por la empresa",
+  [ORIGEN.CONSULTA]: "planteada en la consulta",
+  [ORIGEN.SIN_DECLARAR]: "sin umbral declarado",
+});
+/** La forma ABREVIADA que cuelga de un nombre («umbral de materialidad declarado por la empresa» · «umbral de materialidad general de ADI»): lo declarado dice su origen completo; todo lo demás, «general de ADI». */
+export const ADJETIVO_DE_ORIGEN = Object.freeze({
+  [ORIGEN.EMPRESA]: ETIQUETA_ORIGEN[ORIGEN.EMPRESA],
+  [ORIGEN.CONSULTA]: ETIQUETA_ORIGEN[ORIGEN.CONSULTA],
+  [ORIGEN.ADI]: "general de ADI",
+  [ORIGEN.SIN_DECLARAR]: "general de ADI",
+});
+
+/** etiquetaDeProcedencia({ origen, fuente?, confirmado? }, { genero? }) → la frase de la procedencia, de la tabla única (`null` si el origen no se conoce: nunca se inventa una).
+ *  `fuente` = { tipo: "perfil"|"chat"|"plantilla"|"documento"|"consulta"|"config", detalle } (el rastro). Lo DECLARADO que se tomó de un documento confirmado conserva su rastro («declarado por la empresa,
+ *  tomado de <documento>»); lo DOCUMENTAL dice «según <documento>» y, sin confirmar, «, sin confirmar». `genero: "f"` da la concordancia femenina. */
+export function etiquetaDeProcedencia(p, { genero = "m" } = {}) {
+  if (!p || typeof p !== "object") return null;
+  const f = p.fuente && typeof p.fuente === "object" ? p.fuente : null;
+  const doc = f && f.tipo === "documento" && typeof f.detalle === "string" && f.detalle.trim() ? f.detalle.trim() : null;
+  if (p.origen === ORIGEN.DOCUMENTAL) return `según ${doc || "un documento"}${p.confirmado === true ? "" : ", sin confirmar"}`;
+  const base = (genero === "f" ? ETIQUETA_ORIGEN_FEMENINO : ETIQUETA_ORIGEN)[p.origen];
+  if (!base) return null;
+  return p.origen === ORIGEN.EMPRESA && doc ? `${base}, tomado de ${doc}` : base;
+}
 
 /** umbral(key, consulta?) → { valor: number|null, origen: ORIGEN.* } — la única resolución de origen de la casa.
  *  (`setCriterioOverride`/`criterioOverrideDe` viven arriba, junto a `_benchmarkOverride`, para que `_resolvePolicy`
  *  los pueda limpiar en el reset de tenant sin depender del orden de evaluación del archivo.) */
 export function umbral(key, consulta = null) {
+  const r = _resolverLlave(key, consulta);
+  return { valor: r.valor, origen: r.origen };
+}
+
+/** procedenciaDeLlave(key, consulta?) → { origen, fuente, confirmado } · LA ÚNICA FUNCIÓN DE ORIGEN de la casa (decisión §7.3·58): de dónde sale el valor que rige para esa llave, con su rastro.
+ *  `origen` es el de `umbral()` (nunca otro); `fuente` = { tipo: "consulta"|"chat"|"perfil"|"plantilla"|"documento"|"config", detalle } (null si nadie lo declaró); `confirmado` es true cuando el acto de
+ *  declaración está confirmado (un valor de un documento solo rige si la empresa lo confirmó) y null cuando no aplica (el criterio de ADI). La frase la escribe `etiquetaDeProcedencia`; nadie más. */
+export function procedenciaDeLlave(key, consulta = null) {
+  const r = _resolverLlave(key, consulta);
+  return { origen: r.origen, fuente: r.fuente, confirmado: r.confirmado };
+}
+
+/* la resolución completa de UNA llave, en orden de precedencia: consulta → conversación (C.2) → perfil → criterio de ADI → nada. Devuelve valor, origen y rastro; las dos funciones públicas
+ * de arriba (`umbral`: la forma de siempre, { valor, origen }; `procedenciaDeLlave`: el rastro) son la misma resolución, nunca dos. */
+function _resolverLlave(key, consulta) {
   const deConsulta = consulta && typeof consulta[key] === "number" && isFinite(consulta[key]) ? consulta[key] : undefined;
-  if (deConsulta !== undefined) return { valor: deConsulta, origen: ORIGEN.CONSULTA };
+  if (deConsulta !== undefined) return { valor: deConsulta, origen: ORIGEN.CONSULTA, fuente: { tipo: "consulta", detalle: null }, confirmado: true };
   const deConversacion = criterioOverrideDe(key);
-  if (deConversacion !== undefined) return { valor: deConversacion, origen: ORIGEN.EMPRESA };
-  return umbralDePerfil(getTenantData() && getTenantData().perfil, key);
+  if (deConversacion !== undefined) return { valor: deConversacion, origen: ORIGEN.EMPRESA, fuente: { tipo: "chat", detalle: null }, confirmado: true };
+  return _resolverDePerfil(getTenantData() && getTenantData().perfil, key);
+}
+function _resolverDePerfil(perfil, key) {
+  const v = valorUsableDelPerfil(perfil, key);
+  if (v !== undefined) {
+    /* el acto de declaración: sin anotación en `procedenciaDeLlaves`, el propio perfil de la empresa; con ella, su rastro (la plantilla oficial, el chat o un documento que la empresa confirmó adoptar) */
+    const pr = perfil.procedenciaDeLlaves && typeof perfil.procedenciaDeLlaves === "object" ? perfil.procedenciaDeLlaves[key] : null;
+    const tipo = pr && (pr.origen === "documento" || pr.origen === "plantilla" || pr.origen === "chat") ? pr.origen : "perfil";
+    const detalle = pr && typeof pr.fuente === "string" && pr.fuente.trim() ? pr.fuente.trim() : null;
+    return { valor: v, origen: ORIGEN.EMPRESA, fuente: { tipo, detalle }, confirmado: true };
+  }
+  const deConfig = POLICY_CONFIG[key];
+  if (Number.isFinite(deConfig)) return { valor: deConfig, origen: ORIGEN.ADI, fuente: { tipo: "config", detalle: null }, confirmado: null };
+  return { valor: null, origen: ORIGEN.SIN_DECLARAR, fuente: null, confirmado: null };
+}
+
+/** documentalSinConfirmar(perfil, key) → { origen: "documental", fuente, confirmado: false, valor } | null · lo que un archivo que NO es la plantilla oficial dice para esa llave y la empresa todavía NO confirmó
+ *  (`perfil.procedenciaDeLlaves[key].origen === "documento"`, sin `confirmado: true`). NUNCA rige (`valorUsableDelPerfil` no lo deja pasar): esta función existe para poder DECIRLO («según <documento>, sin confirmar»), no para usarlo. */
+export function documentalSinConfirmar(perfil, key) {
+  const v = perfil ? perfil[key] : undefined;
+  const pr = perfil && perfil.procedenciaDeLlaves && typeof perfil.procedenciaDeLlaves === "object" ? perfil.procedenciaDeLlaves[key] : null;
+  if (!(typeof v === "number" && isFinite(v)) || !pr || pr.origen !== "documento" || pr.confirmado === true) return null;
+  return { origen: ORIGEN.DOCUMENTAL, fuente: { tipo: "documento", detalle: typeof pr.fuente === "string" && pr.fuente.trim() ? pr.fuente.trim() : null }, confirmado: false, valor: v };
 }
 
 /** umbralDePerfil(perfil, key) → { valor, origen } · las DOS últimas capas de `umbral()` sobre un perfil dado: lo que la empresa declaró en su perfil («empresa») → el criterio general de ADI («adi») → nada («sin_declarar»).
  *  La MISMA regla que `umbral()` aplica al perfil del tenant activo (la llama él), para poder preguntar qué regiría con OTRO perfil sin activar esa empresa (`conCriteriosDeEmpresa`, abajo). */
 export function umbralDePerfil(perfil, key) {
-  const v = perfil ? perfil[key] : undefined;
-  if (typeof v === "number" && isFinite(v)) return { valor: v, origen: ORIGEN.EMPRESA };
-  const deConfig = POLICY_CONFIG[key];
-  if (Number.isFinite(deConfig)) return { valor: deConfig, origen: ORIGEN.ADI };
-  return { valor: null, origen: ORIGEN.SIN_DECLARAR };
+  const r = _resolverDePerfil(perfil, key);
+  return { valor: r.valor, origen: r.origen };
 }
 
 /** Los seis umbrales de inventario, cada uno con su valor y su origen — la fuente única que lee
@@ -404,8 +483,20 @@ export const esProcedenciaDeCriterio = (texto) => [...FAMILIAS_DE_PROCEDENCIA, F
  *  pantalla y el indicador (`ETIQUETA_ORIGEN`). Sin `key` conocida devuelve null (nunca inventa un origen). */
 export function procedenciaDeUmbral(key, consulta = null) {
   if (!Object.prototype.hasOwnProperty.call(NOMBRE_DE_UMBRAL, key)) return null;
-  return ETIQUETA_ORIGEN[umbral(key, consulta).origen] || null;
+  return etiquetaDeProcedencia(procedenciaDeLlave(key, consulta));
 }
+
+/** procedenciaDeReferencia(concepto, { genero? }) → la frase de origen de UNA referencia de la casa (el id del léxico: benchmark · nivel_carga · umbral_materialidad · piso_rotacion · techo_cobertura ·
+ *  umbral_frenado), de la MISMA función de origen que los umbrales (`procedenciaDeLlave` sobre su llave de POLICY, `POLICY_DE_REFERENCIA`) y de la misma tabla de frases. Es lo que escriben el Marco, la
+ *  referencia oficial y el texto del benchmark: ningún composer escribe «declarado por la empresa» a mano (decisión §7.3·58). `null` si el concepto no es una referencia con llave: nunca se inventa. */
+export function procedenciaDeReferencia(concepto, opciones = {}) {
+  const llave = Object.prototype.hasOwnProperty.call(POLICY_DE_REFERENCIA, concepto) ? POLICY_DE_REFERENCIA[concepto] : null;
+  return llave ? etiquetaDeProcedencia(procedenciaDeLlave(llave), opciones) : null;
+}
+
+/** procedenciaDeSupuesto() → { origen, fuente, confirmado } · de dónde sale el supuesto de una SIMULACIÓN: del encargo, es decir, PLANTEADO EN LA CONSULTA (no lo declaró la empresa). La misma
+ *  etiqueta de consulta de siempre (`ETIQUETA_ORIGEN.consulta`); no hay una taxonomía nueva de supuestos. */
+export const procedenciaDeSupuesto = () => ({ origen: ORIGEN.CONSULTA, fuente: { tipo: "consulta", detalle: null }, confirmado: true });
 
 /** clausulasDeProcedencia(claves, consulta?) → ["techo de días de inventario: 120 días, declarado por la empresa", …] — una por umbral, sin repetir, en el orden de `NOMBRE_DE_UMBRAL`; una
  *  clave desconocida no produce cláusula. Decisión del supervisor 2026-09-29, §7.3·37b: cada cláusula lleva su VALOR (`valorDeUmbralEnTexto`) junto a su origen; sin valor declarado
@@ -456,7 +547,7 @@ export const POLICY_DE_REFERENCIA = Object.freeze({
 });
 
 /** conCriteriosDeEmpresa(dataset, { [llaveDePolicy]: número }) → { dataset, aplicados: [{ llave, valor, desplaza: { valor, origen } }] } · ignora lo que no es una llave de POLICY o no es un número finito. */
-export function conCriteriosDeEmpresa(dataset, valores) {
+export function conCriteriosDeEmpresa(dataset, valores, procedencias = null) {
   if (!dataset || typeof dataset !== "object") return { dataset, aplicados: [] };
   const base = dataset.perfil && typeof dataset.perfil === "object" ? dataset.perfil : {};
   const nuevos = {};
@@ -466,5 +557,16 @@ export function conCriteriosDeEmpresa(dataset, valores) {
     aplicados.push({ llave, valor: v, desplaza: umbralDePerfil(base, llave) });
     nuevos[llave] = v;
   }
-  return { dataset: aplicados.length ? { ...dataset, perfil: { ...base, ...nuevos } } : dataset, aplicados };
+  if (!aplicados.length) return { dataset, aplicados };
+  /* el RASTRO del acto de declaración (decisión §7.3·58): lo que la empresa confirmó adoptar de un documento conserva de qué documento viene. Lo declarado conversando manda sobre lo que traía el perfil, y con ello
+   * también su rastro: el anterior se descarta. Sin rastro que anotar (ni antes ni ahora), el perfil queda como siempre. */
+  const pr = { ...(base.procedenciaDeLlaves && typeof base.procedenciaDeLlaves === "object" ? base.procedenciaDeLlaves : {}) };
+  for (const a of aplicados) {
+    const p = procedencias && typeof procedencias === "object" ? procedencias[a.llave] : null;
+    if (p && typeof p === "object") { pr[a.llave] = { origen: p.origen, fuente: p.fuente != null ? String(p.fuente) : null, confirmado: p.confirmado === true }; a.procedencia = pr[a.llave]; }
+    else delete pr[a.llave];
+  }
+  const perfil = { ...base, ...nuevos, ...(Object.keys(pr).length ? { procedenciaDeLlaves: pr } : {}) };
+  if (!Object.keys(pr).length) delete perfil.procedenciaDeLlaves;
+  return { dataset: { ...dataset, perfil }, aplicados };
 }

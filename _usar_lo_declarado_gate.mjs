@@ -77,7 +77,9 @@ H("1 · las tablas: cada referencia del léxico tiene su llave de POLICY; el voc
   const L = LD.lugarDeAporte;
   ok(L({ clase: "criterio", concepto: "piso_rotacion" }).enLaEntrega && L({ clase: "hecho", concepto: "dias_vencido" }).enLaEntrega, "un criterio con id de referencia y un hecho con id de métrica tienen lugar en la Entrega");
   ok(!L({ clase: "criterio", concepto: "benchmark propio" }).enLaEntrega && L({ clase: "criterio", concepto: "benchmark propio" }).validos.includes("piso_rotacion"), "un criterio con otro concepto se queda en la memoria y se dice cuáles sí tienen lugar (no se rechaza)");
-  ok(!L({ clase: "hecho", concepto: "saldo_pendiente" }).enLaEntrega && /escala/.test(L({ clase: "hecho", concepto: "saldo_pendiente" }).motivo) && !L({ clase: "hecho", concepto: "plazo_de_cobro" }).enLaEntrega && !L({ clase: "hecho", concepto: "piso_rotacion" }).enLaEntrega && !L({ clase: "documento", concepto: "dias_vencido" }).enLaEntrega, "el dinero, el plazo de cobro, una referencia dicha como hecho y un documento: sin lugar (se quedan en la memoria), con su motivo");
+  ok(!L({ clase: "hecho", concepto: "saldo_pendiente" }).enLaEntrega && /escala/.test(L({ clase: "hecho", concepto: "saldo_pendiente" }).motivo) && !L({ clase: "hecho", concepto: "piso_rotacion" }).enLaEntrega && !L({ clase: "documento", concepto: "dias_vencido" }).enLaEntrega, "el dinero, una referencia dicha como hecho y un documento: sin lugar (se quedan en la memoria), con su motivo");
+  /* §7.3·58 (opción A): el PLAZO DE COBRO ya tiene lugar —se muestra declarado y la pregunta abierta de cobranza lo cita—, sin cambiar ningún cálculo */
+  ok(L({ clase: "hecho", concepto: "plazo_de_cobro" }).enLaEntrega && /pregunta abierta/.test(L({ clase: "hecho", concepto: "plazo_de_cobro" }).como) && /no cambia ningún cálculo/.test(L({ clase: "hecho", concepto: "plazo_de_cobro" }).como), "el plazo de cobro SÍ tiene lugar (opción A): «Lo declarado» y la pregunta abierta de cobranza, sin cambiar ningún cálculo");
 }
 
 /* ═══ 2 · LO VIGENTE QUE ENTRA Y LO QUE NO ═════════════════════════════════════════════════════════════════════════════════ */
@@ -99,7 +101,9 @@ const crit = (o = {}) => fila({ clase: "criterio", concepto: "piso_rotacion", en
   noEntra(crit({ valor: { raw: null, unidad: null, texto: "1.5" } }), "un criterio sin número (solo texto: ADI no lee lenguaje)");
   noEntra(fila({ concepto: "saldo_pendiente", valor: { raw: 5, unidad: "money" } }), "dinero declarado (la escala no se infiere)");
   noEntra(fila({ valor: { raw: 15, unidad: "pct" } }), "una unidad que no es la de la métrica (jamás se convierte)");
-  noEntra(fila({ concepto: "plazo_de_cobro" }), "un concepto que la casa no conoce (el plazo de cobro: sin lugar mientras no se decida dónde va)");
+  noEntra(fila({ concepto: "concepto_que_la_casa_no_conoce" }), "un concepto que la casa no conoce");
+  /* el plazo de cobro (opción A, §7.3·58) no es un hecho que se contraste con lo medido: entra aparte, en `plazos`, solo en días y vigente */
+  ok(LD.clasificarLoDeclarado([fila({ concepto: "plazo_de_cobro", entidad: "Lider", valor: { raw: 45, unidad: "days" } })]).plazos.length === 1 && LD.clasificarLoDeclarado([fila({ concepto: "plazo_de_cobro", entidad: "Lider", valor: { raw: 45, unidad: "days" } })]).hechos.length === 0 && LD.clasificarLoDeclarado([fila({ concepto: "plazo_de_cobro", valor: { raw: 45, unidad: "pct" } }), fila({ concepto: "plazo_de_cobro", valor: { raw: 0, unidad: "days" } }), fila({ concepto: "plazo_de_cobro", estado: "pendiente", valor: { raw: 45, unidad: "days" } })]).plazos.length === 0, "el plazo de cobro vigente entra aparte (en `plazos`, no como hecho contrastable); en otra unidad, en cero o pendiente, no");
   noEntra(fila({ clase: "documento", origen: "documento" }), "un dato de documento (todavía sin lugar)");
   noEntra(fila({ migradoDeLegado: "diario" }), "lo legado traducido en lectura");
   ok(C([crit({ id: "a", declaradoEn: "2026-10-03T10:00:00.000Z", valor: { raw: 1.5, unidad: "ratio" } }), crit({ id: "b", declaradoEn: "2026-10-03T11:00:00.000Z", valor: { raw: 1.1, unidad: "ratio" } })]).criterios[0].valor === 1.1, "dos vigentes de la misma llave: manda el más reciente (uno solo por llave)");
@@ -356,11 +360,11 @@ async function guionDe(banco, res) {
     { clase: "hecho", concepto: "plazo_de_cobro", entidad: "Lider", valor: { raw: 45, unidad: "days" } },
     { clase: "criterio", concepto: "benchmark propio", valor: { raw: 28, unidad: "pct" } },
   ]);
-  R("S1 el dinero, el plazo de cobro y un criterio con otro concepto: se aceptan (pendientes) pero dicen en el acto que NO tienen lugar en la Entrega", h7.ok && h7.resultados.length === 4 && h7.resultados[1].lugar.enLaEntrega === false && h7.resultados[2].lugar.enLaEntrega === false && h7.resultados[3].lugar.enLaEntrega === false && h7.resultados[0].lugar.enLaEntrega === true, jj(h7.resultados.map((r) => r.lugar)));
+  R("S1 el dinero y un criterio con otro concepto: se aceptan (pendientes) pero dicen en el acto que NO tienen lugar en la Entrega; el plazo de cobro SÍ lo tiene (opción A, §7.3·58): lo dice al declararlo", h7.ok && h7.resultados.length === 4 && h7.resultados[1].lugar.enLaEntrega === false && h7.resultados[2].lugar.enLaEntrega === true && /pregunta abierta/.test(h7.resultados[2].lugar.como) && h7.resultados[3].lugar.enLaEntrega === false && h7.resultados[0].lugar.enLaEntrega === true, jj(h7.resultados.map((r) => r.lugar)));
   await confirmar("alfa", convA, h7.resultados.map((r) => r.id));
   const h8 = await L("alfa", "consultar", { encargo: encCob("Lider", convA) });
-  const noMenciona = !/Falabella|45 días|plazo de cobro|benchmark propio|\$5\b/.test(h8.entrega.texto.split("**Lo declarado por la empresa y confirmado.**")[1] || "");
-  R("S2 ★ confirmados, NO se fuerzan: la Entrega no los menciona (el de otra entidad no está en juego; el resto no tiene lugar) y sigue con el hecho de Lider", h8.ok && noMenciona && h8.declarado.hechos.length === 1 && h8.declarado.hechos[0].entidad === "Lider", jj(h8.declarado));
+  const noMenciona = !/Falabella|benchmark propio|\$5\b/.test(h8.entrega.texto.split("**Lo declarado por la empresa y confirmado.**")[1] || "");
+  R("S2 ★ confirmados, NO se fuerzan: la Entrega no menciona lo que no está en juego (el de otra entidad, el dinero, el criterio sin lugar) y sigue con el hecho de Lider; el plazo de cobro de Lider SÍ se cita, porque su pregunta abierta está en la Entrega (opción A, §7.3·58)", h8.ok && noMenciona && h8.declarado.hechos.length === 1 && h8.declarado.hechos[0].entidad === "Lider" && h8.declarado.plazos && h8.declarado.plazos.length === 1 && h8.declarado.plazos[0].entidad === "Lider" && h8.declarado.plazos[0].valor === 45 && /Plazo de cobro: 45 días, declarado por la empresa/.test(h8.entrega.texto), jj(h8.declarado));
   const cE = await L("alfa", "conocerEmpresa", { conversacionId: convA });
   R("S3 y siguen en la memoria de la empresa: conocerEmpresa los ve (nada se perdió por no tener lugar)", cE.ok && ["plazo_de_cobro", "saldo_pendiente", "benchmark propio"].every((c) => cE.hechosAportados.some((x) => x.concepto === c && x.origen === "declarado")), jj(cE.hechosAportados.map((x) => x.concepto)));
   sinResiduo("H");
@@ -505,7 +509,7 @@ async function correrAzar({ semilla, nOps, carnada = null }) {
         const m = modelo.hec[ent];
         if (!aceptarDeclaracion(m, v, x.id)) V(E, op, "el mismo hecho ya declarado debía devolver la misma fila");
       } else if (op === "sinLugar") {
-        const r = await declarar(cv, [idRng.elegir([{ clase: "hecho", concepto: "saldo_pendiente", entidad: "Lider", valor: { raw: 7, unidad: "money" } }, { clase: "hecho", concepto: "plazo_de_cobro", entidad: "Jumbo", valor: { raw: 45, unidad: "days" } }, { clase: "criterio", concepto: "benchmark propio", valor: { raw: 28, unidad: "pct" } }])]);
+        const r = await declarar(cv, [idRng.elegir([{ clase: "hecho", concepto: "saldo_pendiente", entidad: "Lider", valor: { raw: 7, unidad: "money" } }, { clase: "hecho", concepto: "concepto_que_la_casa_no_conoce", entidad: "Jumbo", valor: { raw: 45, unidad: "days" } }, { clase: "criterio", concepto: "benchmark propio", valor: { raw: 28, unidad: "pct" } }])]);
         const x = r.resultados && r.resultados[0];
         if (x && x.id) { if (!x.lugar || x.lugar.enLaEntrega !== false) V(E, op, "lo que no tiene lugar debía decirlo"); const rc = await accDeclarar.aportarContexto({ tenant, conversacionId: cv.id, confirmar: [x.id] }); if (!(rc.confirmaciones && rc.confirmaciones[0].confirmado)) V(E, op, "no pudo confirmar lo sin lugar"); }
       } else if (op === "conf") {

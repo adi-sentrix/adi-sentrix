@@ -16,7 +16,7 @@ import { umbralesDeBases, umbralesDeConceptos, NOMBRE_CARGA_ALTA, formaDeConjunt
 import { conjuntoDeUniverso, valorDeReferencia } from "../notario/verificar.js";
 import { formatoDeReferencia } from "../notario/hechos.js";
 import { conteoDeEje, conPreposicion, sintagmaDe, metricaPorClave } from "../notario/lexico.js";
-import { ETIQUETA_ORIGEN, umbral, benchmarkOf, procedenciaDeUmbral, procedenciaDeUmbrales, procedenciaDeMaterialidad, valorDeUmbralEnTexto } from "../../config/businessPolicy.js";
+import { ETIQUETA_ORIGEN, ADJETIVO_DE_ORIGEN, umbral, benchmarkOf, procedenciaDeUmbral, procedenciaDeUmbrales, procedenciaDeMaterialidad, procedenciaDeReferencia, valorDeUmbralEnTexto } from "../../config/businessPolicy.js";
 import { descomposicionDeBrecha } from "../specRetrieval.js";
 
 // §7.3·12/·19 (decisión del owner 2026-09-27, «con el benchmark de la empresa, como recomiendas»; generalizada
@@ -207,7 +207,7 @@ export function referenciasDeLaConsulta({ resolucion, partesUtiles, I, scenario,
               const pisoAlterno = D.piso * (refUsuario.valor / pisoOficial.valor);   // el mismo % de la venta real, con el otro porcentaje
               const nombresAlt = D.filas.filter((f) => f.cargaUsd >= pisoAlterno).map((f) => f.entidad);
               const cnt = conteoDeEje(familiaRef.eje, nombresAlt.length);
-              const nombreOficial = { articulo: "el", nucleo: `umbral de materialidad ${pisoOficial.origen === "empresa" ? "declarado por la empresa" : "general de ADI"}` };
+              const nombreOficial = { articulo: "el", nucleo: `umbral de materialidad ${pisoOficial.origen === "empresa" ? ADJETIVO_DE_ORIGEN.empresa : ADJETIVO_DE_ORIGEN.adi}` };
               cifras.push(valFmt, String(nombresAlt.length), String(oficial.set.size));
               declarada = true;
               limites.push({
@@ -251,7 +251,7 @@ export function referenciasOficiales({ partesUtiles, premisas, I }) {
   const out = [];
   for (const ref of refs) {
     const r = I ? valorDeReferencia(ref, I) : null, m = metricaPorClave(ref);
-    if (r && Number.isFinite(r.raw) && m) { const cifra = formatoDeReferencia(r.raw, r.unidad || m.unidad); out.push({ concepto: ref, cifra, texto: `${m.nombre}: ${cifra}, declarado por la empresa.` }); }
+    if (r && Number.isFinite(r.raw) && m) { const cifra = formatoDeReferencia(r.raw, r.unidad || m.unidad); const origen = procedenciaDeReferencia(ref); out.push({ concepto: ref, cifra, texto: `${m.nombre}: ${cifra}${origen ? `, ${origen}` : ""}.` }); }
   }
   return out;
 }
@@ -270,8 +270,8 @@ export function figDelBenchmarkOficial(figs) {
 /** ¿este plan (de una parte comercial que no es una definición, o un multitema que incluye comercial) pone en juego el benchmark oficial? Entonces su fig viaja en el libro y el Marco la declara (regla 4, «comparables juntas») */
 export const planPoneElBenchmark = (plan) => !!plan && ((plan.tema === "comercial" && plan.kind !== "definicion") || (plan.kind === "multitema" && Array.isArray(plan.temas) && plan.temas.includes("comercial")));
 
-/** textoDeBenchmark(valor, { calificador?, nota? }) → «Benchmark de margen[ (calificador)]: V, declarado por la empresa.[ nota]» — la frase del benchmark oficial, escrita una sola vez */
-export const textoDeBenchmark = (valor, { calificador = null, nota = null } = {}) => `Benchmark de margen${calificador ? ` (${calificador})` : ""}: ${valor}, declarado por la empresa.${nota ? ` ${nota}` : ""}`;
+/** textoDeBenchmark(valor, { calificador?, nota? }) → «Benchmark de margen[ (calificador)]: V, <origen>.[ nota]» — la frase del benchmark oficial, escrita una sola vez; el ORIGEN (declarado por la empresa · criterio general de ADI · según un documento…) lo da la función de origen de la casa (`procedenciaDeReferencia`), nunca una frase fija (§7.3·58) */
+export const textoDeBenchmark = (valor, { calificador = null, nota = null } = {}) => `Benchmark de margen${calificador ? ` (${calificador})` : ""}: ${valor}, ${procedenciaDeReferencia("benchmark")}.${nota ? ` ${nota}` : ""}`;
 
 /** textoDeUmbralDeMaterialidad(pct, usd) → la frase del piso de materialidad con su origen (la empresa o el criterio general de ADI, `umbral().origen`), nunca «declarado por la empresa» a ciegas (§7.3·36b) */
 export const textoDeUmbralDeMaterialidad = (pct, usd) => `${umbral("materialidadFocoPctVenta").origen === "empresa" ? "Umbral de materialidad de la empresa" : "Umbral de materialidad"}: ${pct} de la venta (${usd}), ${procedenciaDeUmbral("materialidadFocoPctVenta")}.`;
@@ -335,7 +335,7 @@ export function referenciaDelMarco({ ya = null, idBenchGlobal = null, R, partesU
       const m = metricaPorClave("nivel_carga");
       if (r && Number.isFinite(r.raw) && m) {
         const fmt = formatoDeReferencia(r.raw, r.unidad || m.unidad);
-        const txt = `${m.nombre}: ${fmt}, declarado por la empresa.`;
+        const txt = `${m.nombre}: ${fmt}, ${procedenciaDeReferencia("nivel_carga")}.`;
         cifras.push(fmt);   /* §7.3·49(d): declarada aunque otro bloque ya escribiera la cláusula en el Marco */
         if (!ref || !ref.texto.includes(txt)) ref = ref ? { ...ref, texto: `${ref.texto} ${txt}` } : { texto: txt, hechoId: null };
       }

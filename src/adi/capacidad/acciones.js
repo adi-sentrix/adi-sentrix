@@ -79,9 +79,9 @@ import {
 } from "../continuidad/empresa.js";
 import { conPerfilDeclarado, armarPerfilConversando, opcionesDeCampo, textoDeLimitacion } from "./perfilConversando.js";
 import {
-  clasificarLoDeclarado, contrastarHechos, textoDeLoDeclarado, antecedentesDe, textoDeAntecedentes, lugarDeAporte, validarCriterio, declarable, esReferenciaDeLaCasa, USO_DE_LO_DECLARADO,
+  clasificarLoDeclarado, contrastarHechos, textoDeLoDeclarado, plazosCitados, procedenciasDeCriterios, antecedentesDe, textoDeAntecedentes, lugarDeAporte, validarCriterio, declarable, esReferenciaDeLaCasa, USO_DE_LO_DECLARADO,
 } from "./loDeclarado.js";
-import { conCriteriosDeEmpresa, setBenchmarkOverride, ETIQUETA_ORIGEN, ORIGEN } from "../../config/businessPolicy.js";
+import { conCriteriosDeEmpresa, setBenchmarkOverride, ETIQUETA_ORIGEN, ORIGEN, etiquetaDeProcedencia } from "../../config/businessPolicy.js";
 import { PIEZAS_CONOCIMIENTO } from "../conocimiento/piezas.js";
 import { ADI_CONOCIMIENTO } from "../../config/voiceFlags.js";
 import {
@@ -295,7 +295,11 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       declarable: declarable(),   // bloque 3: qué se puede declarar con lugar en la Entrega (criterios y hechos), con la forma exacta del aporte
       conversacionId: conversacionId || null,
       hechosAportados: [...memoria.hechos, ...perfilPlegado],
-      pendientesDeConfirmar: pendientes.filter((h) => h.clase !== "perfil" && !esConceptoReservadoDePerfil(h.concepto)),
+      /* lo que dice un documento y la empresa todavía NO confirmó es DOCUMENTAL («según <documento>, sin confirmar», §7.3·58): se anuncia así, nunca como «declarado por la empresa», y no se usa */
+      pendientesDeConfirmar: pendientes.filter((h) => h.clase !== "perfil" && !esConceptoReservadoDePerfil(h.concepto)).map((h) => {
+        const doc = h.documento && typeof h.documento === "object" && typeof h.documento.nombre === "string" && h.documento.nombre.trim() ? h.documento.nombre.trim() : null;
+        return doc ? { ...h, etiquetaDeOrigen: etiquetaDeProcedencia({ origen: ORIGEN.DOCUMENTAL, fuente: { tipo: "documento", detalle: doc }, confirmado: false }) } : h;
+      }),
       estadoVigente,
     };
   }
@@ -332,7 +336,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       // consulta sigue SIN ellos (sin perfil ni declarados el Core funciona igual) y lo declara: nunca finge.
       let estadoPerfil = null;
       let perfilNoDisponible = false;
-      let loDeclarado = { criterios: [], hechos: [] };
+      let loDeclarado = { criterios: [], hechos: [], plazos: [] };
       try {
         const filasDeLaMemoria = (await store.leerHechosEmpresa(tenantId)) || [];
         estadoPerfil = perfilDeLasFilas(filasDeLaMemoria);
@@ -343,7 +347,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       const datasetConPerfil = estadoPerfil ? conPerfilDeclarado(tenant.dataset, estadoPerfil.vigentes) : tenant.dataset;
       // los criterios que la empresa declaró y confirmó SON sus umbrales («declarado por la empresa»): van al perfil de la empresa que el Core resuelve en `initTenant`
       // (el mismo camino de `umbral()`); sin ninguno es EL MISMO dataset (cero diferencia con lo de antes del bloque)
-      const { dataset, aplicados: criteriosAplicados } = conCriteriosDeEmpresa(datasetConPerfil, Object.fromEntries(loDeclarado.criterios.map((c) => [c.llave, c.valor])));
+      const { dataset, aplicados: criteriosAplicados } = conCriteriosDeEmpresa(datasetConPerfil, Object.fromEntries(loDeclarado.criterios.map((c) => [c.llave, c.valor])), procedenciasDeCriterios(loDeclarado.criterios));   // el rastro de lo que se tomó de un documento (§7.3·58) viaja con el valor
       const benchmarkDeclarado = loDeclarado.criterios.find((c) => c.llave === "benchmark");
 
       // 2 · EL TRAMO DEL CORE — síncrono, sin una sola espera entre `initTenant` y el cálculo
@@ -432,17 +436,20 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       // (tal cual quedó guardado, sin recalcular) y lo declarado al lado de lo medido.
       const usarPedido = resolucion.encargo && typeof resolucion.encargo.usar === "string" ? resolucion.encargo.usar : null;
       const antecedentes = salida.ok && resolucion.contextoResuelto ? antecedentesDe(resolucion.contextoResuelto, { versionActiva: versionIdActivo }) : [];
-      const declarado = salida.ok && (criteriosAplicados.length || hechosContrastados.length) ? {
+      // el plazo de cobro declarado que la pregunta abierta de cobranza de esta Entrega cita (opción A, §7.3·58): se muestra con su origen y NO cambia ningún cálculo
+      const plazosEnJuego = salida.ok && salida.entrega && loDeclarado.plazos.length ? plazosCitados({ plazos: loDeclarado.plazos, entrega: salida.entrega }) : [];
+      const declarado = salida.ok && (criteriosAplicados.length || hechosContrastados.length || plazosEnJuego.length) ? {
         criterios: loDeclarado.criterios.map((c) => {
           const a = criteriosAplicados.find((x) => x.llave === c.llave);
-          return { id: c.id, concepto: c.concepto, rotulo: c.rotulo, valor: c.valor, unidad: c.unidad, origen: c.origen, etiquetaDeOrigen: ETIQUETA_ORIGEN[ORIGEN.EMPRESA], sello: c.sello, aplicadoComo: "umbral de la empresa", ...(a ? { desplaza: { valor: a.desplaza.valor, origen: a.desplaza.origen, etiquetaDeOrigen: ETIQUETA_ORIGEN[a.desplaza.origen] || null } } : {}) };
+          return { id: c.id, concepto: c.concepto, rotulo: c.rotulo, valor: c.valor, unidad: c.unidad, origen: c.origen, etiquetaDeOrigen: etiquetaDeProcedencia(c.procedencia), fuente: c.procedencia.fuente, sello: c.sello, aplicadoComo: "umbral de la empresa", ...(a ? { desplaza: { valor: a.desplaza.valor, origen: a.desplaza.origen, etiquetaDeOrigen: ETIQUETA_ORIGEN[a.desplaza.origen] || null } } : {}) };
         }),
-        hechos: hechosContrastados.map((h) => ({ id: h.id, concepto: h.concepto, rotulo: h.rotulo, entidad: h.entidad, periodo: h.periodo, valor: h.valor, unidad: h.unidad, origen: h.origen, etiquetaDeOrigen: ETIQUETA_ORIGEN[ORIGEN.EMPRESA], sello: h.sello, estado: h.estado, medido: h.medido, diferencia: h.diferencia })),
+        hechos: hechosContrastados.map((h) => ({ id: h.id, concepto: h.concepto, rotulo: h.rotulo, entidad: h.entidad, periodo: h.periodo, valor: h.valor, unidad: h.unidad, origen: h.origen, etiquetaDeOrigen: etiquetaDeProcedencia(h.procedencia), fuente: h.procedencia.fuente, sello: h.sello, estado: h.estado, medido: h.medido, diferencia: h.diferencia, ...(h.motivoNoComparable ? { motivoNoComparable: h.motivoNoComparable } : {}) })),
+        ...(plazosEnJuego.length ? { plazos: plazosEnJuego.map((q) => ({ id: q.id, concepto: q.concepto, rotulo: q.rotulo, entidad: q.entidad, valor: q.valor, unidad: q.unidad, origen: q.origen, etiquetaDeOrigen: etiquetaDeProcedencia(q.procedencia), fuente: q.procedencia.fuente, sello: q.sello, citadoPor: { tipo: "pregunta_abierta", sobre: q.citadoPor.entidad, pregunta: q.citadoPor.pregunta }, nota: "no cambia ningún cálculo: el saldo vencido sigue siendo el medido" })) } : {}),
         ...(usarPedido ? { usar: { pedido: usarPedido, aplicado: "medido", nota: "ADI no calcula sobre lo declarado ni lo pone en lugar de lo medido: lo declarado se muestra al lado, con su origen." } } : {}),
         uso: USO_DE_LO_DECLARADO,
       } : null;
       if (salida.ok) {
-        const agregado = [textoDeAntecedentes(antecedentes), textoDeLoDeclarado({ hechos: hechosContrastados, usar: usarPedido })].filter(Boolean).join("\n\n");
+        const agregado = [textoDeAntecedentes(antecedentes), textoDeLoDeclarado({ hechos: hechosContrastados, plazos: plazosEnJuego, usar: usarPedido })].filter(Boolean).join("\n\n");
         if (agregado) textoConContinuidad = `${textoConContinuidad}\n\n${agregado}`;
       }
 

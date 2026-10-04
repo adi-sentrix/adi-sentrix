@@ -871,6 +871,48 @@ venta a crédito, ley del owner).
     (d) En la 54(a), la bodega, cada no_estado y cada rama de una unión también son eslabones de la cadena.
     (e) Un concepto de otro dominio pedido en una parte se declina como `concepto_de_otro_tema` antes de evaluar su productor
     (§4, el orden de la validación).
+58. [2026-10-03, owner; Etapa 2 · bloque 3, certificación de la procedencia] LA PROCEDENCIA DE LO DECLARADO Y DE LO DOCUMENTAL.
+    El defecto (verificado por el supervisor): `referencias.js` escribía «declarado por la empresa» FIJO en el benchmark, el
+    nivel de carga y la referencia oficial, y `componer.js` escribía «Simulación declarada por la empresa». Con el demo era
+    verdad (su perfil declara esos valores); con una empresa que no los declaró (una cargada por la plantilla v2, que ya no
+    pide políticas) era una procedencia FALSA. Criterio de cierre del owner: cero atribuciones falsas y sin regresiones materiales.
+    (a) UNA SOLA FUNCIÓN DE ORIGEN. `businessPolicy.js:procedenciaDeLlave(llave)` devuelve `{ origen, fuente, confirmado }` y es la
+        misma resolución que `umbral()` (nunca dos); la frase sale de UNA tabla (`ETIQUETA_ORIGEN`, con su forma femenina) a través de
+        `etiquetaDeProcedencia`. Ningún composer escribe «declarado/a por la empresa» a mano: el candado `_procedencia_gate` barre
+        `src/` (sin comentarios) y se pone en rojo si la frase aparece fuera de la tabla (con su carnada).
+    (b) SOLO DOS DEFINICIONES SE AJUSTAN —la frontera entre ellas—; nada más se reclasifica (lo medido sigue como está, `doh` NO se
+        reclasifica ahora, el criterio general de ADI y lo planteado en la consulta conservan su frase).
+        · DECLARADO («declarado por la empresa») solo cuando hubo un acto explícito de declaración: (1) el perfil de la empresa
+          (`tenant.perfil`; en el Complemento, el perfil o los criterios confirmados, `conCriteriosDeEmpresa`); (2) un criterio dicho
+          en el chat y confirmado; (3) un PARÁMETRO de la plantilla oficial cuyo contrato le pregunta a la empresa su decisión,
+          llenado por ella, con rastro (plantilla · hoja · celda) —hoy, en la v2, solo identidad, período y moneda: ninguna
+          política—; (4) un valor documental que la empresa confirmó adoptar: pasa a declarado conservando el rastro («declarado por
+          la empresa, tomado de <documento>»).
+        · DOCUMENTAL («según <documento>», y «, sin confirmar» si no se confirmó): un valor que dice un documento o un archivo que NO
+          es la plantilla oficial (el Excel de un proveedor, un contrato, un PDF), AUNQUE la columna se llame «meta», «benchmark» u
+          «objetivo». Nunca «declarado por la empresa» mientras no se confirme; y lo pendiente NO se usa (igual que en el bloque 3):
+          no llega a `POLICY` (`valorUsableDelPerfil`; el perfil anota el rastro en `perfil.procedenciaDeLlaves`).
+        · La frontera de archivos: «viene de un archivo» NUNCA se convierte automáticamente en «declarado por la empresa».
+        · Sin declaración y sin documento: «criterio general de ADI, ajustable por la empresa».
+    (c) LA SIMULACIÓN. El supuesto de una simulación sale del encargo, no de una declaración de la empresa: «Simulación declarada por
+        la empresa» pasa a «Simulación planteada en la consulta» (la etiqueta de consulta de siempre, en femenino; el rótulo corto de
+        la columna en «breve», «Declarada», pasa a «Planteada»). No hay una taxonomía nueva de supuestos.
+    (d) EL PLAZO DE COBRO DECLARADO, opción A: visible en «Lo declarado» con su procedencia y citado por la pregunta abierta de
+        cobranza de esa cuenta («¿plazo pactado o atraso real?»), SIN modificar ningún cálculo (las cifras, la respuesta y el Marco
+        de la Entrega son los de antes de declararlo). Si en el futuro se mide el atraso contra el plazo pactado, será una MÉTRICA
+        EXPLÍCITA nueva, con su contrato; no se construye aquí.
+    (e) DOS PRINCIPIOS.
+        · Un declarado y un medido SE COMPARAN solo si ADI puede demostrar mismo concepto, misma unidad y, si es dinero, misma moneda
+          y misma escala; si no, se muestran por separado, sin restar (`loDeclarado.js:comparabilidad`). La prohibición fija «el
+          dinero declarado no se compara» se reemplazó por esta función; con el dato de hoy el resultado es el mismo (lo declarado
+          no trae moneda ni escala), y respeta «símbolo declarado sí, escala JAMÁS»: la escala no se infiere.
+        · NO es regla universal «nunca calcular con declarados»: un declarado participa en un cálculo solo si el contrato de ESA
+          métrica lo permite explícitamente (`metricRegistry.js:admiteDeclarado`, por defecto falso), con su procedencia y sin
+          sustituir silenciosamente un medido (`loDeclarado.js:insumoDeCalculo`). Hoy ninguna métrica lo permite.
+    (f) ABIERTO (a decisión; no se tocó por ser vocabulario de la casa o texto de instrucción): los nombres «benchmark de la
+        empresa», «techo de cobertura de la empresa», «nivel declarado de carga» y «piso de rotación declarado» (léxico y conjuntos
+        del Notario) siguen diciendo «de la empresa»/«declarado» aunque la referencia oficial sea el criterio general de ADI; y
+        la cabecera de uso de `consultar` (`CABECERA_DE_USO`) dice «el benchmark es el que declaró la empresa».
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

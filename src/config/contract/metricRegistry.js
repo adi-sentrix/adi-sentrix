@@ -198,3 +198,13 @@ export const METRICS = {
     },
   },
 };
+
+/* ── UN DECLARADO ENTRA A UN CÁLCULO SOLO SI EL CONTRATO DE ESA MÉTRICA LO PERMITE (owner 2026-10-03, decisión §7.3·58) ──────────────────────────────────────────────────
+ * NO es una regla universal «nunca calcular con declarados»: un valor que la empresa declaró participa en el cálculo de una métrica únicamente si el contrato de ESA métrica lo admite de forma
+ * explícita, con el campo `admiteDeclarado: true` en su entrada de METRICS. POR DEFECTO ES FALSO (un campo ausente es falso): hoy ninguna métrica lo admite, así que ningún cálculo cambia. Y aun
+ * cuando una métrica lo admita, el declarado entra con su procedencia a la vista y NUNCA sustituye en silencio a un medido (`capacidad/loDeclarado.js:insumoDeCalculo`). */
+/** admiteDeclarado(clave) → ¿el contrato de la métrica admite un declarado como insumo de su cálculo? (false si la clave no es una métrica del contrato) */
+export function admiteDeclarado(clave) {
+  const m = Object.prototype.hasOwnProperty.call(METRICS, clave) ? METRICS[clave] : null;
+  return !!m && m.admiteDeclarado === true;
+}

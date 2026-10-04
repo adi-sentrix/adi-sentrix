@@ -18,7 +18,7 @@
  * dados. Sin red, sin estado global nuevo. Detrás de la bandera `ADI_ENTREGA` (APAGADA en todos los perfiles):
  * este módulo no se importa desde ningún camino de producción todavía — lo ejercita solo el gate. */
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
-import { benchmarkOf, ETIQUETA_ORIGEN, umbral, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, NOMBRE_DE_UMBRAL, valorDeUmbralEnTexto, procedenciaDeMaterialidad } from "../../config/businessPolicy.js";
+import { benchmarkOf, ETIQUETA_ORIGEN, umbral, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, NOMBRE_DE_UMBRAL, valorDeUmbralEnTexto, procedenciaDeMaterialidad, procedenciaDeSupuesto, etiquetaDeProcedencia } from "../../config/businessPolicy.js";
 import { umbralesDeBases, umbralesDeConceptos, NOMBRE_CARGA_ALTA, referenciaDeBase, formaDeConjunto, conjuntoDeFormaEnEje } from "../notario/conjuntosDeLaCasa.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
 import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
@@ -3163,8 +3163,9 @@ function _supuestoCorto(fraseCompleta) {
   const unidad = /^punto/i.test(m[4]) ? "pp" : m[4] === "%" ? "%" : ` ${m[4]}`;
   return `${concepto} ${signo}${m[3]}${unidad}`;
 }
-// «Declarada» (concuerda con «la simulación», femenino) — antes «Declarado» (concordaba con «el escenario»).
-const _ROTULO_CORTO_COLUMNA = { "Simulación": () => "Declarada", Supuesto: (v) => _supuestoCorto(v) };
+// «Planteada» (concuerda con «la simulación», femenino) — antes «Declarada» (y antes «Declarado»): el rótulo corto de la columna es la primera palabra de su frase completa («Simulación planteada en la consulta»,
+// de la tabla única de orígenes, §7.3·58): una simulación la plantea quien consulta, no la declara la empresa.
+const _ROTULO_CORTO_COLUMNA = { "Simulación": () => _capitaliza(String(etiquetaDeProcedencia(procedenciaDeSupuesto(), { genero: "f" })).split(" ")[0]), Supuesto: (v) => _supuestoCorto(v) };
 function _conPrioridadDeConclusion(entrega) {
   if (!Array.isArray(entrega.respuesta) || !entrega.respuesta.length) return entrega;
   let cambio = false;
@@ -4223,7 +4224,9 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         // futuro con variantes múltiples los separaría sin cambiar esta forma. El rótulo es SIEMPRE el concepto
         // de negocio (`plan.fraseSupuesto`) — nunca «custom».
         // CORTE 3e (owner 2026-09-26) — «declarada por usted» → «declarada por la empresa» (tercera persona).
-        const simulacionTxt = `Simulación declarada por la empresa`;
+        // ETAPA 2 · BLOQUE 3 (owner 2026-10-03, decisión §7.3·58) — esa frase era FALSA: el supuesto de una simulación sale del encargo (lo planteó quien consulta), no de una declaración de la empresa.
+        // El origen sale de la función única (`procedenciaDeSupuesto`: planteado en la consulta) y la frase de la tabla única, en femenino por «simulación»; nunca escrita a mano.
+        const simulacionTxt = `Simulación ${etiquetaDeProcedencia(procedenciaDeSupuesto(), { genero: "f" })}`;
         const supuestoTxt = _capitaliza(plan.fraseSupuesto);
         const _valorSupuesto = plan.supuesto.unidad === "money" ? formatoDeLaCasa(Math.abs(plan.supuesto.valor), "money") : `${Math.abs(plan.supuesto.valor)}${plan.supuesto.unidad === "pct" ? "%" : plan.supuesto.unidad === "pp" ? " puntos" : ` ${plan.supuesto.unidad}`}`;
         cifrasImpresas.push(_valorSupuesto);
