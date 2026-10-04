@@ -306,7 +306,7 @@ console.log("=".repeat(100));
 {
   const SIN_CONFIRMAR = { conAlarmas: true, confirmadoPorElUsuario: false, tipos: ["a", "b"], observaciones: [], nota: "hay 2 observaciones sin resolver sobre este archivo" };
   const { cli, log } = doble({ versionActiva: [{ sello: SIN_CONFIRMAR }] });
-  const r = await activarVersion({ tenantId: "acme", versionId: "v-1", env: ENV_CON_BASE, cliente: cli });
+  const r = await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", versionId: "v-1", env: ENV_CON_BASE, cliente: cli });
   ok(r.activada, "activa la versión", r.motivo);
   ok(r.version === 3, `y devuelve qué versión quedó activa: ${r.version}`);
 
@@ -323,15 +323,41 @@ console.log("=".repeat(100));
   ok(leyo && leyo.filtros.id === "eq.v-1", "lee el sello guardado antes de confirmarlo, en vez de aceptar el que le pasen");
 
   ok(!(await activarVersion({ versionId: "v-1", env: ENV_CON_BASE, cliente: doble().cli })).activada, "sin empresa no activa");
-  ok(!(await activarVersion({ tenantId: "acme", env: ENV_CON_BASE, cliente: doble().cli })).activada, "sin versión no activa");
-  ok(!(await activarVersion({ tenantId: "acme", versionId: "v-1", env: {} })).activada, "sin base no activa");
+  ok(!(await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", env: ENV_CON_BASE, cliente: doble().cli })).activada, "sin versión no activa");
+  ok(!(await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", versionId: "v-1", env: {} })).activada, "sin base no activa");
 
-  const ajena = await activarVersion({ tenantId: "acme", versionId: "de-otra", env: ENV_CON_BASE, cliente: doble().cli });
+  const ajena = await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", versionId: "de-otra", env: ENV_CON_BASE, cliente: doble().cli });
   ok(!ajena.activada && /no existe para esta empresa/.test(ajena.motivo),
     `⚠️ una versión que el pase no alcanza no se activa: «${ajena.motivo}» — RLS la hace invisible, no hace falta compararla a mano`);
 
+  /* ⚠️ NINGÚN DATO SE ACTIVA SIN ESCALA Y MONEDA DECLARADAS (owner 2026-10-04 · P1). La escala se exige ANTES de tocar la base:
+   * ni lectura, ni escritura, ni llamada a la función de activar. La moneda es la que dio la empresa o, si no, la que la hoja
+   * Empresa del archivo trae explícita: se mira al leer la versión, y sin ninguna de las dos no se escribe nada. El detalle
+   * fino —«miles» multiplica, los dos caminos, la carnada— vive en `_escala_declarada_gate`; acá queda el candado de que
+   * la puerta existe en el camino de persistencia. */
+  {
+    const { cli: c0, log: l0 } = doble({ versionActiva: [{ sello: SIN_CONFIRMAR }] });
+    const sinEscala = await activarVersion({ tenantId: "acme", versionId: "v-1", moneda: "CLP", env: ENV_CON_BASE, cliente: c0 });
+    ok(!sinEscala.activada && sinEscala.sinEscala === true && /escala/.test(sinEscala.motivo),
+      `⚠️ sin escala declarada no se activa: «${sinEscala.motivo}»`);
+    ok(l0.length === 0, "…y se rechaza ANTES de tocar la base: ni una lectura, ni una escritura");
+    const rara = await activarVersion({ tenantId: "acme", versionId: "v-1", moneda: "CLP", escala: "millones", env: ENV_CON_BASE, cliente: doble().cli });
+    ok(!rara.activada && rara.sinEscala === true, "una escala que no es «unidades» ni «miles» tampoco vale: no se interpreta");
+
+    /* moneda: ni la dio la empresa ni la trae el archivo → no se activa y no se escribe nada */
+    const dm = doble({ versionActiva: [{ sello: SIN_CONFIRMAR, pack: { perfil: {} } }] });
+    const sinMoneda = await activarVersion({ tenantId: "acme", versionId: "v-1", escala: "unidades", env: ENV_CON_BASE, cliente: dm.cli });
+    ok(!sinMoneda.activada && sinMoneda.sinMoneda === true && /moneda/.test(sinMoneda.motivo), `…ni sin moneda de ninguna fuente: «${sinMoneda.motivo}»`);
+    ok(!dm.log.some((x) => ["insertar", "actualizar", "llamarFuncion"].includes(x.op)), "…y sin escribir una sola fila");
+    /* la hoja Empresa la trae → se usa, sin preguntar, y la fuente queda registrada */
+    const da = doble({ versionActiva: [{ sello: SIN_CONFIRMAR, pack: { perfil: { moneda: "CLP" } } }] });
+    const delArchivo = await activarVersion({ tenantId: "acme", versionId: "v-1", escala: "unidades", env: ENV_CON_BASE, cliente: da.cli });
+    ok(delArchivo.activada && delArchivo.escala && delArchivo.escala.fuente.moneda === "archivo" && delArchivo.escala.fuente.escala === "pantalla",
+      "con la moneda en la hoja Empresa se activa sin que la empresa la repita, y queda registrada: moneda «archivo» · escala «pantalla»");
+  }
+
   const rota = doble({ versionActiva: [{ sello: SIN_CONFIRMAR }], falla: { llamarFuncion: "adi_activar_version" } });
-  const r2 = await activarVersion({ tenantId: "acme", versionId: "v-1", env: ENV_CON_BASE, cliente: rota.cli });
+  const r2 = await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", versionId: "v-1", env: ENV_CON_BASE, cliente: rota.cli });
   ok(!r2.activada && /no se pudo activar/.test(r2.motivo), `si la base rechaza, se informa: «${r2.motivo}»`);
 }
 
@@ -363,11 +389,15 @@ console.log("\n" + "=".repeat(100));
 console.log("13 · ACTIVAR POR EL ENDPOINT · la mitad que le toca a la pantalla");
 console.log("=".repeat(100));
 {
-  const sinSesion = await handleIngesta({ op: "activar", versionId: "v-1" }, { ADI_TOKEN_SECRET: SECRETO_PUERTA });
+  const sinSesion = await handleIngesta({ op: "activar", versionId: "v-1", moneda: "CLP", escala: "unidades" }, { ADI_TOKEN_SECRET: SECRETO_PUERTA });
   ok(!sinSesion.ok && /sin sesión/.test(sinSesion.motivo), `sin código no se activa: «${sinSesion.motivo}»`);
 
   const { code } = await makeAccessCode("prueba", 72, SECRETO_PUERTA, Date.now(), "acme");
-  const sinBase = await handleIngesta({ op: "activar", versionId: "v-1", access: code }, { ADI_TOKEN_SECRET: SECRETO_PUERTA });
+  /* sin escala: el endpoint tampoco activa, aunque el código sea válido (P1) */
+  const sinEscalaEp = await handleIngesta({ op: "activar", versionId: "v-1", moneda: "CLP", access: code }, { ADI_TOKEN_SECRET: SECRETO_PUERTA });
+  ok(!sinEscalaEp.ok && sinEscalaEp.sinEscala === true && /escala/.test(sinEscalaEp.motivo),
+    `⚠️ con código válido pero SIN escala el endpoint no activa: «${sinEscalaEp.motivo}»`);
+  const sinBase = await handleIngesta({ op: "activar", versionId: "v-1", moneda: "CLP", escala: "unidades", access: code }, { ADI_TOKEN_SECRET: SECRETO_PUERTA });
   ok(!sinBase.ok && /no configurada/.test(sinBase.motivo),
     `⚠️ con código válido se llega hasta el intento: «${sinBase.motivo}»`);
 

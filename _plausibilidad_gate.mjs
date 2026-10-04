@@ -12,7 +12,7 @@
  * llenó el owner: si su planilla legítima disparara una alarma, la función estaría mal.
  *
  * OFFLINE · módulos puros · no puede gastar. */
-import { leerPlausibilidad, textoDeApertura, selloDeLaLectura, PROPORCION_SOSPECHOSA, MASA_MINIMA } from "./src/ingesta/plausibilidad.js";
+import { leerPlausibilidad, textoDeApertura, selloDeLaLectura, DOMINIOS_POR_ALARMA, PROPORCION_SOSPECHOSA, MASA_MINIMA } from "./src/ingesta/plausibilidad.js";
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detalle) => {
@@ -134,6 +134,24 @@ console.log("=".repeat(100));
   ok(antes.confirmadoPorElUsuario === false && despues.confirmadoPorElUsuario === true, "…y distingue si el usuario ya decidió seguir");
   ok(/confirmaste/.test(despues.nota), `la nota que acompaña a las cifras lo dice: «${despues.nota}»`);
   ok(selloDeLaLectura(leerPlausibilidad(SANO, { umbrales: U }), {}) === null, "sin alarmas no hay sello: nada que arrastrar");
+}
+
+console.log("\n" + "=".repeat(100));
+console.log("5 · LA LECTURA NO PUEDE VER LA ESCALA · por eso la escala se DECLARA (owner 2026-10-04 · P1)");
+console.log("=".repeat(100));
+/* La sonda que originó P1: el mismo negocio escrito en miles carga SIN UNA SOLA ALARMA. No es un descuido de esta
+ * lectura: sus señales miden proporciones (costo contra venta, días, filas por período) y ninguna proporción cambia
+ * cuando todos los montos se multiplican por mil. Intentar adivinar la escala desde acá sería inferirla del rango de los
+ * valores — la lección de miles-contra-dólares — así que el remedio no es otra alarma: es preguntarla y registrarla. */
+{
+  const escalado = (f) => ({ ...SANO, skusMargen: SANO.skusMargen.map((s) => ({ ...s, venta: s.venta * f, costo: s.costo * f })) });
+  const base = tipos(leerPlausibilidad(SANO, { umbrales: U }));
+  const enMiles = tipos(leerPlausibilidad(escalado(1 / 1000), { umbrales: U }));
+  const enMillones = tipos(leerPlausibilidad(escalado(1000), { umbrales: U }));
+  ok(JSON.stringify(base) === JSON.stringify(enMiles) && JSON.stringify(base) === JSON.stringify(enMillones),
+    "el mismo negocio con los montos ÷1000 o ×1000 recibe EXACTAMENTE la misma lectura: ninguna señal ve la escala");
+  ok(!/escala|miles/i.test(JSON.stringify(DOMINIOS_POR_ALARMA)),
+    "y ninguna alarma de plausibilidad habla de escala ni de miles: la escala no se infiere acá, se declara en la pantalla de carga");
 }
 
 console.log(`\n── _plausibilidad_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

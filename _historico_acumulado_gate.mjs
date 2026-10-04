@@ -138,7 +138,7 @@ H("1 · enero-marzo entra y el alcance lo dice");
 const p1 = await subir(cli, "acme", A1, "a1.xlsx");
 {
   ok(p1.guardado === true, "la carga se guardó (versión inactiva)");
-  const act = await activarVersion({ tenantId: "acme", versionId: p1.versionId, env: ENV, cliente: cli });
+  const act = await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", versionId: p1.versionId, env: ENV, cliente: cli });
   ok(act.activada === true, "y se activó", act.motivo);
   ok(!!act.alcance && act.alcance.texto === "Ahora tengo datos desde enero hasta marzo 2026.",
     "el alcance declara enero-marzo, con las palabras de la casa", act.alcance && act.alcance.texto);
@@ -157,7 +157,7 @@ const p2 = await subir(cli, "acme", A2, "a2.xlsx");
     "y lo dice con la frase del owner: qué había, qué trae, qué queda", d.texto);
   ok(d.pideDecision === false, "sin repetidos no hay nada que preguntar");
 
-  const act = await activarVersion({ tenantId: "acme", versionId: p2.versionId, env: ENV, cliente: cli });
+  const act = await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", versionId: p2.versionId, env: ENV, cliente: cli });
   ok(act.activada === true, "activar fusiona sin preguntar", act.motivo);
   ok(act.alcance.texto === "Ahora tengo datos desde enero hasta junio 2026.",
     "★ paso 3 del owner: el alcance dice enero-junio", act.alcance.texto);
@@ -196,7 +196,7 @@ const p3 = await subir(cli, "acme", A3, "a3.xlsx");
   ok(d.pideDecision === true && d.repetidos.join(",") === "2026-05", "el diff marca mayo como repetido y pide decisión");
   ok(/¿Quieres reemplazar ese mes, o prefieres cancelar\?/.test(d.texto), "con la pregunta del owner, textual", d.texto);
 
-  const sinDecision = await activarVersion({ tenantId: "acme", versionId: p3.versionId, env: ENV, cliente: cli });
+  const sinDecision = await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", versionId: p3.versionId, env: ENV, cliente: cli });
   ok(sinDecision.activada === false, "★ activar SIN decisión se RECHAZA — nunca suma silenciosa");
   ok(/mayo 2026 ya existe/.test(sinDecision.motivo) && /No se activó nada/.test(sinDecision.motivo),
     "y el motivo lo dice con todas las letras", sinDecision.motivo);
@@ -205,7 +205,7 @@ const p3 = await subir(cli, "acme", A3, "a3.xlsx");
     "la historia activa quedó como estaba: cancelar es cancelar");
 
   /* La decisión sobre mayo viene dada; lo que se prueba es el mes FANTASMA de más en la lista. */
-  const fantasma = await activarVersion({ tenantId: "acme", versionId: p3.versionId, env: ENV, cliente: cli, reemplazar: ["2026-05", "2026-07"] });
+  const fantasma = await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", versionId: p3.versionId, env: ENV, cliente: cli, reemplazar: ["2026-05", "2026-07"] });
   ok(fantasma.activada === false && /no trae ese per[ií]odo/.test(fantasma.motivo),
     "pedir reemplazar un mes que el archivo no trae también se rechaza", fantasma.motivo);
   ok((await historiaActiva({ tenantId: "acme", env: ENV, cliente: cli })).periodos.length === 6,
@@ -215,7 +215,7 @@ const p3 = await subir(cli, "acme", A3, "a3.xlsx");
 /* ═══ 5 · REEMPLAZO CONFIRMADO: MAYO NO SE DUPLICA ════════════════════════════════════════════════════════════ */
 H("5 · con la decisión explícita, mayo se REEMPLAZA — ni se suma ni se pierde el resto");
 {
-  const act = await activarVersion({ tenantId: "acme", versionId: p3.versionId, env: ENV, cliente: cli, reemplazar: ["2026-05"] });
+  const act = await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", versionId: p3.versionId, env: ENV, cliente: cli, reemplazar: ["2026-05"] });
   ok(act.activada === true, "activar con reemplazar:[mayo] pasa", act.motivo);
   const pk = act.pack;
   const mayo = pk.hechos.Ventas.filter((v) => v.periodo === "2026-05");
@@ -230,10 +230,10 @@ H("5 · con la decisión explícita, mayo se REEMPLAZA — ni se suma ni se pier
     "el período de la Mesa SIGUE siendo junio: re-subir un mes viejo no retrocede el negocio", JSON.stringify(nortania && nortania.actual));
 
   /* LA REVERSIÓN: cada activación es una versión completa; volver a la anterior restaura TAL CUAL, sin fusión */
-  const vuelta = await activarVersion({ tenantId: "acme", versionId: p2.versionId, env: ENV, cliente: cli });
+  const vuelta = await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", versionId: p2.versionId, env: ENV, cliente: cli });
   ok(vuelta.activada === true && vuelta.pack.hechos.Ventas.find((v) => v.periodo === "2026-05").venta === 4500,
     "reactivar la versión anterior devuelve el mayo original — reversible de verdad, sin pedir permiso mes a mes");
-  const otraVez = await activarVersion({ tenantId: "acme", versionId: p3.versionId, env: ENV, cliente: cli });
+  const otraVez = await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", versionId: p3.versionId, env: ENV, cliente: cli });
   ok(otraVez.activada === true && otraVez.pack.hechos.Ventas.find((v) => v.periodo === "2026-05").venta === MAYO_CORREGIDO,
     "y volver a la corregida también es un solo acto: su pack ya es historia completa");
 }
@@ -243,7 +243,7 @@ H("6 · empresa B: mismos nombres de cliente y SKU, historia propia");
 {
   const antesA = JSON.stringify(T.fact_pack_versions.filter((f) => f.tenant_id === "acme"));
   const pB = await subir(cli, "brisas", B1, "b1.xlsx");
-  const actB = await activarVersion({ tenantId: "brisas", versionId: pB.versionId, env: ENV, cliente: cli });
+  const actB = await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "brisas", versionId: pB.versionId, env: ENV, cliente: cli });
   ok(actB.activada === true, "B sube y activa su propio archivo", actB.motivo);
   ok(actB.alcance.texto === "Ahora tengo datos de febrero 2026.", "el alcance de B es SU mes, no los seis de A", actB.alcance.texto);
   const nB = actB.pack.clientesVentas.find((c) => c.nombre === "Nortania");
@@ -338,9 +338,9 @@ H("8 · CARNADA · el candado se prueba con el defecto puesto");
     async (Mut) => {
       const { cli: c2 } = dobleDeBase();
       const pa = await subir(c2, "acme", A1, "a1.xlsx");
-      await Mut.activarVersion({ tenantId: "acme", versionId: pa.versionId, env: ENV, cliente: c2 });
+      await Mut.activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", versionId: pa.versionId, env: ENV, cliente: c2 });
       const pm = await subir(c2, "acme", A3, "a3.xlsx");
-      const r = await Mut.activarVersion({ tenantId: "acme", versionId: pm.versionId, env: ENV, cliente: c2 });
+      const r = await Mut.activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", versionId: pm.versionId, env: ENV, cliente: c2 });
       return r.activada === true;   // el defecto: activó sin decisión — el paso 4 exige activada:false
     });
 
@@ -356,10 +356,10 @@ H("8 · CARNADA · el candado se prueba con el defecto puesto");
       },
     };
     const pa = await subir(c3, "acme", A1, "a1.xlsx");
-    await activarVersion({ tenantId: "acme", versionId: pa.versionId, env: ENV, cliente: c3 });
+    await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "acme", versionId: pa.versionId, env: ENV, cliente: c3 });
     const antesA = JSON.stringify(T3.fact_pack_versions.filter((f) => f.tenant_id === "acme"));
     const pb = await subir(c3, "brisas", B1, "b1.xlsx");
-    await activarVersion({ tenantId: "brisas", versionId: pb.versionId, env: ENV, cliente: sinRls });
+    await activarVersion({ escala: "unidades", moneda: "CLP", tenantId: "brisas", versionId: pb.versionId, env: ENV, cliente: sinRls });
     const cambio = JSON.stringify(T3.fact_pack_versions.filter((f) => f.tenant_id === "acme")) !== antesA;
     ok(cambio, "carnada «B escribe sin muro» → la afirmación «A intacta» se pone ROJA",
       cambio ? undefined : "el chequeo de aislamiento no distingue un muro caído");
