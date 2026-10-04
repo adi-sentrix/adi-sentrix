@@ -18,6 +18,22 @@
  * (ley del owner, textual, corte 5 de `_ADI_DISENO_FLUJO_V2.md` §F): una Entrega recortada queda como esqueleto
  * `{n, temas, versionId, recortada:true}`, sin sus hechos ni universos.
  *
+ * ═══ ETAPA 2, BLOQUE 4 · LO QUE EL LIBRO CONSERVA PARA REVALIDAR (owner 2026-10-04, decisión §7.3·59) ═══════════════════════
+ * Retomar una conversación días después con datos recargados exige poder VOLVER A HACERLE AL CORE la misma pregunta y comparar cifra por cifra
+ * (`revalidar.js`). Para eso cada Entrega guarda, ADEMÁS de lo de siempre (todo ADITIVO: lo guardado antes se sigue leyendo; no se migra nada):
+ *   · por Entrega: `encargo` (el Encargo v1 recibido, sin `conversacionId`, sin `contexto` y sin `preguntaOriginal`: este libro «NO guarda ni una frase»),
+ *     `referencias` (con qué criterios y referencia declarada se calculó), `moneda` y `revalidable: true` — la marca de que esa Entrega SÍ conservó
+ *     el valor exacto y la pregunta (una sin ella es de antes de este bloque: se declara, no se adivina);
+ *   · por hecho, UN campo aparte `rv` (los de siempre —`origen` guarda la PROCEDENCIA de la fila y no se renombra, `unidad` y `periodo` siguen en `null`— quedan
+ *     intactos, y citar una respuesta anterior, `resolverContexto`, no lo muestra: no es lo que la Entrega dijo): `raw` (el valor exacto), `unidad`, `clave` (la clave
+ *     canónica de la métrica), `dueno`, `titular` (de quién es el dato: medido · declarado · documento · supuesto), `procedencia` (cómo se obtuvo), `tipo` (de hecho),
+ *     `prioridad` (la de su fila de Cifras: con ella se elige qué nombra la línea de continuidad) y `deSupuesto`;
+ *   · por libro: `empresaId` (la empresa que lo creó — además de la llave del almacén, un libro de otra empresa se rechaza por su propio dato).
+ * `retomar` NO escribe el libro: el pasado no se reescribe.
+ * EL TOPE SE MIDIÓ Y SIGUE EN 16 KB: lo nuevo agrega ~145 bytes por hecho (`rv`) y ~0,25 KB por Entrega (el Encargo y las referencias): un hilo de cuatro Entregas con 27 hechos pasó de 6,5 KB a 11,8 KB (+80 %), así que un hilo largo esqueletiza antes
+ * sus Entregas más viejas —se declaran «recortada» y no se revalidan—. Subir el tope no es un cambio de constante: la base lo exige (migración 015: `check pg_column_size(estado) <= 16384`
+ * y la guarda de `adi_guardar_estado_conversacion`), y las migraciones se tocan con una migración nueva, a decisión del owner. Por eso `rv` va compacto (`titular:"medido"` y `tipo:"ref"` no se escriben).
+ *
  * Puro: sin I/O — el CALLER decide cuándo leer/guardar con el almacén (`almacen.js`); estas funciones solo
  * transforman el objeto `Libro` (que siempre se trata como inmutable: cada función devuelve uno nuevo). */
 
@@ -48,11 +64,12 @@ export function emitirConversacionId() {
   return `conv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** libroNuevo({conversacionId?, versionId?}) → Libro · si no viene `conversacionId`, se emite uno. */
-export function libroNuevo({ conversacionId = null, versionId = null } = {}) {
+/** libroNuevo({conversacionId?, versionId?, empresaId?}) → Libro · si no viene `conversacionId`, se emite uno. `empresaId` (bloque 4): la empresa que lo abre; sin él, el libro es el de siempre. */
+export function libroNuevo({ conversacionId = null, versionId = null, empresaId = null } = {}) {
   return {
     version: VERSION_LIBRO,
     origen: ORIGEN_LIBRO,
+    ...(empresaId ? { empresaId } : {}),
     conversacionId: conversacionId || emitirConversacionId(),
     versionIdInicial: versionId || null,
     turno: 0,
@@ -114,8 +131,9 @@ export function recortarATope(libro) {
 
 /** registrarEntrega(libro, entrada) → Libro · avanza el turno, asigna ids `E<n>.h<k>`/`E<n>.u<k>` estables,
  * declara el cambio de versión si lo hay (§B: «los ids anteriores quedan con su versión») y aplica el tope.
- * entrada = { versionId, temas?, entidades?, cierre?, hechos?: [{sujeto,metrica,valor,unidad,periodo,universoId?,origen?}], universos?: [...],
- *             entregadaEn?, periodo? }
+ * entrada = { versionId, temas?, entidades?, cierre?, hechos?: [{sujeto,metrica,valor,unidad,periodo,universoId?,origen?, rv?: {raw,unidad,clave,dueno,titular,procedencia,tipo,prioridad,deSupuesto?}}], universos?: [...],
+ *             entregadaEn?, periodo?, revalidable?, encargo?, referencias?, moneda? }
+ * `revalidable: true` (bloque 4) viene CON `encargo`, `referencias` y `moneda`: sin esa marca la Entrega se guarda como siempre y retomar la declara «anterior a la revalidación».
  * `entregadaEn` (cuándo se entregó, ISO — lo pone quien llama con SU reloj: esta función no lee la hora) y `periodo`
  * (el período de los datos que la Entrega declara en su Marco) quedan con la Entrega: «lo entregado se conserva tal
  * cual» incluye CUÁNDO y SOBRE QUÉ CARGA se entregó, para que un retomar posterior pueda mostrarlo sin recalcular. */
@@ -130,6 +148,7 @@ export function registrarEntrega(libro, entrada = {}) {
     entidades: Array.isArray(entrada.entidades) ? entrada.entidades.slice() : [],
     cierre: entrada.cierre || null, hechos, universos, recortada: false,
     entregadaEn: entrada.entregadaEn || null, periodo: entrada.periodo || null,
+    ...(entrada.revalidable === true ? { revalidable: true, encargo: entrada.encargo || null, referencias: entrada.referencias || null, moneda: entrada.moneda || null } : {}),
   };
   const L = {
     ...libro, turno,
@@ -191,6 +210,8 @@ export function limpiarOfertasEnPie(libro) {
  * Un id que no resuelve vuelve con su MOTIVO en palabras de negocio, para que quien consulta sepa qué pasó (no «no disponible» a secas).
  * Puro: sin I/O, sin red. El formato del id lo valida `encargo/validar.js` antes de llamar (un id mal formado no llega acá). */
 const _ID_DE_CONTEXTO = /^E(\d+)(?:\.([hu])(\d+))?$/;
+/* un hecho CITADO se trae como se entregó: lo que el libro conserva APARTE para revalidar (`rv`, bloque 4) no es parte de lo que la Entrega dijo, y citar una respuesta anterior no cambia por ello */
+const _comoSeEntrego = (h) => { const { rv, ...comoSeDijo } = h || {}; return comoSeDijo; };
 const _cabeceraDeEntrega = (e) => ({ n: e.n, versionId: e.versionId || null, entregadaEn: e.entregadaEn || null, periodo: e.periodo || null, temas: Array.isArray(e.temas) ? e.temas.slice() : [], entidades: Array.isArray(e.entidades) ? e.entidades.slice() : [], cierre: e.cierre || null, recortada: Boolean(e.recortada) });
 
 /** resolverContexto(libro, id) → { ok:true, tipo:"entrega"|"hecho"|"universo", id, entrega, hecho?, universo? } | { ok:false, id, detalle } */
@@ -208,14 +229,14 @@ export function resolverContexto(libro, id) {
     return { ok: false, id, detalle: `la conversación tiene ${primera === ultima ? `la Entrega E${primera}` : `las Entregas E${primera} a E${ultima}`}: ${id} no existe` };
   }
   const entrega = _cabeceraDeEntrega(e);
-  if (!m[2]) return { ok: true, tipo: "entrega", id, entrega, hechos: (Array.isArray(e.hechos) ? e.hechos : []).map((h) => ({ ...h })), universos: (Array.isArray(e.universos) ? e.universos : []).map((u) => ({ ...u })) };
+  if (!m[2]) return { ok: true, tipo: "entrega", id, entrega, hechos: (Array.isArray(e.hechos) ? e.hechos : []).map(_comoSeEntrego), universos: (Array.isArray(e.universos) ? e.universos : []).map((u) => ({ ...u })) };
   if (e.recortada) return { ok: false, id, detalle: `la Entrega E${n} se recortó por tamaño: ya no conserva sus ${m[2] === "h" ? "hechos" : "universos"}` };
   const lista = (m[2] === "h" ? e.hechos : e.universos) || [];
   /* un HECHO se cita por su id (`registrarEntrega` siempre lo emite como `E<n>.h<k>`). Un UNIVERSO se cita por su POSICIÓN (`E<n>.u<k>` = el k-ésimo universo de esa Entrega): el libro conserva el id
    * con que el compositor lo nombró (`p1`, `p1_Lider`), que no es el que se cita; si la lista trae justo ese id, también resuelve. */
   const hallado = m[2] === "h" ? lista.find((x) => x && x.id === id) : (lista[Number(m[3]) - 1] || lista.find((x) => x && x.id === id));
   if (!hallado) return { ok: false, id, detalle: `la Entrega E${n} ${lista.length ? `tiene ${m[2] === "h" ? `los hechos ${lista[0].id} a ${lista[lista.length - 1].id}` : `${lista.length} universo${lista.length === 1 ? "" : "s"} (E${n}.u1${lista.length > 1 ? ` a E${n}.u${lista.length}` : ""})`}` : `no tiene ${m[2] === "h" ? "hechos" : "universos"}`}: ${id} no existe` };
-  return m[2] === "h" ? { ok: true, tipo: "hecho", id, entrega, hecho: { ...hallado } } : { ok: true, tipo: "universo", id, entrega, universo: { ...hallado } };
+  return m[2] === "h" ? { ok: true, tipo: "hecho", id, entrega, hecho: _comoSeEntrego(hallado) } : { ok: true, tipo: "universo", id, entrega, universo: { ...hallado } };
 }
 
 /** registrarHechoAportado(libro, hechoEmpresaId) → Libro · referencia (id) a un hecho de `memoria_empresa` que

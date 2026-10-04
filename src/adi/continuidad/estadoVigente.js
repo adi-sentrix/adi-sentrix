@@ -84,12 +84,24 @@ export function eventosDeContinuidad({
   premisasFalsas = [],                // [{id, texto}] — premisas de ESTE turno cuyo veredicto contradice lo entregado
   criterioCambio = null,              // {de, a} | null
   supuestosVivosRelevantes = [],      // [{id, texto}] — supuestos vivos que el encargo de ESTE turno usa
+  /* BLOQUE 4 (owner 2026-10-04) — RETOMAR REVALIDANDO. `cambiosDeCifras` = { nombrados:[{label, estado:"cambio"|"ya_no_existe", antes, ahora?}], adicionales } es lo que la línea dice de las cifras
+   * ya entregadas: UN solo evento `cifra_cambio` que nombra hasta 3 cambios (los elige `revalidar.js:elegirCambiosANombrar`, no este archivo) y dice cuántos más hay — nunca solo el conteo y nunca una
+   * lista que se alarga. `lenguajeDeNegocio` quita los ids de carga del evento de datos («1 → 2», «v3»): la persona oye «los datos», no una versión. Sin ninguno de los dos, el texto es el de siempre. */
+  cambiosDeCifras = null,
+  lenguajeDeNegocio = false,
 } = {}) {
   const eventos = [];
   if (cambioVersion) {
-    eventos.push({ tipo: "datos_cambiaron", texto: `los datos cambiaron desde la Entrega ${cambioVersion.desdeTurno}: ${cambioVersion.de} → ${cambioVersion.a}` });
+    eventos.push({ tipo: "datos_cambiaron", texto: lenguajeDeNegocio ? `los datos cambiaron desde la Entrega ${cambioVersion.desdeTurno}` : `los datos cambiaron desde la Entrega ${cambioVersion.desdeTurno}: ${cambioVersion.de} → ${cambioVersion.a}` });
   }
-  for (const c of Array.isArray(cifrasReverificadas) ? cifrasReverificadas : []) {
+  if (cambiosDeCifras && Array.isArray(cambiosDeCifras.nombrados) && cambiosDeCifras.nombrados.length) {
+    const dicho = cambiosDeCifras.nombrados.map((c) => (c.estado === "ya_no_existe"
+      ? `${c.label} (antes ${c.antes != null ? c.antes : "otro valor"}; ya no figura en los datos actuales)`
+      : `${c.label} (antes ${c.antes != null ? c.antes : "otro valor"}, ahora ${c.ahora != null ? c.ahora : "otro valor"})`));
+    const mas = Number.isFinite(cambiosDeCifras.adicionales) ? cambiosDeCifras.adicionales : 0;
+    eventos.push({ tipo: "cifra_cambio", texto: `de lo ya entregado, con los datos actuales cambiaron: ${dicho.join(", ")}${mas > 0 ? `, y ${mas} ${mas === 1 ? "cambio" : "cambios"} más; el detalle está disponible` : ""}` });
+  }
+  for (const c of cambiosDeCifras ? [] : (Array.isArray(cifrasReverificadas) ? cifrasReverificadas : [])) {
     if (c.estado === "cambio") eventos.push({ tipo: "cifra_cambio", texto: `${c.label || c.id} ya no vale lo mismo: ahora ${c.valorNuevo != null ? c.valorNuevo : "otro valor"}` });
     else if (c.estado === "ya_no_existe") eventos.push({ tipo: "cifra_cambio", texto: `${c.label || c.id} ya no está en los datos vigentes` });
   }

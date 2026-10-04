@@ -200,7 +200,7 @@ H("6 · aportarContexto/retomar contra la continuidad real — la forma del enga
   ok(r1.ok === true, "retomar recupera la conversación abierta por aportarContexto");
   ok(Array.isArray(r1.hechos) && r1.hechos.length === 0, "sin ninguna Entrega todavía (nunca se llamó consultar), retomar no inventa hechos entregados", JSON.stringify(r1.hechos));
   ok(Array.isArray(r1.estadoVigente.hechosAportados) && r1.estadoVigente.hechosAportados.length === 2, "el estado vigente sí referencia los DOS aportes de esta conversación (el vigente y el confirmado)", JSON.stringify(r1.estadoVigente.hechosAportados));
-  ok(Array.isArray(r1.advertencias) && r1.advertencias.length > 0, "retomar declara el límite de re-verificación (el índice de evidencia real vive en entrega/componer.js)", JSON.stringify(r1.advertencias));
+  ok(Array.isArray(r1.advertencias) && r1.advertencias.length > 0, "sin ninguna cifra entregada, retomar lo DECLARA («todavía no tiene cifras entregadas que revalidar») en vez de callar (la revalidación real, con cifras, la prueba _retomar_revalida_gate.mjs)", JSON.stringify(r1.advertencias));
 
   const rFalla = await retomar({ tenant: TENANT, conversacionId: "conversacion-que-no-existe" });
   ok(rFalla.ok === false, "retomar sobre un id inexistente se declara, no inventa un estado vacío con ok:true");

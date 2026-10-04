@@ -206,7 +206,7 @@ export const MCP_TOOLS = [
   },
   {
     name: "retomar",
-    description: "Recupera el estado de una conversación anterior con ADI por su conversacionId: lo ya aportado y el estado vigente. Úsela cuando el usuario retoma un hilo previo.",
+    description: "Recupera una conversación anterior con ADI por su conversacionId: el estado vigente y lo ya entregado, tal como se dijo, con cada cifra REVALIDADA contra los datos de hoy (igual · cambió, con la cifra de antes y la de ahora · ya no figura · no comparable · no se revalida · sin revalidar, con su motivo). Trae una sola línea de continuidad, solo si pasó algo (nombra hasta tres cambios y cuántos más hay); el detalle de cada cifra viene tipado. No modifica la conversación. Úsela cuando el usuario retoma un hilo previo.",
     inputSchema: {
       type: "object",
       properties: { conversacionId: { type: "string" } },

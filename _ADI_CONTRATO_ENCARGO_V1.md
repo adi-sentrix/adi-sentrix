@@ -922,6 +922,56 @@ venta a crédito, ley del owner).
         léxico: cambiarlo cambia la boleta y el casado del Notario) y el glosario de Sentrix («la referencia que la empresa
         declaró para este análisis», fuera de alcance) siguen diciendo «declarado» con una empresa que no lo declaró.
 
+59. [2026-10-04, owner; Etapa 2 · bloque 4, retomar revalidando] RETOMAR UNA CONVERSACIÓN REVALIDANDO SUS CIFRAS.
+    El defecto (verificado): la acción `retomar` existía con el verificador en `null` —todo hecho volvía `sin_reverificar`— y el libro
+    guardaba solo el TEXTO impreso de cada cifra, sin su valor exacto ni la pregunta con que se entregó: sin crudo no hay comparación
+    honesta. Con datos recargados días después, la persona no podía saber qué de lo ya entregado seguía valiendo.
+    (a) EL MECANISMO. Revalidar = volver a hacerle al Core HOY la MISMA pregunta tipada (el Encargo que el libro conservó de cada
+        Entrega) y comparar hecho por hecho, por llave (tipo · clave canónica · dueño · unidad · procedencia) y con crudos
+        (`continuidad/revalidar.js`, puro). La cifra «actual» es la que `consultar` daría hoy, con el mismo dataset (una sola función,
+        `acciones.js:_datasetDeLaEmpresa`, para las dos acciones): una sola verdad por eje. Cómputo determinístico: cero LLM, cero red;
+        `entrega/componer.js` y `encargo/*` no se tocan; la salida de `consultar` es byte a byte la de antes (lo nuevo vive solo en el libro).
+    (b) LOS SEIS ESTADOS (cerrados): `igual` · `cambio` · `ya_no_existe` · `no_comparable` (motivo: otro_periodo · otra_moneda ·
+        otra_unidad · otra_referencia · otro_universo) · `no_se_revalida` · `sin_reverificar`. Reglas duras: sin crudo no hay veredicto;
+        `sin_reverificar` y `no_se_revalida` jamás traen `actual`; `no_comparable` jamás trae diferencia; `igual` jamás se declara sin
+        haber comparado crudos; `ya_no_existe` jamás si la consulta no resolvió completa (eso es `sin_reverificar`, con el porqué) ni si
+        la cuenta pudo caer de un ranking con corte (eso es `otro_universo`: que no figure no prueba que haya salido de los datos).
+    (c) CUATRO FRASES DEL OWNER. «Igual = el mismo valor impreso»: la casa imprime lo mismo (`formatoDeLaCasa`); una diferencia por debajo
+        de lo impreso no es un aviso. «Otro período = no comparable»: nunca «cambió» entre períodos distintos (se muestra el valor de hoy
+        rotulado con su período, sin diferencia). «Un supuesto no se revalida»: es de quien lo planteó, no se contrasta con los datos —y lo
+        derivado de él tampoco: el libro de hechos lo da por «derivado» de insumo «medido», así que se marca (`deSupuesto`) desde la fila
+        de simulación—; lo MEDIDO de esa misma Entrega (la venta actual de la que parte) sí se revalida. «Retomar no escribe»: solo lee, el
+        pasado no se reescribe (libro idéntico byte a byte antes y después, y ninguna escritura). Un declarado nunca pisa un medido: no se
+        compara con él ni lo sustituye; un criterio declarado cambia la REFERENCIA (las brechas quedan `no_comparable · otra_referencia`),
+        no lo medido.
+    (d) LO QUE EL LIBRO CONSERVA (aditivo; los libros guardados antes no se migran: se declaran «esta Entrega se guardó antes de que ADI
+        conservara el valor exacto y la pregunta» y su cambio de datos sí se dice). Por Entrega: `encargo` (parte estructurada: sin
+        `conversacionId`, sin `contexto` y sin `preguntaOriginal`: el libro no guarda ni una frase), `referencias`, `moneda`,
+        `revalidable`. Por hecho, un campo aparte `rv` (valor exacto, unidad, clave, dueño, titular, procedencia, tipo, prioridad,
+        `deSupuesto`): los campos de siempre no se mueven y citar una respuesta anterior (`contexto: E1`) la trae como se entregó. Por
+        libro: `empresaId` (una conversación de otra empresa se rechaza por su propio dato, además de la llave del almacén). Una fila
+        ANCHA de la tabla de Cifras (una columna por cifra: Venta · Margen · Contribución no capturada) guarda sus cifras en `rv.mas` y
+        cada una se revalida con su propio id (`E1.h1.2`): ninguna se pierde y los ids de siempre (`E<n>.h<k>` = la k-ésima fila) no se mueven.
+    (e) LO QUE LA LÍNEA DICE (owner 2026-10-04). Una sola línea, solo ante evento, en tercera persona y en lenguaje de negocio (nada de
+        «carga v3», «versión» ni ids de carga: «con los datos actuales», «antes X, ahora Y»); nombra hasta 3 cambios y dice cuántos más
+        hay («y 4 cambios más; el detalle está disponible»); nunca solo el conteo; el detalle completo viaja tipado en
+        `hechos[].revalidacion`. QUÉ nombra, SIN sistema de materialidad, scoring ni umbrales («dinero primero» NO es regla de producto):
+        la PRIORIDAD que la Entrega original ya traía —la `.prioridad` de la fila de Cifras, la misma con que `entrega/tamano.js` decide
+        qué se recorta (menor = más prioritaria)—; la magnitud solo DESEMPATA entre cifras de la misma prioridad y la misma unidad
+        (nunca dinero contra porcentaje); el resto, el orden de aparición (`revalidar.js:elegirCambiosANombrar`, un orden total). La misma
+        cifra cambiada en dos Entregas se nombra una vez. Solo `cambio` y `ya_no_existe` entran al ranking.
+    (f) ABIERTO (a decisión del owner o del supervisor): (1) hoy el compositor NO declara `.prioridad` en las filas de Cifras que sirve
+        (solo en oraciones de la Respuesta): rige el fallback documentado de `tamano.js` —el orden de aparición en la tabla—; si algún
+        día la declara, `_hechosDeLaEntrega` la toma sin cambios. (2) El tope del libro SIGUE en 16 KB: lo exige la base (migración 015,
+        `check pg_column_size(estado) <= 16384` y la guarda de `adi_guardar_estado_conversacion`); lo nuevo duplica aprox. el tamaño por
+        hecho, así que un hilo largo esqueletiza antes sus Entregas más viejas (se declaran «recortada», no se revalidan); subir el tope
+        exige una migración nueva. (3) La línea de `consultar` («los datos cambiaron desde la Entrega N: a → b») sigue mostrando los ids de
+        carga: no se tocó por la regla de la salida byte a byte de `consultar`; `retomar` ya dice solo «los datos cambiaron desde la
+        Entrega N».
+    Evidencia: `_retomar_revalida_gate.mjs` (los cuatro escenarios del diseño más el de seis cambios con la regla de prioridad, con sus
+    carnadas y 15 mutaciones del código que el gate marca), `_capacidad_continuidad_gate.mjs` §6 (ahora exige la revalidación real) y los
+    catálogos v13–v40 sin cambiar un byte de texto de Entrega.
+
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con
   `conceptos: []`; ¿debe ser `no_resuelta`, como ya lo es en `cifra`? Alcanza también a `temasCubiertos`.

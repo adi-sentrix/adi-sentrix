@@ -80,7 +80,9 @@ H("3 · la versión de datos cambia entre dos turnos de la MISMA conversación �
   ok(r2.ok === true, "segundo turno (versión 2, mismo conversacionId) responde ok:true");
 
   const primeraLinea = r2.entrega.texto.split("\n\n")[0];
-  ok(primeraLinea.includes("los datos cambiaron desde la Entrega 1") && primeraLinea.includes("1") && primeraLinea.includes("2"), "la primera línea del texto declara el cambio de versión (1 → 2)", primeraLinea);
+  ok(primeraLinea.includes("los datos cambiaron desde la Entrega 1"), "la primera línea del texto declara el cambio de datos", primeraLinea);
+  /* lenguaje empresarial (owner 2026-10-04, bloque 4): nunca ids de carga en la línea — ni «1 → 2», ni «v2», ni «versión» */
+  ok(!/→|\bv\d+\b|versi[oó]n|versionId/i.test(primeraLinea), "★ la línea de consultar no muestra ids de carga («1 → 2», «v2», «versión»)", primeraLinea);
   // UNA línea: el resto del texto (a partir del segundo párrafo) es la Entrega tal cual — no se repite el aviso
   const resto = r2.entrega.texto.split("\n\n").slice(1).join("\n\n");
   ok(!resto.includes("los datos cambiaron"), "el aviso aparece UNA sola vez, nunca repetido en el cuerpo de la Entrega", resto.slice(0, 120));
@@ -144,8 +146,13 @@ H("5 · un hecho declarado y una cifra medida de la MISMA entidad/concepto convi
   ok(declarado.resultados[0].entendido.valor === 999999999, "el declarado conserva SU valor tal cual se aportó (999999999), no el de la boleta");
 }
 
-/* ═══ 6 · RETOMAR → RE-VERIFICADO (honesto: falla cerrado sin el índice de evidencia real conectado) ═════════════ */
-H("6 · retomar sobre una conversación con Entregas — re-verificado, honesto sobre lo que no puede comprobar hoy");
+/* ═══ 6 · RETOMAR → REVALIDADO DE VERDAD (Etapa 2, bloque 4 · owner 2026-10-04) ══════════════════════════════════════════════
+ * Hasta el bloque 3 esta sección afirmaba el LÍMITE: sin el índice de evidencia real conectado, todo hecho volvía «sin_reverificar» y retomar lo
+ * declaraba. El bloque 4 lo cierra: retomar le vuelve a hacer al Core, hoy, la misma pregunta que se le hizo entonces y compara cifra por cifra
+ * (`continuidad/revalidar.js`). Ahora esta sección EXIGE la revalidación real — y que el límite de antes ya no se declare, porque ya no existe.
+ * Los cuatro escenarios completos (otro período, benchmark declarado, cambios, priorización de lo que la línea nombra, carnadas) los prueba
+ * `_retomar_revalida_gate.mjs`; acá se prueba lo que un anfitrión recorre en el hilo mínimo. */
+H("6 · retomar sobre una conversación con Entregas — cada cifra REVALIDADA contra los datos de hoy (igual · cambió), sin el límite de antes");
 {
   const { consultar, retomar } = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
   const r1 = await consultar({ tenant: TENANT_V1, encargo: ENCARGO_JUMBO_VENTAS });
@@ -155,9 +162,19 @@ H("6 · retomar sobre una conversación con Entregas — re-verificado, honesto 
   const ret = await retomar({ tenant: TENANT_V1, conversacionId: cid });
   ok(ret.ok === true, "retomar recupera la conversación", JSON.stringify(ret.motivo));
   ok(Array.isArray(ret.hechos) && ret.hechos.length > 0, "retomar trae los hechos entregados en los dos turnos", String(ret.hechos.length));
-  ok(ret.hechos.every((h) => h.estadoReverificacion === "sin_reverificar"), "★ HONESTO · sin el índice de evidencia real conectado, TODO hecho vuelve \"sin_reverificar\" — nunca un veredicto inventado (falla cerrado)", JSON.stringify([...new Set(ret.hechos.map((h) => h.estadoReverificacion))]));
-  ok(Array.isArray(ret.advertencias) && ret.advertencias.some((a) => /re-verifica/.test(a)), "retomar DECLARA el límite en vez de fingir que ya re-verificó", JSON.stringify(ret.advertencias));
+  ok(ret.hechos.every((h) => h.estadoReverificacion === "igual"), "★ REAL · con los mismos datos, TODA cifra entregada vuelve REVALIDADA como «igual» (se volvió a preguntar al Core: ya no es «sin_reverificar»)", JSON.stringify([...new Set(ret.hechos.map((h) => h.estadoReverificacion))]));
+  ok(ret.resumen.total === ret.hechos.length && ret.resumen.igual === ret.hechos.length && ret.eventos.length === 0 && ret.lineaContinuidad === null, "el resumen cuadra y, sin nada que aclarar, cero línea de continuidad");
+  ok(Array.isArray(ret.advertencias) && ret.advertencias.length === 0 && !JSON.stringify(ret).includes("no re-verifica"), "★ el límite de antes («este corte no re-verifica…») YA NO se declara: se revalidó de verdad, así que no hay nada que advertir", JSON.stringify(ret.advertencias));
   ok(ret.estadoVigente.turno === 2, "el estado vigente que trae retomar refleja los DOS turnos ya ocurridos");
+
+  // una carga nueva (versión 2) con la venta de Jumbo distinta: la cifra CAMBIÓ, con las dos cifras, y una sola línea de la casa lo dice
+  const datasetNuevo = JSON.parse(JSON.stringify(TENANT_DEMO));
+  datasetNuevo.clientesVentas.find((c) => c.nombre === "Jumbo").anterior = 14000;
+  const ret2 = await retomar({ tenant: { ...TENANT_V2, dataset: datasetNuevo }, conversacionId: cid });
+  const jumbo = ret2.hechos.find((h) => h.sujeto === "Jumbo" && h.estadoReverificacion === "cambio");
+  ok(Boolean(jumbo) && jumbo.revalidacion.anterior.valor === "$17.3M" && jumbo.revalidacion.actual.valor === "$15.7M" && jumbo.revalidacion.diferencia.sentido === "baja", "★ REAL · con una carga nueva, la venta de Jumbo vuelve «cambio»: antes $17.3M, ahora $15.7M, la diferencia calculada por ADI", JSON.stringify(jumbo && jumbo.revalidacion));
+  const sinLaLinea = (re) => !re.test(ret2.lineaContinuidad);
+  ok(typeof ret2.lineaContinuidad === "string" && ret2.lineaContinuidad.split("\n").length === 1 && ret2.lineaContinuidad.includes("venta de Jumbo (antes $17.3M, ahora $15.7M)") && sinLaLinea(/\b(yo|te|usted)\b|→|versi/i), "una sola línea, en tercera persona y sin versiones de carga, dice qué cambió: «venta de Jumbo (antes $17.3M, ahora $15.7M)»", ret2.lineaContinuidad);
 }
 
 /* ═══ 7 · CARNADA · «el LLM manda un tenant ajeno» → IGNORADO, en el encargo Y en el aporte ═══════════════════════ */

@@ -63,11 +63,9 @@
  *     pendiente nunca entra; lo que no tiene lugar en la Entrega se queda en la memoria. La cita `contexto: E1` se resuelve contra el libro
  *     de la conversación (`validarEncargo(encargo, { libro })`) y trae lo que esa Entrega entregó, sin recalcularlo. Sin nada declarado y sin
  *     cita, la Entrega sale byte-idéntica a la de antes.
- *   · LÍMITE DECLARADO (`retomar`, ver su cabecera más abajo): el `reverificar()` real exige reconstruir el
- *     índice de evidencia de la versión activa (`notario/evidencia.js:indiceDeEvidencia`), que hoy solo se arma
- *     DENTRO de `entrega/componer.js` corriendo los playbooks del turno. `retomar` queda con `reverificar:null`,
- *     que es el comportamiento YA DISEÑADO de `continuidad/retomar.js` para este caso: falla cerrado,
- *     `estadoReverificacion:"sin_reverificar"` para todo, nunca un veredicto inventado. */
+ *   · RETOMAR REVALIDANDO (Etapa 2, bloque 4 · owner 2026-10-04; antes era un límite declarado de este corte, `retomar` con `reverificar:null`): el índice de evidencia de la versión activa no se
+ *     reconstruye desde afuera —sigue siendo del compositor y `entrega/componer.js` sigue sin tocarse—: `retomar` le VUELVE A HACER al Core, hoy, la misma pregunta que se le hizo entonces (el
+ *     Encargo que el libro guardó) y compara cifra por cifra (`continuidad/revalidar.js`). Ver su cabecera más abajo. */
 import { validarEncargo } from "../encargo/validar.js";
 import { componerEntrega } from "../entrega/componer.js";
 import { construirCatalogo } from "./catalogo.js";
@@ -90,6 +88,8 @@ import {
 } from "../continuidad/libro.js";
 import { estadoVigenteDe, eventosDeContinuidad, lineaDeContinuidad } from "../continuidad/estadoVigente.js";
 import { retomar as reverificarConversacion } from "../continuidad/retomar.js";
+import { cifraDeHecho, referenciasDe, revalidarEntrega, reverificadorDe, encargoParaElLibro } from "../continuidad/revalidar.js";
+import { renderDe } from "../notario/hechos.js";
 import { serializarPorClave } from "../continuidad/serializar.js";
 import { conTenantActivo } from "./aislamiento.js";
 
@@ -105,6 +105,16 @@ export const CABECERA_DE_USO = Object.freeze([
   "Lo que la Entrega declara en «Lo que no se puede concluir» se respeta: son hallazgos, no excusas — no se afirma lo contrario ni se rellena el hueco con una suposición.",
   `La «Referencia del oficio» es conocimiento general del sector, no un dato de esta empresa ni un objetivo suyo; el benchmark lleva su origen (${ETIQUETA_ORIGEN[ORIGEN.EMPRESA]} o criterio general de ADI) y no es un promedio.`,
   "Redacte con total libertad — resuma, ordene, adapte el tono al lector — y nombre la simulación o la entidad exacta SOLO cuando haya ambigüedad real sobre a cuál se refiere la cifra.",
+]);
+
+/* ── LA CABECERA DE USO DE `retomar` (Etapa 2, bloque 4 · owner 2026-10-04) ──────────────────────────────────────────────────────────────────
+ * Viaja en CADA `retomar(...)`, en el mismo vocabulario de negocio que `CABECERA_DE_USO` (nunca «boleta», «fig» ni un nombre interno): lo entregado antes se cita tal como se dijo; si una
+ * cifra cambió se dicen las dos; lo que no se pudo comparar o no se midió no se afirma como vigente; y no se recalcula sobre el texto. */
+export const CABECERA_DE_RETOMAR = Object.freeze([
+  "Lo entregado antes se cita tal como se dijo: no se reescribe ni se corrige sobre el texto. Si algo cambió, se dice que cambió con los datos actuales — no que antes estuviera mal.",
+  "Si una cifra cambió, se dicen las dos —la de antes y la de ahora— con los datos de su momento; la diferencia ya viene calculada por ADI, no se recalcula ni se estima a mano.",
+  "Lo marcado «no_comparable» (otro período, otra moneda, otra unidad, otra referencia o una cuenta que ya no figura en el ranking), «no_se_revalida» (un supuesto, un declarado, un documento) o «sin_reverificar» no se afirma como vigente ni como cambiado: se dice por qué, con las palabras del motivo.",
+  "La línea de continuidad es lo único que se dice sin que la persona lo pida, y solo si pasó algo; nombra hasta tres cambios y cuántos más hay. El detalle de cada cifra está en `hechos` por si lo pide (`E1.h3.2` es la segunda cifra de la fila `E1.h3`).",
 ]);
 
 /* ── validar la FORMA del tenant inyectado — SIN tocar el estado global del Core (eso es `conTenantActivo`) ────── */
@@ -187,18 +197,66 @@ function _etiquetaSupuesto(s) {
  * La tabla de Cifras que ya arma `componerEntrega` (`entrega.cifras.filas`) es, por diseño, la forma DENORMALIZADA
  * que el libro necesita — cada fila ya trae su entidad, su métrica, su valor y su procedencia (`_fila`/`_procedenciaDeFila`,
  * `entrega/componer.js`) — así que este corte NO reconstruye el libro de hechos interno del compositor (eso exigiría
- * tocar `entrega/componer.js`, congelado): lee lo que ya está expuesto. */
+ * tocar `entrega/componer.js`, congelado): lee lo que ya está expuesto.
+ *
+ * BLOQUE 4 (owner 2026-10-04) — LO QUE EL LIBRO CONSERVA PARA REVALIDAR. Cada fila además guarda, APARTE en `rv` (los campos de siempre quedan intactos: citar una
+ * respuesta anterior y el estado vigente salen byte a byte como antes), el valor EXACTO de su cifra y de dónde viene: lo lee del libro de hechos que el compositor ya expone
+ * (`entrega.procedencia.libro.porId.get(ref)`, `revalidar.js:cifraDeHecho` — la misma función con la que después se compara). `prioridad` es la `.prioridad` de la fila de Cifras
+ * (la MISMA con la que `entrega/tamano.js` decide qué se recorta; menor = más prioritaria): hoy el compositor no la declara en las filas que sirve, así que vale el fallback de ese
+ * mismo archivo —el orden de aparición en la tabla— y, si algún día la declara, esta línea la toma sin cambiar. Una fila ANCHA (una columna por cifra: Venta · Margen · Contribución
+ * no capturada) dice varias cifras: la primera va en `rv` y las demás en `rv.mas`, cada una con la columna de la que sale (la que imprime EXACTAMENTE su valor) — así ninguna se
+ * pierde y los ids de siempre (`E<n>.h<k>` = la k-ésima fila) no se mueven. Lo derivado de un SUPUESTO (una fila de simulación cuyo valor no es una medición) se marca `deSupuesto`:
+ * el libro de hechos lo declara «derivado» pero de `medido` (su insumo es medido), así que no hay otro dato estructural que lo distinga de un derivado del motor que sí se revalida. */
+function _cifraParaRevalidar(libro, id, deSupuestoFila) {
+  const c = libro && libro.porId ? cifraDeHecho(libro.porId.get(id)) : null;
+  if (!c) return null;
+  /* compacto a propósito (el libro tiene un tope de 16 KB que además exige la base, migración 015): los dos valores de siempre —`titular: "medido"`, `tipo: "ref"`— no se escriben; `cifrasDeLaEntrega` los repone */
+  return { raw: c.raw, unidad: c.unidad, clave: c.clave, dueno: c.dueno, ...(c.titular === "medido" ? {} : { titular: c.titular }), procedencia: c.procedencia, ...(c.tipo === "ref" ? {} : { tipo: c.tipo }), ...(deSupuestoFila && c.procedencia !== "medido" ? { deSupuesto: true } : {}) };
+}
 function _hechosDeLaEntrega(entregaJson) {
   const filas = (entregaJson && entregaJson.cifras && Array.isArray(entregaJson.cifras.filas)) ? entregaJson.cifras.filas : [];
-  return filas.map((f) => ({
-    sujeto: (f.valores && (f.valores["Entidad / grupo"] || f.valores["Entidad"])) || null,
-    metrica: (f.valores && f.valores["Métrica"]) || null,
-    valor: (f.valores && f.valores["Valor"]) || null,
-    unidad: null,
-    periodo: null,
-    origen: f.procedencia || null,
-    ref: Array.isArray(f.hechos) && f.hechos.length ? f.hechos[0] : null,
-  }));
+  const libro = (entregaJson && entregaJson.procedencia && entregaJson.procedencia.libro) || null;
+  return filas.map((f, idx) => {
+    const v = (f && f.valores) || {};
+    const ids = Array.isArray(f.hechos) ? f.hechos : [];
+    const hecho = {
+      sujeto: v["Entidad / grupo"] || v["Entidad"] || null,
+      metrica: v["Métrica"] || null,
+      valor: v["Valor"] || null,
+      unidad: null,
+      periodo: null,
+      origen: f.procedencia || null,
+      ref: ids.length ? ids[0] : null,
+    };
+    if (!ids.length || !libro) return hecho;
+    const prioridad = typeof f.prioridad === "number" ? f.prioridad : idx;
+    const deSupuestoFila = typeof v["Supuesto"] === "string" && v["Supuesto"].trim() !== "";
+    const primera = _cifraParaRevalidar(libro, ids[0], deSupuestoFila);
+    if (!primera) return hecho;
+    const ancha = v["Métrica"] == null && v["Valor"] == null;
+    if (!ancha) return { ...hecho, rv: { ...primera, prioridad } };
+    /* fila ancha: cada cifra de la fila con la columna que imprime exactamente su valor (la primera columna es el rótulo de la fila; «Tipo» no es una cifra) */
+    const claves = Object.keys(v);
+    const columnas = claves.filter((k, i) => i > 0 && k !== "Tipo");
+    const usadas = new Set();
+    const columnaDe = (id) => { const t = renderDe(libro, id); const col = columnas.find((k) => !usadas.has(k) && typeof v[k] === "string" && v[k] === t); if (col) usadas.add(col); return { col: col || null, texto: col ? v[col] : t }; };
+    const l0 = columnaDe(ids[0]);
+    const mas = ids.slice(1).map((id) => { const cf = _cifraParaRevalidar(libro, id, deSupuestoFila); if (!cf) return null; const l = columnaDe(id); return { ref: id, metrica: l.col, valor: l.texto, ...cf }; }).filter(Boolean);
+    return { ...hecho, rv: { ...primera, prioridad, sujeto: typeof v[claves[0]] === "string" ? v[claves[0]] : null, metrica: l0.col, valor: l0.texto, ...(mas.length ? { mas } : {}) } };
+  });
+}
+/* ── EL DATASET «DE HOY» DE UNA EMPRESA: la ficha que cargó + lo que declaró conversando y confirmó (bloques 2 y 3) ──────────────────────────────────────────────────────────
+ * UNA sola función para `consultar` y para `retomar` (bloque 4): para que una cifra revalidada hoy salga de EXACTAMENTE el mismo dataset con el que `consultar` la daría hoy (una sola
+ * verdad por eje — si las dos armaran su dataset por separado, la primera vez que una cambie sin la otra aparecería un «cambió» que no es de la realidad). Puro: sin I/O, sin red.
+ *   · el perfil que la empresa declaró conversando entra a la Entrega y a Knowledge (la ficha de `tenants`, si la trae, manda); sin perfil leído es EL MISMO dataset;
+ *   · los criterios que declaró y confirmó SON sus umbrales («declarado por la empresa»): van al perfil que el Core resuelve en `initTenant` (`conCriteriosDeEmpresa`); el rastro de lo que se
+ *     tomó de un documento (§7.3·58) viaja con el valor;
+ *   · `benchmarkDeclarado` pisa también el benchmark embebido por fila del dato (la vara de la empresa, como C.2): quien llama lo aplica DENTRO del tramo del Core (`setBenchmarkOverride`). */
+function _datasetDeLaEmpresa(datasetDelTenant, estadoPerfil, loDeclarado) {
+  const datasetConPerfil = estadoPerfil ? conPerfilDeclarado(datasetDelTenant, estadoPerfil.vigentes) : datasetDelTenant;
+  const criterios = loDeclarado && Array.isArray(loDeclarado.criterios) ? loDeclarado.criterios : [];
+  const { dataset, aplicados: criteriosAplicados } = conCriteriosDeEmpresa(datasetConPerfil, Object.fromEntries(criterios.map((c) => [c.llave, c.valor])), procedenciasDeCriterios(criterios));
+  return { dataset, criteriosAplicados, benchmarkDeclarado: criterios.find((c) => c.llave === "benchmark") || null };
 }
 
 /** crearAcciones({ continuidad?, ahora? }) → { conocerEmpresa, consultar, aportarContexto, retomar }
@@ -344,11 +402,9 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       } catch (e) { if (!esErrorDeAlmacen(e)) throw e; perfilNoDisponible = true; }
       // lo CONFIRMADO alimenta a la Entrega y a Knowledge (la ficha de `tenants`, si la trae, manda); sin nada que agregar
       // es EL MISMO dataset (cero diferencia con lo de antes del bloque)
-      const datasetConPerfil = estadoPerfil ? conPerfilDeclarado(tenant.dataset, estadoPerfil.vigentes) : tenant.dataset;
       // los criterios que la empresa declaró y confirmó SON sus umbrales («declarado por la empresa»): van al perfil de la empresa que el Core resuelve en `initTenant`
-      // (el mismo camino de `umbral()`); sin ninguno es EL MISMO dataset (cero diferencia con lo de antes del bloque)
-      const { dataset, aplicados: criteriosAplicados } = conCriteriosDeEmpresa(datasetConPerfil, Object.fromEntries(loDeclarado.criterios.map((c) => [c.llave, c.valor])), procedenciasDeCriterios(loDeclarado.criterios));   // el rastro de lo que se tomó de un documento (§7.3·58) viaja con el valor
-      const benchmarkDeclarado = loDeclarado.criterios.find((c) => c.llave === "benchmark");
+      // (el mismo camino de `umbral()`); sin ninguno es EL MISMO dataset (cero diferencia con lo de antes del bloque). Es `_datasetDeLaEmpresa`, la MISMA que usa `retomar`.
+      const { dataset, criteriosAplicados, benchmarkDeclarado } = _datasetDeLaEmpresa(tenant.dataset, estadoPerfil, loDeclarado);
 
       // 2 · EL TRAMO DEL CORE — síncrono, sin una sola espera entre `initTenant` y el cálculo
       const { resolucion, salida, perfilCliente, hechosContrastados } = conTenantActivo(dataset, () => {
@@ -371,7 +427,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       let libro = libroLeido;
       const esNueva = !libro;
       if (!libro) {
-        libro = libroNuevo({ versionId: versionIdActivo });
+        libro = libroNuevo({ versionId: versionIdActivo, empresaId: tenantId });
       }
       const cambioVersion = detectarCambioVersion(libro, versionIdActivo);
 
@@ -416,6 +472,8 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
           universos: salida.entrega.universos || [],
           entregadaEn: ahora(),
           periodo: (salida.entrega.marco && salida.entrega.marco.periodo) || null,
+          // BLOQUE 4: lo que hace falta para REVALIDAR esta Entrega al retomar (el Encargo, con qué referencias se calculó, la moneda): se guarda en el libro, nunca sale en esta respuesta
+          revalidable: true, encargo: encargoParaElLibro(resolucion.encargo), referencias: referenciasDe({ criteriosAplicados, marco: salida.entrega.marco }), moneda: (salida.entrega.marco && salida.entrega.marco.moneda) || null,
         });
       }
 
@@ -427,7 +485,8 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       catch (e) { if (!esErrorDeAlmacen(e)) throw e; guardada = false; operacionFallida = e.operacion || null; }
 
       const estadoVigente = estadoVigenteDe(libro, { versionIdActual: versionIdActivo });
-      const eventos = eventosDeContinuidad(eventosBase);
+      /* lenguaje empresarial también en `consultar` (owner 2026-10-04, bloque 4): la línea dice «los datos cambiaron desde la Entrega N», nunca ids de carga («1 → 2») */
+      const eventos = eventosDeContinuidad({ ...eventosBase, lenguajeDeNegocio: true });
       const lineaContinuidad = lineaDeContinuidad(eventos);
       let textoConContinuidad = salida.ok && lineaContinuidad ? `${lineaContinuidad}\n\n${salida.texto}` : (salida.ok ? salida.texto : "");
 
@@ -524,7 +583,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
 
     const trabajo = async () => {
       try {
-        let libro = (await store.leerLibro(tenantId, idDeConversacion)) || libroNuevo({ conversacionId: idDeConversacion, versionId: versionIdActivo });
+        let libro = (await store.leerLibro(tenantId, idDeConversacion)) || libroNuevo({ conversacionId: idDeConversacion, versionId: versionIdActivo, empresaId: tenantId });
 
         const listaAportes = Array.isArray(aportes) ? aportes : [];
         const listaConfirmar = Array.isArray(confirmar) ? confirmar : [];
@@ -620,42 +679,92 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
     return serializarPorClave(`libro|${tenantId}|${idDeConversacion}`, () => serializarPorClave(`memoria|${tenantId}`, trabajo));
   }
 
-  /* 4 · retomar({ tenant, conversacionId }) → el estado vigente + los hechos de las últimas Entregas
-   * RE-VERIFICADOS contra la versión activa (`continuidad/retomar.js`), sin recomponer prosa.
+  /* 4 · retomar({ tenant, conversacionId }) → el estado vigente + las cifras de las Entregas de esa conversación REVALIDADAS contra los datos de hoy (`continuidad/retomar.js` +
+   * `continuidad/revalidar.js`), sin recomponer prosa. (Etapa 2, bloque 4 · owner 2026-10-04; antes devolvía todo «sin_reverificar», el límite declarado del corte 9.)
    *
-   * LÍMITE DECLARADO (owner: «declina honestamente cuenta como éxito», nunca en silencio): el `reverificar()`
-   * real exige el índice de evidencia de la versión activa (`notario/evidencia.js:indiceDeEvidencia`), que hoy
-   * solo se arma DENTRO de `entrega/componer.js` corriendo los playbooks del turno (`_indiceDelTenant`/
-   * `_correrPlaybook`) — conectarlo desde acá sin tocar `entrega/componer.js` (congelado durante esta etapa) no
-   * es posible con lo que ese módulo expone hoy. Reportado al supervisor (`_ADI_CONTINUIDAD_INTEGRACION.md`
-   * §2, nota de "retomar": "Construirlo es responsabilidad de quien conecte esta pieza al índice de evidencia
-   * real, no de `continuidad/`"). Por eso `reverificar` va `null`: es el comportamiento YA DISEÑADO por
-   * `continuidad/retomar.js` para este caso — cada hecho vuelve con `estadoReverificacion:"sin_reverificar"`,
-   * nunca un veredicto inventado.
+   * EL MECANISMO: revalidar = volver a hacerle al Core, HOY, la MISMA pregunta tipada que se le hizo entonces (el Encargo que el libro guardó con cada Entrega) y comparar cifra por cifra,
+   * por llave y con crudos. Ni un camino nuevo de evidencia ni una segunda verdad: la cifra «actual» es la que `consultar` daría hoy, con el mismo dataset (`_datasetDeLaEmpresa`: la ficha
+   * + lo que la empresa declaró y confirmó). `entrega/componer.js` no se toca. Cómputo determinístico: cero LLM, cero red.
    *
-   * SOLO LEE: no toca el Core ni escribe — lo que se entregó se devuelve tal cual quedó guardado. */
+   * ORDEN (D2): 1 · LEER (base: el libro y la memoria) → 2 · TRAMO DEL CORE (`conTenantActivo`, síncrono: re-corre cada Entrega revalidable) → 3 · comparar (puro) → 4 · armar la respuesta.
+   * SOLO LEE: no registra la re-corrida como una Entrega y no escribe el libro — lo que se entregó se devuelve tal cual quedó guardado, y lo que cambió se DICE, nunca se reescribe («el pasado
+   * no se reescribe»). Una conversación de otra empresa se rechaza por su propio dato (`empresaId`), además de la llave del almacén.
+   *
+   * QUÉ DICE: `hechos[]` (cada cifra con su `revalidacion` tipada: igual · cambio · ya_no_existe · no_comparable · no_se_revalida · sin_reverificar), `resumen` (el conteo por estado), `eventos` y
+   * UNA línea de la casa (`lineaContinuidad`) SOLO si pasó algo: nombra hasta 3 cambios y dice cuántos más hay. `advertencias` solo declara lo que NO se pudo revalidar y por qué. */
   async function retomar({ tenant, conversacionId } = {}) {
     const forma = _validarTenant(tenant);
     if (!forma.ok) return { ok: false, motivo: forma.motivo };
     if (!conversacionId || typeof conversacionId !== "string") return { ok: false, motivo: "falta conversacionId" };
 
-    let libro;
-    try { libro = await store.leerLibro(tenant.id || null, conversacionId); }
-    catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId }; throw e; }
-    if (!libro) return { ok: false, motivo: "no existe una conversación con ese id", conversacionId };
+    const tenantId = tenant.id || null;
+    const versionIdActivo = tenant.version != null ? tenant.version : null;
 
-    const r = reverificarConversacion(libro, { versionIdActual: tenant.version != null ? tenant.version : null, reverificar: null });
+    // 1 · LEER (base) — todo ANTES de tocar el estado global del Core. Si la base no responde, no se revalida contra «lo que haya»: falla cerrado, como las otras acciones.
+    let libro, filasDeLaMemoria = [];
+    try {
+      libro = await store.leerLibro(tenantId, conversacionId);
+      if (libro) filasDeLaMemoria = (await store.leerHechosEmpresa(tenantId)) || [];
+    } catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId }; throw e; }
+    if (!libro) return { ok: false, motivo: "no existe una conversación con ese id", conversacionId };
+    if (libro.empresaId && tenantId && libro.empresaId !== tenantId) return { ok: false, motivo: "esta conversación es de otra empresa", conversacionId };
+
+    // 2 · EL TRAMO DEL CORE — síncrono, sin una sola espera: la pregunta de cada Entrega revalidable, repetida con los datos de hoy
+    const { dataset: datasetDeHoy, criteriosAplicados, benchmarkDeclarado } = _datasetDeLaEmpresa(tenant.dataset, perfilDeLasFilas(filasDeLaMemoria), clasificarLoDeclarado(filasDeLaMemoria));
+    const aRevalidar = (libro.entregas || []).filter((e) => e && !e.recortada && e.revalidable === true && e.encargo && typeof e.encargo === "object");
+    const corridas = new Map();
+    if (aRevalidar.length) {
+      conTenantActivo(datasetDeHoy, () => {
+        for (const e of aRevalidar) {
+          try {
+            if (benchmarkDeclarado) setBenchmarkOverride(benchmarkDeclarado.valor);   // como en `consultar`: la vara declarada pisa el benchmark embebido por fila
+            const resolucion = validarEncargo(e.encargo, {});
+            const salida = componerEntrega(resolucion);
+            const noResuelto = (resolucion.noResuelto || []).slice(0, 6).map((n) => ({ campo: n.campo || null, motivo: n.motivo || null, valor: typeof n.valor === "string" || typeof n.valor === "number" ? n.valor : null }));
+            corridas.set(e.n, {
+              ok: Boolean(salida.ok && salida.entrega),
+              libro: salida.ok && salida.entrega && salida.entrega.procedencia ? salida.entrega.procedencia.libro : null,
+              marco: salida.ok && salida.entrega ? salida.entrega.marco : null,
+              parteResuelta: (resolucion.partes || []).length > 0 && resolucion.partes.every((p) => p.estado === "resuelta"),
+              noResuelto,
+            });
+          } catch (err) { corridas.set(e.n, { ok: false, noResuelto: [], error: true }); }   // una Entrega que no se puede repetir no tumba a las demás: queda «sin_reverificar», con su motivo
+        }
+      });
+    }
+
+    // 3 · comparar (puro): cada Entrega contra SU re-corrida
+    const resultados = new Map();
+    for (const e of libro.entregas || []) {
+      if (!e || e.recortada) continue;
+      const corrida = corridas.get(e.n);
+      resultados.set(e.n, revalidarEntrega(e, corrida && corrida.ok
+        ? { libroActual: corrida.libro, marcoActual: corrida.marco, referenciasActuales: referenciasDe({ criteriosAplicados, marco: corrida.marco }), versionIdActual: versionIdActivo, parteResuelta: corrida.parteResuelta, noResuelto: corrida.noResuelto, renderDe }
+        : { versionIdActual: versionIdActivo, noResuelto: corrida ? corrida.noResuelto : [], renderDe }));
+    }
+
+    // 4 · armar la respuesta
+    const r = reverificarConversacion(libro, { versionIdActual: versionIdActivo, reverificar: reverificadorDe(resultados), lenguajeDeNegocio: true });
+
+    // lo que NO se pudo revalidar, y por qué (nada de esto es un cambio: es lo que el anfitrión no debe afirmar como vigente)
+    const advertencias = [];
+    const sinVerificar = new Map();
+    for (const h of r.hechos) if (h.estadoReverificacion === "sin_reverificar") { const m = (h.revalidacion && h.revalidacion.motivo) || "no se pudo revalidar"; sinVerificar.set(m, (sinVerificar.get(m) || 0) + 1); }
+    for (const [m, n] of sinVerificar) advertencias.push(`${n} ${n === 1 ? "cifra" : "cifras"} sin revalidar: ${m}.`);
+    for (const e of libro.entregas || []) if (e && e.recortada) advertencias.push(`la Entrega E${e.n} se recortó por tamaño: ya no conserva sus cifras, así que no se pueden revalidar.`);
+    if (!r.hechos.length && !advertencias.length) advertencias.push("esta conversación todavía no tiene cifras entregadas que revalidar.");
 
     return {
       ok: true,
       conversacionId,
       estadoVigente: r.estadoVigente,
       hechos: r.hechos,
+      resumen: r.resumen,
       entregas: r.entregas,
+      eventos: r.eventos,
       lineaContinuidad: r.lineaContinuidad,
-      advertencias: [
-        "este corte no re-verifica los hechos contra la versión de datos activa (falta conectar el índice de evidencia real del Core desde `entrega/componer.js`, reportado al supervisor): todo hecho entregado vuelve con estadoReverificacion:\"sin_reverificar\".",
-      ],
+      advertencias,
+      uso: CABECERA_DE_RETOMAR,
     };
   }
 

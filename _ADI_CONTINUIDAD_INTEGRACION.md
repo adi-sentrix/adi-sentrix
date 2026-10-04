@@ -90,6 +90,18 @@ Antes de componer:
 12. Cada hecho de empresa que el encargo aportó vía `aportarContexto` (ver más abajo) en ESTE turno:
     `libro = registrarHechoAportado(libro, id)`.
 
+### `retomar({conversacionId})` — CONECTADO en el bloque 4 de la Etapa 2 (2026-10-04)
+
+El `reverificar` real ya existe: `capacidad/acciones.js:retomar` NO reconstruye el índice de evidencia del compositor —no hace falta—:
+le vuelve a hacer al Core, hoy, la misma pregunta que se le hizo entonces (el Encargo que el libro guarda con cada Entrega, ver `libro.js`)
+con `validarEncargo` + `componerEntrega` en UN solo tramo (`conTenantActivo`, sin esperas) y compara cifra por cifra
+(`continuidad/revalidar.js`, puro): `reverificadorDe(resultadosPorEntrega)` cumple la firma `reverificar(hecho, ctx)` de `continuidad/retomar.js`.
+Estados: igual · cambio · ya_no_existe · no_comparable · no_se_revalida · sin_reverificar. Devuelve `hechos` (con su `revalidacion`), `resumen`,
+`eventos` y UNA línea de continuidad solo ante evento (hasta 3 cambios nombrados y cuántos más hay). `retomar` no escribe el libro.
+Decisión §7.3·59 de `_ADI_CONTRATO_ENCARGO_V1.md`; candado `_retomar_revalida_gate.mjs`. Lo que sigue en este documento de `retomar` (el bloque de
+código y el párrafo de «sin él devuelve sin_reverificar para todo») es el DISEÑO ORIGINAL, conservado como historia: `continuidad/retomar.js` sin un
+verificador sigue fallando cerrado, pero la acción de la capacidad ya lo inyecta.
+
 ### `retomar({conversacionId})` (acción nueva de la Etapa 3, hoy no existe)
 
 ```js
@@ -132,7 +144,7 @@ const estadoVigente = libro ? estadoVigenteDe(libro) : null;
 
 - **Cuándo preguntar un campo del perfil** (`necesitaPerfil`, `ROTULOS_PERFIL`, `preguntasDelPerfil`) — Etapa 3,
   corte 6 de `_ADI_DISENO_FLUJO_V2.md` §F. `empresa.js` solo expone `yaFueOmitido`/`omitirCampo` como primitivas.
-- **Cómo se construye el `reverificar` real de `retomar()`** — depende del índice de evidencia del compositor.
+- **Cómo se construye el `reverificar` real de `retomar()`** — depende del índice de evidencia del compositor. [Resuelto en el bloque 4 de la Etapa 2 (2026-10-04): no hace falta el índice de evidencia del compositor; `retomar` vuelve a preguntarle al Core la misma pregunta con el Encargo que el libro guarda, ver arriba y la decisión §7.3·59.]
 - **Cómo se pliega `memoriaDeEmpresa().hechos` en figs con `.origen`** — la vía ya existe (`_origenes_gate.mjs`),
   conectarla es trabajo de `entrega/componer.js`, congelado durante esta etapa.
 - **Universal/localizado del perfil** (`alcanceCalza`, `pieza.universalidad`) — Etapa 3, corte 7.
