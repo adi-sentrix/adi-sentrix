@@ -87,10 +87,16 @@ function bloqueMargen(filas, benchmark) {
     costoMedio: unidades ? _r2(costo / unidades) : null };
 }
 
-/* calcularDataset({ parametros, tablas }) → { dataset, calculado, bloqueado, avisos }
+/* calcularDataset({ parametros, tablas, escala }) → { dataset, calculado, bloqueado, avisos }
  * `dataset` tiene la forma de un tenant. Lo que no se puede calcular queda en null/[] y sale nombrado en
- * `bloqueado` — nunca relleno con un valor plausible. */
-export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = null } = {}) {
+ * `bloqueado` — nunca relleno con un valor plausible.
+ *
+ * ⚠️ `tablas` LLEGA YA EN UNIDADES DE LA MONEDA (owner 2026-10-04 · P1). Si la empresa declaró sus montos en miles,
+ * `ingesta/convertirEscala.js` los multiplicó ANTES de llamar acá: este motor no sabe de escalas y no multiplica
+ * nada. Lo único que hace con ella es dejar la DECLARACIÓN en el pack (`perfil.escala`: moneda, escala, procedencia y
+ * transformación) a partir del registro `escala` que le pasan. Sin registro, el pack sale sin `perfil.escala`: «nadie
+ * declaró la escala», jamás «estaba en unidades». */
+export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = null, escala = null } = {}) {
   const avisos = [];
   const ventas = tablas.Ventas || [];
   const inventario = tablas.Inventario || [];
@@ -430,12 +436,16 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
    * de activar. Un `"CLP"` puesto acá «mientras tanto» sería exactamente lo que el owner prohibió. */
   const monedaDeclarada = monedaLimpia(parametros.moneda);
   if (monedaDeclarada) perfil.moneda = monedaDeclarada;
+  /* LA ESCALA, CON PROCEDENCIA (owner 2026-10-04 · P1) · junto a la moneda: se DECLARA, y lo declarado viaja dentro
+   * del pack con su origen y la transformación que se hizo. Sin declaración no se escribe nada. */
+  if (escala && escala.valor) perfil.escala = escala;
 
   const dataset = {
     id: parametros.empresa_id || null,
     nombre: parametros.empresa_nombre || parametros.empresa_id || "",
-    /* LA ESCALA, DECLARADA (owner 2026-08-30): este pack guarda los montos comerciales tal como vienen en el
-     * archivo — moneda CRUDA, no miles. El contrato general dice «K» porque los tenants de fábrica almacenan
+    /* LA ESCALA, DECLARADA (owner 2026-08-30): este pack guarda los montos comerciales en moneda CRUDA, no miles.
+     * Desde P1 (2026-10-04) eso es verdad POR CONSTRUCCIÓN: si el archivo venía en miles, la empresa lo declaró y
+     * `convertirEscala` lo multiplicó antes de llegar acá (ver `perfil.escala`). El contrato general dice «K» porque los tenants de fábrica almacenan
      * así; sin esta declaración, todo lo que multiplica ×1000 aguas abajo infla las cifras del cliente por mil
      * (medido: $61.483 del archivo → «$61.5M» en la carpeta de ADI). Viaja EN el pack: autosuficiente. */
     escalaComercial: "raw",

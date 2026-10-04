@@ -12,15 +12,38 @@ import { validarPlantilla } from "./validarPlantilla.js";
 import { calcularDataset } from "./motorKpi.js";
 import { disponibilidadSentrix } from "../disponibilidad.js";
 import { HOJAS } from "../../config/contract/plantilla.js";   // para derivar QUÉ no trajo el archivo, contra el contrato
+import { convertirHechos } from "../convertirEscala.js";
 
-/* ingestarPlantilla(archivo, { nombreArchivo }) → { ok, dataset, preview } */
-export function ingestarPlantilla(archivo, { nombreArchivo = "", fechaCarga = null } = {}) {
+/* ingestarPlantilla(archivo, { nombreArchivo, fechaCarga, escala, moneda }) → { ok, dataset, preview, hechos }
+ *
+ * `escala` y `moneda` (owner 2026-10-04 · P1) son lo que la EMPRESA declaró en la pantalla: `"unidades"` | `"miles"`
+ * y su código de moneda.
+ *   · SIN `escala` → se lee tal cual el archivo (la preview, antes de preguntar). Esa lectura NO es activable: no declara
+ *     escala y la pantalla no deja confirmar hasta que la empresa responda.
+ *   · CON `escala` → los montos se convierten a UNIDADES de la moneda ANTES de calcular (los campos de dinero que declara
+ *     el contrato, ver `convertirEscala.js`), y el pack sale con `perfil.escala` (moneda, escala, procedencia, transformación).
+ * La escala NO se infiere jamás: no hay valor por defecto, y una que no sea una de las dos se rechaza. */
+export function ingestarPlantilla(archivo, { nombreArchivo = "", fechaCarga = null, escala = null, moneda = null } = {}) {
   const v = validarPlantilla(archivo, { nombreArchivo });
   const base = { archivo: nombreArchivo || "(sin nombre)", version: v.version, hojas: v.hojas, bloqueos: v.bloqueos, avisos: v.avisos };
 
   if (!v.ok) return { ok: false, dataset: null, preview: { ...base, parametros: {}, calculado: [], bloqueado: [], disponibilidad: null, totales: null, periodos: null } };
 
-  const m = calcularDataset({ parametros: v.parametros, tablas: v.tablas, fechaCarga });
+  /* ── LA ESCALA, ANTES DE CALCULAR ─────────────────────────────────────────────────────────────────────────── */
+  let hechos = { parametros: v.parametros, fechaCarga: fechaCarga || null, inventarioDe: fechaCarga || null,
+    Ventas: v.tablas.Ventas || [], Inventario: v.tablas.Inventario || [], Abonos: v.tablas.Abonos || [] };
+  let registroEscala = null;
+  if (escala !== null && escala !== undefined && escala !== "") {
+    const c = convertirHechos(hechos, escala, { moneda });
+    if (!c.ok) {
+      const bloq = [...base.bloqueos, { tipo: "declaracion-faltante", detalle: c.motivo, ...(c.sinMoneda ? { sinMoneda: true } : {}) }];
+      return { ok: false, dataset: null, preview: { ...base, bloqueos: bloq, parametros: {}, calculado: [], bloqueado: [], disponibilidad: null, totales: null, periodos: null } };
+    }
+    hechos = c.hechos; registroEscala = c.registro;
+  }
+
+  const m = calcularDataset({ parametros: hechos.parametros, tablas: { Ventas: hechos.Ventas, Inventario: hechos.Inventario, Abonos: hechos.Abonos },
+    fechaCarga, escala: registroEscala });
   const d = m.dataset;
   /* La procedencia de días y rotación, contada · es el concepto que pidió el owner («debe viajar con cada valor»)
    * y si no se ve en la preview, el usuario no sabe cuáles cifras son de su sistema y cuáles calculó ADI. */
@@ -124,10 +147,7 @@ export function ingestarPlantilla(archivo, { nombreArchivo = "", fechaCarga = nu
      * Son el grano fino que la persistencia guarda DENTRO del pack para poder fusionar por período: sin las
      * filas, «agregar septiembre» solo podría sumar agregados — y un margen de dos cargas sumadas no es el
      * margen de nadie. El pack ya era autosuficiente por diseño; esto lo hace autosuficiente de verdad. */
-    hechos: {
-      parametros: v.parametros, fechaCarga: fechaCarga || null, inventarioDe: fechaCarga || null,
-      Ventas: v.tablas.Ventas || [], Inventario: v.tablas.Inventario || [], Abonos: v.tablas.Abonos || [],
-    },
+    hechos,
     preview: { ...base, parametros: v.parametros, calculado: m.calculado, bloqueado: m.bloqueado,
       avisos: [...v.avisos, ...m.avisos], periodos: m.periodos, totales,
       disponibilidad: disponibilidadSentrix(d) },

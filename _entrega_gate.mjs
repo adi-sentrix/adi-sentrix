@@ -786,7 +786,7 @@ H("15a · ESCRITURA · activar con moneda declarada la deja TAMBIÉN en `tenants
   const { cli, log } = dobleConTenant();
   const c1 = await persistirCarga({ tenantId: "acme", bytes: BYTES_PB, nombreArchivo: "enero.xlsx", dataset: { id: "acme", nombre: "ACME", perfil: {} }, env: ENV_CON_BASE_PB, cliente: cli });
   ok(c1.guardado, "carga 1 guardada", c1.motivo);
-  const a1 = await activarVersion({ tenantId: "acme", versionId: c1.versionId, moneda: "USD", env: ENV_CON_BASE_PB, cliente: cli });
+  const a1 = await activarVersion({ tenantId: "acme", versionId: c1.versionId, moneda: "USD", escala: "unidades", env: ENV_CON_BASE_PB, cliente: cli });
   ok(a1.activada && a1.moneda === "USD", "activada con USD declarado", a1.motivo);
 
   const llamadaHerencia = log.find((x) => x.op === "llamarFuncion" && x.nombre === "adi_declarar_perfil_empresa");
@@ -837,7 +837,7 @@ H("15d · CONTROL NEGATIVO · migración SIN APLICAR → todo se comporta EXACTA
   ok(heredada === null, "★ sin la columna `moneda` en la base (400 simulado), monedaTenant degrada a null — no revienta, no miente");
 
   const c1 = await persistirCarga({ tenantId: "acme", bytes: BYTES_PB, nombreArchivo: "enero.xlsx", dataset: { id: "acme", nombre: "ACME", perfil: {} }, env: ENV_CON_BASE_PB, cliente: cli });
-  const a1 = await activarVersion({ tenantId: "acme", versionId: c1.versionId, moneda: "USD", env: ENV_CON_BASE_PB, cliente: cli });
+  const a1 = await activarVersion({ tenantId: "acme", versionId: c1.versionId, moneda: "USD", escala: "unidades", env: ENV_CON_BASE_PB, cliente: cli });
   ok(a1.activada && a1.moneda === "USD", "★ la activación NO se rompe aunque `adi_declarar_perfil_empresa` no exista todavía — best-effort de verdad", a1.motivo);
 
   const permanece = await packActivo({ tenantId: "acme", env: ENV_CON_BASE_PB, cliente: cli });

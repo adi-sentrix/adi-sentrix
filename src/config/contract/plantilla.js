@@ -82,6 +82,19 @@ export const PARAMETROS = [
     ayuda: "en qué moneda están las cifras de venta, costo y stock. si lo dejas en blanco, te lo preguntamos al cargar." },
 ];
 
+/* ── LA MAGNITUD DE CADA COLUMNA NUMÉRICA (owner 2026-10-04 · P1 «fundamentales declarados en la carga») ────────
+ * Cada columna `tipo: "numero"` declara QUÉ MIDE: `"dinero"` (un monto en la moneda del negocio) o `"cantidad"`
+ * (unidades físicas, días, conteos). Es lo que le dice al motor QUÉ SE MULTIPLICA cuando el usuario declara que
+ * sus montos están en miles: la conversión recorre este contrato, no una lista escrita en otro archivo. Una lista
+ * aparte se desincroniza en silencio con la primera columna nueva — y una columna de dinero que se queda sin
+ * multiplicar es un monto mil veces errado dentro de un pack que dice estar en unidades de la moneda.
+ *
+ * ⚠️ NO ES ESTRUCTURA: no agrega, quita, renombra ni reordena columnas, ni cambia cuáles son obligatorias, así que
+ * el sello de `plantillaSellada.js` (que compara campo · título · obligatoria) no se entera, y los archivos ya
+ * llenados siguen valiendo. Y una columna numérica NUEVA sin magnitud declarada pone en rojo
+ * `_escala_declarada_gate`: la conversión no adivina si algo es plata o cantidad. */
+export const MAGNITUDES = ["dinero", "cantidad"];
+
 /* ── LAS DOS HOJAS DE DATOS ───────────────────────────────────────────────────────────────────────────────────
  * `clave: true` marca las columnas que identifican la fila (para detectar duplicados contradictorios).
  * `ayuda` es la explicación que se imprime ARRIBA de cada título, en minúscula, para que el usuario no tenga que
@@ -135,15 +148,15 @@ export const HOJAS = [
         ayuda: "la marca del producto. sirve para comparar marcas entre sí." },
       { campo: "sfamilia", titulo: "familia", tipo: "texto", obligatoria: false, atributoDe: "sku",
         ayuda: "la categoría o línea del producto. sirve para agrupar." },
-      { campo: "unidades", titulo: "unidades", tipo: "numero", obligatoria: true,
+      { campo: "unidades", titulo: "unidades", tipo: "numero", magnitud: "cantidad", obligatoria: true,
         ayuda: "cuántas unidades vendiste. solo el número." },
-      { campo: "venta", titulo: "venta", tipo: "numero", obligatoria: true,
+      { campo: "venta", titulo: "venta", tipo: "numero", magnitud: "dinero", obligatoria: true,
         ayuda: "cuánto facturaste, sin impuestos. solo el número, sin signo peso." },
-      { campo: "costo", titulo: "costo", tipo: "numero", obligatoria: true,
+      { campo: "costo", titulo: "costo", tipo: "numero", magnitud: "dinero", obligatoria: true,
         ayuda: "cuánto te costó lo que vendiste. con esto adi calcula tu margen." },
-      { campo: "acciones", titulo: "acciones comerciales", tipo: "numero", obligatoria: false,
+      { campo: "acciones", titulo: "acciones comerciales", tipo: "numero", magnitud: "dinero", obligatoria: false,
         ayuda: "descuentos, rebates o aportes que le diste al cliente. en dinero, no en %." },
-      { campo: "precioLista", titulo: "precio de lista", tipo: "numero", obligatoria: false, atributoDe: "sku",
+      { campo: "precioLista", titulo: "precio de lista", tipo: "numero", magnitud: "dinero", obligatoria: false, atributoDe: "sku",
         ayuda: "tu precio sin descuento. sirve para ver cuánto estás cediendo." },
     ],
   },
@@ -160,7 +173,7 @@ export const HOJAS = [
         ayuda: "el código del producto, igual que en la hoja ventas." },
       { campo: "bodega", titulo: "bodega", tipo: "texto", clave: true, obligatoria: false,
         ayuda: "dónde está el stock. si tienes una sola bodega, déjalo vacío." },
-      { campo: "stockUnd", titulo: "stock (unidades)", tipo: "numero", obligatoria: true,
+      { campo: "stockUnd", titulo: "stock (unidades)", tipo: "numero", magnitud: "cantidad", obligatoria: true,
         ayuda: "cuántas unidades tienes hoy. físicas, no valorizadas: adi calcula el dinero." },
     ],
   },
@@ -195,7 +208,7 @@ export const HOJAS = [
         ayuda: "el día en que recibiste el pago, no el de la factura." },
       { campo: "folio", titulo: "folio", tipo: "texto", clave: true, obligatoria: true,
         ayuda: "el número de la factura que se está pagando. tiene que existir en la hoja ventas." },
-      { campo: "monto", titulo: "monto", tipo: "numero", obligatoria: true,
+      { campo: "monto", titulo: "monto", tipo: "numero", magnitud: "dinero", obligatoria: true,
         ayuda: "cuánto entró. si la factura se pagó en partes, una fila por cada pago." },
     ],
   },
@@ -239,3 +252,14 @@ export function columnaProhibida(titulo) {
 }
 
 export const hojaPorNombre = (n) => HOJAS.find((h) => normalizarTitulo(h.nombre) === normalizarTitulo(n)) || null;
+
+/* Las columnas numéricas del contrato, con su magnitud. Derivadas de `HOJAS`: una sola fuente. */
+const _numericas = () => HOJAS.flatMap((h) => h.columnas.filter((c) => c.tipo === "numero")
+  .map((c) => ({ hoja: h.nombre, campo: c.campo, titulo: c.titulo, magnitud: c.magnitud || null })));
+/** Las columnas que son DINERO: las únicas que cambian de valor cuando el usuario declara sus montos en miles. */
+export const columnasMonetarias = () => _numericas().filter((c) => c.magnitud === "dinero");
+/** Las numéricas que NO son dinero (cantidades, días): la conversión de escala no las toca jamás. */
+export const columnasNoMonetarias = () => _numericas().filter((c) => c.magnitud === "cantidad");
+/** Las numéricas sin magnitud declarada: la lista tiene que estar VACÍA (la vigila `_escala_declarada_gate`). */
+export const columnasSinMagnitud = () => _numericas().filter((c) => !MAGNITUDES.includes(c.magnitud));
+

@@ -28,6 +28,8 @@ import { clienteDesdeEntorno } from "../data/supabaseRest.js";
 import { emitirPase } from "../data/paseTenant.js";
 import { confirmarSello } from "./plausibilidad.js";
 import { monedaLimpia } from "../config/moneda.js";
+import { validarEscala, FUENTES } from "../config/escala.js";
+import { convertirHechos } from "./convertirEscala.js";
 import { politicaLimpia } from "../config/politicaCobro.js";
 import { fusionarHechos, alcanceDeHistoria, periodosDeHechos, periodoInformadoDe } from "./historico.js";
 import { calcularDataset } from "./plantilla/motorKpi.js";
@@ -198,7 +200,15 @@ export async function historiaActiva({ tenantId, env, cliente, ttlSegundos } = {
   return { hay: true, version: r.filas[0].version, hechos, periodos };
 }
 
-/* activarVersion({ tenantId, versionId, env, cliente }) → { activada, version? , motivo? }
+/* activarVersion({ tenantId, versionId, moneda, escala, env, cliente }) → { activada, version? , motivo? }
+ *
+ * ⚠️ NINGÚN DATO SE ACTIVA SIN MONEDA Y ESCALA DECLARADAS (owner 2026-10-04 · P1). La escala la pone la empresa en la
+ * pantalla —sin preselección— y se EXIGE antes de tocar la base. La moneda es la que la empresa declaró en la pantalla o, si
+ * no declaró otra, la que la hoja Empresa del archivo trae EXPLÍCITAMENTE; sin ninguna de las dos no hay activación (se mira
+ * apenas se lee la versión, antes de escribir nada). Si la escala es «miles», los montos de las filas del archivo se multiplican por 1.000 ANTES de
+ * fusionar y de recalcular (ver `convertirEscala.js`), de modo que el pack activo está SIEMPRE en unidades de la moneda y
+ * lleva `perfil.escala` con su procedencia. La pantalla no convierte nada: lo que activa en la sesión es el pack que
+ * vuelve de acá.
  *
  * ⚠️ ES EL MOMENTO EN QUE EL CLIENTE ADOPTA SUS DATOS, y por eso pasan dos cosas a la vez: la versión queda
  * activa Y su sello pasa a confirmado. Separarlas dejaría una versión activa cuyo sello sigue diciendo que
@@ -211,9 +221,14 @@ export async function historiaActiva({ tenantId, env, cliente, ttlSegundos } = {
  *
  * NO REDACTA EL SELLO: lo lee de la fila guardada y lo pasa por `confirmarSello`, que es la MISMA función que
  * redacta el sello de la lectura. Dos redacciones del mismo hallazgo son dos verdades. */
-export async function activarVersion({ tenantId, versionId, moneda, actor = null, env, cliente, ttlSegundos, reemplazar = [] } = {}) {
+export async function activarVersion({ tenantId, versionId, moneda, escala, actor = null, env, cliente, ttlSegundos, reemplazar = [] } = {}) {
   if (!tenantId) return { activada: false, motivo: "sin sesión con empresa" };
   if (!versionId) return { activada: false, motivo: "no se dijo qué versión activar" };
+
+  /* LA DECLARACIÓN SE EXIGE AQUÍ, antes de leer o escribir nada. La pantalla ya no deja confirmar sin ella, pero una regla
+   * que solo vive en el botón es una costumbre: este endpoint lo puede llamar cualquiera. */
+  const ve = validarEscala(escala);
+  if (!ve.ok) return { activada: false, sinEscala: true, motivo: ve.motivo };
 
   const e = env || (typeof process !== "undefined" && process.env) || {};
   const db = cliente || clienteDesdeEntorno(e);
@@ -248,6 +263,17 @@ export async function activarVersion({ tenantId, versionId, moneda, actor = null
    * Una versión SIN hechos (guardada antes de este cambio) se activa como siempre, sin fusión: no hay filas
    * con qué fusionar, y fabricarlas desde los agregados sería inventar. */
   const packVersion = previa.filas[0].pack || {};
+  /* LAS FUENTES DE LA MONEDA, además de la que dé la pantalla: (1) la del ARCHIVO, solo si la hoja Empresa la declaró
+   * explícitamente (parámetro «moneda») — ni de un encabezado ni de los valores—; (2) la de la EMPRESA, la que declaró en una
+   * carga anterior y la lectura le recordó (`perfil.monedaFuente === "empresa"`: no está en el archivo, está marcada). Sin
+   * ninguna de las tres, no se activa. */
+  const monedaHoja = monedaLimpia(packVersion.hechos && packVersion.hechos.parametros && packVersion.hechos.parametros.moneda);
+  const monedaPerfil = monedaLimpia(packVersion.perfil && packVersion.perfil.moneda);
+  const monedaHeredada = !monedaHoja && monedaPerfil && packVersion.perfil.monedaFuente === FUENTES.empresa ? monedaPerfil : null;
+  const monedaDelArchivo = monedaHoja || (monedaHeredada ? null : monedaPerfil);   // un pack legado sin hechos: su moneda cuenta como la del archivo, como antes
+  if (!monedaLimpia(moneda) && !monedaDelArchivo && !monedaHeredada) {
+    return { activada: false, sinMoneda: true, motivo: "falta declarar la moneda de los montos: el archivo no la trae y no se da por supuesta. No se activó nada" };
+  }
   let alcance = null;
   let packFinal = null;
   /* ⚠️ REACTIVAR UNA VERSIÓN VIEJA ES VOLVER ATRÁS, NO VOLVER A FUSIONAR. Una versión ya finalizada lleva la
@@ -259,9 +285,13 @@ export async function activarVersion({ tenantId, versionId, moneda, actor = null
     packFinal = packVersion;
   } else if (packVersion.hechos) {
     const activa = await historiaActiva({ tenantId, env: e, cliente: db, ttlSegundos });
+    /* LA CONVERSIÓN VA ANTES DE LA FUSIÓN: las filas del archivo pasan a unidades de la moneda y recién ahí se mezclan
+     * con la historia (que ya está en unidades, porque cada carga se convierte al activarse). */
+    const conv = convertirHechos(packVersion.hechos, ve.valor, { moneda, monedaHeredada });
+    if (!conv.ok) return { activada: false, motivo: conv.motivo };
     const fusion = fusionarHechos({
       previos: (activa.hay && activa.hechos) || null,
-      delArchivo: packVersion.hechos,
+      delArchivo: conv.hechos,
       reemplazar: Array.isArray(reemplazar) ? reemplazar : [],
     });
     if (!fusion.ok) return { activada: false, motivo: fusion.motivo, sinDecision: fusion.sinDecision || null };
@@ -271,6 +301,7 @@ export async function activarVersion({ tenantId, versionId, moneda, actor = null
       parametros: { ...(h.parametros || {}), periodo_actual: periodoInformadoDe(h) || (h.parametros || {}).periodo_actual },
       tablas: { Ventas: h.Ventas, Inventario: h.Inventario, Abonos: h.Abonos },
       fechaCarga: h.fechaCarga,
+      escala: conv.registro,
     });
     /* El plazo de pago sobrevive a la fusión por la misma razón que sobrevivía a la carga: es política, no
      * dato del período, y el recálculo desde las filas no lo conoce. Se toma del pack recién guardado (que ya
@@ -285,6 +316,20 @@ export async function activarVersion({ tenantId, versionId, moneda, actor = null
       pase: p.pase, filtros: { id: `eq.${versionId}` }, cambios: { pack: packFinal },
     });
     if (!upd.ok) return { activada: false, motivo: `no se pudo escribir la historia acumulada: ${upd.motivo}` };
+  } else if (Object.keys(packVersion).length) {
+    /* UNA VERSIÓN SIN FILAS (guardada antes de que el pack llevara hechos) NO SE PUEDE CONVERTIR: solo tiene agregados, y
+     * reescalar una venta o un margen ya calculados sería rehacer una cuenta que no tenemos. Con «unidades» no hay nada
+     * que multiplicar y se deja la declaración anotada; con «miles» se pide volver a subir el archivo. */
+    if (ve.valor === "miles") {
+      return { activada: false,
+        motivo: "esta versión se guardó sin el detalle de sus filas, así que sus montos no se pueden convertir de miles a unidades: vuelve a subir el archivo. No se activó nada" };
+    }
+    const { registro } = convertirHechos({ parametros: { moneda: monedaDelArchivo } }, "unidades", { moneda, monedaHeredada });
+    packFinal = { ...packVersion, perfil: { ...(packVersion.perfil || {}), escala: registro } };
+    const upd = await db.actualizar("fact_pack_versions", {
+      pase: p.pase, filtros: { id: `eq.${versionId}` }, cambios: { pack: packFinal },
+    });
+    if (!upd.ok) return { activada: false, motivo: `no se pudo escribir la escala declarada: ${upd.motivo}` };
   }
 
   /* LA MONEDA se limpia acá y NO se completa: si el usuario no respondió y la planilla no la traía, viaja
@@ -319,6 +364,8 @@ export async function activarVersion({ tenantId, versionId, moneda, actor = null
     ? { ...packFinal, perfil: { ...(packFinal.perfil || {}), moneda: monedaDeclarada } }
     : packFinal;
   return { activada: true, versionId, version: r.filas[0].version, sello, moneda: monedaDeclarada,
+    /* la escala con la que quedó el pack, tal como el pack la declara (y no tal como el navegador la mandó) */
+    escala: (packSesion && packSesion.perfil && packSesion.perfil.escala) || null,
     ...(alcance ? { alcance } : {}), ...(packSesion ? { pack: packSesion } : {}) };
 }
 

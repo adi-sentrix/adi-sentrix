@@ -244,5 +244,28 @@ console.log("=".repeat(100));
   ok(r2.dataset.skuInventario.every((s) => s.estado), "…y cada SKU sigue recibiendo su estado: la vara del inventario tampoco se apagó");
 }
 
+console.log("\n" + "=".repeat(100));
+console.log("11 · LA ESCALA SE PREGUNTA EN CADA CARGA; LA MONEDA, SOLO SI EL ARCHIVO NO LA TRAE (owner 2026-10-04 · P1)");
+console.log("=".repeat(100));
+{
+  /* El detalle —sin preselección, el candado, los dos caminos, las carnadas— se monta de verdad en
+   * `_escala_declarada_gate`. Acá queda la forma en el código de la pantalla, para que no se pueda quitar sin que este
+   * gate de la pantalla de carga lo note. */
+  const sinComentarios = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+  const codigo = sinComentarios(PANEL);
+  const lineaDe = (re) => (codigo.match(re) || [""])[0];
+  ok(/datos-escala/.test(codigo) && /preguntaDeDeclaracion\(/.test(codigo), "la pantalla pregunta la escala, con el texto del módulo");
+  ok(/useState\(""\)/.test(lineaDe(/const \[escala, setEscala\][^\n]*/)) && /useState\(""\)/.test(lineaDe(/const \[moneda, setMoneda\][^\n]*/)),
+    "las dos respuestas arrancan VACÍAS: ninguna preseleccionada");
+  ok(/disabled=\{guardando \|\| !monedaLista \|\| !escalaLista/.test(codigo), "el botón de activar espera la escala (y la moneda si el archivo no la trae)");
+  ok(/lineasDeDeclaracion\(/.test(codigo) && /datos-leido-/.test(codigo), "«Esto es lo que leí» suma las líneas de Moneda y Escala, armadas en el módulo");
+  ok(/const faltaMoneda = Boolean\(r && r\.ok && !monedaDelArchivo && !monedaDeLaEmpresa\)/.test(codigo) && /const escalaElegida = escalaLimpia\(escala\);/.test(codigo),
+    "la moneda se pregunta solo si ni el archivo ni la empresa (carga anterior) la trajeron, y la escala sale ÚNICAMENTE de lo que la empresa respondió: no se deduce de nada");
+  ok(/op: "activar"[^}]*escala: escalaElegida/.test(codigo) && /op: "escalar"/.test(codigo),
+    "al activar, la escala viaja al servidor en los dos caminos (guardado: `activar` · en memoria: `escalar`)");
+  ok(/if \(!datasetServidor\)/.test(codigo) && !/datasetServidor \|\| r\.dataset/.test(codigo),
+    "y NUNCA se activa el dataset de la primera lectura: solo el que volvió convertido del servidor");
+}
+
 console.log(`\n── _pantalla_carga_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail === 0 ? 0 : 1);

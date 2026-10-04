@@ -32,6 +32,7 @@ import { persistirCarga, cargasPrevias, activarVersion, declararCobro, declararD
          guardarConversacion, listarConversaciones, leerConversacion, ocultarConversacion, declararContexto,
          monedaTenant } from "./persistirCarga.server.js";
 import { diffDeCarga, periodosDeHechos } from "./historico.js";
+import { validarEscala, FUENTES } from "../config/escala.js";
 
 /* De qué empresa es esta carga. Sale del código firmado y de ningún otro lado.
  *
@@ -64,6 +65,21 @@ async function sesionDeLaCarga(access, env) {
 // `umbralesDe` se movió a `./umbrales.js` (2026-09-25, corrección del supervisor: estaba duplicado con el
 // Acta de ingesta). Mismo cuerpo, misma referencia general de ADI cuando el negocio no declara la suya.
 
+/* archivoDeLaCarga(body) → { ok:true, buf, nombreArchivo } | { ok:false, motivo }
+ * Lo que llega en el cuerpo, decodificado y con su tope. Lo usan la carga y el camino en memoria de la escala: las
+ * dos leen el MISMO archivo con las MISMAS reglas, así que el límite y los motivos viven una sola vez. */
+function archivoDeLaCarga(body) {
+  const b64 = typeof body.archivo === "string" ? body.archivo : "";
+  const nombreArchivo = String(body.nombre || "").slice(0, 80);
+  if (!b64) return { ok: false, motivo: "no llegó ningún archivo" };
+  let buf;
+  try { buf = Buffer.from(b64, "base64"); } catch { return { ok: false, motivo: "el archivo no se pudo decodificar" }; }
+  /* TOPE DE TAMAÑO. Una plantilla llena de verdad pesa decenas de KB; 12 MB es holgura enorme y a la vez impide
+   * que un archivo equivocado —un video, un respaldo— tumbe la función. El límite se declara en el mensaje. */
+  if (buf.length > 12 * 1024 * 1024) return { ok: false, motivo: "el archivo pesa más de 12 MB: ¿es la plantilla?" };
+  return { ok: true, buf, nombreArchivo };
+}
+
 /* handleIngesta(body, env) → { ok:true, preview, alarmas, dataset, persistencia } | { ok:false, motivo, preview }
  * `body.archivo` = el .xlsx en base64 · `body.nombre` = cómo se llama, para poder nombrarlo en pantalla ·
  * `body.access` = el código de acceso firmado, de donde sale la empresa cuando hay que guardar. */
@@ -88,12 +104,15 @@ export async function handleIngesta(body = {}, env) {
     if (!s) return { ok: false, motivo: "sin sesión con empresa: no se puede activar" };
     /* `reemplazar` viaja EXPLÍCITO desde la pantalla (owner 2026-08-30): la lista de períodos que el usuario
      * confirmó pisar. Sin ella, un período repetido corta la activación — el default es cancelar. */
-    const r = await activarVersion({ tenantId: s.tenantId, versionId: body.versionId, moneda: body.moneda,
+    /* ⚠️ LA ESCALA (Y LA MONEDA, SI EL ARCHIVO NO LA TRAÍA) VIAJAN EN EL ACTO DE ACTIVAR y se EXIGEN en `activarVersion`
+     * (owner 2026-10-04 · P1): sin ellas no se activa nada, y con «miles» el pack que vuelve ya está convertido a unidades. */
+    const r = await activarVersion({ tenantId: s.tenantId, versionId: body.versionId, moneda: body.moneda, escala: body.escala,
       reemplazar: Array.isArray(body.reemplazar) ? body.reemplazar : [], actor: s.actor, env });
     return r.activada
-      ? { ok: true, op: "activar", version: r.version, sello: r.sello, moneda: r.moneda,
+      ? { ok: true, op: "activar", version: r.version, sello: r.sello, moneda: r.moneda, escala: r.escala,
           ...(r.alcance ? { alcance: r.alcance } : {}), ...(r.pack ? { dataset: r.pack } : {}) }
-      : { ok: false, op: "activar", motivo: r.motivo, ...(r.sinDecision ? { sinDecision: r.sinDecision } : {}) };
+      : { ok: false, op: "activar", motivo: r.motivo, ...(r.sinEscala ? { sinEscala: true } : {}), ...(r.sinMoneda ? { sinMoneda: true } : {}),
+          ...(r.sinDecision ? { sinDecision: r.sinDecision } : {}) };
   }
 
   /* DECLARAR EL PLAZO DE PAGO · política del negocio, no dato del período (owner 2026-08-30).
@@ -169,15 +188,33 @@ export async function handleIngesta(body = {}, env) {
       : { ok: false, op: "plazos", motivo: r.motivo };
   }
 
-  const b64 = typeof body.archivo === "string" ? body.archivo : "";
-  const nombreArchivo = String(body.nombre || "").slice(0, 80);
-  if (!b64) return { ok: false, motivo: "no llegó ningún archivo" };
+  /* ESCALAR · EL CAMINO EN MEMORIA (owner 2026-10-04 · P1). Cuando la carga no se guardó porque no hay empresa o no hay base
+   * (`persistencia.sinBase`), no existe una versión que activar y por lo tanto tampoco la conversión de `activarVersion`.
+   * Este es su equivalente: la pantalla vuelve a mandar el MISMO archivo junto con la escala que la empresa declaró (y la
+   * moneda, si el archivo no la traía), y lo que vuelve es el dataset YA CONVERTIDO a unidades de la moneda, con
+   * `perfil.escala` y su procedencia. Es lo que se activa en la sesión: la pantalla nunca activa el dataset de la primera
+   * lectura.
+   *
+   * No guarda nada, no necesita sesión y no toca la base — por eso va por su propia op y no repite la carga: repetirla
+   * crearía una versión nueva por cada clic. Misma exigencia que `activar`: sin escala, o sin moneda de ninguna de las dos
+   * fuentes, no hay dataset. */
+  if (body.op === "escalar") {
+    const ve = validarEscala(body.escala);
+    if (!ve.ok) return { ok: false, op: "escalar", sinEscala: true, motivo: ve.motivo };
+    const a = archivoDeLaCarga(body);
+    if (!a.ok) return { ok: false, op: "escalar", motivo: a.motivo };
+    let re;
+    try { re = ingestarPlantilla(a.buf, { nombreArchivo: a.nombreArchivo, fechaCarga: new Date().toISOString().slice(0, 10), escala: ve.valor, moneda: body.moneda }); }
+    catch (e) { return { ok: false, op: "escalar", motivo: `no se pudo leer el archivo: ${(e && e.message) || "formato inesperado"}` }; }
+    const falta = re && !re.ok && ((re.preview && re.preview.bloqueos) || []).find((b) => b.tipo === "declaracion-faltante");
+    if (falta) return { ok: false, op: "escalar", ...(falta.sinMoneda ? { sinMoneda: true } : { sinEscala: true }), motivo: falta.detalle };
+    if (!re || !re.ok) return { ok: false, op: "escalar", motivo: "el archivo no pasó la validación", preview: (re && re.preview) || null };
+    return { ok: true, op: "escalar", dataset: re.dataset, preview: re.preview, escala: (re.dataset.perfil && re.dataset.perfil.escala) || null };
+  }
 
-  let buf;
-  try { buf = Buffer.from(b64, "base64"); } catch { return { ok: false, motivo: "el archivo no se pudo decodificar" }; }
-  /* TOPE DE TAMAÑO. Una plantilla llena de verdad pesa decenas de KB; 12 MB es holgura enorme y a la vez impide
-   * que un archivo equivocado —un video, un respaldo— tumbe la función. El límite se declara en el mensaje. */
-  if (buf.length > 12 * 1024 * 1024) return { ok: false, motivo: "el archivo pesa más de 12 MB: ¿es la plantilla?" };
+  const leido = archivoDeLaCarga(body);
+  if (!leido.ok) return { ok: false, motivo: leido.motivo };
+  const { buf, nombreArchivo } = leido;
 
   let r;
   /* LA FECHA RELEVANTE ES LA DE CARGA, y la pone ADI (owner 2026-08-26): «no la llena el usuario». El stock es
@@ -238,7 +275,10 @@ export async function handleIngesta(body = {}, env) {
        * MISMA declaración de una carga previa, recordada, no un valor nuevo. */
       if (!(r.dataset.perfil && r.dataset.perfil.moneda)) {
         const heredada = await monedaTenant({ tenantId: empresa, env });
-        if (heredada) r.dataset = { ...r.dataset, perfil: { ...(r.dataset.perfil || {}), moneda: heredada } };
+        /* ⚠️ LA HERENCIA MARCA SU FUENTE (P1): la moneda recordada NO viene del archivo, y la pantalla no puede rotularla «del
+         * archivo». `monedaFuente: "empresa"` es lo que le dice a la pantalla —y a la activación— que es una declaración de
+         * una carga anterior de ESTA empresa, la tercera fuente de la moneda. */
+        if (heredada) r.dataset = { ...r.dataset, perfil: { ...(r.dataset.perfil || {}), moneda: heredada, monedaFuente: FUENTES.empresa } };
       }
 
       /* ⚠️ SE GUARDA EL SELLO **SIN CONFIRMAR**, y no es un detalle: el sello lleva adentro un campo que dice si

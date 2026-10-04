@@ -535,5 +535,20 @@ H("[L] EL USUARIO ABRE EL ARCHIVO Y SABE QUÉ HACER · amarillo, explicación y 
   }
 }
 
+console.log("\n" + "=".repeat(100));
+console.log("7 · CADA COLUMNA NUMÉRICA DECLARA QUÉ MIDE · dinero o cantidad (owner 2026-10-04 · P1)");
+console.log("=".repeat(100));
+{
+  /* Es lo que le dice al motor QUÉ SE MULTIPLICA si la empresa declara sus montos en miles. No es estructura: el sello de
+   * `_plantilla_congelada_gate` compara campo · título · obligatoria y no lo ve. El detalle vive en `_escala_declarada_gate`. */
+  const numericas = HOJAS.flatMap((h) => h.columnas.filter((c) => c.tipo === "numero").map((c) => ({ ...c, hoja: h.nombre })));
+  ok(numericas.length === 7 && numericas.every((c) => c.magnitud === "dinero" || c.magnitud === "cantidad"),
+    `las ${numericas.length} columnas numéricas declaran su magnitud: ${numericas.map((c) => `${c.hoja}.${c.campo}=${c.magnitud}`).join(" · ")}`);
+  ok(numericas.filter((c) => c.magnitud === "cantidad").map((c) => c.campo).sort().join() === "stockUnd,unidades",
+    "las cantidades (unidades vendidas y stock físico) NO son dinero: la conversión de escala no las toca");
+  ok(!HOJAS.some((h) => h.columnas.some((c) => /escala|miles/i.test(c.titulo))) && !PARAMETROS.some((p) => /escala/i.test(p.clave)),
+    "y la plantilla no tiene ninguna columna ni campo de escala: se declara en la pantalla, no en el archivo");
+}
+
 console.log(`\n${FAIL === 0 ? "✅" : "❌"} _plantilla_oficial_gate · ${PASS} ok · ${FAIL} fallas`);
 process.exit(FAIL === 0 ? 0 : 1);
