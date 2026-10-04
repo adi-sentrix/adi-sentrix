@@ -12,6 +12,26 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 2.31 — producción · tag `v2.31`
+
+**La escala de los montos la declara la empresa en cada carga.** En «Tus datos», una planilla con los montos escritos en
+miles cargaba sin una sola alarma y ADI analizaba cifras mil veces menores (venta 61 en vez de 61.483.000). La ley del owner:
+el símbolo de moneda declarado sí, la escala jamás se supone. Arreglo directo desde la 2.30 (no trae el trabajo pendiente de
+`dev`).
+
+- **«Esto es lo que leí» suma Moneda y Escala.** La moneda que trae la hoja Empresa se muestra «(del archivo)» y se confirma
+  con el mismo botón de siempre, sin preguntarla; si el archivo no la trae, se pregunta como antes. La escala no tiene lugar en
+  la plantilla, así que se pregunta en cada carga —«¿Los montos están en unidades de la moneda o en miles?»— sin opción marcada,
+  y «Usar estos datos» queda bloqueado hasta responder. Nada se deduce de encabezados ni del tamaño de las cifras.
+- **«Miles» lo convierte el motor, no la pantalla:** multiplica por 1.000 los campos que el contrato de la plantilla declara
+  como dinero (venta, costo, acciones comerciales, precio de lista, monto de abonos) y ninguna cantidad; en la carga guardada y
+  en la activada en memoria. El pack registra moneda, escala, «declarado por la empresa», de dónde salió cada una y qué se
+  multiplicó.
+- La estructura de la plantilla no cambia (sigue sellada). Candado nuevo `_escala_declarada_gate` (168) con carnadas: escala o
+  moneda preseleccionada, botón sin candado, escala deducida de «M$», moneda del archivo preguntada de nuevo.
+- Verificado antes de publicar: en producción no existe ninguna empresa real con datos guardados de escala desconocida (solo
+  `prueba`), así que no hay historia que se mezcle. 258 PASS · 0 FAIL · 0 TOCARON LA RED.
+
 ## 2.30 — producción · tag `v2.30`
 
 **La prioridad integrada se decide por señales, no por cuántos dominios coinciden.** Sobre el mismo prompt de producción
