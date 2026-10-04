@@ -909,10 +909,18 @@ venta a crédito, ley del owner).
         · NO es regla universal «nunca calcular con declarados»: un declarado participa en un cálculo solo si el contrato de ESA
           métrica lo permite explícitamente (`metricRegistry.js:admiteDeclarado`, por defecto falso), con su procedencia y sin
           sustituir silenciosamente un medido (`loDeclarado.js:insumoDeCalculo`). Hoy ninguna métrica lo permite.
-    (f) ABIERTO (a decisión; no se tocó por ser vocabulario de la casa o texto de instrucción): los nombres «benchmark de la
-        empresa», «techo de cobertura de la empresa», «nivel declarado de carga» y «piso de rotación declarado» (léxico y conjuntos
-        del Notario) siguen diciendo «de la empresa»/«declarado» aunque la referencia oficial sea el criterio general de ADI; y
-        la cabecera de uso de `consultar` (`CABECERA_DE_USO`) dice «el benchmark es el que declaró la empresa».
+    (f) SEGUNDA VUELTA (owner 2026-10-03): una atribución falsa es CUALQUIER forma de decir que la empresa puso un criterio que
+        no puso, no solo la frase fija. Los nombres de la referencia («benchmark de la empresa», «techo de cobertura de la
+        empresa», «nivel declarado de carga», «piso de rotación declarado», «el benchmark que la empresa declaró», «El supuesto
+        lo declaró la empresa») son datos de UNA tabla según el origen (`businessPolicy.js:NOMBRES_SEGUN_ORIGEN`): con origen
+        empresa, la forma de siempre; con cualquier otro, la de ADI («… general de ADI») o la de la consulta («El supuesto fue
+        planteado en la consulta»). El nombre VISIBLE del conjunto del Notario «sobre el nivel declarado de carga» sigue al origen
+        («sobre el nivel de referencia de carga»); su identificador, su pertenencia y su veredicto no cambian. La cabecera de uso
+        de `consultar` dice que el benchmark lleva su origen. El oráculo de la certificación es por significado
+        (`scripts/procedencia/lexicoAtribucion.mjs`, léxico como datos).
+        ABIERTO (a decisión): el RÓTULO de la cifra «Nivel de carga declarado» (es el de la boleta y el nombre de la métrica en el
+        léxico: cambiarlo cambia la boleta y el casado del Notario) y el glosario de Sentrix («la referencia que la empresa
+        declaró para este análisis», fuera de alcance) siguen diciendo «declarado» con una empresa que no lo declaró.
 
 (Texto original de 7.2, conservado como historia:)
 - **`lectura`/`decision` con TODOS los conceptos pedidos sin productor** (RC9): hoy queda `parcial` con

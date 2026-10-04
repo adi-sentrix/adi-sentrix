@@ -16,7 +16,7 @@ import { umbralesDeBases, umbralesDeConceptos, NOMBRE_CARGA_ALTA, formaDeConjunt
 import { conjuntoDeUniverso, valorDeReferencia } from "../notario/verificar.js";
 import { formatoDeReferencia } from "../notario/hechos.js";
 import { conteoDeEje, conPreposicion, sintagmaDe, metricaPorClave } from "../notario/lexico.js";
-import { ETIQUETA_ORIGEN, ADJETIVO_DE_ORIGEN, umbral, benchmarkOf, procedenciaDeUmbral, procedenciaDeUmbrales, procedenciaDeMaterialidad, procedenciaDeReferencia, valorDeUmbralEnTexto } from "../../config/businessPolicy.js";
+import { ETIQUETA_ORIGEN, ADJETIVO_DE_ORIGEN, umbral, benchmarkOf, procedenciaDeUmbral, procedenciaDeUmbrales, procedenciaDeMaterialidad, procedenciaDeReferencia, nombreSegunOrigen, valorDeUmbralEnTexto } from "../../config/businessPolicy.js";
 import { descomposicionDeBrecha } from "../specRetrieval.js";
 
 // §7.3·12/·19 (decisión del owner 2026-09-27, «con el benchmark de la empresa, como recomiendas»; generalizada
@@ -36,9 +36,11 @@ import { descomposicionDeBrecha } from "../specRetrieval.js";
 // «carga comercial alta» es el DETECTOR (`datoProyectado.conjuntos`, no un filtro simple sobre la métrica
 // «carga»): declara solo el conteo oficial, nunca una alternativa recalculada con una fórmula que no es la
 // suya (`sinAlternativa` en la tabla).
+/* el nombre de la referencia OFICIAL según su origen real (decisión §7.3·58, segunda vuelta): «el benchmark de la empresa» solo si la empresa lo declaró; si es el criterio general de ADI se nombra así. De la tabla única (`businessPolicy.js:NOMBRES_SEGUN_ORIGEN`), evaluado al usar (un getter): nunca congelado al cargar el módulo. */
+const _oficial = (concepto) => ({ articulo: "el", nucleo: nombreSegunOrigen(`oficial_${concepto}`, concepto) });
 export const REFERENCIA_FAMILIAS = {
-  benchmark: { eje: "cliente", metrica: "margen", nombreDeLaEmpresa: { articulo: "el", nucleo: "benchmark de la empresa" }, direcciones: { bajo: { base: "bajo el benchmark", op: "<" }, sobre: { base: "sobre el benchmark", op: ">=" } } },
-  nivel_carga: { eje: "cliente", metrica: "carga", nombreDeLaEmpresa: { articulo: "el", nucleo: "nivel declarado de carga" }, direcciones: { sobre: { base: "sobre el nivel declarado de carga", op: ">" } }, sinAlternativa: ["carga comercial alta"] },
+  benchmark: { eje: "cliente", metrica: "margen", get nombreDeLaEmpresa() { return _oficial("benchmark"); }, direcciones: { bajo: { base: "bajo el benchmark", op: "<" }, sobre: { base: "sobre el benchmark", op: ">=" } } },
+  nivel_carga: { eje: "cliente", metrica: "carga", get nombreDeLaEmpresa() { return _oficial("nivel_carga"); }, direcciones: { sobre: { base: "sobre el nivel declarado de carga", op: ">" } }, sinAlternativa: ["carga comercial alta"] },
   // §7.3·19 (SUPERVISOR, residual del diagnóstico v10 — X78/X79) — la TERCERA referencia que la propia decisión
   // ya nombra («benchmark, nivel declarado de carga, piso de rotación»): sin esta entrada, una referencia de
   // rotación declarada por el usuario (`criterio.referencia.concepto:"piso_rotacion"`) nunca disparaba nada —
@@ -46,19 +48,19 @@ export const REFERENCIA_FAMILIAS = {
   // sin disparar nada»). Sus conjuntos se nombran por ESTADO («rota bien»/«rota lento», notario/estados.js), no
   // por `base` (un conjunto de `conjuntosDeLaCasa.js`): `estado` en vez de `base` en cada dirección se lee más
   // abajo con el MISMO valor (ambos son solo la clave que `basesEnJuego` tiene que contener).
-  piso_rotacion: { eje: "sku", metrica: "rotacion", umbral: "rotacionMin", nombreDeLaEmpresa: { articulo: "el", nucleo: "piso de rotación declarado" }, direcciones: { bajo: { estado: "rota lento", op: "<" }, sobre: { estado: "rota bien", op: ">=" } } },
+  piso_rotacion: { eje: "sku", metrica: "rotacion", umbral: "rotacionMin", get nombreDeLaEmpresa() { return _oficial("piso_rotacion"); }, direcciones: { bajo: { estado: "rota lento", op: "<" }, sobre: { estado: "rota bien", op: ">=" } } },
   // ETAPA 6 (owner 2026-09-29, §7.3·35) — el umbral de venta frenada (días sin venta) planteado en la consulta: la CUARTA
   // referencia que define un conjunto de la casa («frenado», notario/estados.js). Mismo patrón de §7.3·12/·19: si la
   // EMPRESA declaró su umbral, el veredicto oficial es el suyo y aquí se declara AL LADO cuántos SKU serían con el de la
   // consulta (`op:">"`, el mismo «sobre el umbral» de `jerarquiaInventario`). Si la empresa NO lo declaró
   // (`operativaSinOficial`), no hay oficial que contrastar: el de la consulta sostiene el veredicto de ESTA respuesta —
   // `componerEntrega` lo pasó al índice (`_consultaDeFrenado`) — y se declara en el Marco como criterio de quien consulta.
-  umbral_frenado: { eje: "sku", metrica: "dias_sin_venta", nombreDeLaEmpresa: { articulo: "el", nucleo: "umbral de venta frenada declarado" }, direcciones: { sobre: { estado: "frenado", op: ">" } }, operativaSinOficial: true },
+  umbral_frenado: { eje: "sku", metrica: "dias_sin_venta", get nombreDeLaEmpresa() { return _oficial("umbral_frenado"); }, direcciones: { sobre: { estado: "frenado", op: ">" } }, operativaSinOficial: true },
   // §7.3·36c (SUPERVISOR, diagnóstico v12, Z98 = Y96 de v11) — la QUINTA referencia que define un conjunto de la casa: el techo de
   // cobertura (días de inventario máximo, `REFERENCIAS_DE_LA_CASA`). Sin esta entrada el validador aceptaba `criterio.referencia{techo_cobertura}`
   // y la Entrega la ignoraba en silencio (la cara opuesta de «nunca reemplaza a la oficial en silencio»). Su conjunto no se nombra
   // por `base` ni por estado sino por el FILTRO que cita la referencia (`filtros[].ref`): la dirección se dispara por `ref`.
-  techo_cobertura: { eje: "sku", metrica: "dias_inventario", umbral: "dohMax", nombreDeLaEmpresa: { articulo: "el", nucleo: "techo de cobertura de la empresa" }, direcciones: { sobre: { ref: "techo_cobertura", op: ">" } } },
+  techo_cobertura: { eje: "sku", metrica: "dias_inventario", umbral: "dohMax", get nombreDeLaEmpresa() { return _oficial("techo_cobertura"); }, direcciones: { sobre: { ref: "techo_cobertura", op: ">" } } },
   // v17 (W27, §7.3·19 «la referencia del usuario vale para TODA referencia que define un conjunto de la casa»): la SEXTA — el piso de materialidad (`materialidadFocoPctVenta`, % de la venta) que decide
   // «carga comercial alta» (`UMBRALES_DE_BASE`). Sin esta entrada, `criterio.referencia{umbral_materialidad}` se ignoraba en silencio. Se declara AL LADO del piso oficial (su origen sale de `umbral().origen`:
   // criterio general de ADI o declarado por la empresa) y nunca lo reemplaza: el conjunto alternativo lo calculan las MISMAS filas del detector (`descomposicionDeBrecha`) con el otro piso. Ni `direcciones` ni `umbral`: no pasan por la ruta de las demás.
@@ -232,7 +234,7 @@ export function referenciasDeLaConsulta({ resolucion, partesUtiles, I, scenario,
           declarada = true;
           limites.push({
             titulo: _tituloDeLaDeclaracion(familiaRef.nombreDeLaEmpresa, idsDeLasPartes),
-            motivo: `«${baseDetector}» ${conteoDeEje(familiaRef.eje, oficial.set.size).presente} ${conteoDeEje(familiaRef.eje, oficial.set.size).texto} con la referencia de la empresa; el detector no se recalcula con una referencia distinta — no reemplaza la oficial ni es un objetivo de la empresa.`,
+            motivo: `«${baseDetector}» ${conteoDeEje(familiaRef.eje, oficial.set.size).presente} ${conteoDeEje(familiaRef.eje, oficial.set.size).texto} con la ${nombreSegunOrigen("referencia_carga", "nivel_carga")}; el detector no se recalcula con una referencia distinta — no reemplaza la oficial ni es un objetivo de la empresa.`,
           });
         }
       } catch { /* declarada = false: abajo se DECLARA que no se pudo evaluar */ }

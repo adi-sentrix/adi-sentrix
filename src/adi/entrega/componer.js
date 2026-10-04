@@ -18,7 +18,7 @@
  * dados. Sin red, sin estado global nuevo. Detrás de la bandera `ADI_ENTREGA` (APAGADA en todos los perfiles):
  * este módulo no se importa desde ningún camino de producción todavía — lo ejercita solo el gate. */
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
-import { benchmarkOf, ETIQUETA_ORIGEN, umbral, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, NOMBRE_DE_UMBRAL, valorDeUmbralEnTexto, procedenciaDeMaterialidad, procedenciaDeSupuesto, etiquetaDeProcedencia } from "../../config/businessPolicy.js";
+import { benchmarkOf, ETIQUETA_ORIGEN, umbral, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, NOMBRE_DE_UMBRAL, valorDeUmbralEnTexto, procedenciaDeMaterialidad, procedenciaDeSupuesto, etiquetaDeProcedencia, nombreSegunOrigen } from "../../config/businessPolicy.js";
 import { umbralesDeBases, umbralesDeConceptos, NOMBRE_CARGA_ALTA, referenciaDeBase, formaDeConjunto, conjuntoDeFormaEnEje } from "../notario/conjuntosDeLaCasa.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
 import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
@@ -570,7 +570,7 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
   // ── LO QUE NO SE PUEDE CONCLUIR · cada ausencia es un HALLAZGO con título, nunca una prohibición ni una excusa ──
   entrega.limites = [
     // CORTE 3e (owner 2026-09-26) — «que usted declaró» → «que la empresa declaró».
-    { titulo: "La brecha estimada no es dinero ya perdido", motivo: `Es una comparación contra el benchmark que la empresa declaró (${R(idBench)}); no es recuperable en su totalidad ni necesariamente.` },
+    { titulo: "La brecha estimada no es dinero ya perdido", motivo: `Es una comparación contra el ${nombreSegunOrigen("declaro_benchmark", "benchmark")} (${R(idBench)}); no es recuperable en su totalidad ni necesariamente.` },
     { titulo: `La causa de que ${top.entidad} esté bajo el benchmark no está en los datos`, motivo: "Esta lectura localiza dónde está la brecha, no explica por qué — no hay causalidad sin respaldo." },
     { titulo: "No hay serie mensual de margen por cliente en este dato", motivo: `No se puede afirmar que el margen de ${top.entidad} venga subiendo, bajando o se mantenga: solo que está en el valor de este corte.` },
     _limiteDeAusencia("conocimiento_sector_comercial"),
@@ -4361,7 +4361,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
           if (bloque.sinDelta) entrega.limites.push({ titulo: `El delta contra lo real no se pudo aislar como cifra propia (${bloque.entidad})`, motivo: "La simulación no publicó una cifra 'base' con el mismo concepto que el resultado: se declara la base y el resultado por separado, sin restar a mano." });
         }
         // CORTE 3e (owner 2026-09-26) — «lo declaró usted» → «lo declaró la empresa».
-        entrega.limites.push({ titulo: "Esta simulación es un resultado hipotético, no lo que ya ocurrió", motivo: "El supuesto lo declaró la empresa; ADI calcula el efecto sobre el dato real, pero no afirma que vaya a pasar." });
+        entrega.limites.push({ titulo: "Esta simulación es un resultado hipotético, no lo que ya ocurrió", motivo: `El supuesto fue ${etiquetaDeProcedencia(procedenciaDeSupuesto())}; ADI calcula el efecto sobre el dato real, pero no afirma que vaya a pasar.` });
         if (plan.descartadasFueraDeUniverso) entrega._simulacionDescartadas = (entrega._simulacionDescartadas || 0) + plan.descartadasFueraDeUniverso;
         if (descartadasJergaInterna) entrega._simulacionDescartadasJerga = (entrega._simulacionDescartadasJerga || 0) + descartadasJergaInterna;
         // el universo pedido de ESTA simulación, para que `verificar.js` regla 14 audite «ninguna fila fuera del

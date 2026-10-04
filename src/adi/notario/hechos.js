@@ -338,7 +338,7 @@ export function textoDeLaCasa(raw, unidad, texto) {
 /* las palabras de cada estado (singular con tildes · plural · contrario) son DATOS de la casa: `estados.js:FORMA_DE_ESTADO` */
 export const nombreDeEstado = (canon) => formaDeEstado(canon).singular;   // el estado dicho de UNA entidad (o tras «fuera de»); el que califica a un grupo es `formaDeEstado(canon).plural`
 /* un `universo.base` que es un estado de la casa o un conjunto con nombre visible propio se imprime con SU forma, no con el identificador sin tilde */
-const _nombreDeBase = (b) => { const c = conjuntoConocido(b); if (c && c.visible) return c.visible; if (c && c.precede) return `${c.precede} ${String(b)}`; const e = estadoDeclarado(b); return e ? formaDeEstado(e).plural : String(b); };
+const _nombreDeBase = (b) => { const c = conjuntoConocido(b); if (c && c.visibleSegunOrigen) return c.visibleSegunOrigen(); if (c && c.visible) return c.visible; if (c && c.precede) return `${c.precede} ${String(b)}`; const e = estadoDeclarado(b); return e ? formaDeEstado(e).plural : String(b); };
 const _canonDe = (e) => estadoCanon(String(e || "").replace(/_/g, " "));
 const _ESTADOS_COBRANZA = new Set(["al dia", "en mora", "sin deuda", "sin pagos", "buen pagador", "mal pagador"]);
 const _ESTADOS_COMERCIAL = new Set(["sin contribucion", "sin margen"]);
@@ -376,7 +376,7 @@ const _fmtUmbral = (f, I = null) => {
   return `${nombre} ${_OPS[f.op] || "superior a"} ${val(f.valor)}`;
 };
 /* la forma negada de un conjunto de la casa: la que el catálogo declara (`negado`) o, si es un estado de la casa con otro nombre («con saldo vencido» = en mora), la de `FORMA_DE_ESTADO`; null si no tiene */
-const _negadoDeConjunto = (n) => { const c = conjuntoConocido(n); if (c && c.negado) return c.negado; const e = estadoDeclarado(String(n)); return e ? formaDeEstado(e).negado : null; };
+const _negadoDeConjunto = (n) => { const c = conjuntoConocido(n); if (c && c.negadoSegunOrigen) return c.negadoSegunOrigen(); if (c && c.negado) return c.negado; const e = estadoDeclarado(String(n)); return e ? formaDeEstado(e).negado : null; };
 export function nombrarUniverso(u, I = null) {
   if (!_es(u)) return typeof u === "string" ? u : Array.isArray(u) ? u.join(", ") : "";
   const eje = normalizar(u.eje || "cliente");

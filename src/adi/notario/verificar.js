@@ -29,7 +29,7 @@ import { ESTADOS_CANON, estadoDeLaCasa, verificarEstadoDeLaCasa, ejeCompatible }
 import { juzgarBase, calcularConBase } from "./tasas.js";
 import { ceroPorCobertura, claveDeMetrica as _claveDeMetricaLex, metricaPorClave, polaridadDeClave, diasDe, opDe, esCero, dichoElCero, diasEnPalabras } from "./lexico.js";   // verdad finita (E1): el universo tipado se evalúa por claves, no por palabras   // la base de una tasa (ronda adversarial 3): valor + base, o no es esa tasa   // fase 4: la casa canoniza la forma de la declaración antes del veredicto
 import { indiceDeEvidencia, tokens, numerosEn, ES_TODO, ES_TODO_FUERTE, estadoCanon, conceptosDe, mismoValor as _mismoValor, unidadCompatible as _u, necesitaUniverso as _necesitaUniverso, conDigitos } from "./evidencia.js";
-import { NOMBRE_CARGA_ALTA, NOMBRE_SOBRE_NIVEL_CARGA, referenciaDeBase } from "./conjuntosDeLaCasa.js";   // §7.3·11: el nombre de estos dos conjuntos vive en UN solo lugar (con oracle/datoProyectado.js y encargo/validar.js) — la lógica de membresía de abajo no cambia. `referenciaDeBase` (tarea 4 del cierre, §7.3): el MISMO registro que usa notario/hechos.js, para que la fuente de un `base` con referencia numérica también lleve su valor acá
+import { NOMBRE_CARGA_ALTA, NOMBRE_SOBRE_NIVEL_CARGA, referenciaDeBase, nombreVisibleDeConjunto } from "./conjuntosDeLaCasa.js";   // §7.3·11: el nombre de estos dos conjuntos vive en UN solo lugar (con oracle/datoProyectado.js y encargo/validar.js) — la lógica de membresía de abajo no cambia. `referenciaDeBase` (tarea 4 del cierre, §7.3): el MISMO registro que usa notario/hechos.js, para que la fuente de un `base` con referencia numérica también lleve su valor acá
 
 export const VEREDICTOS = ["verdadera", "falsa", "no-verificable", "sellada"];
 
@@ -650,8 +650,8 @@ function _conjuntoTipado(u, I, eje0, metrica = "") {
       const fam = referenciaDeBase(c.nombre);
       const rRef = fam ? _refRaw(fam.concepto, I) : null;
       const fuenteBase = rRef && Number.isFinite(rRef.raw)
-        ? `${c.nombre}, ${(metricaPorClave(fam.concepto) || {}).nombre ? metricaPorClave(fam.concepto).nombre.toLowerCase() : fam.concepto} ${rRef.texto || rRef.raw}`
-        : c.nombre;
+        ? `${c.nombre === NOMBRE_SOBRE_NIVEL_CARGA ? nombreVisibleDeConjunto(c.nombre) : c.nombre}, ${(metricaPorClave(fam.concepto) || {}).nombre ? metricaPorClave(fam.concepto).nombre.toLowerCase() : fam.concepto} ${rRef.texto || rRef.raw}`
+        : (c.nombre === NOMBRE_SOBRE_NIVEL_CARGA ? nombreVisibleDeConjunto(c.nombre) : c.nombre);
       restringir(c.set, fuenteBase);
     } else {
       // §7.3, tarea 5 del cierre (supervisor 2026-09-27, diagnóstico v8, raíz Z48) — un `base` puede nombrar un
@@ -706,7 +706,7 @@ function _conjuntoTipado(u, I, eje0, metrica = "") {
     if (!base) return { error: "universo-no-resoluble: la exclusión necesita el eje entero y la evidencia no lo trae" };
     const quitar = new Set(); const partes = [];
     for (const e of _listaOUno(ex.entidades)) { const r = I.resolverEntidad(e); if (!r) return { error: `universo-no-resoluble: «${e}» no es una entidad del tenant` }; quitar.add(normalizar(r.nombre)); partes.push(r.nombre); }
-    for (const n of _listaOUno(ex.conjuntos)) { const c = _conjuntosConocidos(I).find((x) => normalizar(x.nombre) === normalizar(n) && (!x.eje || x.eje === eje)); if (!c) return { error: `universo-no-resoluble: «${n}» no es un conjunto que la evidencia identifique` }; for (const x of c.set) quitar.add(x); partes.push(c.nombre); }
+    for (const n of _listaOUno(ex.conjuntos)) { const c = _conjuntosConocidos(I).find((x) => normalizar(x.nombre) === normalizar(n) && (!x.eje || x.eje === eje)); if (!c) return { error: `universo-no-resoluble: «${n}» no es un conjunto que la evidencia identifique` }; for (const x of c.set) quitar.add(x); partes.push(c.nombre === NOMBRE_SOBRE_NIVEL_CARGA ? nombreVisibleDeConjunto(c.nombre) : c.nombre); }
     for (const est of _listaOUno(ex.estados)) { const S = _setDeEstado(est, I, eje); if (S.error) return S; for (const x of S.set) quitar.add(x); partes.push(S.fuente); }
     if (ex.bodega) { if (eje !== "sku") return { error: `universo-no-resoluble: la exclusión por bodega solo aplica a SKU (eje «${eje}»)` }; const b = _bodegaNombrada(String(ex.bodega), I); if (!b) return { error: `universo-no-resoluble: «${ex.bodega}» no es una bodega del tenant` }; for (const x of _skusEnBodega(b, I)) quitar.add(x); partes.push(`en ${ex.bodega}`); }
     for (const t of _listaOUno(ex.top)) { if (!t || typeof t !== "object") continue; const S = _topTipado(t, I, eje, todos); if (S.error) return S; for (const x of S.set) quitar.add(x); partes.push(S.fuente); }

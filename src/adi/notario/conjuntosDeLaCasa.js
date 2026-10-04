@@ -35,6 +35,7 @@
  * ESTÁTICO todavía. Un `base` con ese nombre sigue sin poder declinarse en la validación — se resuelve en tiempo
  * de composición, igual que antes de esta decisión. */
 import { definicionesDeEstados, UMBRALES_DE_ESTADO } from "./estados.js";
+import { nombreSegunOrigen } from "../../config/businessPolicy.js";
 
 /* la familia CARGA: constantes, para que `oracle/datoProyectado.js` y `notario/verificar.js` usen la MISMA clave */
 export const NOMBRE_CARGA_ALTA = "carga comercial alta";
@@ -42,7 +43,8 @@ export const NOMBRE_SOBRE_NIVEL_CARGA = "sobre el nivel declarado de carga";
 const _CARGA = [
   /* `precede` (owner 2026-09-29): la preposición con que el nombre califica a un grupo — «los clientes CON carga comercial alta» (el nombre a secas es un sustantivo: «los clientes carga comercial alta» no se dice). Dato de la casa, como `visible`; el nombre no cambia. */
   { nombre: NOMBRE_CARGA_ALTA, eje: "cliente", familia: "carga", precede: "con", negado: "sin carga comercial alta" },
-  { nombre: NOMBRE_SOBRE_NIVEL_CARGA, eje: "cliente", familia: "carga", negado: "que no están sobre el nivel declarado de carga" },
+  /* §7.3·58 (segunda vuelta, permiso acotado del owner): el IDENTIFICADOR no cambia (el Notario sigue reconociendo «sobre el nivel declarado de carga»); solo su nombre VISIBLE y su forma negada reflejan el origen real del nivel (`businessPolicy.js:nombreSegunOrigen`): con el nivel que la empresa declaró, el de siempre; con el criterio general de ADI, «sobre el nivel de referencia de carga». `visible`/`negado` son la forma de siempre (la del nivel que la empresa declaró); `visibleSegunOrigen`/`negadoSegunOrigen` son funciones evaluadas al imprimir. */
+  { nombre: NOMBRE_SOBRE_NIVEL_CARGA, eje: "cliente", familia: "carga", visible: NOMBRE_SOBRE_NIVEL_CARGA, negado: "que no están sobre el nivel declarado de carga", visibleSegunOrigen: () => nombreSegunOrigen("conjunto_sobre_nivel_carga", "nivel_carga"), negadoSegunOrigen: () => nombreSegunOrigen("conjunto_no_sobre_nivel_carga", "nivel_carga") },
 ];
 
 /* la familia BENCHMARK: mismos nombres exactos que ya declara `notario/verificar.js:_conjuntosConocidos` */
@@ -90,6 +92,13 @@ const _porNombre = new Map(CONJUNTOS_DE_LA_CASA.map((c) => [_norm(c.nombre), c])
  *  su membresía este turno, que sigue siendo pregunta de `_conjuntosConocidos`. */
 export function conjuntoConocido(nombre) {
   return _porNombre.get(_norm(nombre)) || null;
+}
+/** nombreVisibleDeConjunto(nombre) → cómo se IMPRIME el nombre de un conjunto de la casa: su `visibleSegunOrigen` (una función si depende del origen real de su referencia, §7.3·58) o su `visible` o, si no lo tiene, el nombre tal cual. Solo texto: el identificador y la pertenencia no cambian. */
+export function nombreVisibleDeConjunto(nombre) {
+  const c = conjuntoConocido(nombre);
+  if (c && c.visibleSegunOrigen) return c.visibleSegunOrigen();
+  if (c && c.visible) return c.visible;
+  return String(nombre == null ? "" : nombre);
 }
 /** formaDeConjunto(nombre) → la dirección compartida de un conjunto de la casa («SKU bajo el benchmark» → «bajo el benchmark»); un conjunto sin `forma` propia es su propio nombre. Sin conjunto conocido, el nombre tal cual (§7.3·49a). */
 export function formaDeConjunto(nombre) {

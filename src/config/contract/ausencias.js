@@ -32,7 +32,7 @@
 
 /* ÚNICA EXCEPCIÓN a «sin imports» (§7.3·36b, diagnóstico v12 raíz A8): el ORIGEN del umbral de materialidad depende del perfil de
  * la empresa, así que la frase que lo nombra lo pide al helper único de la procedencia en vez de escribirlo a mano. */
-import { NOMBRE_DE_UMBRAL, procedenciaDeUmbral } from "../businessPolicy.js";
+import { NOMBRE_DE_UMBRAL, procedenciaDeUmbral, nombreSegunOrigen } from "../businessPolicy.js";
 
 // Las categorías que YA se vieron aparecer en el dato — LISTA ABIERTA (owner, textual: «tipos de ausencia que ya
 // viste aparecer»): no es una partición cerrada de todo lo que un dato puede no tener. `no_reconcilia` y
@@ -156,7 +156,7 @@ export const AUSENCIAS_DEL_DATO = [
     texto: "conocimiento del sector (benchmarks de margen de la industria): NO construido — la única referencia disponible es el benchmark que declaró el cliente.",
     // CORTE 3e (owner 2026-09-26) — «usted declaró» → «la empresa declaró»: la Entrega va en tercera persona,
     // sin pronombres de trato (ley «LA ENTREGA NO LE HABLA A NADIE»). Mismo texto, mismo motivo, solo el trato.
-    entrega: { titulo: "Sin conocimiento del sector cargado todavía", motivo: "El Business Knowledge (benchmarks del sector) todavía no está construido: esta Entrega compara solo contra el benchmark que la empresa declaró, no contra el sector." },
+    entrega: { titulo: "Sin conocimiento del sector cargado todavía", get motivo() { return `El Business Knowledge (benchmarks del sector) todavía no está construido: esta Entrega compara solo contra el ${nombreSegunOrigen("declaro_benchmark", "benchmark")}, no contra el sector.`; } },   // el origen real del benchmark (decisión §7.3·58, segunda vuelta): «que la empresa declaró» solo si la empresa lo declaró
   },
   {
     id: "conocimiento_sector_cobranza", tipo: "conocimiento_no_construido", dominio: "cobranza",

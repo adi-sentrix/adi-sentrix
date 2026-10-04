@@ -494,6 +494,35 @@ export function procedenciaDeReferencia(concepto, opciones = {}) {
   return llave ? etiquetaDeProcedencia(procedenciaDeLlave(llave), opciones) : null;
 }
 
+/* ══ EL NOMBRE DE LA REFERENCIA SEGÚN SU ORIGEN (owner 2026-10-03, segunda vuelta, decisión §7.3·58) ═══════════════════════════════════════════════════════════════════════
+ * Una atribución falsa no es solo la frase «declarado por la empresa»: es CUALQUIER forma de decir que la empresa puso un criterio que no puso —«el benchmark de la empresa», «el nivel declarado de carga»,
+ * «el benchmark que la empresa declaró»—. Esas formas son DATOS de esta tabla, una por (forma, referencia), con su redacción para cada origen: con origen «empresa» la forma de siempre (el demo no cambia ni un
+ * byte); con cualquier otro, la forma de ADI («… general de ADI», la redacción que el umbral de materialidad ya usaba). El origen lo da `procedenciaDeLlave` (la única función de origen). Nadie escribe estas
+ * formas a mano. */
+export const NOMBRES_SEGUN_ORIGEN = Object.freeze({
+  /* cómo se NOMBRA la referencia oficial en el límite que la contrasta con la de la consulta («… en vez del <nombre>») */
+  oficial_benchmark: Object.freeze({ empresa: "benchmark de la empresa", adi: "benchmark general de ADI" }),
+  oficial_nivel_carga: Object.freeze({ empresa: "nivel declarado de carga", adi: "nivel general de carga de ADI" }),
+  oficial_piso_rotacion: Object.freeze({ empresa: "piso de rotación declarado", adi: "piso de rotación general de ADI" }),
+  oficial_techo_cobertura: Object.freeze({ empresa: "techo de cobertura de la empresa", adi: "techo de cobertura general de ADI" }),
+  oficial_umbral_frenado: Object.freeze({ empresa: "umbral de venta frenada declarado", adi: "umbral de venta frenada de ADI" }),
+  /* «una comparación contra el <benchmark que la empresa declaró>» (el límite de la brecha y el hueco del conocimiento del sector) */
+  declaro_benchmark: Object.freeze({ empresa: "benchmark que la empresa declaró", adi: "benchmark general de ADI" }),
+  /* «con la <referencia de la empresa>» (el conteo oficial de «carga comercial alta», que el detector no recalcula) */
+  referencia_carga: Object.freeze({ empresa: "referencia de la empresa", adi: "referencia general de ADI" }),
+  /* el NOMBRE VISIBLE del conjunto de la casa «sobre el nivel declarado de carga» (el identificador no cambia: el Notario sigue reconociendo las dos formas) y su forma negada */
+  conjunto_sobre_nivel_carga: Object.freeze({ empresa: "sobre el nivel declarado de carga", adi: "sobre el nivel de referencia de carga" }),
+  conjunto_no_sobre_nivel_carga: Object.freeze({ empresa: "que no están sobre el nivel declarado de carga", adi: "que no están sobre el nivel de referencia de carga" }),
+});
+/** nombreSegunOrigen(forma, concepto) → el nombre de la tabla de arriba para el origen REAL de la referencia `concepto` (el id del léxico: benchmark · nivel_carga · …): «empresa» → la forma de siempre; todo lo demás (criterio general de ADI,
+ *  sin declarar, consulta) → la de ADI. `forma` desconocida → null (nunca se inventa un nombre). */
+export function nombreSegunOrigen(forma, concepto) {
+  const f = Object.prototype.hasOwnProperty.call(NOMBRES_SEGUN_ORIGEN, forma) ? NOMBRES_SEGUN_ORIGEN[forma] : null;
+  if (!f) return null;
+  const llave = Object.prototype.hasOwnProperty.call(POLICY_DE_REFERENCIA, concepto) ? POLICY_DE_REFERENCIA[concepto] : null;
+  return llave && procedenciaDeLlave(llave).origen === ORIGEN.EMPRESA ? f.empresa : f.adi;
+}
+
 /** procedenciaDeSupuesto() → { origen, fuente, confirmado } · de dónde sale el supuesto de una SIMULACIÓN: del encargo, es decir, PLANTEADO EN LA CONSULTA (no lo declaró la empresa). La misma
  *  etiqueta de consulta de siempre (`ETIQUETA_ORIGEN.consulta`); no hay una taxonomía nueva de supuestos. */
 export const procedenciaDeSupuesto = () => ({ origen: ORIGEN.CONSULTA, fuente: { tipo: "consulta", detalle: null }, confirmado: true });

@@ -103,7 +103,7 @@ import { conTenantActivo } from "./aislamiento.js";
 export const CABECERA_DE_USO = Object.freeze([
   "Las cifras de esta respuesta ya están verificadas por ADI: no se recalculan ni se derivan a mano sobre el texto — un número nuevo se pide como una consulta nueva.",
   "Lo que la Entrega declara en «Lo que no se puede concluir» se respeta: son hallazgos, no excusas — no se afirma lo contrario ni se rellena el hueco con una suposición.",
-  "La «Referencia del oficio» es conocimiento general del sector, no un dato de esta empresa ni un objetivo suyo; el benchmark es el que declaró la empresa y no es un promedio.",
+  `La «Referencia del oficio» es conocimiento general del sector, no un dato de esta empresa ni un objetivo suyo; el benchmark lleva su origen (${ETIQUETA_ORIGEN[ORIGEN.EMPRESA]} o criterio general de ADI) y no es un promedio.`,
   "Redacte con total libertad — resuma, ordene, adapte el tono al lector — y nombre la simulación o la entidad exacta SOLO cuando haya ambigüedad real sobre a cuál se refiere la cifra.",
 ]);
 
