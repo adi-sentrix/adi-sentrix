@@ -367,7 +367,7 @@ H("A9 · … en el VEREDICTO de las premisas («criterio aplicado» y el valor d
   const t = oraciones.join("\n");
   ok(oraciones.length >= 3, "las tres premisas se juzgan", t);
   ok(t.includes("criterio aplicado: umbral de materialidad 0.075% de la venta") && !/0\.07%|0\.08%|0\.1%/.test(t), "el veredicto de «carga comercial alta» imprime el umbral de materialidad 0.075% exacto (nunca «0.07%» ni «0.08%»)", t);
-  ok(t.includes("nivel de carga declarado 3.75%") && !/3\.8%/.test(t), "el veredicto imprime el nivel de carga declarado 3.75% exacto (nunca «3.8%»)", t);
+  ok(t.includes("nivel de referencia de carga 3.75%") && !/3\.8%/.test(t), "el veredicto imprime el nivel de referencia de carga 3.75% exacto (nunca «3.8%»)", t);
   ok(t.includes("piso de rotación 1.55x") && !/1\.6x/.test(t), "el veredicto imprime el piso de rotación 1.55x exacto (nunca «1.6x»)", t);
   ok(t.includes("techo de días de inventario 127.5 días") && !/128 días/.test(t), "el veredicto imprime el techo de días 127.5 exacto (nunca «128 días»)", t);
   initTenant(TENANT_DEMO);
@@ -623,7 +623,7 @@ H("A11 · C-B · un FILTRO con `ref` pone en juego la referencia de la consulta:
   const { E } = entregaDe(encC());
   const lims = E.entrega.limites.filter((l) => /referencia planteada en la consulta/i.test(l.titulo));
   ok(lims.length === 1 && lims[0].titulo.includes("(4%)") && new RegExp(`Serían ${cargaMayor(4)} cuentas`).test(lims[0].motivo) && /no reemplaza la referencia oficial/.test(lims[0].motivo), `nivel de carga 4 % planteado sobre un filtro con \`ref\`: UN límite «(4%)» con las ${cargaMayor(4)} cuentas que daría (oráculo: el ranking de carga) y «no reemplaza la referencia oficial»`, lims.map((l) => `${l.titulo} | ${l.motivo}`).join(" || "));
-  ok(/Nivel de carga declarado: 3\.5%/.test((E.entrega.marco.referenciaDeclarada || {}).texto || ""), "el Marco sigue con el nivel OFICIAL (3.5%), nunca el de la consulta");
+  ok(/Nivel de referencia de carga: 3\.5%/.test((E.entrega.marco.referenciaDeclarada || {}).texto || ""), "el Marco sigue con el nivel OFICIAL (3.5%), nunca el de la consulta");
   const { E: EP } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], universo: { eje: "cliente" } }], premisas: [{ id: "q1", tipo: "conteo", conteo: { n: 9, m: 13 }, de: filtro }], criterio: { referencia: { concepto: "nivel_carga", valor: 4, unidad: "pct" } } });
   ok(EP.entrega.limites.some((l) => /referencia planteada en la consulta/i.test(l.titulo) && l.titulo.includes("(4%)")), "el mismo filtro con `ref` solo en el universo de una PREMISA también declara la referencia de la consulta");
   const { E: EB } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "ventas"], universo: { eje: "cliente", filtros: [{ metrica: "margen", op: "<", ref: "benchmark" }] } }], criterio: { referencia: { concepto: "benchmark", valor: 33, unidad: "pct" } } });
@@ -644,12 +644,12 @@ H("A11 · C-C · el Marco declara el nivel de carga OFICIAL cuando un conjunto d
   const base = (b) => ({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["carga", "no_capturada", "contribucion"], universo: { eje: "cliente", base: b } }] });
   const { E } = entregaDe(base("sobre el nivel declarado de carga"));
   const ref = (E.entrega.marco.referenciaDeclarada || {}).texto || "";
-  ok(new RegExp(`Nivel de carga declarado: ${nivel}%, declarado por la empresa\\.`).test(ref), `base «sobre el nivel declarado de carga»: el Marco dice «Nivel de carga declarado: ${nivel}%, declarado por la empresa» (oráculo: umbral().valor)`, ref);
-  ok(ref.split("Nivel de carga declarado").length === 2, "…una sola vez (no se duplica si otra ruta ya lo había declarado)", ref);
-  ok(/Benchmark de margen: 30\.1%/.test(ref) ? /Nivel de carga declarado/.test(ref) : true, "si el benchmark de las observaciones de controller ocupó el campo, el nivel se AGREGA (no queda sin declarar)", ref);
+  ok(new RegExp(`Nivel de referencia de carga: ${nivel}%, declarado por la empresa\\.`).test(ref), `base «sobre el nivel declarado de carga»: el Marco dice «Nivel de referencia de carga: ${nivel}%, declarado por la empresa» (oráculo: umbral().valor)`, ref);
+  ok(ref.split("Nivel de referencia de carga").length === 2, "…una sola vez (no se duplica si otra ruta ya lo había declarado)", ref);
+  ok(/Benchmark de margen: 30\.1%/.test(ref) ? /Nivel de referencia de carga/.test(ref) : true, "si el benchmark de las observaciones de controller ocupó el campo, el nivel se AGREGA (no queda sin declarar)", ref);
   /* v19 (§7.3·42b): la v18 leía «carga comercial alta» solo por su piso de materialidad y NO agregaba el nivel; el detector es carga > nivel Y exceso ≥ piso, y su veredicto imprime el nivel: el Marco también lo lleva (bloque A13·Y40) */
   const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "margen"], universo: { eje: "cliente" } }] });
-  ok(!/Nivel de carga declarado/.test((E2.entrega.marco.referenciaDeclarada || {}).texto || ""), "CONTROL NEGATIVO · un encargo que no usa el nivel de carga no lo declara en el Marco");
+  ok(!/Nivel de referencia de carga/.test((E2.entrega.marco.referenciaDeclarada || {}).texto || ""), "CONTROL NEGATIVO · un encargo que no usa el nivel de carga no lo declara en el Marco");
 }
 
 H("A11 · C-D · la verdad propia de una entidad EMPATADA en el ranking del top comparte el puesto y dice con quién empata");
@@ -765,7 +765,7 @@ H("A13 · Y14 · el filtro que la entidad NO pasa decide, y la referencia de cad
   const t = _premisasDe(E)[0] || "";
   const segT = (t.match(/Tottus:[^;]*/) || [""])[0], segL = (t.match(/La Polar:[^;.]*(?:\.\d%|%)[^;]*/) || [""])[0];
   const carga = (n) => RK.cliente.carga.filas.find((f) => f.entidad === n).valor, margen = (n) => RK.cliente.margen.filas.find((f) => f.entidad === n).valor;
-  ok(carga("Tottus") <= umbral("targetCarga").valor && new RegExp(`carga comercial ${carga("Tottus")}%`).test(segT) && new RegExp(`nivel de carga declarado ${umbral("targetCarga").valor}%`).test(segT), "Tottus (bajo el benchmark, carga 3.2 % que NO supera el nivel): dice su carga y el nivel 3.5 % en SU frase", t);
+  ok(carga("Tottus") <= umbral("targetCarga").valor && new RegExp(`carga comercial ${carga("Tottus")}%`).test(segT) && new RegExp(`nivel de referencia de carga ${umbral("targetCarga").valor}%`).test(segT), "Tottus (bajo el benchmark, carga 3.2 % que NO supera el nivel): dice su carga y el nivel 3.5 % en SU frase", t);
   ok(margen("La Polar") > benchmarkOf() && carga("La Polar") > umbral("targetCarga").valor && new RegExp(`margen ${margen("La Polar")}%`).test(segL) && !/carga comercial/.test(segL) && new RegExp(`benchmark de margen ${benchmarkOf()}%`).test(segL), "La Polar (34 % > benchmark: sale por la BASE; su carga 3.9 % SÍ pasa el filtro): dice su margen y el benchmark, nunca «carga comercial 3.9 %»", t);
 }
 
@@ -776,7 +776,7 @@ H("A13 · Y10 · una UNIÓN deja fuera a quien no cumple ninguna rama: la verdad
   const t = _premisasDe(E)[0] || "";
   const m = (n) => RK.cliente.margen.filas.find((f) => f.entidad === n).valor, c = (n) => RK.cliente.carga.filas.find((f) => f.entidad === n).valor;
   ok(t.includes(`Tottus: margen ${m("Tottus")}%, carga comercial ${c("Tottus")}%`) && t.includes(`Mercado Libre: margen ${m("Mercado Libre")}%, carga comercial ${c("Mercado Libre")}%`), "Tottus y Mercado Libre (fuera por los dos lados): cada una con su margen y su carga, no la traza del universo sin entidad", t);
-  ok(new RegExp(`benchmark de margen ${benchmarkOf()}%`).test(t) && new RegExp(`nivel de carga declarado ${umbral("targetCarga").valor}%`).test(t), "…con las dos referencias de la unión en la misma oración", t);
+  ok(new RegExp(`benchmark de margen ${benchmarkOf()}%`).test(t) && new RegExp(`nivel de referencia de carga ${umbral("targetCarga").valor}%`).test(t), "…con las dos referencias de la unión en la misma oración", t);
   ok(/es correcto — La Polar/.test(_premisasDe(E)[1] || ""), "CONTROL · La Polar (34 %, sobre el benchmark) SÍ está en la unión: la premisa es verdadera y no dice ninguna verdad propia", _premisasDe(E)[1]);
 }
 
@@ -795,12 +795,12 @@ H("A13 · Y40 · 42(b): el Marco declara todas las referencias oficiales con que
   const nivel = umbral("targetCarga").valor;
   const marco = (E) => ((E.entrega.marco.referenciaDeclarada || {}).texto || "");
   const { E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["carga", "no_capturada"], universo: { eje: "cliente", base: "carga comercial alta" } }] });
-  ok(new RegExp(`Nivel de carga declarado: ${nivel}%, declarado por la empresa\\.`).test(marco(E)) && marco(E).split("Nivel de carga declarado").length === 2, `base «carga comercial alta»: el Marco lleva el nivel oficial ${nivel} % (el detector es carga > nivel Y exceso ≥ piso; el veredicto ya lo imprime), una sola vez`, marco(E));
+  ok(new RegExp(`Nivel de referencia de carga: ${nivel}%, declarado por la empresa\\.`).test(marco(E)) && marco(E).split("Nivel de referencia de carga").length === 2, `base «carga comercial alta»: el Marco lleva el nivel oficial ${nivel} % (el detector es carga > nivel Y exceso ≥ piso; el veredicto ya lo imprime), una sola vez`, marco(E));
   const univ = { eje: "cliente", base: "bajo el benchmark", filtros: [{ metrica: "carga", op: ">", ref: "nivel_carga" }] };
   const { E: E2 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen", "carga"], universo: univ }], premisas: [{ id: "q1", tipo: "grupo", miembros: ["Tottus"], universo: univ }] });
-  ok(new RegExp(`Benchmark de margen: ${benchmarkOf()}%`).test(marco(E2)) && new RegExp(`Nivel de carga declarado: ${nivel}%`).test(marco(E2)) && marco(E2).split("Benchmark de margen").length === 2, "base «bajo el benchmark» + filtro con `ref` del nivel en una premisa: el Marco lleva el benchmark Y el nivel (antes solo el nivel, que había ocupado el campo primero), cada uno una vez", marco(E2));
+  ok(new RegExp(`Benchmark de margen: ${benchmarkOf()}%`).test(marco(E2)) && new RegExp(`Nivel de referencia de carga: ${nivel}%`).test(marco(E2)) && marco(E2).split("Benchmark de margen").length === 2, "base «bajo el benchmark» + filtro con `ref` del nivel en una premisa: el Marco lleva el benchmark Y el nivel (antes solo el nivel, que había ocupado el campo primero), cada uno una vez", marco(E2));
   const { E: E3 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "margen"], universo: { eje: "cliente" } }] });
-  ok(!/Nivel de carga declarado/.test(marco(E3)), "CONTROL NEGATIVO · un encargo que no usa el nivel de carga no lo declara en el Marco", marco(E3));
+  ok(!/Nivel de referencia de carga/.test(marco(E3)), "CONTROL NEGATIVO · un encargo que no usa el nivel de carga no lo declara en el Marco", marco(E3));
 }
 
 H("A13 · Y20 · 42(c): la cartera completa trae el «Días vencido 0d» de TODA cuenta sana (también las del top 8); la boleta del agente sin el opt-in no cambia");
@@ -1970,7 +1970,7 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     ok(E26.ok && H26.veredicto === "verdadera" && /2 de 4/.test(sinTablas(E26)) && verifica(E26, R26).ok, "N26 · «2 de 4» familias sobre el nivel de carga: la premisa carga la carga por familia aunque la parte pida margen y unidades", sinTablas(E26).split("\n").filter((l) => /premisa/.test(l)).join(" | "));
     /* el Marco declara «3.5%» sin que su cifra esté declarada: la Entrega de N26 sin su cifra impresa es rechazada (el rechazo de verificarEntrega que la 49d cierra) */
     const sinCifra = { ...E26, entrega: { ...E26.entrega, procedencia: { ...E26.entrega.procedencia, cifrasImpresas: (E26.entrega.procedencia.cifrasImpresas || []).filter((c) => !/3\.5/.test(c)) } } };
-    ok(/Nivel de carga declarado: 3\.5%/.test(E26.texto) && verifica(E26, R26).ok && !verifica(sinCifra, R26).ok, "CARNADA · el defecto reconstruido (el Marco dice «3.5%» sin que esa cifra esté declarada) cae en verificarEntrega"); }
+    ok(/Nivel de referencia de carga: 3\.5%/.test(E26.texto) && verifica(E26, R26).ok && !verifica(sinCifra, R26).ok, "CARNADA · el defecto reconstruido (el Marco dice «3.5%» sin que esa cifra esté declarada) cae en verificarEntrega"); }
 
   /* ─ (e) N25 N32 N38 N73 · la lente «ventas» aplica en cliente, marca, familia y SKU ─ */
   H("A23 · 49e · N25 N32 N38 N73 · la lente «ventas» APLICA donde el dato publica venta (cliente · marca · familia · SKU): la oración de prioridad la nombra y su primero es el de mayor venta del grupo; en inventario (sin venta) se declara");

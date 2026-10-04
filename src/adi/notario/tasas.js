@@ -26,7 +26,7 @@ export const TASAS_DE_LA_CASA = [
   { conceptos: ["margen", "margen promedio", "benchmark de margen", "piso de margen"], base: ["ventas"], baseNombre: "la venta", numerador: ["contribucion"], definicion: "contribución ÷ venta" },
   { conceptos: ["markup sobre costo", "markup promedio"], base: ["costo"], baseNombre: "el costo", numerador: null, definicion: "(venta − costo) ÷ costo" },
   { conceptos: ["peso del costo"], base: ["ventas"], baseNombre: "la venta", numerador: ["costo"], definicion: "costo ÷ venta" },
-  { conceptos: ["carga comercial", "carga", "carga comercial alta", "nivel de carga declarado", "nivel de carga comercial declarado", "nivel de carga"], base: ["ventas"], baseNombre: "la venta", numerador: null, definicion: "acciones comerciales ÷ venta" },
+  { conceptos: ["carga comercial", "carga", "carga comercial alta", "nivel de referencia de carga", "nivel de carga declarado", "nivel de carga comercial declarado", "nivel de carga"], base: ["ventas"], baseNombre: "la venta", numerador: null, definicion: "acciones comerciales ÷ venta" },
   { conceptos: ["recuperado"], base: ["ventas"], baseNombre: "la venta a crédito del período", numerador: ["abonado"], definicion: "abonado ÷ venta a crédito" },
   { conceptos: ["umbral de materialidad"], base: ["ventas"], baseNombre: "la venta", numerador: null, definicion: "% de la venta del negocio" },
   { conceptos: ["variacion vs ano anterior", "crecimiento", "ventas vs ano anterior"], base: ["ano anterior"], baseNombre: "la venta del año anterior", numerador: null, definicion: "(venta − venta del año anterior) ÷ venta del año anterior" },

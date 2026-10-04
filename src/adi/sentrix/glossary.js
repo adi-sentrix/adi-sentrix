@@ -29,7 +29,7 @@ export const METRIC_DEFS = {
   "Unidades": "Cantidad de unidades vendidas en el período.",
   // el «i» de esta columna decía "el benchmark de la industria" y contradecía, dentro del MISMO archivo, a la
   // entrada `benchmark` del catálogo, que declara que la vara NO viene de una fuente sectorial (owner 2026-08-09).
-  "vs benchmark": "Distancia del margen contra TU benchmark: la referencia que define tu negocio, no una del sector.",
+  "vs benchmark": "Distancia del margen contra el benchmark: la referencia contra la que se mide; puede ser la declarada por la empresa o la general de ADI, y la pantalla dice cuál. No es una del sector.",
   "vs promedio": _DEF_VS_PROMEDIO, "vs prom": _DEF_VS_PROMEDIO,   // la cabecera abreviada y el defKey largo, LA MISMA definición (una sola constante · no dos strings que puedan divergir)
   // — inventario / bodega —
   "Capital": "El valor del inventario: lo que tienes invertido en stock.",
@@ -65,7 +65,7 @@ export const METRIC_DEFS = {
   "Con alerta": "Cuántos SKU de esta bodega vienen marcados con alerta en el archivo de origen.",
   // la columna del asesor en el Cuadro · una etiqueta por universo (antes las dos decían «En juego $»: $5.0M de
   // contribución del año en la pestaña Clientes contra $33K de capital de hoy en Marcas/SKU/Bodegas, 151x)
-  "Contribución en juego": "La contribución que el detector afirma que esta cuenta no está capturando: margen bajo tu benchmark o carga comercial sobre tu objetivo, valorizado sobre su venta anual. Es dinero del resultado, no capital en stock.",
+  "Contribución en juego": "La contribución que el detector afirma que esta cuenta no está capturando: margen bajo el benchmark o carga comercial sobre el objetivo, valorizado sobre su venta anual. Es dinero del resultado, no capital en stock.",
   // el margen de la FOTO DE INVENTARIO, que no es el margen comercial del mismo SKU (dos universos declarados, sin
   // reconciliación posible): por eso la columna lleva el calificador en el nombre y no sólo en la nota de cabecera
   "Margen inv.": _DEF_MARGEN_INVENTARIO, "Margen de inventario": _DEF_MARGEN_INVENTARIO,
@@ -138,11 +138,11 @@ export const CONCEPT_DEFS = {
   benchmark: {
     aka: "benchmark",
     etiquetas: ["benchmark", "vs benchmark"],
-    def: "Es el punto de referencia contra el que ADI mide el margen de cada cuenta: la referencia que define tu negocio (tu criterio, o el que traiga tu dato). Un cliente por debajo del benchmark rinde menos que la referencia que definiste.",
-    distingue: "No viene de una fuente sectorial: es TU referencia (tu criterio o tu dato) contra la que se mide cada cuenta.",
+    def: "Es el punto de referencia contra el que ADI mide el margen de cada cuenta; puede ser la declarada por la empresa o la general de ADI, y la pantalla dice cuál. Un cliente por debajo del benchmark rinde menos que esa referencia.",
+    distingue: "No viene de una fuente sectorial: es la referencia contra la que se mide cada cuenta, y la pantalla dice si es la declarada por la empresa o la general de ADI.",
     neutra: {
-      def: "Es el punto de referencia contra el que ADI mide el margen de cada cuenta: la referencia que define el negocio de la empresa (su criterio, o el que traiga su dato). Un cliente por debajo del benchmark rinde menos que la referencia que la empresa declaró.",
-      distingue: "No viene de una fuente sectorial: es la referencia de la empresa (su criterio o su dato) contra la que se mide cada cuenta.",
+      def: "Es el punto de referencia contra el que ADI mide el margen de cada cuenta; puede ser la declarada por la empresa o la general de ADI, y la Entrega dice cuál. Un cliente por debajo del benchmark rinde menos que esa referencia.",
+      distingue: "No viene de una fuente sectorial: es la referencia contra la que se mide cada cuenta, y la Entrega dice si es la declarada por la empresa o la general de ADI.",
     },
   },
   margen: {
@@ -384,7 +384,7 @@ export const CONCEPT_DEFS = {
   brecha: {
     aka: "brecha",
     etiquetas: ["brecha", "gap", "brecha de margen"],
-    def: "Es la distancia entre una cifra y su referencia declarada — el margen contra el benchmark, la carga contra el objetivo, la venta contra el presupuesto. Se expresa en puntos porcentuales cuando compara tasas y en $ cuando compara montos.",
+    def: "Es la distancia entre una cifra y la referencia contra la que se mide — el margen contra el benchmark, la carga contra el objetivo, la venta contra el presupuesto. Se expresa en puntos porcentuales cuando compara tasas y en $ cuando compara montos.",
     distingue: "La brecha es la distancia; la **contribución no capturada** es esa distancia ya convertida en dinero sobre la venta de la cuenta.",
   },
   /* ✅ RESUELTO POR EL OWNER (2026-08-15), después de un mes frenado. La tensión era real: «vara» está vetada en
@@ -395,15 +395,15 @@ export const CONCEPT_DEFS = {
    * y `criteria.js` (que parsea la palabra del INPUT), y nadie lo lee en pantalla: mismo trato que la clave
    * `detenido` del KPI de capital. Con esto `_registro_boleta_gate` se queda SIN excepciones declaradas. */
   vara: {
-    aka: "tu referencia",
+    aka: "la referencia planteada en la consulta",
     etiquetas: ["vara", "vara_usuario", "tu vara", "la vara", "vara declarada", "referencia declarada"],
-    def: "Es la referencia que el usuario fija para juzgar una métrica: el margen mínimo aceptable, el objetivo de carga comercial, el umbral de días de inventario. Cuando está declarada, reemplaza a la referencia por defecto y ADI mide contra ella.",
-    distingue: "No es el **benchmark** por defecto del negocio: es la referencia que tú declaraste para este análisis, y por eso toda cifra medida contra ella se sella INDICADO.",
+    def: "Es la referencia que se plantea en la consulta para juzgar una métrica: el margen mínimo aceptable, el objetivo de carga comercial, el umbral de días de inventario. Mientras la consulta la plantea, reemplaza a la referencia por defecto y ADI mide contra ella.",
+    distingue: "No es el **benchmark** por defecto del negocio: es la referencia planteada en la consulta para este análisis, y por eso toda cifra medida contra ella se sella INDICADO.",
     // `aka` TAMBIÉN se imprime como el nombre del concepto («tu referencia: Es la referencia que...») — se
     // neutraliza igual que `def`/`distingue`.
     neutra: {
-      aka: "la referencia declarada",
-      distingue: "No es el **benchmark** por defecto del negocio: es la referencia que la empresa declaró para este análisis, y por eso toda cifra medida contra ella se sella INDICADO.",
+      aka: "la referencia planteada en la consulta",
+      distingue: "No es el **benchmark** por defecto del negocio: es la referencia planteada en la consulta para este análisis, y por eso toda cifra medida contra ella se sella INDICADO.",
     },
   },
   meta: {
@@ -413,11 +413,11 @@ export const CONCEPT_DEFS = {
     // INTERNA, y son distintas: sobre la misma cartera seleccionan poblaciones y montos recuperables distintos. El
     // glosario declaraba «meta» en singular, así que «¿qué cuentas están sobre la meta de carga?» no tenía una sola
     // respuesta y los textos podían atribuir una cifra a la vara que no la produjo.
-    def: "Es el valor objetivo declarado para una métrica —típicamente la carga comercial— contra el que se mide cada cuenta. Lo que supera el objetivo es lo que queda para revisar. En carga comercial conviven DOS umbrales declarados: el OBJETIVO OPERATIVO, que es contra el que se selecciona y se valoriza lo recuperable, y la MEJOR PRÁCTICA INTERNA, más exigente, que marca hasta dónde llegó la mejor cuenta del negocio. No dan la misma lista ni el mismo monto, y por eso cada lectura dice con cuál de las dos se calculó.",
+    def: "Es el valor objetivo de una métrica —típicamente la carga comercial— contra el que se mide cada cuenta. Lo que supera el objetivo es lo que queda para revisar. En carga comercial conviven DOS umbrales: el OBJETIVO OPERATIVO, que es contra el que se selecciona y se valoriza lo recuperable, y la MEJOR PRÁCTICA INTERNA, más exigente, que marca hasta dónde llegó la mejor cuenta del negocio. No dan la misma lista ni el mismo monto, y por eso cada lectura dice con cuál de las dos se calculó.",
     // «más capital», no «más plata» (La Poda F2): este `distingue` se imprime VERBATIM cuando el usuario pregunta
     // qué es la meta (tool `defineConcept` → resolveGlossary), así que es superficie, y «plata» está vetada.
     // Cambio de vocabulario puro: no toca el slug, ni las etiquetas de entrada, ni lo que la frase afirma.
-    distingue: "El objetivo es un valor declarado por el negocio; el **benchmark** es la referencia de rendimiento del negocio. Una cuenta puede estar sobre el objetivo y aun así bajo el benchmark. Y la mejor práctica interna no es el objetivo: es más exigente, así que siempre marca más cuentas y más capital.",
+    distingue: "El objetivo es el valor de referencia de la carga, que puede ser el declarado por la empresa o el general de ADI; el **benchmark** es la referencia de rendimiento del margen. Una cuenta puede estar sobre el objetivo y aun así bajo el benchmark. Y la mejor práctica interna no es el objetivo: es más exigente, así que siempre marca más cuentas y más capital.",
   },
   presupuesto: {
     aka: "presupuesto",
@@ -442,7 +442,7 @@ export const CONCEPT_DEFS = {
     // (27,8%) — 2,7pp de brecha bajo la misma palabra. Cada una resuelve ahora a su propia entrada de METRIC_DEFS.
     etiquetas: ["promedio de la cartera", "promedio de tu cartera", "promedio ponderado", "promedio_cartera"],
     def: "Es la referencia interna: el valor de la métrica para el conjunto de la cartera, ponderado por venta. Ubica a cada cuenta contra el resto del negocio, no contra una referencia externa.",
-    distingue: "El promedio ponderado no es el promedio simple de las filas: el ponderado reconcilia con el total del negocio y el simple no, y en esta cartera no dan lo mismo. La columna «vs prom» de las grillas mide contra el SIMPLE, no contra este. Y no es el **benchmark**, que es una referencia declarada, no observada.",
+    distingue: "El promedio ponderado no es el promedio simple de las filas: el ponderado reconcilia con el total del negocio y el simple no, y en esta cartera no dan lo mismo. La columna «vs prom» de las grillas mide contra el SIMPLE, no contra este. Y no es el **benchmark**, que es una referencia, no observada.",
   },
   // ── el sello (decisión 2 del owner · SELLOS de config/contract/figureType.js) ─────────────────────────────────
   probado: {
@@ -457,7 +457,7 @@ export const CONCEPT_DEFS = {
     // «una referencia declarada por el usuario», no «una vara del usuario»: la definición del sello se imprime
     // verbatim y no necesita la palabra vetada para decir lo mismo (a diferencia del concepto `vara`, cuyo trabajo
     // ES definir esa palabra — ver el freno declarado en su entrada).
-    def: "Es el sello de una cifra que depende de una estimación, una distribución, una afinidad, un supuesto declarado o una referencia declarada por el usuario. Es utilizable para decidir, siempre que se lea sabiendo de qué supuesto cuelga.",
+    def: "Es el sello de una cifra que depende de una estimación, una distribución, una afinidad, un supuesto o una referencia planteados en la consulta. Es utilizable para decidir, siempre que se lea sabiendo de qué supuesto cuelga.",
     distingue: "No es un dato dudoso: es un dato CONDICIONADO. Se distingue de **probado**, que reconcilia sin supuestos, y de **abierto**, que directamente no se puede calcular.",
   },
   abierto: {

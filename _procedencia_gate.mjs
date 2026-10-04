@@ -49,7 +49,8 @@ const SIM_VIEJA = "Simulación declarada por la empresa";
 const SIM_NUEVA = "Simulación planteada en la consulta";
 /* y el límite de toda simulación: «El supuesto lo declaró la empresa» (falso: sale de la consulta) → «El supuesto fue planteado en la consulta» */
 const SUP_VIEJA = "El supuesto lo declaró la empresa;", SUP_NUEVA = "El supuesto fue planteado en la consulta;";
-const alAntes = (t) => String(t).split(SIM_NUEVA).join(SIM_VIEJA).split(SUP_NUEVA).join(SUP_VIEJA);
+/* y el rótulo de la métrica (tercera vuelta, opción A): «Nivel de referencia de carga» (antes «Nivel de carga declarado») para todas las empresas */
+const alAntes = (t) => String(t).split(SIM_NUEVA).join(SIM_VIEJA).split(SUP_NUEVA).join(SUP_VIEJA).split("Nivel de referencia de carga").join("Nivel de carga declarado").split("nivel de referencia de carga").join("nivel de carga declarado");
 const ETQ_EMPRESA = "declarado por la empresa", ETQ_ADI = "criterio general de ADI, ajustable por la empresa";
 
 /* ── LAS TRES EMPRESAS: el demo (declara todo su perfil) · una que no declara ninguna política (la plantilla v2: solo identidad, período y moneda) · una que declara solo algunas llaves ── */
@@ -98,8 +99,15 @@ for (const e of Object.keys(EMPRESAS)) {
 console.log("  reporte:", jj(REPORTE));
 /* (1) el demo: el texto es EL DE ANTES, salvo la frase de la simulación (hash del texto de accf5ddc) */
 {
-  const distintos = MUESTRA.filter((c) => { const t = TEXTOS.demo.get(c.id); return t == null || sha(alAntes(t)) !== c.sha; });
-  ok(distintos.length === 0, `★ (1) declara todo = el demo: ${MUESTRA.length - distintos.length} de ${MUESTRA.length} textos IDÉNTICOS a los de antes (salvo las dos frases de la simulación)`, distintos.slice(0, 4).map((c) => c.id).join(", "));
+  /* los ÚNICOS textos del demo que difieren además de esas frases, FIJADOS con su porqué (tercera vuelta): una definición del glosario con la redacción neutral (la Entrega las imprime verbatim cuando la pregunta es «¿qué es X?») o el tope de palabras (el rótulo nuevo pesa una palabra más y «N filas más en el detalle» sube en 1) */
+  const POR_GLOSARIO = { "v22:S12": ["referencia planteada en la consulta: Es la referencia que se plantea en la consulta", "la referencia que el usuario fija"], "v21:T12": ["Es el valor objetivo de una métrica", "Es el valor objetivo declarado"], "v31:H12": ["la referencia contra la que se mide — el margen contra el benchmark", "su referencia declarada"] };
+  const POR_TOPE = new Set(["v21:T18"]);
+  const textoDemo = (c) => TEXTOS.demo.get(c.id);
+  const distintos = MUESTRA.filter((c) => { const t = textoDemo(c); return t == null || sha(alAntes(t)) !== c.sha; });
+  const esperados = distintos.filter((c) => POR_GLOSARIO[c.id] || POR_TOPE.has(c.id));
+  const inesperados = distintos.filter((c) => !(POR_GLOSARIO[c.id] || POR_TOPE.has(c.id)));
+  ok(esperados.length === Object.keys(POR_GLOSARIO).length + POR_TOPE.size && Object.entries(POR_GLOSARIO).every(([id, [nuevo, viejo]]) => { const t = textoDemo(MUESTRA.find((c) => c.id === id)) || ""; return t.includes(nuevo) && !t.includes(viejo); }) && /[0-9]+ filas más en el detalle/.test(textoDemo(MUESTRA.find((c) => c.id === "v21:T18"))), "los cuatro textos del demo que difieren a propósito son los pinneados: tres por la redacción neutral del glosario (con la definición nueva y sin la vieja) y uno por el tope de palabras", jj(esperados.map((c) => c.id)));
+  ok(inesperados.length === 0, `★ (1) declara todo = el demo: ${MUESTRA.length - distintos.length} de ${MUESTRA.length} textos IDÉNTICOS a los de antes (salvo las dos frases de la simulación y el rótulo de la métrica) y los ${esperados.length} fijados arriba`, inesperados.slice(0, 4).map((c) => c.id).join(", "));
   const sinVieja = MUESTRA.every((c) => ["demo", "nada", "algunas"].every((e) => { const t = TEXTOS[e].get(c.id) || ""; return !t.includes(SIM_VIEJA) && !t.includes(SUP_VIEJA); }));
   ok(sinVieja, "las frases viejas de la simulación («Simulación declarada por la empresa» y «El supuesto lo declaró la empresa») no salen en ninguna empresa");
   ok(["benchmark", "targetCarga", "rotacionMin", "dohMax"].every((k) => REPORTE.demo.deLaEmpresa.includes(k)), "(1) el demo atribuye a la empresa lo que su perfil declara: benchmark, nivel de carga, piso de rotación y techo de cobertura", jj(REPORTE.demo.deLaEmpresa));
@@ -124,8 +132,8 @@ console.log("  reporte:", jj(REPORTE));
   const defectuoso = t.replace("Benchmark de margen: 30.1%, criterio general de ADI, ajustable por la empresa.", "Benchmark de margen: 30.1%, declarado por la empresa.");
   ok(atribuciones(defectuoso).some((a) => esFalsa(a, DECLARADO.nada)) && !atribuciones(t).some((a) => esFalsa(a, DECLARADO.nada)), "★ CARNADA · el oráculo marca como FALSA la frase fija de antes sobre una empresa que no declaró (y deja pasar la correcta)");
   ok(atribuciones(`| Jumbo | ${SIM_VIEJA} | x |`).some((a) => esFalsa(a, DECLARADO.demo)) && !atribuciones(`| Jumbo | ${SIM_NUEVA} | x |`).some((a) => esFalsa(a, DECLARADO.demo)), "★ CARNADA · y marca como falsa «Simulación declarada por la empresa» incluso en el demo (la simulación sale de la consulta)");
-  const t3 = [...TEXTOS.algunas.values()].find((x) => x && /Nivel de carga declarado: 3\.5%, criterio general de ADI/.test(x));
-  ok(!!t3 && atribuciones(t3.replace("Nivel de carga declarado: 3.5%, criterio general de ADI, ajustable por la empresa", "Nivel de carga declarado: 3.5%, declarado por la empresa")).some((a) => esFalsa(a, DECLARADO.algunas)), "★ CARNADA · atribuir a la empresa el nivel de carga que NO declaró (la empresa de algunas llaves) se marca");
+  const t3 = [...TEXTOS.algunas.values()].find((x) => x && /Nivel de referencia de carga: 3\.5%, criterio general de ADI/.test(x));
+  ok(!!t3 && atribuciones(t3.replace("Nivel de referencia de carga: 3.5%, criterio general de ADI, ajustable por la empresa", "Nivel de referencia de carga: 3.5%, declarado por la empresa")).some((a) => esFalsa(a, DECLARADO.algunas)), "★ CARNADA · atribuir a la empresa el nivel de carga que NO declaró (la empresa de algunas llaves) se marca");
 }
 /* SEGUNDA VUELTA (decisión §7.3·58): cada FORMA nueva de atribuir —no solo la frase fija— tiene su carnada, sobre texto REAL de una empresa que no declaró */
 {
@@ -138,11 +146,13 @@ console.log("  reporte:", jj(REPORTE));
   ok(tTecho && falsa(tTecho.replace("en vez del techo de cobertura general de ADI", "en vez del techo de cobertura de la empresa")), "★ CARNADA · «techo de cobertura de la empresa» da ROJO");
   ok(tAus && falsa(tAus.replace("compara solo contra el benchmark general de ADI", "compara solo contra el benchmark que la empresa declaró")), "★ CARNADA · «el benchmark que la empresa declaró» (el hueco del conocimiento del sector) da ROJO");
   ok(tNiv && falsa(tNiv.replace("sobre el nivel de referencia de carga", "sobre el nivel declarado de carga")), "★ CARNADA · «sobre el nivel declarado de carga» (el conjunto del Notario) con una empresa sin declaración da ROJO");
+  const tRot = real(/Nivel de referencia de carga: 3\.5%, criterio general de ADI/);
+  ok(tRot && !falsa(tRot) && falsa(tRot.replace("Nivel de referencia de carga: 3.5%", "Nivel de carga declarado: 3.5%")), "★ CARNADA · reinsertar «Nivel de carga declarado» como rótulo con una empresa sin declaración da ROJO (y el rótulo nuevo pasa)");
+  ok(falsa("Es el punto de referencia contra el que ADI mide el margen de cada cuenta: la referencia que define el negocio de la empresa (su criterio, o el que traiga su dato).") && falsa("Es la referencia que define la empresa para este análisis.") && falsa("No es el benchmark por defecto: es la referencia que la empresa declaró para este análisis.") && !falsa("Es el punto de referencia contra el que ADI mide el margen de cada cuenta; puede ser la declarada por la empresa o la general de ADI, y la Entrega dice cuál."), "★ CARNADA · una definición del glosario que diga «la referencia que define la empresa» (o «que la empresa declaró») da ROJO; la redacción neutral pasa");
   ok(falsa("Se compara contra tu benchmark de margen.") && falsa("Es el piso de rotación que declaraste.") && falsa("Con el techo de cobertura que tienes declarado, hay 3 SKU.") && falsa("Es el benchmark que la empresa declaró para este análisis."), "★ CARNADA · las formas «tu benchmark», «que declaraste», «tienes declarado» y «que la empresa declaró» dan ROJO");
   ok(!falsa("Referencia del oficio (general, no es un dato ni un objetivo de la empresa).") && !falsa("Venta frenada = días sin venta sobre el umbral declarado, sin umbral declarado.") && !falsa("La empresa no ha declarado desde cuántos días sin venta considera frenada la venta.") && !falsa("Piso de rotación: 2.0x, criterio general de ADI, ajustable por la empresa."), "controles: negar la atribución, la ausencia declarada y la etiqueta de ADI NO son atribuciones falsas");
   /* lo que el oráculo ve y todavía no se corrige, DECLARADO y contado: no se esconde */
-  console.log("  formas pendientes de decisión (se cuentan aparte, no son parte del cero):", jj(Object.fromEntries(Object.keys(REPORTE).map((e) => [e, REPORTE[e].pendientes]))));
-  ok(FORMAS_PENDIENTES.length === 2 && FORMAS_PENDIENTES.every((f) => f.porque), "las formas pendientes están DECLARADAS en el léxico, cada una con su porqué (el rótulo de la cifra en la boleta · el glosario de Sentrix)");
+  ok(FORMAS_PENDIENTES.length === 0 && Object.values(REPORTE).every((r) => Object.keys(r.pendientes).length === 0), "★ NO quedan formas pendientes: el rótulo de la métrica es «Nivel de referencia de carga» para todas las empresas y el glosario no afirma de quién es la referencia");
   ok(MARCADORES.length >= 6, "el léxico de marcadores es DATOS en un solo lugar (scripts/procedencia/lexicoAtribucion.mjs)");
 }
 /* por el camino del Complemento (`consultar`), la misma Entrega: sin declarar nada, el texto es el de componer directo */
@@ -186,7 +196,7 @@ H("2 · todos los tipos de referencia: benchmark · nivel de carga · umbrales d
   /* la simulación: el origen es la consulta, en las tres empresas */
   ok(BP.etiquetaDeProcedencia(BP.procedenciaDeSupuesto(), { genero: "f" }) === "planteada en la consulta" && BP.etiquetaDeProcedencia(BP.procedenciaDeSupuesto()) === "planteado en la consulta", "la simulación: el origen del supuesto es la consulta («planteado/planteada en la consulta», la etiqueta de siempre) — no hay una taxonomía nueva de supuestos");
   /* cada tipo de referencia aparece en el corpus con su frase, en el demo (declarada) y en la que no declara (criterio de ADI) */
-  const tipos = [["benchmark", /Benchmark de margen[^\n]{0,30}: [0-9.]+%, /], ["nivel de carga", /Nivel de carga declarado: [0-9.]+%, /], ["techo de cobertura", /echo de cobertura: [0-9]+ días, /], ["piso de rotación", /iso de rotación: [0-9.]+x, /], ["criterio de inventario", /Criterio de inventario — /], ["umbral de materialidad", /mbral de materialidad/]];
+  const tipos = [["benchmark", /Benchmark de margen[^\n]{0,30}: [0-9.]+%, /], ["nivel de carga", /Nivel de referencia de carga: [0-9.]+%, /], ["techo de cobertura", /echo de cobertura: [0-9]+ días, /], ["piso de rotación", /iso de rotación: [0-9.]+x, /], ["criterio de inventario", /Criterio de inventario — /], ["umbral de materialidad", /mbral de materialidad/]];
   for (const [nombre, re] of tipos) {
     const hayDemo = [...TEXTOS.demo.values()].some((t) => t && re.test(t)), hayNada = [...TEXTOS.nada.values()].some((t) => t && re.test(t));
     ok(hayDemo && hayNada, `el corpus ejercita «${nombre}» con el demo y con la empresa que no declara`, `${hayDemo} · ${hayNada}`);
@@ -207,14 +217,14 @@ H("3 · documental: un valor de un archivo no oficial (columna «benchmark» o �
   ok(!BP.etiquetaDeProcedencia(doc).includes("declarado por la empresa"), "★ nunca «declarado por la empresa» mientras no se confirme");
   ok(BP.etiquetaDeProcedencia({ origen: "documental", fuente: { tipo: "documento", detalle: "Contrato.pdf" }, confirmado: true }) === "según Contrato.pdf" && BP.etiquetaDeProcedencia({ origen: "documental", fuente: { tipo: "documento", detalle: null }, confirmado: false }) === "según un documento, sin confirmar", "la tabla dice «según <documento>» y, sin confirmar, «, sin confirmar» (y sin nombre, «un documento»)");
   /* en una Entrega real */
-  const casoNivel = MUESTRA.find((c) => /Nivel de carga declarado: 3\.5%, declarado por la empresa/.test(TEXTOS.demo.get(c.id) || ""));
+  const casoNivel = MUESTRA.find((c) => /Nivel de referencia de carga: 3\.5%, declarado por la empresa/.test(TEXTOS.demo.get(c.id) || ""));
   const casoBench = MUESTRA.find((c) => /Benchmark de margen: 30\.1%, declarado por la empresa/.test(TEXTOS.demo.get(c.id) || ""));
   ok(!!casoNivel && !!casoBench, "la muestra trae Entregas con el nivel de carga y con el benchmark para probar con un documento");
   const t1 = textoDe(sinConf, casoNivel.encargo);
-  ok(/Nivel de carga declarado: 3\.5%, criterio general de ADI, ajustable por la empresa\./.test(t1) && !/Nivel de carga declarado: 4\.2/.test(t1) && !atribuciones(t1).some((a) => a.tipo === "empresa"), "★ la Entrega con el nivel de carga que solo dice un documento sin confirmar usa 3.5 «criterio general de ADI» y no menciona el 4.2", (t1.match(/Nivel de carga[^\n]{0,80}/) || [""])[0]);
+  ok(/Nivel de referencia de carga: 3\.5%, criterio general de ADI, ajustable por la empresa\./.test(t1) && !/Nivel de referencia de carga: 4\.2/.test(t1) && !atribuciones(t1).some((a) => a.tipo === "empresa"), "★ la Entrega con el nivel de carga que solo dice un documento sin confirmar usa 3.5 «criterio general de ADI» y no menciona el 4.2", (t1.match(/Nivel de carga[^\n]{0,80}/) || [""])[0]);
   const conf = conDoc("targetCarga", 4.2, true);
   const t2 = textoDe(conf, casoNivel.encargo);
-  ok(/Nivel de carga declarado: 4\.2%, declarado por la empresa, tomado de Lista_proveedor\.xlsx · hoja Metas · columna «meta»\./.test(t2), "★ documental CONFIRMADO → declarado, conservando el rastro («declarado por la empresa, tomado de <documento>»)", (t2.match(/Nivel de carga[^\n]{0,160}/) || [""])[0]);
+  ok(/Nivel de referencia de carga: 4\.2%, declarado por la empresa, tomado de Lista_proveedor\.xlsx · hoja Metas · columna «meta»\./.test(t2), "★ documental CONFIRMADO → declarado, conservando el rastro («declarado por la empresa, tomado de <documento>»)", (t2.match(/Nivel de carga[^\n]{0,160}/) || [""])[0]);
   ok(BP.cargaEsDelNegocio() === true || (initTenant(conf), BP.cargaEsDelNegocio()), "y entonces sí es de la empresa: rige el 4.2");
   const confB = { ...DEMO_SIN_BENCH, perfil: { ...PERFIL_BASE, benchmark: 28, procedenciaDeLlaves: { benchmark: { origen: "documento", fuente: "Contrato_Proveedor.pdf", confirmado: true } } } };
   const sinB = { ...DEMO_SIN_BENCH, perfil: { ...PERFIL_BASE, benchmark: 28, procedenciaDeLlaves: { benchmark: { origen: "documento", fuente: "Contrato_Proveedor.pdf", confirmado: false } } } };
@@ -277,7 +287,7 @@ H("5 · el candado: «declarado/a por la empresa» no puede estar escrito como t
   /* los ÚNICOS sitios permitidos, con el conteo FIJADO: la tabla única, y tres textos que NO atribuyen un valor concreto (la definición del glosario nombra las dos posibilidades; el rastro de un campo del perfil «camino B» y el del piso de materialidad de cobranza son el perfil declarado por definición) */
   const PERMITIDOS = {
     "src/config/businessPolicy.js": { n: 2, por: "LA TABLA ÚNICA (ETIQUETA_ORIGEN masculino y femenino)" },
-    "src/adi/sentrix/glossary.js": { n: 2, por: "la definición de «Inmovilizado»: «el criterio puede ser el declarado por la empresa o el general de ADI» (no atribuye)" },
+    "src/adi/sentrix/glossary.js": { n: 8, por: "el molde neutral de las definiciones: «puede ser la declarada por la empresa o la general de ADI, y la Entrega/pantalla dice cuál» (nombra las DOS posibilidades; no atribuye)" },
     "src/adi/conocimiento/piezas.js": { n: 1, por: "la descripción de un insumo de Knowledge: «criterio de ADI, o declarado por la empresa» (no atribuye)" },
     "src/config/contract/perfilCliente.js": { n: 1, por: "la `fuente` de un campo del perfil declarado por la empresa (camino B): es la declaración misma" },
     "src/config/contract/pisoMaterialidadCobranza.js": { n: 1, por: "la `fuente` del ajuste que la empresa declaró en su perfil (camino B): es la declaración misma" },
@@ -390,6 +400,21 @@ H("7 · el plazo de cobro declarado: visible en «Lo declarado» con su proceden
   const cd = LD.declarable();
   ok(cd.citables.length === 1 && cd.citables[0].concepto === "plazo_de_cobro" && cd.citables[0].unidad === "days", "`conocerEmpresa` dice que el plazo de cobro se puede declarar con su forma exacta (citable)");
   initTenant(TENANT_DEMO);
+}
+
+/* ═══ 7b · EL GLOSARIO NO ATRIBUYE PROCEDENCIA SIN SABERLA ═══════════════════════════════════════════════════════════════════════════════ */
+H("7b · el glosario (la pantalla de Sentrix y las definiciones de la Entrega): ninguna definición afirma de quién es la referencia");
+{
+  const GL = await import("./src/adi/sentrix/glossary.js");
+  const textos = [];
+  const juntar = (o, ruta) => { if (typeof o === "string") textos.push([ruta, o]); else if (o && typeof o === "object") for (const [k, v] of Object.entries(o)) juntar(v, ruta + "." + k); };
+  juntar(GL.METRIC_DEFS, "METRIC_DEFS"); juntar(GL.CONCEPT_DEFS, "CONCEPT_DEFS");
+  const malas = textos.filter(([r, t]) => !/etiquetas|matchers/.test(r) && atribuciones(t).some((a) => a.tipo === "empresa" && esFalsa(a, new Set(Object.keys(EMPRESAS.nada.perfil).filter((k) => typeof EMPRESAS.nada.perfil[k] === "number")))));
+  ok(textos.length > 80 && malas.length === 0, "★ " + textos.length + " textos del glosario barridos con el oráculo por significado: ninguno atribuye la referencia a la empresa (ni «la referencia que define la empresa», ni «declaró», ni «tu benchmark»)", jj(malas.slice(0, 4)));
+  const d = GL.CONCEPT_DEFS.benchmark || null;
+  ok(d && /puede ser la declarada por la empresa o la general de ADI, y la pantalla dice cuál/.test(d.def) && /puede ser la declarada por la empresa o la general de ADI, y la Entrega dice cuál/.test(d.neutra.def), "el benchmark se define con el molde neutral: «puede ser la declarada por la empresa o la general de ADI» y remite a la frase de procedencia (pantalla y Entrega)");
+  const vara = Object.values(GL.CONCEPT_DEFS).find((c) => c && Array.isArray(c.etiquetas) && c.etiquetas.includes("vara_usuario"));
+  ok(vara && /referencia que se plantea en la consulta/.test(vara.def) && /referencia planteada en la consulta/.test(vara.distingue) && vara.etiquetas.includes("referencia declarada") && vara.neutra.aka === "la referencia planteada en la consulta", "la referencia del usuario se dice PLANTEADA EN LA CONSULTA; «referencia declarada» queda solo como etiqueta que reconoce la pregunta");
 }
 
 /* ═══ 8 · EL NOMBRE SEGÚN EL ORIGEN (segunda vuelta) ═══════════════════════════════════════════════════════════════════════════════════ */

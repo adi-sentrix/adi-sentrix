@@ -949,7 +949,7 @@ const _claveEstricta = (m) => { const s = normalizar(String(m || "")); if (!s ||
 /* las referencias de la casa y la familia de métricas que comparan: una referencia de otra familia no es un filtro */
 const _REF_DE_LA_CASA = [
   { re: /^benchmark(?:[ _]de[ _]margen)?$|^margen[ _]benchmark$/, familia: /^margen/, nombre: "benchmark" },
-  { re: /^nivel[ _](?:de[ _])?carga(?:[ _]declarad[oa])?$|^carga[ _]declarada$/, familia: /^carga/, nombre: "nivel_carga" },
+  { re: /^nivel[ _](?:de[ _])?(?:referencia[ _]de[ _])?carga(?:[ _]declarad[oa])?$|^carga[ _]declarada$/, familia: /^carga/, nombre: "nivel_carga" },
   { re: /^umbral(?:[ _]de)?[ _]materialidad$|^materialidad$/, familia: /^(?:ventas|contribucion|no_capturada|brecha|saldo_|abonado|carga_alta)/, nombre: "umbral_materialidad" },
   { re: /^piso(?:[ _]de)?[ _]rotacion$/, familia: /^rotacion/, nombre: "piso_rotacion" },
   { re: /^techo(?:[ _]de)?[ _]cobertura$/, familia: /^(?:dias_inventario|cobertura)/, nombre: "techo_cobertura" },

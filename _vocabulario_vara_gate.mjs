@@ -429,7 +429,7 @@ H("[3] EL CANDADO · los sitios ya corregidos no vuelven atrás");
     ["src/adi/sentrix/kpis.js", "recibo frío · la vara declarada no se rotula «industria»",
       /^Tu benchmark$/m, /Benchmark industria/],
     ["src/adi/sentrix/glossary.js", "el «i» de «vs benchmark» no manda a la industria",
-      /Distancia del margen contra TU benchmark/, /benchmark de la industria/],
+      /Distancia del margen contra el benchmark: la referencia contra la que se mide/, /benchmark de la industria/],
     // COLAPSO NARRATIVO (2026-08-30): la frase pasó de «…es ${_cargaPonderada}%» a «contra un promedio ponderado
     // de la cartera de ${_cargaPonderada}%» al colapsar los guiones por escenario — la PROPIEDAD que este candado
     // guarda (el promedio se CALCULA de las filas, jamás una banda escrita a mano) quedó intacta: la

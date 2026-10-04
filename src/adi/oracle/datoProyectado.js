@@ -500,7 +500,7 @@ function _construir(scenario, consulta = null) {
    * atribuirle al usuario un objetivo que nunca fijó. La procedencia sale de `businessPolicy`, que es quien
    * resuelve el valor: una sola verdad sobre la misma cifra. */
   const _refPropia = referenciaEsDelNegocio();
-  K("Benchmark de margen", _pct1(bench), "pct", +bench); K("Nivel de carga declarado", _pct1(target), "pct", +target);
+  K("Benchmark de margen", _pct1(bench), "pct", +bench); K("Nivel de referencia de carga", _pct1(target), "pct", +target);
   if (Number.isFinite(+dohMax)) K("Techo de días de inventario", _dias(dohMax), "days", +dohMax /* §7.3·40(d): el crudo del techo es el valor DECLARADO, no su redondeo (con 127.5 el KPI decía 128): la Entrega lo escribe exacto desde acá; el texto de la boleta no cambia */); if (Number.isFinite(+rotMin)) K("Piso de rotación", _ratio(rotMin), "ratio", +rotMin);
   L.push(`- ${_refPropia ? "La referencia la declara el negocio" : "La referencia es la GENERAL DE ADI (el negocio no declaró una propia; NO es su meta, y así hay que decirlo si se nombra)"}: benchmark de margen ${F(_pct1(bench), REF, "venta")}. Meta de carga comercial ${F(_pct1(target), META_CARGA, "venta")} (mejor práctica interna ${F(_pct1(best), META_CARGA, "venta")}). Piso de rotación ${F(_ratio(rotMin), REF, "inventario")} · techo de días de inventario ${F(_dias(dohMax), [...REF, "techo"], "inventario")}.`);
   /* EL UMBRAL DE MATERIALIDAD ES UNA REFERENCIA DEL NEGOCIO (owner 2026-09-14, al cerrar la lotería del catálogo): «0.05%

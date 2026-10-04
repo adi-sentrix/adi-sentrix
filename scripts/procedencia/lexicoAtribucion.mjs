@@ -18,6 +18,7 @@ export const MARCADORES = Object.freeze([
   { forma: "tienes_declarado", patron: "tienes\\s+declarad[oa]" + FIN, flags: "gi" },                      /* «tienes declarado» (la forma de trato) */
   { forma: "de_la_empresa", patron: "\\bde\\s+la\\s+empresa" + FIN, flags: "gi" },                         /* «benchmark de la empresa», «referencia de la empresa» */
   { forma: "posesivo", patron: "\\b(?:tu|tus|su|sus|nuestr[oa]s?)\\s+(?=(?:benchmark|nivel|piso|techo|umbral|referencia|meta|objetivo|supuesto)" + FIN + ")", flags: "gi" },   /* «tu benchmark», «su nivel» */
+  { forma: "define", patron: "(?:referencia|benchmark|nivel|umbral|objetivo)[^.;]{0,30}que\\s+defin(?:e|ió|iste|ido)\\s+(?:la\\s+empresa|el\\s+negocio|tu\\s+negocio)", flags: "gi" },   /* «la referencia que define la empresa / el negocio» */
   { forma: "propio", patron: "\\b(?:benchmark|nivel|piso|techo|umbral|criterio|supuesto)\\s+propi[oa]s?" + FIN, flags: "gi" },   /* «benchmark propio» */
 ]);
 
@@ -40,16 +41,16 @@ export const SUJETOS = Object.freeze([
 export const EXCLUSIONES = Object.freeze([
   { id: "negacion", porque: "negar la atribución no es atribuir («no es un dato ni un objetivo de la empresa»)", patron: "(?:\\bno|\\bni)\\s+(?:es|son|ha|han)" + FIN + "[^.;]{0,50}(?:de\\s+la\\s+empresa|declarad[oa]s?)" + FIN, flags: "i" },
   { id: "ausencia", porque: "decir que NO hay declaración es lo contrario de atribuir («sin umbral declarado», «la empresa no ha declarado»)", patron: "\\bsin\\s+(?:\\w+\\s+){0,3}declarad[oa]s?" + FIN + "|\\bno\\s+(?:ha|han|se)\\s+declarad[oa]s?" + FIN + "|\\bno\\s+declar(?:ó|aron|a)" + FIN + "|\\bsin\\s+declarar" + FIN, flags: "i" },
-  { id: "glosario_generico", porque: "la definición del glosario nombra las DOS posibilidades («puede ser el declarado por la empresa o el general de ADI»)", patron: "puede\\s+ser\\s+el\\s+declarado\\s+por\\s+la\\s+empresa\\s+o\\s+el\\s+general", flags: "i" },
+  { id: "glosario_generico", porque: "la definición del glosario nombra las DOS posibilidades («puede ser el declarado por la empresa o el general de ADI»)", patron: "puede\\s+ser\\s+(?:el|la)\\s+declarad[oa]\\s+por\\s+la\\s+empresa\\s+o\\s+(?:el|la)\\s+general", flags: "i" },
   { id: "umbral_con_su_origen", porque: "«el umbral declarado» seguido de su origen explícito nombra el concepto y dice de dónde sale («sobre el umbral declarado, criterio general de ADI»)", patron: "umbral\\s+declarado\\s*(?:\\(empresa\\s+o\\s+consulta\\)|,\\s*(?:declarado|criterio\\s+general|planteado|sin\\s+umbral))", flags: "i" },
+  { id: "gastos_declarados", porque: "las líneas de gasto las declara el usuario por definición (el P&L, «son un supuesto declarado»): no son una referencia ni el supuesto de una simulación", patron: "son\\s+un\\s+supuesto\\s+declarado,?\\s+y\\s+por\\s+eso\\s+el\\s+resultado", flags: "i" },
   { id: "cobertura_de_fuentes", porque: "«cobertura declarada» es la cobertura de la fuente de una cifra, no una referencia de la empresa", patron: "cobertura\\s+declarada", flags: "i" },
   { id: "otro_declarado", porque: "«universo/premisa/ausencia/parte declarada» es lo que la Entrega o el encargo declaran, no una referencia de la empresa", patron: "(?:universo|premisa|ausencia|parte|conjunto|hueco|l[ií]mite|concepto)\\s+declarad[oa]|\\bse\\s+declara|\\bdeclara\\s+que|declarad[oa]\\s+(?:aparte|en\\s+el\\s+Marco|en\\s+esta)", flags: "i" },
 ]);
 
-/** formas que SÍ atribuyen y que no se corrigen en esta vuelta (se cuentan aparte y se declaran): su porqué y quién decide. */
+/** formas que SÍ atribuyen y que no se corrigen todavía (se cuentan aparte y se declaran): su porqué y quién decide. Hoy ninguna. */
 export const FORMAS_PENDIENTES = Object.freeze([
-  { id: "rotulo_de_cifra", porque: "«Nivel de carga declarado» es el RÓTULO de la cifra en la boleta (y el nombre de la métrica en el léxico): cambiarlo cambia la boleta del agente y el casado del Notario", patron: "nivel\\s+de\\s+carga\\s+declarad[oa]" + FIN, flags: "i", reemplazo: "nivel de carga" },
-  { id: "glosario_sentrix", porque: "el glosario de Sentrix (fuera de alcance de esta vuelta) dice «la referencia declarada», «la referencia que la empresa declaró para este análisis», «objetivo declarado», «umbrales declarados»", patron: "la\\s+referencia\\s+declarada\\s*:|cuando\\s+est[aá]\\s+declarada|es\\s+la\\s+referencia\\s+que\\s+la\\s+empresa\\s+declar[oó]\\s+para\\s+este\\s+an[aá]lisis|su\\s+referencia\\s+declarada|una\\s+referencia\\s+declarada,\\s+no\\s+observada|valor\\s+objetivo\\s+declarado|conviven\\s+dos\\s+umbrales\\s+declarados", flags: "i", reemplazo: " " },
+  /* vacía desde la tercera vuelta (owner 2026-10-03, opción A): la métrica se llama «Nivel de referencia de carga» para todas las empresas y las definiciones del glosario no afirman de quién es la referencia. */
 ]);
 
 /** las formas FIJAS que atribuyen a la empresa y que ya no se escriben a mano en ningún composer: solo viven en la tabla única (`businessPolicy.js:NOMBRES_SEGUN_ORIGEN`, ETIQUETA_ORIGEN). El barrido del gate pone en rojo si reaparecen en `src/` fuera de ahí. */
@@ -117,7 +118,11 @@ export function atribuciones(texto) {
 
 /** esFalsa(a, declarado:Set) → ¿esta atribución es falsa? Una atribución A LA EMPRESA lo es si apunta a un supuesto o a una llave que la empresa no declaró; «general de ADI» lo es si apunta a una llave que SÍ declaró. */
 export function esFalsa(a, declarado) {
-  if (a.tipo === "empresa") return [...a.claves].some((x) => x === "SIMULACION" || (x !== "REFERENCIA" && !declarado.has(x)));
+  if (a.tipo === "empresa") {
+    /* una referencia dicha a secas («la referencia que define la empresa») no apunta a una llave: es falsa si NADIE declaró nada o si es una DEFINICIÓN (una definición no puede saber de quién es la referencia) */
+    if ([...a.claves].every((x) => x === "REFERENCIA")) return a.forma === "define" || declarado.size === 0;
+    return [...a.claves].some((x) => x === "SIMULACION" || (x !== "REFERENCIA" && !declarado.has(x)));
+  }
   if (a.tipo === "adi") return [...a.claves].some((x) => declarado.has(x));
   return false;
 }

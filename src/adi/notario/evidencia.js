@@ -131,7 +131,7 @@ export const SINONIMOS = [
   [/^margen\s+promedio$|^margen\s+de\s+la\s+cartera$/i, ["margen promedio"]],
   [/^cargas?(?:\s+comercial)?$|^acciones\s+comerciales$|^rebates?$|^descuentos?$/i, ["carga comercial", "carga"]],
   /* la referencia de la carga, como la nombra la prosa («nivel de referencia», «nivel declarado», «referencia de carga») */
-  [/^nivel(?:\s+de\s+(?:carga(?:\s+comercial)?|referencia))?(?:\s+(?:declarado|de\s+referencia))?$|^referencia\s+de\s+(?:la\s+)?carga$|^nivel\s+de\s+carga\s+(?:comercial\s+)?declarado$/i, ["nivel de carga declarado", "nivel de carga comercial declarado", "nivel de carga"]],
+  [/^nivel(?:\s+de\s+(?:carga(?:\s+comercial)?|referencia))?(?:\s+(?:declarado|de\s+referencia))?$|^referencia\s+de\s+(?:la\s+)?carga$|^nivel\s+de\s+carga\s+(?:comercial\s+)?declarado$/i, ["nivel de referencia de carga", "nivel de carga declarado", "nivel de carga comercial declarado", "nivel de carga"]],
   [/^(?:carga\s+comercial\s+alta|carga\s+alta|exceso\s+de\s+carga|carga\s+excedente|carga\s+sobre\s+el\s+nivel)$/i, ["carga comercial alta"]],
   [/^brechas?(?:\s+(?:al\s+benchmark|de\s+margen|contra\s+el\s+benchmark|al\s+margen|en\s+puntos|en\s+pp))?$|^distancia\s+al\s+benchmark$|^puntos\s+bajo\s+el\s+benchmark$/i, ["brecha al benchmark"]],
   [/^brecha\s+por\s+precio\s+y\s+costo$|^precio\s+y\s+costo$|^brecha\s+de\s+precio\s+y\s+costo$/i, ["brecha por precio y costo"]],
@@ -156,7 +156,7 @@ export const SINONIMOS = [
   [/^(?:variaci[oó]n\s+vs\s+presupuesto|variaci[oó]n\s+contra\s+el\s+presupuesto|ventas?\s+vs\s+presupuesto|crecimiento\s+vs\s+presupuesto)$/i, ["variacion vs presupuesto", "ventas vs presupuesto"]],
   [/^(?:participaci[oó]n|%\s+del\s+total|peso|porcentaje\s+del\s+total|participaci[oó]n\s+en\s+el\s+total)$/i, ["% del total"]],
   [/^(?:benchmark|benchmark\s+de\s+margen|referencia|referencia\s+de\s+margen|objetivo\s+de\s+margen)$/i, ["benchmark de margen", "piso de margen"]],
-  [/^(?:nivel\s+de\s+carga(?:\s+comercial)?(?:\s+declarado)?|carga\s+declarada|referencia\s+de\s+carga)$/i, ["nivel de carga comercial declarado"]],
+  [/^(?:nivel\s+de\s+carga(?:\s+comercial)?(?:\s+declarado)?|carga\s+declarada|referencia\s+de\s+carga)$/i, ["nivel de referencia de carga", "nivel de carga comercial declarado"]],
   [/^valor\s+en\s+juego$/i, ["valor en juego"]],
 ];
 

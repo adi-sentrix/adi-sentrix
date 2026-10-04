@@ -85,7 +85,7 @@ const _CLAVES_DEL_CONCEPTO = {
   "capital frenado": ["capital", "frenado"], "capital inmovilizado": ["capital", "frenado"], "capital": ["capital"], "dias de inventario": ["cobertura"], "cobertura (doh)": ["cobertura"],
   "markup sobre costo": ["markup", "costo"], "markup promedio": ["markup", "costo"], "peso del costo": ["costo"], "unidades vendidas": ["unidades", "ventas"],
   "ventas del ano anterior": ["ventas"], "variacion vs ano anterior": ["variacion", "ventas"], "yoy": ["variacion", "ventas"], "crecimiento": ["variacion", "ventas"],
-  "carga comercial alta": ["carga"], "carga comercial": ["carga"], "nivel de carga declarado": ["carga"], "benchmark de margen": ["margen"],
+  "carga comercial alta": ["carga"], "carga comercial": ["carga"], "nivel de carga declarado": ["carga"], "nivel de referencia de carga": ["carga"], "benchmark de margen": ["margen"],
 };
 /* el postfijo y el prefijo de una cifra terminan en puntuación, en un conector o en una cláusula nueva */
 const _CORTE_JUNTO = /[,;:()—–·]|\s-\s|\.\s|\s+y\s+|\s+en\s+|\s+contra\s+|\s+vs\.?\s+|\s+que\s+|\s+pero\s+|\s+aunque\s+|\s+eso\s+/;
@@ -95,6 +95,7 @@ const _PALABRAS_PROPIAS = {
   "contribucion no capturada": /\bno\s+captur\w*|\bsin\s+capturar\b|\bsobre\s+la\s+mesa\b|\bproblema\s+de\s+margen\b|\barrastre\s+de\s+margen\b|\bmargen\s+(?:que\s+)?ced\w*|\bced\w*\s+margen\b|\bmargen\s+(?:no\s+capturad\w*|perdid\w*|que\s+se\s+(?:va|pierde|escapa))|\bdej[a-z]*\s+(?:de\s+(?:ganar|capturar)|en\s+el\s+camino)\b/,
   "carga comercial alta": /\bexces[oa]s?\b|\bsobrecarga\b/,
   "nivel de carga declarado": /\bnivel\b|\breferencia\b/,
+  "nivel de referencia de carga": /\bnivel\b|\breferencia\b/,
   "benchmark de margen": /\bbenchmark\b|\breferencia\b/,
   "margen": /\bbenchmark\b/,
   "saldo vencido": /\bdeben?\b|\bdeuda\b|\badeud\w*/,   // «debe casi el doble que Falabella»: lo vencido también se debe

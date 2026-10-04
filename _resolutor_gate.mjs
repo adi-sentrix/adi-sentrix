@@ -232,7 +232,7 @@ H("C · la resolución no inventa verdad: el valor es el comprobante y la ambig�
   const figs0 = (V.turnos.find((t) => t.i === 0).llamadas || []).filter((x) => x.tipo === "texto" && x.declaracion)[0].figs || [];
   const juzgar0 = (x) => verificarAfirmaciones([x], { figs: figs0, datoProyectado: DATO, ejesDelTenant: ejes }).veredictos[0];
   const v7 = juzgar0({ tipo: "relacion", sujeto: "Lider", metrica: "Carga comercial", relacion: { forma: "mayor", vs: "nivel de referencia (3,5%)" }, texto: "por encima del nivel de referencia (3,5%)" });
-  ok(v7.veredicto === "verdadera" && /Nivel de carga/i.test(String(v7.motivo) + String(v7.verdad)), `R13 · «vs nivel de referencia (3,5%)» resuelve al nivel declarado con esa cifra → ${v7.veredicto} (${String(v7.motivo).slice(0, 90)})`, v7.motivo);
+  ok(v7.veredicto === "verdadera" && /Nivel de (?:referencia de )?carga/i.test(String(v7.motivo) + String(v7.verdad)), `R13 · «vs nivel de referencia (3,5%)» resuelve al nivel declarado con esa cifra → ${v7.veredicto} (${String(v7.motivo).slice(0, 90)})`, v7.motivo);
   const v7b = juzgar0({ tipo: "relacion", sujeto: "Lider", metrica: "Carga comercial", relacion: { forma: "mayor", vs: "nivel de referencia (4,0%)" }, texto: "por encima del nivel de referencia (4,0%)" });
   ok(v7b.veredicto !== "verdadera", `R13 · …y con la cifra equivocada (4,0 %) no se resuelve al nivel: ${v7b.veredicto}`, v7b.motivo);
   const v7c = juzgar0({ tipo: "relacion", sujeto: "Lider", metrica: "Carga comercial", relacion: { forma: "mayor", vs: "nivel declarado" }, texto: "su carga está sobre el nivel declarado" });
