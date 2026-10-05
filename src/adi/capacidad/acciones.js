@@ -218,6 +218,16 @@ function _cifraParaRevalidar(libro, id, deSupuestoFila) {
 export function _hechosDeLaEntrega(entregaJson) {   // exportada para `capacidad/compacto.js` (lo que viaja al anfitrión sale de la MISMA función que arma lo que el libro guarda: mismas cifras, mismos ids)
   const filas = (entregaJson && entregaJson.cifras && Array.isArray(entregaJson.cifras.filas)) ? entregaJson.cifras.filas : [];
   const libro = (entregaJson && entregaJson.procedencia && entregaJson.procedencia.libro) || null;
+  /* EL TOTAL DEL LISTADO (owner 2026-10-05): cuando la Entrega sirvió un listado COMPLETO de una métrica aditiva, `componerEntrega` declaró en el libro la SUMA EXACTA de sus filas y la dejó en `cifras.totales` (no impresa en el texto).
+   * Entra al libro de la conversación como un hecho más, DESPUÉS de las filas (los ids `E<n>.h<k>` de las filas no se mueven): su procedencia es «derivado» (es una suma de lo medido) y se revalida como cualquier otra cifra. */
+  const totales = (entregaJson && entregaJson.cifras && Array.isArray(entregaJson.cifras.totales)) ? entregaJson.cifras.totales : [];
+  const hechosDeTotales = totales.map((t, j) => {
+    /* NO es una entidad (no entra a «entidades» del estado vigente): el universo se dice en la métrica («Venta · total del listado completo (13 cuentas)»). NO se revalida aparte (`deListado`, `revalidar.js`): lo revalidan sus filas; retomar lo declara «no se revalida», con su motivo, y no se afirma como vigente. */
+    const universo = String(t.entidad || "").replace(/^Total del listado completo/, "total del listado completo");
+    const base = { sujeto: null, metrica: [t.metrica, universo].filter(Boolean).join(" · ") || null, valor: t.valor || null, unidad: null, periodo: null, origen: "derivado", ref: t.hecho || null };
+    const c = libro && t.hecho ? _cifraParaRevalidar(libro, t.hecho, false) : null;
+    return c ? { ...base, rv: { ...c, dueno: "listado completo", deListado: true, prioridad: filas.length + j } } : base;
+  });
   return filas.map((f, idx) => {
     const v = (f && f.valores) || {};
     const ids = Array.isArray(f.hechos) ? f.hechos : [];
@@ -245,7 +255,7 @@ export function _hechosDeLaEntrega(entregaJson) {   // exportada para `capacidad
     const l0 = columnaDe(ids[0]);
     const mas = ids.slice(1).map((id) => { const cf = _cifraParaRevalidar(libro, id, deSupuestoFila); if (!cf) return null; const l = columnaDe(id); return { ref: id, metrica: l.col, valor: l.texto, ...cf }; }).filter(Boolean);
     return { ...hecho, rv: { ...primera, prioridad, sujeto: typeof v[claves[0]] === "string" ? v[claves[0]] : null, metrica: l0.col, valor: l0.texto, ...(mas.length ? { mas } : {}) } };
-  });
+  }).concat(hechosDeTotales);
 }
 /* ── EL DATASET «DE HOY» DE UNA EMPRESA: la ficha que cargó + lo que declaró conversando y confirmó (bloques 2 y 3) ──────────────────────────────────────────────────────────
  * UNA sola función para `consultar` y para `retomar` (bloque 4): para que una cifra revalidada hoy salga de EXACTAMENTE el mismo dataset con el que `consultar` la daría hoy (una sola

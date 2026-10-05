@@ -122,12 +122,14 @@ const MOTIVO = Object.freeze({
   sinRecorrida: "la consulta no se pudo volver a resolver con los datos actuales",
   incompleta: "la consulta ya no se pudo responder completa con los datos actuales",
   ambigua: "la misma cifra aparece más de una vez, con valores distintos, en los datos actuales",
+  deListado: "es la suma de las cifras de su listado, que se revalidan una por una: el total no se vuelve a comparar aparte, y no se afirma como vigente",
 });
 const _motivoDeTitular = (t) => (t === "declarado" ? MOTIVO.declarado : t === "documento" ? MOTIVO.documento : MOTIVO.supuesto);
 
 /** ¿este hecho guardado es de lo que NO se midió? (un supuesto del usuario, algo derivado de un supuesto, un declarado, un documento, una propuesta) */
 function _noSeRevalida(v) {
   if (v.deSupuesto === true) return MOTIVO.supuesto;
+  if (v.deListado === true) return MOTIVO.deListado;   /* el total de un listado completo (owner 2026-10-05): lo revalidan sus filas, no él */
   if (v.procedencia === "supuesto_usuario" || v.procedencia === "propuesta") return MOTIVO.supuesto;
   if (v.titular && v.titular !== "medido") return _motivoDeTitular(v.titular);
   return null;

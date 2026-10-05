@@ -3406,6 +3406,34 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
     return id;
   };
 
+  /* EL TOTAL DEL LISTADO (owner 2026-10-05, ensayo 2 — «un top-N que no declara su cola miente por omisión»; el anfitrión dijo «la venta total ronda $195M» sobre 13 cifras entregadas que suman $176.0M).
+   * Cuando la Entrega sirve un LISTADO COMPLETO —sin `top`, sin universo acotado, TODAS las cuentas del eje— de una métrica ADITIVA (dinero o unidades), el libro declara UNA suma por métrica: la SUMA EXACTA de las
+   * filas servidas (los mismos hechos de la tabla, nunca el total del Core ni otra fuente: reconciliada por construcción). NO se imprime: el texto de la Entrega no cambia (se registra en `entrega.cifras.totales`,
+   * que no es parte de la tabla); viaja en el libro de la conversación (`E<n>.h<k>`) y en la respuesta compacta. Una métrica no aditiva (margen, %, días, razones), un listado parcial (top-N, foto, universo acotado)
+   * o una cuenta sin cifra: ahí no corresponde y no se declara. Opcional como la tentación precalculada: si no verifica, no tumba la Entrega (ningún texto lo cita). */
+  const declararTotalDelListado = (plan) => {
+    const u = plan && plan.universoDecl;
+    if (!plan || plan.kind !== "grupo" || plan.esFoto || !u || u.top || u.base || u.estados || u.no_estados || u.filtros || u.bodega || u.union || (u.excluir && u.excluir.length)) return [];
+    const miembrosDelEje = ejesDelTenant && Array.isArray(ejesDelTenant[plan.eje]) ? ejesDelTenant[plan.eje].length : 0;
+    if (plan.orden.length < 2 || plan.orden.length !== miembrosDelEje) return [];
+    const claves = [];
+    for (const e of plan.orden) for (const k of _mapaDe(plan.porEntidad, e).keys()) if (!claves.includes(k)) claves.push(k);
+    const out = [];
+    for (const clave of claves) {
+      const m = metricaPorClave(clave);
+      if (!m || m.referencia || m.negocio || (m.unidad !== "money" && m.unidad !== "count")) continue;
+      const ids = plan.orden.map((e) => _mapaDe(plan.porEntidad, e).get(clave));
+      if (ids.some((x) => x == null)) continue;                                  // una cuenta sin cifra: la suma no sería la de lo servido
+      const figsDeLasFilas = ids.map((id) => { const h = hechos.find((x) => x.id === id); return h && h.tipo === "ref" ? figs.find((f) => f && f.id === h.de) : null; });
+      if (figsDeLasFilas.some((f) => !f || f.crudo === false || !Number.isFinite(f.raw))) continue;   // la cifra de la proyección o sin valor exacto: no hay suma exacta
+      const id = _declararSuma(hechos, contador, ids);
+      if (id == null) continue;
+      idsTentacionOpcional.add(id);
+      out.push({ id, clave, n: ids.length });
+    }
+    return out;
+  };
+
   // ── FASE 1 · declarar (por parte, según cierre) — nunca leer `preguntaOriginal` ──
   const planes = [];
   const limitesGap = [];
@@ -3766,6 +3794,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
           const figB0 = plan.orden.length > 1 ? _mapaDe(plan.porEntidad, plan.orden[1]).get(plan.claveOrden) : null;
           for (const e of plan.orden) for (const [clave, fig] of _mapaDe(plan.porEntidad, e)) _mapaDe(plan.porEntidad, e).set(clave, ref(fig));
           if (figA0 && figB0) plan.idDiffOrden = declararDerivadaOpcional(figA0, _mapaDe(plan.porEntidad, plan.orden[0]).get(plan.claveOrden), figB0, _mapaDe(plan.porEntidad, plan.orden[1]).get(plan.claveOrden));
+          { const _tt = declararTotalDelListado(plan); if (_tt.length) plan.totalesDelListado = _tt; }   /* el total del listado COMPLETO de una métrica aditiva: al libro, no al texto */
           planes.push(plan);
           limitesGap.push({ _faltantesDe: plan });   /* FAMILIA 2 */
         }
@@ -4150,6 +4179,12 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
       for (const entidad of plan.orden) {
         const m = _mapaDe(plan.porEntidad, entidad);
         for (const [clave, id] of m) { if (id == null) continue; entrega.cifras.filas.push(_fila(entidad, plan.tema, rotuloDeLaCasa({ clave }).rotulo, id)); }
+      }
+      /* el total del listado completo (`declararTotalDelListado`): NO es una fila de la tabla ni se imprime; solo queda en `entrega.cifras.totales` para el libro y la respuesta compacta. `renderDe` directo: no cuenta como cifra impresa. */
+      if (plan.totalesDelListado && plan.totalesDelListado.length) {
+        const _nTot = plan.totalesDelListado[0].n;
+        const _tot = plan.totalesDelListado.map((t) => ({ hecho: t.id, entidad: `Total del listado completo (${conteoDeEje(plan.eje, _nTot).texto})`, eje: plan.eje, metrica: rotuloDeLaCasa({ clave: t.clave }).rotulo, valor: renderDe(libro, t.id), procedencia: "derivado", tema: plan.tema }));
+        entrega.cifras.totales = [...(entrega.cifras.totales || []), ..._tot];
       }
       /* v24 (barrido familia iii · composer ↔ verificador): en «breve» con TRES o más partes de grupo la cabeza de cada una cita UNA cifra (no tres): las cifras que las oraciones citan son filas protegidas de la tabla y el tope de filas de «breve» (8) las desbordaba (`verificarEntrega`: «filas-sobre-el-tope»). Con menos partes o en «completa» la cabeza es la de siempre. */
       /* §7.3·49(g): las entidades que la cabeza cita tienen su fila protegida en Cifras (doble colocación) y el corte NUNCA parte una entidad: todas sus filas van con ella. Con el tope de filas de la profundidad repartido entre las partes de grupo, la cabeza cita las entidades cuyas filas ENTERAS caben en la cuota de su parte (máximo tres; al menos una). Con tres o más partes en «breve» son una (la regla de la v24); una sola parte de dos conceptos cita tres */
