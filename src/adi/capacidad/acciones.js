@@ -67,6 +67,7 @@
  *     reconstruye desde afuera —sigue siendo del compositor y `entrega/componer.js` sigue sin tocarse—: `retomar` le VUELVE A HACER al Core, hoy, la misma pregunta que se le hizo entonces (el
  *     Encargo que el libro guardó) y compara cifra por cifra (`continuidad/revalidar.js`). Ver su cabecera más abajo. */
 import { validarEncargo } from "../encargo/validar.js";
+import { normalizarFormaDelEncargo } from "./formaDelEncargo.js";
 import { componerEntrega } from "../entrega/componer.js";
 import { construirCatalogo } from "./catalogo.js";
 import { construirPerfilCliente } from "../../config/contract/perfilCliente.js";
@@ -102,6 +103,7 @@ import { conTenantActivo } from "./aislamiento.js";
  * entidad SOLO cuando de verdad hay ambigüedad (ley del colapso de escenarios: el texto dice «simulación»). */
 export const CABECERA_DE_USO = Object.freeze([
   "Las cifras de esta respuesta ya están verificadas por ADI: no se recalculan ni se derivan a mano sobre el texto — un número nuevo se pide como una consulta nueva.",
+  "No calcule por su cuenta totales ni promedios de más de dos cifras: use el total que entrega ADI o pídaselo como una consulta nueva.",
   "Lo que la Entrega declara en «Lo que no se puede concluir» se respeta: son hallazgos, no excusas — no se afirma lo contrario ni se rellena el hueco con una suposición.",
   `La «Referencia del oficio» es conocimiento general del sector, no un dato de esta empresa ni un objetivo suyo; el benchmark lleva su origen (${ETIQUETA_ORIGEN[ORIGEN.EMPRESA]} o criterio general de ADI) y no es un promedio.`,
   "Redacte con total libertad — resuma, ordene, adapte el tono al lector — y nombre la simulación o la entidad exacta SOLO cuando haya ambigüedad real sobre a cuál se refiere la cifra.",
@@ -378,6 +380,13 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
     const forma = _validarTenant(tenant);
     if (!forma.ok) return { ok: false, motivo: forma.motivo, uso: CABECERA_DE_USO };
 
+    /* LA FORMA ANTES DEL VALOR (ensayo 2, owner 2026-10-05): una cadena suelta donde el contrato pide una lista o un objeto se lee con su única lectura posible (`formaDelEncargo.js`); lo que no se puede leer sin adivinar
+     * se declara `formato_invalido` —con el campo y la forma esperada— y NUNCA como «la entidad no existe» ni «criterio desconocido». Lo bien formado pasa idéntico. */
+    const leido = normalizarFormaDelEncargo(encargo);
+    if (leido.formato.length) return { ok: false, entrega: null, noResuelto: leido.formato, uso: CABECERA_DE_USO };
+    encargo = leido.encargo;
+    const avisosDeForma = leido.avisos;
+
     const tenantId = tenant.id || null;
     const conversacionIdEntrante = (encargo && typeof encargo.conversacionId === "string" && encargo.conversacionId) || null;
 
@@ -533,6 +542,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         entrega: salida.ok ? { texto: textoConContinuidad, json: salida.entrega } : null,
         noResuelto: resolucion.noResuelto || [],
         uso: CABECERA_DE_USO,
+        ...(avisosDeForma.length ? { advertencias: avisosDeForma } : {}),
         ...(bloquePerfil ? { perfil: bloquePerfil } : {}),
         ...(declarado ? { declarado } : {}),
         ...(antecedentes.length ? { antecedentes } : {}),
