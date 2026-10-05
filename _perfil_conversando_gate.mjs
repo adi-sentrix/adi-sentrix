@@ -45,7 +45,13 @@ const fails = [];
 const ok = (c, m, extra = "") => { if (c) { pass++; } else { fail++; fails.push(m + (extra ? " — " + extra : "")); console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
 const H = (t) => console.log(`\n${t}`);
 const SEMILLA = 20261003;
-const CONOC = { activo: true };   // el conocimiento del oficio ENCENDIDO (hoy apagado en todos los perfiles): de él depende qué hace falta
+/* ═══ EL CATÁLOGO DE ESTE CANDADO (Etapa 2, bloque 6 · owner 2026-10-04) ═══════════════════════════════════════════════════════════════
+ * Este candado prueba la MECÁNICA de la conversación (preguntar una vez, recordar, omitir, confirmar, no cruzar empresas) sobre un catálogo en el que las piezas firmadas
+ * DEPENDEN de sector y modelo comercial —el alcance heredado del lote v0—. La clasificación REAL (PRI-04 universal, CAU-01 localizada por modelo comercial) cambió lo que el
+ * catálogo real pregunta, y la certifica `_universal_localizado_gate`; aquí se inyecta el catálogo con el alcance de antes para no mezclar las dos pruebas. */
+const _ALCANCE_V0 = { sector: ["distribucion"], tipoProducto: "*", modeloComercial: ["cuentas_grandes", "comercios"], pais: "*", banda: "*" };
+const CATALOGO_V0 = PIEZAS_CONOCIMIENTO.map((p) => (p.estado === "firmada" ? { ...p, alcance: { ..._ALCANCE_V0 } } : p));
+const CONOC = { activo: true, catalogo: CATALOGO_V0 };   // el conocimiento del oficio ENCENDIDO (hoy apagado en todos los perfiles): de él depende qué hace falta
 const sinComentarios = (src) => String(src).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`\\])\/\/[^\n]*/g, "$1");
 const leer = (p) => fs.readFileSync(new URL(p, import.meta.url), "utf8");
 
@@ -172,7 +178,7 @@ H("1b · la memoria: la clase «perfil» solo entra por la vía del perfil (el c
 /* ═══ 2 · QUÉ CAMPOS HARÍAN FALTA PARA LO QUE SE PIDIÓ ═════════════════════════════════════════════════════════════════ */
 H("2 · `necesitaPerfil`: solo lo que hace falta para lo pedido; si no falta nada, no pide nada");
 {
-  const N = (enc, o = {}) => PC.necesitaPerfil(enc, { activo: true, ...o });
+  const N = (enc, o = {}) => PC.necesitaPerfil(enc, { activo: true, catalogo: CATALOGO_V0, ...o });
   const cmp = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   ok(cmp(Object.keys(PC.TEMA_DE_PREDICADO).sort(), PREDICADOS_CERRADOS.map((p) => p.predicado).sort()), "★ candado: TODO predicado de la pertinencia tiene decidido su tema (un predicado nuevo obliga a decidirlo aquí)");
   const firmadas = PIEZAS_CONOCIMIENTO.filter((p) => p.estado === "firmada").map((p) => p.id);
@@ -206,7 +212,7 @@ H("2 · `necesitaPerfil`: solo lo que hace falta para lo pedido; si no falta nad
   ok(JSON.stringify(N(encComercial())) === JSON.stringify(N(encComercial())), "es determinista (puro): la misma entrada, la misma salida");
 
   // un catálogo sintético con una pieza que restringe tipo de producto y país: el orden y el «no antes de tener sector»
-  const base = PIEZAS_CONOCIMIENTO.find((p) => p.id === "PRI-04");
+  const base = CATALOGO_V0.find((p) => p.id === "PRI-04");
   const sint = [{ ...base, id: "SINT-1", estado: "firmada", alcance: { sector: ["distribucion", "servicios"], tipoProducto: ["vence"], modeloComercial: "*", pais: ["CL"], banda: "*" } }];
   n = N(encCobranza(), { catalogo: sint });
   ok(cmp(n.necesarios, ["sector", "tipoProducto", "pais"]) && n.siguiente === "sector", "pieza que restringe sector, tipo de producto y país → se preguntan en ese orden, de a una");

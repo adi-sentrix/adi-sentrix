@@ -422,17 +422,17 @@ H("15 · el bloque — señal nunca se omite por espacio, sin id interno, encabe
     ok(!textoNormal.includes(id), `★ CARNADA · el id de catálogo "${id}" NO aparece en el texto servido al usuario`, textoNormal.includes(id) ? textoNormal : "");
   }
 
-  // ★ CARNADA 3 · el encabezado ("En {sector}, …"/"En {sector}: …") y el "no implica"/"no excluye" aparecen
+  // ★ CARNADA 3 · el encabezado («Aplica por el modelo comercial declarado por la empresa:» o «Criterio general, independiente del perfil de la empresa:») y el "no implica"/"no excluye" aparecen
   // EXACTAMENTE una vez por pieza — nunca cero (owner: "el no implica va una vez"), nunca dos o más.
-  const bloqueCAU01 = salidaNormal.find((s) => /^En distribución, cuando una cuenta cadena/.test(s.texto));
+  const bloqueCAU01 = salidaNormal.find((s) => /^Aplica por el modelo comercial declarado por la empresa: cuando una cuenta cadena/.test(s.texto));
   ok(!!bloqueCAU01, "el bloque de CAU-01 se sirvió (para contar encabezado/no-implica)");
   if (bloqueCAU01) {
-    const nEncabezados = (bloqueCAU01.texto.match(/En distribución, cuando una cuenta cadena/g) || []).length;
+    const nEncabezados = (bloqueCAU01.texto.match(/Aplica por el modelo comercial declarado por la empresa: cuando una cuenta cadena/g) || []).length;
     ok(nEncabezados === 1, `★ CARNADA · el encabezado de CAU-01 aparece EXACTAMENTE una vez (dio ${nEncabezados})`, bloqueCAU01.texto);
     const nNoImplica = (bloqueCAU01.texto.match(/No implica que la carga sea la causa del margen bajo/g) || []).length;
     ok(nNoImplica === 1, `★ CARNADA · el "no implica" de CAU-01 aparece EXACTAMENTE una vez (dio ${nNoImplica})`, bloqueCAU01.texto);
   }
-  const bloquePRI04 = salidaNormal.find((s) => /^En distribución, el oficio compara la participación/.test(s.texto));
+  const bloquePRI04 = salidaNormal.find((s) => /^Criterio general, independiente del perfil de la empresa: el oficio compara la participación/.test(s.texto));
   ok(!!bloquePRI04, "el bloque de PRI-04 se sirvió (para contar encabezado/no-implica)");
   if (bloquePRI04) {
     const nEncabezados = (bloquePRI04.texto.match(/el oficio compara la participación de cada cuenta en el vencido/g) || []).length;

@@ -43,6 +43,17 @@
 
 const _ALCANCE_BASE = { sector: ["distribucion"], tipoProducto: "*", modeloComercial: ["cuentas_grandes", "comercios"], pais: "*", banda: "*" };
 
+/* ═══ UNIVERSAL / LOCALIZADO (Etapa 2, bloque 6 · owner 2026-10-04, clasificación aprobada — `_ADI_DISENO_UNIVERSAL_LOCALIZADO.md` §0) ════════════════════
+ * `alcance` = de qué campos del perfil depende una pieza (lista = depende; "*" = no depende). `conocimiento/alcance.js` le da efecto: la capa exige SOLO esos campos.
+ *   · PRI-04 = UNIVERSAL — «no depende del perfil»: su criterio (participación en el vencido contra participación en la venta a crédito) no nombra sector, modelo
+ *     comercial, país ni tamaño; solo exige venta a crédito y vencido por cuenta, que son del dato. Hasta hoy declaraba distribución + cuentas grandes/comercios por la
+ *     herencia del lote v0 (`_ALCANCE_BASE`), no por su criterio.
+ *   · CAU-01 = LOCALIZADA por MODELO COMERCIAL (cuentas grandes / cadenas), no por sector: su criterio presupone cadenas; un fabricante que vende a cadenas enfrenta lo mismo.
+ *   · CAU-06 y CAU-03 = localizadas (modelo comercial y sector, por la herencia del lote v0) pero son BORRADORES: siguen sin servirse. Este bloque NO las reclasifica ni
+ *     crea piezas (su alcance definitivo es de su firma). */
+const _ALCANCE_UNIVERSAL = { sector: "*", tipoProducto: "*", modeloComercial: "*", pais: "*", banda: "*" };
+const _ALCANCE_CADENAS = { sector: "*", tipoProducto: "*", modeloComercial: ["cuentas_grandes"], pais: "*", banda: "*" };
+
 export const PIEZAS_CONOCIMIENTO = [
   {
     // === CAU-01 · LA CARGA COMERCIAL DE LA CUENTA CONTRA EL RESTO DE LA CARTERA (owner 2026-09-23, diseño
@@ -60,7 +71,7 @@ export const PIEZAS_CONOCIMIENTO = [
     enunciado: "Cuando una cuenta cadena está bajo el benchmark de margen, el oficio mira primero si su carga comercial pesa más que la del resto de la cartera.",
     sujeto: "sector",
     fuente: { tipo: "principio-del-oficio", detalle: "controller senior; firmada por el owner 2026-09-24 (el principio es del oficio; el piso es el piso canónico de materialidad comercial del Core, criterio general de ADI, ajustable por la empresa)" },
-    alcance: { ..._ALCANCE_BASE },
+    alcance: { ..._ALCANCE_CADENAS },   // owner 2026-10-04: localizada por modelo comercial (cadenas), no por sector — ver arriba
     fecha: "2026-09-23", vigencia: "2027-09-23",
     /* FIRMA DEL OWNER (2026-09-24), textual: «Firmo la pieza 2». Lo firmado: el resto de la cartera es la tasa
      * real ponderada; el piso es el piso canónico de materialidad comercial del Core (el mismo de la pestaña
@@ -166,7 +177,7 @@ export const PIEZAS_CONOCIMIENTO = [
     enunciado: "el oficio compara la participación de cada cuenta en el vencido con su participación en la venta a crédito: una cuenta puede vender poco a crédito y deber mucho.",
     sujeto: "sector",
     fuente: { tipo: "principio-del-oficio", detalle: "controller senior; firmada por el owner 2026-09-23 (el principio es del oficio; el piso es criterio general de ADI, ajustable por la empresa)" },
-    alcance: { ..._ALCANCE_BASE },
+    alcance: { ..._ALCANCE_UNIVERSAL },   // owner 2026-10-04: universal = no depende del perfil — ver arriba
     fecha: "2026-09-23", vigencia: "2027-09-23",
     /* FIRMA DEL OWNER (2026-09-23), textual: «Sí, fírmala así». Lo firmado: (1) el principio —exposición ≠
      * participación— es del oficio y el piso es criterio de ADI, cada uno con su rótulo; (2) la pregunta del oficio

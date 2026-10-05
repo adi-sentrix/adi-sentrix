@@ -4,7 +4,9 @@
  * lee el veredicto del Core.»
  *
  * evaluarPertinencia(pieza, tabla, perfil, pregunta) → { pertinente, entidades: [...], motivo }
- * Función PURA. Devuelve las ENTIDADES sobre las que la pieza se enciende (no un booleano): una pieza puede ser
+ * ⚠️ `perfil` NO se lee acá, a propósito (owner 2026-10-04, universal/localizado): esta función solo mide si LA SEÑAL está presente; a qué empresas aplica una pieza
+ * (su `alcance` contra el perfil confirmado) lo decide `alcance.js:aplicaAlPerfil`, aguas arriba, en `seleccionar.js` — así el informe del mecanismo
+ * (`_evaluarInfraestructura`) puede seguir midiendo sin perfil. Función PURA. Devuelve las ENTIDADES sobre las que la pieza se enciende (no un booleano): una pieza puede ser
  * pertinente para Lider y no para Falabella. Composición cerrada: `todo` (∧) · `alguno` (∨) · `no` (¬). Sin
  * aritmética, sin literales numéricos — eso lo cobra `validarPieza.js` ANTES de que una pieza llegue acá. */
 import { evaluarPredicadoAtomico, ejeDelPredicado, predicadoValido } from "./predicados.js";

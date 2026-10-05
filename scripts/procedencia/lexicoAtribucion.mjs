@@ -48,6 +48,12 @@ export const EXCLUSIONES = Object.freeze([
   { id: "otro_declarado", porque: "«universo/premisa/ausencia/parte declarada» es lo que la Entrega o el encargo declaran, no una referencia de la empresa", patron: "(?:universo|premisa|ausencia|parte|conjunto|hueco|l[ií]mite|concepto)\\s+declarad[oa]|\\bse\\s+declara|\\bdeclara\\s+que|declarad[oa]\\s+(?:aparte|en\\s+el\\s+Marco|en\\s+esta)", flags: "i" },
 ]);
 
+/** frases que nombran a la empresa SIN atribuirle nada: se retiran de la cláusula antes de juzgarla (el resto de la cláusula se juzga igual — a diferencia de una EXCLUSIÓN, que la salta entera). Hoy una:
+ *  el encabezado de una referencia que NO depende del perfil (Etapa 2, bloque 6, owner 2026-10-04) nombra a la empresa para decir que el criterio no es suyo. */
+export const NEUTRALES = Object.freeze([
+  { id: "encabezado_universal", porque: "«Criterio general, independiente del perfil de la empresa:» dice que el criterio NO depende de la empresa: lo contrario de atribuir", patron: "^criterio\\s+general,\\s+independiente\\s+del\\s+perfil\\s+de\\s+la\\s+empresa:", flags: "i" },
+]);
+
 /** formas que SÍ atribuyen y que no se corrigen todavía (se cuentan aparte y se declaran): su porqué y quién decide. Hoy ninguna. */
 export const FORMAS_PENDIENTES = Object.freeze([
   /* vacía desde la tercera vuelta (owner 2026-10-03, opción A): la métrica se llama «Nivel de referencia de carga» para todas las empresas y las definiciones del glosario no afirman de quién es la referencia. */
@@ -103,6 +109,7 @@ export function atribuciones(texto, { claves = null, excluir = [] } = {}) {
     for (const p of FORMAS_PENDIENTES) {
       if (reDe(p).test(cl)) { out.push({ forma: p.id, claves: clavesDe(cl0), clausula: cl0.slice(0, 160), tipo: "pendiente" }); cl = cl.replace(reDe(p, "g"), p.reemplazo || " "); }
     }
+    for (const n of NEUTRALES) cl = cl.replace(reDe(n, "g"), " ");   /* la frase neutral se retira; el resto de la cláusula se juzga */
     let m;
     const gAdi = sujetoFijo ? /(?:general de|piso de) ADI/gi : /general de ADI/gi;
     while ((m = gAdi.exec(cl0))) { const k = sujetoFijo ? sujetoFijo() : clavesCercanas(ventana(cl0, m.index, m[0].length)); if (k.size) out.push({ forma: "general_de_adi", claves: k, clausula: cl0.slice(0, 160), tipo: "adi" }); }

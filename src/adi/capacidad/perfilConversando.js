@@ -29,12 +29,15 @@
  * ⚠️ HOY EL PERFIL SOLO HACE FALTA SI EL CONOCIMIENTO DEL OFICIO ESTÁ ENCENDIDO (`ADI_CONOCIMIENTO`, apagado en todos los
  * perfiles): con la bandera apagada ninguna referencia del oficio se sirve aunque el perfil esté completo, así que
  * preguntar no sirve para nada y no se pregunta («preguntar solo lo necesario»). Esa decisión es de la bandera, no de este
- * archivo: `activo` se inyecta (los candados la encienden). La regla de QUÉ se entrega sin perfil completo NO se toca acá
- * (sigue en `conocimiento/seleccionar.js` hasta que el bloque 6 —universal vs localizado— se decida).
+ * archivo: `activo` se inyecta (los candados la encienden). La regla de QUÉ se entrega sin perfil completo
+ * vive en `conocimiento/seleccionar.js` + `conocimiento/alcance.js` (bloque 6, owner 2026-10-04: lo universal se sirve sin perfil; lo localizado exige solo los campos de los que depende) y
+ * comparte con `necesitaPerfil` la lista de campos de los que depende cada pieza: lo que el anfitrión pregunta y lo que la Entrega declara como límite son el mismo conjunto.
  *
  * Puro: sin I/O propio — las funciones que leen la memoria reciben el almacén por parámetro. */
 import { TAXONOMIA_PERFIL, SECTORES_CON_TIPO_PRODUCTO } from "../../config/contract/taxonomiaPerfil.js";
 import { PIEZAS_CONOCIMIENTO } from "../conocimiento/piezas.js";
+import { camposDeLosQueDepende, descartaElCampo, listaDeAlcance } from "../conocimiento/alcance.js";
+import { ETIQUETA_DEL_CAMPO } from "../../config/contract/perfilCliente.js";
 import { ADI_CONOCIMIENTO } from "../../config/voiceFlags.js";
 import { CAMPOS_PERFIL_DECLARABLES, LISTA_DE_CAMPO_PERFIL, yaFueOmitido, conceptoDePerfil, CLASE_PERFIL } from "../continuidad/empresa.js";
 
@@ -47,11 +50,11 @@ export const ROTULOS_PERFIL = Object.freeze({
     significado: "Separa a las empresas por lo que hacen con lo que venden, no por lo que venden: el mismo producto se trabaja distinto si se compra hecho, se fabrica, se vende al público o se instala.",
     paraQue: "Con el sector ADI sabe a qué empresas aplican las referencias del oficio; sin él no se aplican y la consulta se responde igual, con los datos de la empresa.",
     opciones: {
-      distribucion: { rotulo: "Distribución y venta mayorista", significado: "Compra productos terminados y los revende a otras empresas: importadores, distribuidores, mayoristas." },
-      fabricacion: { rotulo: "Fabricación y producción", significado: "Produce lo que vende: industria, agroindustria, alimentos, envases, metalmecánica." },
-      minorista: { rotulo: "Comercio minorista", significado: "Vende al consumidor final, en tienda o en línea." },
-      servicios: { rotulo: "Servicios", significado: "Vende trabajo, tiempo o capacidad, no productos: consultoría, logística, software, servicios profesionales o técnicos." },
-      obras: { rotulo: "Obras y proyectos por contrato", significado: "Ejecuta obras o proyectos por contrato: construcción, montaje, ingeniería, instalaciones." },
+      distribucion: { rotulo: "Distribución y venta mayorista", empresasQue: "compran productos terminados y los revenden a otras empresas", significado: "Compra productos terminados y los revende a otras empresas: importadores, distribuidores, mayoristas." },
+      fabricacion: { rotulo: "Fabricación y producción", empresasQue: "producen lo que venden", significado: "Produce lo que vende: industria, agroindustria, alimentos, envases, metalmecánica." },
+      minorista: { rotulo: "Comercio minorista", empresasQue: "venden al consumidor final, en tienda o en línea", significado: "Vende al consumidor final, en tienda o en línea." },
+      servicios: { rotulo: "Servicios", empresasQue: "venden trabajo, tiempo o capacidad, no productos", significado: "Vende trabajo, tiempo o capacidad, no productos: consultoría, logística, software, servicios profesionales o técnicos." },
+      obras: { rotulo: "Obras y proyectos por contrato", empresasQue: "ejecutan obras o proyectos por contrato", significado: "Ejecuta obras o proyectos por contrato: construcción, montaje, ingeniería, instalaciones." },
       ninguno: { rotulo: "Ninguna de estas", significado: "Ninguna de las anteriores describe a la empresa. Se guarda como respuesta (no es «sin responder»)." },
     },
   },
@@ -62,11 +65,11 @@ export const ROTULOS_PERFIL = Object.freeze({
     significado: "Es el comportamiento del inventario, no el rubro: cuánto rota y qué pasa con lo que no se vende a tiempo.",
     paraQue: "Con el tipo de producto ADI sabe qué rotación de inventario es sana para la empresa.",
     opciones: {
-      vence: { rotulo: "Con fecha de vencimiento", significado: "Alimentos, bebidas, farmacia u otros productos con fecha de vencimiento: rotan en días o semanas y el stock inmovilizado es merma, no solo capital." },
-      consumo: { rotulo: "Consumo frecuente sin fecha crítica", significado: "Aseo, hogar, librería, ferretería: rotación rápida, margen bajo, poca obsolescencia." },
-      durable: { rotulo: "Bienes durables", significado: "Electrodomésticos, muebles, tecnología, herramientas, repuestos: rotación en meses, ticket alto, estacionalidad fuerte." },
-      temporada: { rotulo: "Vestuario, calzado y temporada", significado: "El inventario vale por temporada: lo que no se vendió a tiempo se liquida." },
-      insumos: { rotulo: "Insumos y equipos para otras empresas", significado: "Insumos, materiales o equipos para otras empresas: venta técnica, plazos largos, tickets grandes, rotación irregular." },
+      vence: { rotulo: "Con fecha de vencimiento", empresasQue: "venden productos con fecha de vencimiento", significado: "Alimentos, bebidas, farmacia u otros productos con fecha de vencimiento: rotan en días o semanas y el stock inmovilizado es merma, no solo capital." },
+      consumo: { rotulo: "Consumo frecuente sin fecha crítica", empresasQue: "venden productos de consumo frecuente, sin fecha crítica", significado: "Aseo, hogar, librería, ferretería: rotación rápida, margen bajo, poca obsolescencia." },
+      durable: { rotulo: "Bienes durables", empresasQue: "venden bienes durables", significado: "Electrodomésticos, muebles, tecnología, herramientas, repuestos: rotación en meses, ticket alto, estacionalidad fuerte." },
+      temporada: { rotulo: "Vestuario, calzado y temporada", empresasQue: "venden vestuario, calzado o productos de temporada", significado: "El inventario vale por temporada: lo que no se vendió a tiempo se liquida." },
+      insumos: { rotulo: "Insumos y equipos para otras empresas", empresasQue: "venden insumos o equipos a otras empresas", significado: "Insumos, materiales o equipos para otras empresas: venta técnica, plazos largos, tickets grandes, rotación irregular." },
     },
   },
   modeloComercial: {
@@ -76,10 +79,10 @@ export const ROTULOS_PERFIL = Object.freeze({
     significado: "Es el tipo de contraparte, no cuántos clientes tiene: de él depende el poder de negociación, los plazos de pago usuales y el riesgo de crédito.",
     paraQue: "Con el modelo comercial ADI sabe qué plazos y qué poder de negociación son los usuales para la empresa.",
     opciones: {
-      cuentas_grandes: { rotulo: "A pocas cuentas grandes", significado: "Cadenas de retail o grandes empresas: el poder lo tiene el comprador y perder una cuenta es riesgo de continuidad." },
-      comercios: { rotulo: "A muchos comercios y empresas pequeñas o medianas", significado: "Poder equilibrado; el riesgo de crédito está repartido y la cobranza es trabajo de volumen." },
-      consumidor: { rotulo: "A personas, como consumidor final", significado: "Cobro inmediato; no hay eje «cliente»." },
-      publico: { rotulo: "Al Estado o a empresas públicas", significado: "Licitaciones y plazos legales que no siempre se cumplen: cobranza lenta y previsible." },
+      cuentas_grandes: { rotulo: "A pocas cuentas grandes", empresasQue: "venden a cadenas o a pocas cuentas grandes", significado: "Cadenas de retail o grandes empresas: el poder lo tiene el comprador y perder una cuenta es riesgo de continuidad." },
+      comercios: { rotulo: "A muchos comercios y empresas pequeñas o medianas", empresasQue: "venden a muchos comercios y empresas pequeñas o medianas", significado: "Poder equilibrado; el riesgo de crédito está repartido y la cobranza es trabajo de volumen." },
+      consumidor: { rotulo: "A personas, como consumidor final", empresasQue: "venden a personas, como consumidor final", significado: "Cobro inmediato; no hay eje «cliente»." },
+      publico: { rotulo: "Al Estado o a empresas públicas", empresasQue: "venden al Estado o a empresas públicas", significado: "Licitaciones y plazos legales que no siempre se cumplen: cobranza lenta y previsible." },
     },
   },
   pais: {
@@ -156,8 +159,14 @@ function _temasDeLaPieza(pieza) {
   return temas;
 }
 
-/* campo del perfil → su llave en el `alcance` de una pieza (`banda` es el tamaño: se deriva, nunca se pregunta) */
-const _LLAVE_DE_ALCANCE = Object.freeze({ sector: "sector", tipoProducto: "tipoProducto", modeloComercial: "modeloComercial", pais: "pais" });
+/* campo del perfil → su llave en el `alcance` de una pieza: vive en `conocimiento/alcance.js` (una verdad: lo que el anfitrión pregunta y lo que la Entrega sirve o declara como límite salen de las mismas funciones) */
+
+/** esDelTemaDelEncargo(pieza, temas) → ¿la pieza es del tema (dominio) de lo que se pidió? Una pieza sin ningún predicado de dominio aplica a cualquier encargo.
+ *  UNA sola regla para lo que el anfitrión pregunta (`necesitaPerfil`) y lo que la Entrega declara como límite (`seleccionar.js`). */
+export function esDelTemaDelEncargo(pieza, temas) {
+  const t = _temasDeLaPieza(pieza);
+  return !(t.size && !(Array.isArray(temas) ? temas : []).some((x) => t.has(x)));
+}
 
 /* los temas (dominios) del encargo: salen de lo ya TIPADO — `partes[].tema` del encargo o de su resolución */
 function _temasDelEncargo(encargo) {
@@ -183,11 +192,10 @@ export function necesitaPerfil(encargo, { conocidos = {}, omitidos = [], activo 
   const limitados = new Set();
   for (const pieza of Array.isArray(catalogo) ? catalogo : []) {
     if (!pieza || pieza.estado !== "firmada" || !pieza.alcance) continue;          // solo lo que puede servirse
-    const t = _temasDeLaPieza(pieza);
-    if (t.size && !temas.some((x) => t.has(x))) continue;                           // no es del tema de este encargo
-    const restringidos = CAMPOS_PERFIL_DECLARABLES.filter((c) => Array.isArray(pieza.alcance[_LLAVE_DE_ALCANCE[c]]));
+    if (!esDelTemaDelEncargo(pieza, temas)) continue;                               // no es del tema de este encargo
+    const restringidos = camposDeLosQueDepende(pieza, { soloDeclarables: true });   // universal = ninguno: no hace falta preguntar nada por ella
     // lo ya declarado la descarta: no hace falta preguntar nada más por una pieza que no le aplica a esta empresa
-    if (restringidos.some((c) => sabe(c) && !pieza.alcance[_LLAVE_DE_ALCANCE[c]].includes(conocidos[c]))) continue;
+    if (restringidos.some((c) => sabe(c) && descartaElCampo(pieza, c, conocidos[c]))) continue;
     // lo omitido la deja sin aplicar: se declara la limitación y no se pregunta nada más por ella
     const sinDecir = restringidos.filter((c) => !sabe(c) && omit.has(c));
     if (sinDecir.length) { for (const c of sinDecir) limitados.add(c); continue; }
@@ -223,6 +231,32 @@ export function conPerfilDeclarado(dataset, vigentes) {
 }
 
 /* ═══ 4 · EL BLOQUE `perfil` DE `consultar` ═════════════════════════════════════════════════════════════════════════ */
+/* ═══ EL LÍMITE DE UNA REFERENCIA LOCALIZADA SIN SU CONTEXTO (Etapa 2, bloque 6 · owner 2026-10-04) ═══════════════════════════════════════
+ * Cuando una referencia del oficio es pertinente a lo que se pidió pero depende de un campo del perfil que la empresa no ha declarado,
+ * la Entrega no la sirve y lo dice en UNA línea por campo (tercera persona: la Entrega no pregunta; el anfitrión puede preguntar aparte
+ * con `necesitaPerfil`/`preguntasDelPerfil`, que lee las MISMAS dependencias). La línea se arma con datos —el «a quién aplica» sale de
+ * `empresasQue` de cada opción del alcance de la pieza (más arriba) y el campo, de su rótulo—, nunca escrita a mano por pieza. */
+const _empresasQue = (campo, codigo) => {
+  const o = ROTULOS_PERFIL[campo] && ROTULOS_PERFIL[campo].opciones && ROTULOS_PERFIL[campo].opciones[codigo];
+  if (!o) return null;
+  if (o.empresasQue) return o.empresasQue;
+  return campo === "pais" ? `tienen la mayor parte de su venta en ${o.rotulo}` : null;
+};
+/** textoDeFaltaDeContexto(campo, piezas) → la línea del límite · `piezas` = las piezas pertinentes que dependen de ese campo y no se sirvieron */
+export function textoDeFaltaDeContexto(campo, piezas) {
+  const ps = Array.isArray(piezas) ? piezas : [];
+  const hay = ps.length === 1 ? "Hay una referencia del oficio" : "Hay referencias del oficio";
+  const R = ROTULOS_PERFIL[campo];
+  if (!R) {   // la banda de tamaño no se declara: se calcula de la venta y la UF del período
+    return `${hay} que depende del ${ETIQUETA_DEL_CAMPO[campo] || campo} de la empresa; con los datos cargados no se pudo calcular.`;
+  }
+  const codigos = new Set();
+  for (const p of ps) for (const c of listaDeAlcance(p, campo) || []) codigos.add(c);
+  const frases = opcionesDeCampo(campo).filter((o) => codigos.has(o.codigo)).map((o) => _empresasQue(campo, o.codigo)).filter(Boolean);
+  const para = frases.length ? ` para empresas que ${frases.join(", o que ")}` : "";
+  return `${hay}${para}; la empresa no ha declarado su ${R.rotulo}.`;
+}
+
 /** textoDeLimitacion(campo) → lo que una omisión deja sin aplicar, en palabras de negocio (tercera persona). */
 export function textoDeLimitacion(campo) {
   const R = ROTULOS_PERFIL[campo];

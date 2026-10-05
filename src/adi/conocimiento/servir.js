@@ -40,7 +40,12 @@
  * servidos lleva el encabezado y cuáles negativas ya se sirvieron — sin tocar `acotadores.js` ni tocar el orden
  * ni el contenido de lo que cada cuenta mide. El texto devuelve además `negativaTexto` (la negativa exacta que
  * ESTE ítem aportaría, o `null`) para que el llamador sepa si ya la vio. */
-const _SECTOR_TXT = { distribucion: "distribución", fabricacion: "fabricación", minorista: "minorista", servicios: "servicios", obras: "obras" };
+import { encabezadoDePieza } from "./alcance.js";
+/* ═══ UNIVERSAL / LOCALIZADO (Etapa 2, bloque 6 · owner 2026-10-04) — el encabezado de una pieza dice de qué perfil depende ═════════════════════════
+ * Antes el encabezado decía «En distribución, …» leyendo `alcance.sector` (y «En el sector» con "*", que no dice qué sector). Ahora lo decide `alcance.js:encabezadoDePieza`
+ * (los dos textos viven allí, en una sola tabla; «declarado por la empresa» sale de `ETIQUETA_ORIGEN`): una pieza que no depende del perfil abre con «Criterio general,
+ * independiente del perfil de la empresa:»; una localizada, con «Aplica por el {campo} declarado por la empresa:». Una pieza localizada solo llega acá si la empresa ya declaró
+ * (y confirmó) cada campo del que depende (`seleccionar.js`), así que la frase de origen es verdadera por construcción. */
 /* el nombre de cada procedencia, EXACTO al de `notario/hechos.js:NOMBRE_DE_PROCEDENCIA` — declarado acá en vez
  * de importado a propósito: `conocimiento/` no depende de `notario/` para texto de prosa (solo `medir.js` lo
  * hace, para VERIFICAR). Un candado (`_piso_materialidad_gate.mjs`) compara los dos textos. `medicion.procedencia`
@@ -50,13 +55,6 @@ const _SECTOR_TXT = { distribucion: "distribución", fabricacion: "fabricación"
 const _NOMBRE_DE_PROCEDENCIA = { medido: "medido", derivado: "derivado", estimacion_referencia: "estimación contra referencia", supuesto_usuario: "supuesto del usuario", propuesta: "propuesta" };
 const _procTxt = (medicion) => (medicion.procedencia && _NOMBRE_DE_PROCEDENCIA[medicion.procedencia]) || "medido";
 const _bordeTxt = (medicion) => (medicion.borde === true ? " Esta cuenta queda al borde del piso: con un criterio algo más exigente o más laxo cambiaría de lado." : "");
-
-function _sectorDe(pieza) {
-  const s = pieza && pieza.alcance && pieza.alcance.sector;
-  const lista = Array.isArray(s) ? s : s ? [s] : [];
-  if (!lista.length || lista[0] === "*") return "el sector";
-  return lista.map((x) => _SECTOR_TXT[x] || x).join(" y ");
-}
 
 /** servirPieza(pieza, entidad, medicion, { incluirEncabezado, incluirNegativa }) → { texto, fuente, alcance,
  *  fecha, vigencia, firma, hechoId, negativaTexto } | null
@@ -68,8 +66,7 @@ function _sectorDe(pieza) {
  *  `false`) para que el llamador sepa cuál negativa "vio" este ítem. */
 export function servirPieza(pieza, entidad, medicion, { incluirEncabezado = true, incluirNegativa = true } = {}) {
   if (!pieza || !medicion) return null;
-  const sector = _sectorDe(pieza);
-  const encabezado = incluirEncabezado ? `El oficio mira: ${pieza.enunciado} (en ${sector}). ` : "";
+  const encabezado = incluirEncabezado ? `${encabezadoDePieza(pieza).texto} ${_minuscula(pieza.enunciado)} ` : "";
   let cuerpo = "";
   let hechoId = null;
   let negativaTexto = null;
@@ -148,12 +145,12 @@ export function servirPieza(pieza, entidad, medicion, { incluirEncabezado = true
  * (crudo, sin parsear texto) para cada cuenta. */
 const _minuscula = (s) => { const t = String(s || "").trim(); return t ? t.charAt(0).toLowerCase() + t.slice(1) : t; };
 function _headerDeBloque(pieza) {
-  const sector = _sectorDe(pieza);
+  const enc = encabezadoDePieza(pieza).texto;
   const e = String(pieza.enunciado || "").trim();
   // una pregunta ("¿…?") no se empalma en minúscula tras una coma — se dos-puntea, tal cual, para que se lea
   // como pregunta y no como una frase mal cortada. Owner 2026-09-24: las piezas del catálogo hoy afirman, no
   // preguntan (PRI-04 se unificó); esta rama queda por si una futura pieza sí lo hace.
-  return e.startsWith("¿") ? `En ${sector}: ${e}` : `En ${sector}, ${_minuscula(e)}`;
+  return e.startsWith("¿") ? `${enc} ${e}` : `${enc} ${_minuscula(e)}`;
 }
 /* ═══ REINSTALADA 2026-09-24 (owner, corrección tras revisión: «abierta → todas las SEÑALES, no todas las
  * cuentas») ═══════════════════════════════════════════════════════════════════════════════════════════════════

@@ -13,7 +13,9 @@
  *       (candado del validador de esquema).
  *   5 · `sujeto: "sector"` en toda pieza, y el enunciado no nombra ninguna entidad real del tenant.
  *   6 · una pieza en `estado: "borrador"` NUNCA se sirve — las cuatro piezas sembradas nacen así.
- *   7 · perfil incompleto apaga la capa entera (candado ya existente de perfilCliente.js, reusado).
+ *   7 · perfil incompleto apaga SOLO lo localizado (candado REESCRITO 2026-10-04, owner — universal / localizado): lo universal se sirve sin perfil; lo localizado
+ *       exige solo los campos del perfil de los que depende, declarados y confirmados (antes: «sin perfil completo no se entrega nada»). El detalle lo certifica
+ *       `_universal_localizado_gate.mjs`.
  *   8 · LA CONCLUSIÓN DEL PROCEDIMIENTO ES BYTE-IDÉNTICA CON LA CAPA ENCENDIDA Y APAGADA — se prueba sobre las
  *       cuatro rutas reales de `componer.js`, comparando la Entrega completa MENOS `referenciaDelOficio` (que
  *       es exactamente lo que la capa agrega) y MENOS el libro/hechos internos de esa sección.
@@ -237,15 +239,15 @@ H("6 · servir.js + acotadores.js — forma fija y los cuatro acotadores (entida
   const RES = _evaluarInfraestructura({ scenario: ESCENARIO_INICIAL, pregunta: PREGUNTA_LECTURA, entidadesEnRespuesta: ["Lider", "Falabella"], perfil: PERFIL_COMPLETO });
   ok(RES.salida.length > 0, `el pipeline completo (sin la puerta de firma) sirve ${RES.salida.length} ítems sobre datos reales`);
   // ★ PRI-04/CAU-01 (owner 2026-09-24, presentación en bloque) se sirven en UN bloque cada una, con encabezado
-  // propio "En {sector}, …"/"En {sector}: …" (`servir.js:_headerDeBloque`) — nunca "El oficio mira:" ni el id de
+  // propio («Aplica por … declarado por la empresa:» o «Criterio general, independiente del perfil de la empresa:», `servir.js:_headerDeBloque`) — nunca "El oficio mira:" ni el id de
   // la pieza. El resto de las formas (agregado, sobrantes, ocurre/no_ocurre/indeterminable) siguen siendo de
   // CAU-06/CAU-03, que no se tocaron.
   ok(RES.salida.every((s) =>
     /^El oficio mira: /.test(s.texto) || /^Y en \d+ /.test(s.texto) || /^\d+ mediciones más no entraron por espacio/.test(s.texto) ||
-    /^En [a-záéíóúñ]+[,:] /.test(s.texto) ||
+    /^(?:Aplica por [^:]+|Criterio general, independiente del perfil de la empresa): /.test(s.texto) ||
     /est[aá] ocurriendo: /.test(s.texto) || /^ADI lo midió: /.test(s.texto) || /Veredicto: (?:señal|bajo el piso)\./.test(s.texto) ||
     /^Con estos datos no se puede saber en /.test(s.texto)
-  ), "toda línea servida usa la forma fija (\"El oficio mira…\"), la línea de agregado (\"Y en N…\"), la línea combinada de sobrantes por tope (defecto 2), el bloque de PRI-04/CAU-01 (\"En {sector}, …\"), o el cuerpo de una de las cuatro formas de veredicto de CAU-06/CAU-03", RES.salida.map((s) => s.texto).join("\n---\n"));
+  ), "toda línea servida usa la forma fija (\"El oficio mira…\"), la línea de agregado (\"Y en N…\"), la línea combinada de sobrantes por tope (defecto 2), el bloque de PRI-04/CAU-01 (con su encabezado universal o localizado), o el cuerpo de una de las cuatro formas de veredicto de CAU-06/CAU-03", RES.salida.map((s) => s.texto).join("\n---\n"));
   ok(RES.salida.some((s) => /est[aá] ocurriendo/.test(s.texto) || /Veredicto: señal\.| Señal\./.test(s.texto)), "al menos una pieza sirve un veredicto positivo decisivo (\"ocurre\" o \"señal\"), con su cifra");
   const soloEntidadesNombradas = RES.detalle.filter((d) => d.pertinente && d.estado && d.entidad && !["Lider", "Falabella"].includes(d.entidad)).length;
   ok(soloEntidadesNombradas > 0, `hay ${soloEntidadesNombradas} mediciones sobre entidades NO nombradas por la Respuesta — el acotador 1 las agrega, no las pierde`);
@@ -341,14 +343,29 @@ H("7 · recuento.js — cada número con su propia unidad (defecto 3), cuando na
 }
 
 /* ═══ 8 · LAS TRES PUERTAS QUE APAGAN LA CAPA — seleccionar.js:referenciaDelOficio ═══ */
-H("8 · seleccionar.js — las tres puertas (bandera · perfil · firma), sobre TENANT_DEMO real");
+H("8 · seleccionar.js — las puertas (bandera · firma) y el perfil por pieza (universal sirve sin perfil; localizado exige lo suyo), sobre TENANT_DEMO real");
 initTenant(TENANT_DEMO);
 {
   const puerta1 = referenciaDelOficio({ perfil: PERFIL_COMPLETO, pregunta: PREGUNTA_LECTURA, entidadesEnRespuesta: ["Lider"], scenario: ESCENARIO_INICIAL, activo: false });
   ok(Array.isArray(puerta1) && puerta1.length === 0, "★ PUERTA 1 · activo:false → [] (byte-idéntico a hoy, catálogo de perfilCliente.js vacío)");
 
-  const puerta2 = referenciaDelOficio({ perfil: PERFIL_INCOMPLETO, pregunta: PREGUNTA_LECTURA, entidadesEnRespuesta: ["Lider"], scenario: ESCENARIO_INICIAL, activo: true });
-  ok(Array.isArray(puerta2) && puerta2.length === 0, `★ PUERTA 2 · activo:true pero perfil incompleto (TENANT_DEMO real, faltan: ${PERFIL_INCOMPLETO.faltantes.join(", ")}) → [] — perfil incompleto apaga la capa ENTERA`);
+  /* ★ CANDADO 7 REESCRITO (owner 2026-10-04) — «perfil incompleto apaga SOLO lo localizado». Antes: perfil incompleto → [] (la capa entera). Ahora cada pieza exige solo
+   * los campos de los que depende: U-TEST (no depende de nada) se sirve SIN perfil; L-TEST (depende del sector) no se sirve sin sector declarado y se sirve con él.
+   * Las piezas de prueba (clones firmados, NUNCA sembrados en piezas.js) pasan por `catalogo`; el detalle de la regla lo certifica `_universal_localizado_gate`. */
+  const _firmaP = { por: "_conocimiento_gate.mjs §8 (pieza de prueba)", fecha: "2026-10-04" };
+  const U_TEST = { ...piezaPorId("PRI-04"), id: "U-TEST", estado: "firmada", firma: _firmaP, alcance: { sector: "*", tipoProducto: "*", modeloComercial: "*", pais: "*", banda: "*" } };
+  const L_TEST = { ...piezaPorId("CAU-01"), id: "L-TEST", estado: "firmada", firma: _firmaP, alcance: { sector: ["distribucion"], tipoProducto: "*", modeloComercial: "*", pais: "*", banda: "*" } };
+  const encComercialP2 = construirEncargoDeLaTabla([{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen"], entidades: [] }], { criterio: null });
+  const argsP2 = { pregunta: PREGUNTA_LECTURA, entidadesEnRespuesta: ["Lider"], scenario: ESCENARIO_INICIAL, activo: true, catalogo: [U_TEST, L_TEST] };
+  const sinPerfil = referenciaDelOficio({ ...argsP2, perfil: PERFIL_INCOMPLETO });
+  ok(sinPerfil.length > 0 && sinPerfil.some((s) => /^Criterio general, independiente del perfil de la empresa: /.test(s.texto)), `★ CANDADO 7 · activo:true y perfil INCOMPLETO (TENANT_DEMO real, faltan: ${PERFIL_INCOMPLETO.faltantes.join(", ")}) → la pieza UNIVERSAL sí se sirve (la capa ya no se apaga entera)`, JSON.stringify(sinPerfil).slice(0, 300));
+  ok(!sinPerfil.some((s) => /^Aplica por /.test(s.texto)), "★ CANDADO 7 · y la pieza LOCALIZADA no se sirve sin su contexto (sector no declarado): perfil incompleto apaga SOLO lo localizado");
+  const comercialSinSector = referenciaDelOficio({ ...argsP2, perfil: PERFIL_INCOMPLETO, pregunta: "", encargo: encComercialP2 });
+  ok(!comercialSinSector.some((s) => /^Aplica por /.test(s.texto)) && comercialSinSector.some((s) => /^Hay (?:una referencia|referencias) del oficio .*; la empresa no ha declarado su sector\.$/.test(s.texto)), "★ CANDADO 7 · pedido comercial sin sector: la localizada no se sirve y la Entrega declara el límite (una línea, tercera persona)", JSON.stringify(comercialSinSector).slice(0, 400));
+  const comercialConSector = referenciaDelOficio({ ...argsP2, perfil: PERFIL_COMPLETO, pregunta: "", encargo: encComercialP2 });
+  ok(comercialConSector.some((s) => /^Aplica por el sector declarado por la empresa: /.test(s.texto)) && !comercialConSector.some((s) => /^Hay (?:una referencia|referencias) del oficio/.test(s.texto)), "CANDADO 7 · con el sector declarado y confirmado, la localizada se sirve con su encabezado localizado y no hay línea de límite");
+  const sinPerfilReal = referenciaDelOficio({ perfil: PERFIL_INCOMPLETO, pregunta: PREGUNTA_LECTURA, entidadesEnRespuesta: ["Lider"], scenario: ESCENARIO_INICIAL, activo: true });
+  ok(!sinPerfilReal.some((s) => /^Aplica por /.test(s.texto)), "CANDADO 7 · con el catálogo REAL y el perfil incompleto de TENANT_DEMO tampoco aparece nada localizado");
 
   /* PRI-04 ya está firmada (owner 2026-09-23): la puerta 3 se prueba con el catálogo real devuelto a borrador
    * (clon), y además se prueba que, con el catálogo real, las piezas en borrador no aportan NADA. */
@@ -379,16 +396,22 @@ H("9 · byte-identidad — las cuatro rutas de componer.js, capa ON vs OFF, MENO
  * trae una cifra verificada. Con la capa apagada, o sin ninguna pieza pertinente fuera del encargo, el menú
  * queda exactamente igual que antes (0 ofertas) — la sección 9 de más abajo (TENANT_DEMO, perfil incompleto)
  * ya lo prueba: `referenciaDelOficio === []` en las dos corridas, así que tampoco hay ofertas que fusionar. */
+/* ★ (bloque 6, owner 2026-10-04, opción A) con la capa ENCENDIDA dos límites cambian de redacción o se retiran —«Sin perfil completo del cliente todavía» (la ley vieja) y «Sin conocimiento del sector
+ * cargado todavía» cuando la sección trae contenido—: no son la conclusión del procedimiento, son texto de la capa. Se enmascaran en las DOS corridas (sus propios candados viven en
+ * `_universal_localizado_gate` §9); todo lo demás (Respuesta, Cifras, Para su juicio, universos, prioridad, el resto de los límites) sigue exigiéndose byte-idéntico. */
+const _LIMITES_DE_LA_CAPA = ["Sin perfil completo del cliente todavía", "Sin conocimiento del sector cargado todavía"];
+const _sinLimitesDeLaCapa = (t) => _LIMITES_DE_LA_CAPA.reduce((x, ti) => x.split("\n").filter((ln) => !ln.startsWith(`- **${ti}.**`)).join("\n"), t);
 function _sinReferenciaDelOficio(R) {
   if (!R || !R.entrega) return null;
-  const { referenciaDelOficio: _r, queMasPuedoCalcular: _q, ...resto } = R.entrega;
+  const { referenciaDelOficio: _r, queMasPuedoCalcular: _q, limites: _lim, ...resto } = R.entrega;
+  resto.limites = (_lim || []).filter((l) => !_LIMITES_DE_LA_CAPA.includes(l.titulo));
   return JSON.stringify({
     ok: R.ok,
     // CORTE 3e (owner 2026-09-26, «LA ENTREGA NO LE HABLA A NADIE») — «Para su juicio» se renombró (título neutro,
     // sin «su» de trato): el lookahead que delimitaba «Referencia del oficio» seguía el título VIEJO y dejó de
     // matchear, así que la sección ya no se enmascaraba antes de comparar — esta prueba no vigilaba nada porque
     // comparaba con el contenido real de referenciaDelOficio adentro. Título nuevo, misma máscara.
-    texto: R.texto
+    texto: _sinLimitesDeLaCapa(R.texto)
       .replace(/\*\*Referencia del oficio\*\*[\s\S]*?(?=\n\*\*Preguntas abiertas y supuestos a validar)/, "**Referencia del oficio** [omitido de esta comparación]\n\n")
       .replace(/\*\*Qué más puedo calcular\.\*\*[\s\S]*$/, "**Qué más puedo calcular.** [omitido de esta comparación]"),
     entrega: resto,
@@ -406,7 +429,9 @@ function _sinReferenciaDelOficio(R) {
     ok(Roff.ok, `${nombre} (capa apagada) compone ok`, Roff.motivo);
     ok(Ron.ok, `${nombre} (capa encendida) compone ok`, Ron.motivo);
     ok(JSON.stringify(Roff.entrega.referenciaDelOficio) === "[]", `${nombre} (capa apagada) — referenciaDelOficio === [] (TENANT_DEMO real, perfil incompleto)`);
-    ok(JSON.stringify(Ron.entrega.referenciaDelOficio) === "[]", `${nombre} (capa ENCENDIDA) — referenciaDelOficio TAMBIÉN === [] (perfil incompleto sigue apagando la capa entera, aun con la bandera en true)`);
+    /* (reescrito 2026-10-04, universal/localizado) con la capa ENCENDIDA y el perfil incompleto de TENANT_DEMO ya no es [] siempre: lo universal sí se sirve; lo localizado, nunca. */
+    const _refOn = Ron.entrega.referenciaDelOficio;
+    ok(_refOn.every((r) => !/^Aplica por /.test(r.texto)), `${nombre} (capa ENCENDIDA, perfil incompleto) — ninguna referencia LOCALIZADA se sirve sin su contexto; lo que sale es universal, un recuento o el límite declarado`, JSON.stringify(_refOn).slice(0, 300));
     const sOff = _sinReferenciaDelOficio(Roff), sOn = _sinReferenciaDelOficio(Ron);
     ok(sOff === sOn, `★ ${nombre} · BYTE-IDÉNTICA con la capa encendida y apagada (prioridad, ranking, cifras y respuesta no cambian)`, sOff === sOn ? "" : "difieren fuera de referenciaDelOficio — ver diff manual");
   }

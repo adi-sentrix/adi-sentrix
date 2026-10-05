@@ -74,6 +74,8 @@ import { construirPerfilCliente, ETIQUETA_DEL_CAMPO } from "../../config/contrac
 // a `seleccionarConocimientoDelOficio` (perfilCliente.js): con la bandera `ADI_CONOCIMIENTO` apagada (hoy, en
 // todos los perfiles) delega en ella tal cual — cero diferencia de comportamiento (ver `_conocimiento_gate.mjs`).
 import { referenciaDelOficioConOfertas } from "../conocimiento/seleccionar.js";
+import { textoDePerfilIncompletoConCapa } from "../conocimiento/alcance.js";
+import { ADI_CONOCIMIENTO } from "../../config/voiceFlags.js";
 // CORTE 3d.2 (owner 2026-09-25, `_ADI_DISENO_CORTE_3D.md` §A.4) — la pertinencia de Knowledge por FORMA del
 // encargo, no por prosa: `componerEntrega` (abajo) pasaba `pregunta: ""` a la capa de conocimiento, así que
 // ninguna pieza podía ser PRINCIPAL en el camino general (PRI-04 en cobranza salía como oferta). Con
@@ -218,12 +220,33 @@ function _ofertasTexto(ofertas) {
 /* El límite «perfil incompleto» (plan §3, «falla cerrado»): SOLO se declara si falta algo — un perfil completo
  * no necesita un hallazgo que lo diga. El título sale del catálogo de ausencias (una sola redacción); el motivo
  * es dinámico porque los campos que faltan cambian por tenant (mismo patrón que `faltaRango` en `_periodoDelMarco`). */
-function _limitePerfilIncompleto(perfil) {
+function _limitePerfilIncompleto(perfil, { capaActiva = false } = {}) {
   if (!perfil || perfil.completo) return null;
   const a = ausenciaPorId("perfil_cliente_incompleto");
   const titulo = (a && a.entrega && a.entrega.titulo) || "Sin perfil completo del cliente todavía";
+  // capa de conocimiento ACTIVA (bloque 6, owner 2026-10-04): el texto de la ley vieja («ADI no aplica conocimiento del oficio a esta empresa») ya no es verdad — dice la regla nueva (`alcance.js`)
+  if (capaActiva) return { titulo, motivo: textoDePerfilIncompletoConCapa(perfil.faltantes) };
   const campos = perfil.faltantes.map((c) => ETIQUETA_DEL_CAMPO[c] || c).join(", ");
   return { titulo, motivo: `Falta declarar o no se pudo derivar: ${campos}. Sin el perfil completo, ADI no aplica conocimiento del oficio a esta empresa aunque el catálogo lo tuviera — para no comparar contra un sector equivocado.` };
+}
+
+/* ═══ COHERENCIA CON LA CAPA DE CONOCIMIENTO (Etapa 2, bloque 6 · owner 2026-10-04, opción A, frontera estricta) ═══════════════════════════════════════════════════════════════
+ * «No reabrir la Entrega de Etapa 1 ni tocar su comportamiento cuando la capa está apagada; solo dejar coherente el texto cuando la capa de conocimiento esté activa.» Con la capa APAGADA esta función
+ * no hace NADA (ni un byte, ni un campo). Con la capa ACTIVA, dos frases de la ley vieja dejan de ser verdad y se corrigen:
+ *   · «Sin perfil completo del cliente todavía» afirmaba que sin el perfil completo «ADI no aplica conocimiento del oficio»: ahora dice la regla nueva (solo queda sin aplicar lo que depende de lo que falta;
+ *     `alcance.js:textoDePerfilIncompletoConCapa`, y cada referencia sin su contexto lo declara por campo en «Referencia del oficio», desde los datos de la pieza y del campo);
+ *   · «Sin conocimiento del sector cargado todavía» afirmaba que el Business Knowledge no está construido: si la sección «Referencia del oficio» trae contenido (una referencia servida, el recuento de lo
+ *     revisado o el límite de una referencia sin su contexto), la frase es falsa y se retira. Si la sección queda vacía (nada del conocimiento corresponde a lo consultado) la frase se conserva: sigue siendo verdad. */
+const _capaActiva = (conocimientoActivo) => (conocimientoActivo === undefined || conocimientoActivo === null ? ADI_CONOCIMIENTO : Boolean(conocimientoActivo));
+function _coherenciaConLaCapa(entrega, { conocimientoActivo, perfil }) {
+  if (!_capaActiva(conocimientoActivo)) return;
+  const titulosSinSector = new Set(["conocimiento_sector_comercial", "conocimiento_sector_cobranza", "conocimiento_sector_inventario", "conocimiento_sector_general"].map((id) => { const a = ausenciaPorId(id); return a && a.entrega ? a.entrega.titulo : null; }).filter(Boolean));
+  const tituloPerfil = (ausenciaPorId("perfil_cliente_incompleto") || { entrega: {} }).entrega.titulo || "Sin perfil completo del cliente todavía";
+  const conContenido = Array.isArray(entrega.referenciaDelOficio) && entrega.referenciaDelOficio.length > 0;
+  const nuevoPerfil = _limitePerfilIncompleto(perfil, { capaActiva: true });
+  entrega.limites = entrega.limites
+    .filter((l) => !(conContenido && l && l._ausencia === true && titulosSinSector.has(l.titulo)))
+    .map((l) => (nuevoPerfil && l && l.titulo === tituloPerfil && !l._ausencia ? nuevoPerfil : l));
 }
 
 /* TAREA 3 (owner 2026-09-23, Etapa 2 §3 del plan — «el universo como objeto»): "los 2 de mayor brecha", "los
@@ -585,6 +608,7 @@ export function componerEntregaBrechaComercial({ scenario = ESCENARIO_INICIAL, p
   // cuentas que la Respuesta nombra encienden `cuenta.en_respuesta`) ──
   const _refOficio1 = referenciaDelOficioConOfertas({ perfil, pregunta, entidadesEnRespuesta: [top.entidad, ...(segundo ? [segundo.entidad] : [])], entidadesDeLaPregunta: _entidadesDeLaPregunta(pregunta), scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
   entrega.referenciaDelOficio = _refOficio1.salida;
+  _coherenciaConLaCapa(entrega, { conocimientoActivo, perfil });
 
   // ── PARA SU JUICIO · reusa las huellas con sello (probado/indicado/abierto) y la pregunta al dueño de
   // `rolesCartera` — sin introducir NINGÚN número que no esté ya verificado arriba (regla 1 del plan) ──
@@ -803,6 +827,7 @@ export function componerEntregaCobranza({ scenario = ESCENARIO_INICIAL, pregunta
   // ── REFERENCIA DEL OFICIO · Etapa 3 (ver la nota de la ruta 1) ──
   const _refOficio2 = referenciaDelOficioConOfertas({ perfil, pregunta, entidadesEnRespuesta: [topEntidad, ...(segundoEntidad ? [segundoEntidad] : [])], entidadesDeLaPregunta: _entidadesDeLaPregunta(pregunta), scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
   entrega.referenciaDelOficio = _refOficio2.salida;
+  _coherenciaConLaCapa(entrega, { conocimientoActivo, perfil });
 
   // ── PARA SU JUICIO ──
   // CORTE 3e (owner 2026-09-26) — antes: `Solo usted puede responder: la deuda de X, ¿responde a un plazo
@@ -1107,6 +1132,7 @@ export function componerEntregaInventario({ scenario = ESCENARIO_INICIAL, pregun
   // `entidadesDeLaPregunta` queda vacío (comportamiento de siempre) ──
   const _refOficio3 = referenciaDelOficioConOfertas({ perfil, pregunta, entidadesEnRespuesta: [topSku ? topSku.sku : null, segundoSku ? segundoSku.sku : null].filter(Boolean), entidadesDeLaPregunta: _entidadesDeLaPregunta(pregunta), scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
   entrega.referenciaDelOficio = _refOficio3.salida;
+  _coherenciaConLaCapa(entrega, { conocimientoActivo, perfil });
 
   // ── PARA SU JUICIO · la MISMA pregunta que ya certifica el playbook (asesoria.js) — no se redacta una nueva ──
   entrega.paraSuJuicio = topSku ? [_preguntaAbiertaInventario(topSku.sku, perfil)].filter(Boolean) : [];
@@ -1360,6 +1386,7 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
   // ── REFERENCIA DEL OFICIO · Etapa 3 (ver la nota de la ruta 1) — las entidades líder de cada dominio ──
   const _refOficio4 = referenciaDelOficioConOfertas({ perfil, pregunta, entidadesEnRespuesta: [...new Set(Object.values(lideres).map((L) => L.x.entidad))], entidadesDeLaPregunta: _entidadesDeLaPregunta(pregunta), scenario, activo: conocimientoActivo, catalogo: conocimientoCatalogo });
   entrega.referenciaDelOficio = _refOficio4.salida;
+  _coherenciaConLaCapa(entrega, { conocimientoActivo, perfil });
 
   // ── PARA SU JUICIO · una pregunta por dominio, reusando el mismo texto que ya certifican las otras rutas ──
   entrega.paraSuJuicio = [];
@@ -4658,6 +4685,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
   const encargoDeLaTabla = construirEncargoDeLaTabla(partesUtiles, { criterio: resolucion.criterio });
   const _refOficio = referenciaDelOficioConOfertas({ perfil, pregunta: "", entidadesEnRespuesta, entidadesDeLaPregunta: entidadesDelUsuario, scenario, encargo: encargoDeLaTabla });
   entrega.referenciaDelOficio = _refOficio.salida;
+  _coherenciaConLaCapa(entrega, { conocimientoActivo: undefined, perfil });
 
   // (c) CORRECCIÓN DEL SUPERVISOR (2026-09-25) — ofertas CONCRETAS del catálogo de este encargo (entidad/eje/
   // tema con su cifra-gancho cuando existe), nunca solo el genérico "Otro corte..." (se conserva como ÚLTIMO

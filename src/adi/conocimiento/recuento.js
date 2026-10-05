@@ -17,10 +17,15 @@ import { evaluarPertinencia } from "./evaluarPertinencia.js";
 import { medirPieza } from "./medir.js";
 
 const _SECTOR_TXT = { distribucion: "un distribuidor", fabricacion: "una fábrica", minorista: "un minorista", servicios: "una empresa de servicios", obras: "una empresa de obras" };
+/* el sector solo se nombra si ALGUNA pieza contada depende de él (UNIVERSAL / LOCALIZADO, owner 2026-10-04): un recuento de piezas que no dependen del sector no puede decir
+ * «de su sector» —afirmaría un perfil que la pieza ni exige—, así que sin sector declarado en el alcance de ninguna, la frase no lo nombra. */
 function _sectorTxt(piezas) {
-  const s = piezas[0] && piezas[0].alcance && piezas[0].alcance.sector;
-  const lista = Array.isArray(s) ? s : s ? [s] : [];
-  return lista.length && lista[0] !== "*" ? (_SECTOR_TXT[lista[0]] || lista[0]) : "su sector";
+  for (const p of piezas) {
+    const s = p && p.alcance && p.alcance.sector;
+    const lista = Array.isArray(s) ? s : (typeof s === "string" && s !== "*") ? [s] : [];
+    if (lista.length) return _SECTOR_TXT[lista[0]] || lista[0];
+  }
+  return null;
 }
 
 /** recuentoDeLoRevisado(piezasFirmadas, tabla, perfil, pregunta) → { texto, total, medidas, ocurre } | null
@@ -46,8 +51,9 @@ export function recuentoDeLoRevisado(piezasFirmadas, tabla, perfil, pregunta = "
   const nAspectos = piezas.length;
   const aspectoTxt = `${nAspectos} aspecto${nAspectos === 1 ? "" : "s"}`;
   const casoTxt = `${medidas} caso${medidas === 1 ? "" : "s"}`;
+  const deSector = sector ? ` de ${sector}` : "";
   const texto = ocurre === 0
-    ? `El oficio revisa ${aspectoTxt} de ${sector}. ADI los midió en ${casoTxt}: ninguno está ocurriendo.`
-    : `El oficio revisa ${aspectoTxt} de ${sector}. ADI los midió en ${casoTxt}: ${ocurre} está${ocurre === 1 ? "" : "n"} ocurriendo.`;
+    ? `El oficio revisa ${aspectoTxt}${deSector}. ADI los midió en ${casoTxt}: ninguno está ocurriendo.`
+    : `El oficio revisa ${aspectoTxt}${deSector}. ADI los midió en ${casoTxt}: ${ocurre} está${ocurre === 1 ? "" : "n"} ocurriendo.`;
   return { texto, total: piezas.length, medidas, ocurre };
 }

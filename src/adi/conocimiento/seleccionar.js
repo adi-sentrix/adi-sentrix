@@ -47,7 +47,9 @@
  * `aplicarAcotadores`: el tamaño de la cartera decide el tamaño del bloque, nunca un tope de caracteres. */
 import { ADI_CONOCIMIENTO } from "../../config/voiceFlags.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
-import { perfilAutorizaConocimiento, seleccionarConocimientoDelOficio } from "../../config/contract/perfilCliente.js";
+import { seleccionarConocimientoDelOficio } from "../../config/contract/perfilCliente.js";
+import { aplicaAlPerfil } from "./alcance.js";
+import { esDelTemaDelEncargo, textoDeFaltaDeContexto } from "../capacidad/perfilConversando.js";
 import { PIEZAS_CONOCIMIENTO } from "./piezas.js";
 import { piezasValidas } from "./validarPieza.js";
 import { construirTablaDeSenales } from "./tablaSenales.js";
@@ -166,9 +168,29 @@ function _colapsarOficioRepetido(servidos) {
 
 /* el corazón, factorizado para que el gate pueda pedir el resultado CON el filtro de firma (el que se sirve de
  * verdad) o SIN él (para demostrar el mecanismo sobre las piezas borrador, nunca servido a un cliente). */
-function _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, perfil, maxCaracteres, encargo }) {
-  const { validas, invalidas } = piezasValidas(catalogo, {});
+function _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, perfil, maxCaracteres, encargo, filtrarPorPerfil = false }) {
+  const { validas: validasTodas, invalidas } = piezasValidas(catalogo, {});
   const tabla = construirTablaDeSenales({ scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, encargo });
+
+  // ═══ UNIVERSAL / LOCALIZADO (owner 2026-10-04) — cada pieza exige SOLO los campos del perfil de los que depende ═════
+  // `aplicaAlPerfil` (alcance.js): universal → aplica siempre · localizada con todo declarado dentro de su lista → aplica ·
+  // un campo declarado la descarta → no se sirve y NO se dice nada · le falta un campo → no se sirve y, si es del tema de lo que se
+  // pidió (la MISMA regla con la que `necesitaPerfil` decide qué pregunta el anfitrión), se declara el límite UNA vez por campo.
+  // `filtrarPorPerfil` = false (`_evaluarInfraestructura`, el informe del mecanismo) no filtra: solo informa `noAplican`.
+  const validas = [];
+  const noAplican = [];
+  const faltaPorCampo = new Map();   // campo → piezas pertinentes al tema que dependen de él y no se sirvieron
+  const temasDelEncargo = (tabla.pregunta && tabla.pregunta.temas) || [];
+  for (const pieza of validasTodas) {
+    const ap = aplicaAlPerfil(pieza, perfil);
+    if (ap.aplica) { validas.push(pieza); continue; }
+    noAplican.push({ piezaId: pieza.id, motivo: ap.motivo, ...(ap.campo ? { campo: ap.campo } : { campos: ap.campos }) });
+    if (!filtrarPorPerfil) { validas.push(pieza); continue; }
+    if (ap.motivo === "falta_contexto" && temasDelEncargo.length && esDelTemaDelEncargo(pieza, temasDelEncargo)) {
+      for (const c of ap.campos) { if (!faltaPorCampo.has(c)) faltaPorCampo.set(c, []); faltaPorCampo.get(c).push(pieza); }
+    }
+  }
+  const limites = [...faltaPorCampo].map(([campo, piezas]) => ({ texto: textoDeFaltaDeContexto(campo, piezas), fuente: null, alcance: null, fecha: null, vigencia: null, firma: null }));
 
   // ═══ owner 2026-09-24 (pertinencia por encargo) — SUJETO (usuario + procedimiento, decide el bloque principal)
   // vs. NOMBRADAS-POR-USUARIO (solo el usuario, decide la mención) — ver la cabecera de `_resolverBloqueOMencion`.
@@ -282,7 +304,7 @@ function _procesar(catalogo, { scenario, pregunta, entidadesEnRespuesta, entidad
   // arriba), servido por `coberturaCargaVsResto`/`coberturaPisoDeCobranza` — la MISMA función, una sola vez,
   // nunca duplicada entre el bloque y una línea suelta.
 
-  return { salida, sobrantes, detalle, invalidas, tabla, ofertas };
+  return { salida, sobrantes, detalle, invalidas, tabla, ofertas, aplicables: validas, noAplican, limites };
 }
 
 /** referenciaDelOficio({ perfil, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, scenario, activo, catalogo }) →
@@ -315,18 +337,19 @@ export function referenciaDelOficioConOfertas({ perfil, pregunta = "", entidades
 
 function _referenciaDelOficioInterna({ perfil, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, scenario, activo, catalogo, maxCaracteres, encargo = null }) {
   if (!activo) return { salida: seleccionarConocimientoDelOficio(perfil), ofertas: [] };   // puerta 1 — byte-idéntico a hoy
-  if (!perfilAutorizaConocimiento(perfil)) return { salida: [], ofertas: [] };              // puerta 2 — perfil incompleto
 
   const { validas } = piezasValidas(catalogo, {});
   const firmadas = validas.filter((p) => p.estado === "firmada");
-  if (!firmadas.length) return { salida: [], ofertas: [] };                                 // puerta 3 — nada firmado todavía
+  if (!firmadas.length) return { salida: [], ofertas: [] };                                 // puerta 2 — nada firmado todavía
 
-  const { salida, ofertas } = _procesar(firmadas, { scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, perfil, maxCaracteres, encargo });
+  // (la puerta del perfil COMPLETO se retiró — owner 2026-10-04: cada pieza exige solo los campos de los que depende; ver `_procesar`)
+  const { salida, ofertas, aplicables, limites } = _procesar(firmadas, { scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, perfil, maxCaracteres, encargo, filtrarPorPerfil: true });
   if (!salida.length) {
     const tabla = construirTablaDeSenales({ scenario, pregunta, entidadesEnRespuesta, entidadesDeLaPregunta, encargo });
-    const rec = recuentoDeLoRevisado(firmadas, tabla, perfil, pregunta);
+    const rec = recuentoDeLoRevisado(aplicables, tabla, perfil, pregunta);
     if (rec) salida.push({ texto: rec.texto, fuente: null, alcance: null, fecha: null, vigencia: null, firma: null });
   }
+  salida.push(...limites);   // el límite de lo localizado que no se pudo aplicar, al final: nunca desaparece una referencia que existe en silencio
   return { salida, ofertas };
 }
 
