@@ -315,7 +315,9 @@ H("7 · el ajuste de la empresa (camino B) cambia el piso y, donde corresponde, 
 
   ok(mADI.estado !== mEmpresa.estado, `★ con el piso ajustado por la empresa (5% en vez de 1%), el MISMO caso pasa de señal a bajo el piso (adi="${mADI.estado}", empresa="${mEmpresa.estado}")`, JSON.stringify({ adi: mADI.estado, empresa: mEmpresa.estado }));
   ok(!!cobEmpresa && /declarado por tu empresa/.test(cobEmpresa.texto), "★ la línea de cobertura dice \"declarado por tu empresa\" cuando el ajuste es de la empresa", cobEmpresa && cobEmpresa.texto);
-  ok(mEmpresa.procedencia === "supuesto_usuario", `★ con el ajuste de la empresa, la procedencia del veredicto es "supuesto_usuario" (dio "${mEmpresa.procedencia}")`);
+  /* bloque 5 (owner 2026-10-04): lo que la empresa declaró NO es un «supuesto del usuario»: la categoría legada es la de un criterio contra una referencia y QUIÉN lo puso viaja en el origen (función única de origen) */
+  ok(mEmpresa.procedencia === "estimacion_referencia" && mEmpresa.partes.pisoOrigen === "empresa" && mEmpresa.partes.pisoOrigenEnElLibro === "declarado", `★ con el ajuste de la empresa, el veredicto lo atribuye a la empresa (origen "empresa", en el libro "declarado") y NUNCA como "supuesto_usuario" (dio "${mEmpresa.procedencia}" · ${mEmpresa.partes.pisoOrigen} · ${mEmpresa.partes.pisoOrigenEnElLibro})`);
+  ok(mADI.partes.pisoOrigen === "adi" && mADI.partes.pisoOrigenEnElLibro !== "declarado", `control · sin ajuste, el piso es del criterio general de ADI y el libro no lo marca "declarado" (dio ${mADI.partes.pisoOrigen} · ${mADI.partes.pisoOrigenEnElLibro})`);
   /* ★ regla 1 también en la línea DE CADA CUENTA (defecto hallado en revisión 2026-09-23: decía «piso de ADI»
    * aunque el piso lo hubiera declarado la empresa). Se mira el veredicto entero serializado. */
   const txtEmpresa = JSON.stringify(mEmpresa), txtADI = JSON.stringify(mADI);

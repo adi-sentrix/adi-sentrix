@@ -17,6 +17,7 @@
  * REGLA DE PRECEDENCIA DEL DATO: `benchmark` es el FALLBACK para cuando una fila del dataset no trae su propio
  * `benchmark` — siempre preferir `fila.benchmark ?? POLICY.benchmark` (el demo trae 30.1 por fila · empresa-2, 26.0). */
 import { getTenantData, onTenantChange } from "../data/tenantStore.js";
+import { PISO_MATERIALIDAD_COBRANZA_CRITERIO_ADI, PISO_MATERIALIDAD_COBRANZA_MIN, PISO_MATERIALIDAD_COBRANZA_MAX, pisoDelCaminoB } from "./contract/pisoMaterialidadCobranza.js";   // hoja sin imports: sin ciclo
 
 // ── CAPA 3 · el fallback de config (lo que valía como literal hasta F2 · congelado: la config no muta) ──────────────
 export const POLICY_CONFIG = Object.freeze({
@@ -314,15 +315,16 @@ export const ADJETIVO_DE_ORIGEN = Object.freeze({
 
 /** etiquetaDeProcedencia({ origen, fuente?, confirmado? }, { genero? }) → la frase de la procedencia, de la tabla única (`null` si el origen no se conoce: nunca se inventa una).
  *  `fuente` = { tipo: "perfil"|"chat"|"plantilla"|"documento"|"consulta"|"config", detalle } (el rastro). Lo DECLARADO que se tomó de un documento confirmado conserva su rastro («declarado por la empresa,
- *  tomado de <documento>»); lo DOCUMENTAL dice «según <documento>» y, sin confirmar, «, sin confirmar». `genero: "f"` da la concordancia femenina. */
-export function etiquetaDeProcedencia(p, { genero = "m" } = {}) {
+ *  tomado de <documento>»); lo DOCUMENTAL dice «según <documento>» y, sin confirmar, «, sin confirmar». `genero: "f"` da la concordancia femenina; `voz: "tu"` la de segunda persona (la capa de conocimiento le habla al usuario: «declarado por tu empresa»). */
+export function etiquetaDeProcedencia(p, { genero = "m", voz = "la" } = {}) {
   if (!p || typeof p !== "object") return null;
   const f = p.fuente && typeof p.fuente === "object" ? p.fuente : null;
   const doc = f && f.tipo === "documento" && typeof f.detalle === "string" && f.detalle.trim() ? f.detalle.trim() : null;
   if (p.origen === ORIGEN.DOCUMENTAL) return `según ${doc || "un documento"}${p.confirmado === true ? "" : ", sin confirmar"}`;
   const base = (genero === "f" ? ETIQUETA_ORIGEN_FEMENINO : ETIQUETA_ORIGEN)[p.origen];
   if (!base) return null;
-  return p.origen === ORIGEN.EMPRESA && doc ? `${base}, tomado de ${doc}` : base;
+  const frase = p.origen === ORIGEN.EMPRESA && doc ? `${base}, tomado de ${doc}` : base;
+  return voz === "tu" ? frase.split("por la empresa").join("por tu empresa") : frase;   /* la VOZ de la capa de conocimiento le habla al usuario («tu empresa»): la frase es la misma de la tabla, solo cambia el pronombre */
 }
 
 /** umbral(key, consulta?) → { valor: number|null, origen: ORIGEN.* } — la única resolución de origen de la casa.
@@ -350,8 +352,31 @@ function _resolverLlave(key, consulta) {
   if (deConversacion !== undefined) return { valor: deConversacion, origen: ORIGEN.EMPRESA, fuente: { tipo: "chat", detalle: null }, confirmado: true };
   return _resolverDePerfil(getTenantData() && getTenantData().perfil, key);
 }
+/* ══ LOS CRITERIOS QUE NO SON UNA LLAVE DE POLICY (Etapa 2, bloque 5 · owner 2026-10-04) ═══════════════════════════════════════════════════════════════════════════════════
+ * El piso de materialidad de COBRANZA (pieza PRI-04) es un criterio de la empresa como los demás —lo declara conversando y lo confirma, o lo trae su perfil— pero no es una llave de `POLICY_CONFIG`: no lo lee
+ * el Core (ningún detector, estado ni ranking), solo la capa de conocimiento, y su valor es una fracción del saldo pendiente. Sumarlo a `POLICY` movería todo lo que enumera sus llaves. Por eso vive en esta tabla
+ * de DATOS y se resuelve por LA MISMA función de origen que toda llave (`_resolverDePerfil` → `procedenciaDeLlave`/`umbral`): una sola resolución, nunca una segunda. La unidad es el porcentaje (1 = 1 %), como la de los
+ * demás criterios; el criterio de ADI, el rango y el valor de la fracción salen de las constantes del contrato (`config/contract/pisoMaterialidadCobranza.js`), nunca de un dígito escrito acá.
+ * FRONTERA (owner 2026-10-04): un criterio de esta tabla decide un VEREDICTO (señal · bajo el piso · borde); no entra a ninguna medición. */
+const _aPct = (fraccion) => Number((fraccion * 100).toPrecision(12));
+export const CRITERIOS_FUERA_DE_POLICY = Object.freeze({
+  pisoMaterialidadCobranza: Object.freeze({
+    concepto: "piso_materialidad_cobranza", rotulo: "Piso de materialidad de cobranza", unidad: "pct",
+    adi: _aPct(PISO_MATERIALIDAD_COBRANZA_CRITERIO_ADI), min: _aPct(PISO_MATERIALIDAD_COBRANZA_MIN), max: _aPct(PISO_MATERIALIDAD_COBRANZA_MAX),
+    delObjeto: (v) => { const f = pisoDelCaminoB(v); return f == null ? undefined : _aPct(f); },   /* el camino B: `perfil.pisoMaterialidadCobranza = {valor, procedencia}` (fracción) */
+  }),
+});
+const _esFueraDePolicy = (key) => Object.prototype.hasOwnProperty.call(CRITERIOS_FUERA_DE_POLICY, key);
+/* el valor que la empresa declaró en su perfil para una llave de esta tabla: un número (lo que declaró conversando y confirmó, `conCriteriosDeEmpresa`) o, para el camino B, el objeto `{valor, procedencia}`;
+ * fuera del rango del criterio no cuenta (falla cerrado hacia el criterio de ADI, nunca hacia un número inventado) */
+function _valorDeCriterioFueraDePolicy(perfil, key) {
+  const spec = CRITERIOS_FUERA_DE_POLICY[key];
+  const n = valorUsableDelPerfil(perfil, key);
+  if (n !== undefined) return n >= spec.min && n <= spec.max ? n : undefined;
+  return perfil && typeof perfil === "object" && perfil[key] && typeof perfil[key] === "object" ? spec.delObjeto(perfil[key]) : undefined;
+}
 function _resolverDePerfil(perfil, key) {
-  const v = valorUsableDelPerfil(perfil, key);
+  const v = _esFueraDePolicy(key) ? _valorDeCriterioFueraDePolicy(perfil, key) : valorUsableDelPerfil(perfil, key);
   if (v !== undefined) {
     /* el acto de declaración: sin anotación en `procedenciaDeLlaves`, el propio perfil de la empresa; con ella, su rastro (la plantilla oficial, el chat o un documento que la empresa confirmó adoptar) */
     const pr = perfil.procedenciaDeLlaves && typeof perfil.procedenciaDeLlaves === "object" ? perfil.procedenciaDeLlaves[key] : null;
@@ -359,7 +384,7 @@ function _resolverDePerfil(perfil, key) {
     const detalle = pr && typeof pr.fuente === "string" && pr.fuente.trim() ? pr.fuente.trim() : null;
     return { valor: v, origen: ORIGEN.EMPRESA, fuente: { tipo, detalle }, confirmado: true };
   }
-  const deConfig = POLICY_CONFIG[key];
+  const deConfig = _esFueraDePolicy(key) ? CRITERIOS_FUERA_DE_POLICY[key].adi : POLICY_CONFIG[key];
   if (Number.isFinite(deConfig)) return { valor: deConfig, origen: ORIGEN.ADI, fuente: { tipo: "config", detalle: null }, confirmado: null };
   return { valor: null, origen: ORIGEN.SIN_DECLARAR, fuente: null, confirmado: null };
 }
@@ -490,7 +515,7 @@ export function procedenciaDeUmbral(key, consulta = null) {
  *  umbral_frenado), de la MISMA función de origen que los umbrales (`procedenciaDeLlave` sobre su llave de POLICY, `POLICY_DE_REFERENCIA`) y de la misma tabla de frases. Es lo que escriben el Marco, la
  *  referencia oficial y el texto del benchmark: ningún composer escribe «declarado por la empresa» a mano (decisión §7.3·58). `null` si el concepto no es una referencia con llave: nunca se inventa. */
 export function procedenciaDeReferencia(concepto, opciones = {}) {
-  const llave = Object.prototype.hasOwnProperty.call(POLICY_DE_REFERENCIA, concepto) ? POLICY_DE_REFERENCIA[concepto] : null;
+  const llave = Object.prototype.hasOwnProperty.call(POLICY_DE_REFERENCIA, concepto) ? POLICY_DE_REFERENCIA[concepto] : llaveDeCriterioFueraDePolicy(concepto);
   return llave ? etiquetaDeProcedencia(procedenciaDeLlave(llave), opciones) : null;
 }
 
@@ -582,7 +607,7 @@ export function conCriteriosDeEmpresa(dataset, valores, procedencias = null) {
   const nuevos = {};
   const aplicados = [];
   for (const [llave, v] of Object.entries(valores || {})) {
-    if (!Object.prototype.hasOwnProperty.call(POLICY_CONFIG, llave) || typeof v !== "number" || !isFinite(v)) continue;
+    if (!(Object.prototype.hasOwnProperty.call(POLICY_CONFIG, llave) || _esFueraDePolicy(llave)) || typeof v !== "number" || !isFinite(v)) continue;
     aplicados.push({ llave, valor: v, desplaza: umbralDePerfil(base, llave) });
     nuevos[llave] = v;
   }
@@ -598,4 +623,32 @@ export function conCriteriosDeEmpresa(dataset, valores, procedencias = null) {
   const perfil = { ...base, ...nuevos, ...(Object.keys(pr).length ? { procedenciaDeLlaves: pr } : {}) };
   if (!Object.keys(pr).length) delete perfil.procedenciaDeLlaves;
   return { dataset: { ...dataset, perfil }, aplicados };
+}
+
+/* ══ EL PISO DE MATERIALIDAD DE COBRANZA, COMO CUALQUIER OTRO CRITERIO (Etapa 2, bloque 5 · owner 2026-10-04) ═══════════════════════════════════════════════════════════════════════
+ * Antes el ajuste de la empresa vivía aparte (`tenant.perfil.pisoMaterialidadCobranza`, procedencia «supuesto_usuario», fuera de la función de origen). Ahora el piso que rige sale de LA función de origen
+ * (`procedenciaDeLlave`: lo que la empresa declaró conversando y confirmó, o su perfil —el camino B se conserva como fuente válida de lo declarado— o el criterio general de ADI), y el DUEÑO que nombra cada texto de la
+ * capa de conocimiento sale de ese origen y de la tabla de frases de arriba (`ETIQUETA_ORIGEN`, en la voz de segunda persona de esa capa): nadie escribe «declarado por tu empresa» ni «piso de ADI» a mano.
+ * FRONTERA (owner 2026-10-04, garantía dura): el piso es un criterio de materialidad —decide qué cuentas quedan como señal, bajo el piso o al borde—, NO modifica saldos, atrasos ni ninguna medición de cobranza. */
+/** llaveDeCriterioFueraDePolicy(concepto) → la llave de la tabla de criterios fuera de POLICY para ese concepto (`piso_materialidad_cobranza`), o `null` */
+export function llaveDeCriterioFueraDePolicy(concepto) {
+  return Object.keys(CRITERIOS_FUERA_DE_POLICY).find((k) => CRITERIOS_FUERA_DE_POLICY[k].concepto === concepto) || null;
+}
+/** pisoMaterialidadCobranzaDe(tenant) → { k, procedencia, origen, fuente, confirmado, declaradoPorLaEmpresa, etiqueta, dueno } · nunca lanza, nunca vuelve null.
+ *  `k` = la fracción del saldo pendiente que rige (0,01 = 1 %); `origen`/`fuente`/`confirmado` = el rastro de la función de origen sobre el perfil de `tenant`; `etiqueta` = la frase del origen
+ *  en la voz de la capa de conocimiento («declarado por tu empresa» · «criterio general de ADI, ajustable por tu empresa») y `dueno` = cómo nombra el piso un texto de veredicto («el piso declarado por tu empresa» ·
+ *  «el piso de ADI»). `procedencia` es la categoría LEGADA del Notario de la constante del piso (siempre `estimacion_referencia`: un criterio contra una referencia; quién lo puso lo dice `origen`, nunca
+ *  «supuesto del usuario»). Ausente, mal formado o fuera de rango ⇒ el criterio de ADI. */
+export function pisoMaterialidadCobranzaDe(tenant) {
+  const r = _resolverDePerfil(tenant && tenant.perfil, "pisoMaterialidadCobranza");
+  const deLaEmpresa = r.origen === ORIGEN.EMPRESA;
+  const etiqueta = etiquetaDeProcedencia({ origen: r.origen, fuente: r.fuente, confirmado: r.confirmado }, { voz: "tu" });
+  return {
+    k: deLaEmpresa ? r.valor / 100 : PISO_MATERIALIDAD_COBRANZA_CRITERIO_ADI,
+    procedencia: "estimacion_referencia",
+    origen: r.origen, fuente: r.fuente, confirmado: r.confirmado,
+    declaradoPorLaEmpresa: deLaEmpresa,
+    etiqueta,
+    dueno: deLaEmpresa ? `el piso ${etiqueta}` : "el piso de ADI",
+  };
 }

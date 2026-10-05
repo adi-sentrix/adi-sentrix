@@ -22,12 +22,14 @@
  * con la de "criterio de materialidad declarado". Migración escrita, sin aplicar: `db/migraciones/014_piso_
  * materialidad_cobranza.sql` — mismo camino B que 012/013 (`tenants`, fuera de la plantilla congelada).
  *
- * PROCEDENCIA (owner, textual, regla 5 del sello — «el nivel de comparación nunca es un hecho publicado», y el
- * porqué de cada procedencia): el piso por DEFECTO (criterio de ADI) es una referencia declarada por la casa,
- * no medida en ningún archivo — usa `estimacion_referencia` (la categoría de `notario/hechos.js:PROCEDENCIAS`
- * para «una brecha o un criterio contra una referencia declarada», la misma familia que un benchmark). El piso
- * AJUSTADO por la empresa es un número que la empresa aportó — `supuesto_usuario`. Ninguno de los dos es nunca
- * "medido": no hay archivo que declare un piso de materialidad. */
+ * PROCEDENCIA (Etapa 2, bloque 5 · owner 2026-10-04: «el piso de cobranza funciona como los demás criterios»): el piso ya NO tiene una procedencia propia escrita acá. Su ORIGEN lo resuelve la
+ * función única de la casa (`businessPolicy.js:pisoMaterialidadCobranzaDe` sobre `procedenciaDeLlave`): lo que la empresa DECLARÓ —conversando y confirmado (`aportarContexto`, clase «criterio», concepto
+ * `piso_materialidad_cobranza`) o en su perfil (el camino B de arriba, que sigue siendo una fuente válida de lo declarado)— es «declarado por la empresa»; sin declaración, el criterio general de ADI. Nada de
+ * «supuesto del usuario» para algo que la empresa declaró. La categoría legada de `notario/hechos.js:PROCEDENCIAS` de la constante del piso es siempre `estimacion_referencia` («un criterio contra una referencia»,
+ * la misma familia que un benchmark); QUIÉN lo puso viaja en el eje de origen del libro (`declarado`). Ninguno de los dos es nunca "medido": no hay archivo que declare un piso de materialidad.
+ *
+ * FRONTERA (owner 2026-10-04, garantía dura): el piso es un criterio de materialidad —decide qué cuentas quedan como señal, bajo el piso o al borde—, NO modifica saldos, atrasos ni ninguna medición de cobranza.
+ * Declarar otro piso solo puede cambiar esos veredictos; ningún saldo, vencido, atraso, porcentaje ni cifra medida cambia. Lo vigila `_piso_cobranza_declarado_gate.mjs`. */
 
 /** k = 1% — criterio general de ADI, ajustable por la empresa. NO es una verdad sectorial ni una meta. */
 export const PISO_MATERIALIDAD_COBRANZA_CRITERIO_ADI = 0.01;
@@ -45,25 +47,11 @@ export const PISO_MATERIALIDAD_COBRANZA_MAX = 0.10;
 
 const _PROCEDENCIAS_DEL_AJUSTE = ["medido", "derivado"];   // el mismo par que ya acepta `perfilCliente.js:_delPerfilDeEmpresa` — lo que la EMPRESA declaró o el motor derivó, nunca una brecha ni una propuesta
 
-/** pisoMaterialidadCobranzaDe(tenant) → { k, procedencia, fuente } — nunca lanza, nunca vuelve null.
- *  Camino B: `tenant.perfil.pisoMaterialidadCobranza = {valor, procedencia}`, con `valor` un número entre
- *  `PISO_MATERIALIDAD_COBRANZA_MIN` y `PISO_MATERIALIDAD_COBRANZA_MAX` y `procedencia` en {"medido","derivado"}
- *  (lo que la empresa declaró). Ausente, mal formado o fuera de rango ⇒ el criterio de ADI, con SU propia
- *  procedencia (`estimacion_referencia`) — la puerta falla cerrado hacia el criterio de la casa, nunca hacia un
- *  número inventado. */
-export function pisoMaterialidadCobranzaDe(tenant) {
-  const v = tenant && tenant.perfil && tenant.perfil.pisoMaterialidadCobranza;
-  if (v && typeof v === "object" && _PROCEDENCIAS_DEL_AJUSTE.includes(v.procedencia)) {
-    const k = Number(v.valor);
-    if (Number.isFinite(k) && k >= PISO_MATERIALIDAD_COBRANZA_MIN && k <= PISO_MATERIALIDAD_COBRANZA_MAX) {
-      return {
-        k, procedencia: "supuesto_usuario", declaradoPorLaEmpresa: true,
-        fuente: "tenant.perfil.pisoMaterialidadCobranza — declarado por la empresa (camino B, fuera de la plantilla; `db/migraciones/014_piso_materialidad_cobranza.sql`, sin aplicar)",
-      };
-    }
-  }
-  return {
-    k: PISO_MATERIALIDAD_COBRANZA_CRITERIO_ADI, procedencia: "estimacion_referencia", declaradoPorLaEmpresa: false,
-    fuente: "config/contract/pisoMaterialidadCobranza.js:PISO_MATERIALIDAD_COBRANZA_CRITERIO_ADI — criterio general de ADI, ajustable por la empresa",
-  };
+/** pisoDelCaminoB(v) → la fracción (0,001–0,10) que la empresa declaró en `tenant.perfil.pisoMaterialidadCobranza = {valor, procedencia}` (camino B), o `null` si el valor está ausente, mal formado,
+ *  con una procedencia que no es la de una declaración o fuera del rango de ajuste. PURA y sin imports: el ORIGEN de ese valor (declarado por la empresa, o el criterio general de ADI cuando esto da `null`) lo resuelve
+ *  UNA sola función de la casa —`businessPolicy.js:pisoMaterialidadCobranzaDe`, la misma que lee lo que la empresa declaró conversando—; este archivo solo guarda las constantes y esta validación. */
+export function pisoDelCaminoB(v) {
+  if (!v || typeof v !== "object" || !_PROCEDENCIAS_DEL_AJUSTE.includes(v.procedencia)) return null;
+  const k = Number(v.valor);
+  return Number.isFinite(k) && k >= PISO_MATERIALIDAD_COBRANZA_MIN && k <= PISO_MATERIALIDAD_COBRANZA_MAX ? k : null;
 }

@@ -77,7 +77,7 @@ import {
 } from "../continuidad/empresa.js";
 import { conPerfilDeclarado, armarPerfilConversando, opcionesDeCampo, textoDeLimitacion } from "./perfilConversando.js";
 import {
-  clasificarLoDeclarado, contrastarHechos, textoDeLoDeclarado, plazosCitados, procedenciasDeCriterios, antecedentesDe, textoDeAntecedentes, lugarDeAporte, validarCriterio, declarable, esReferenciaDeLaCasa, USO_DE_LO_DECLARADO,
+  clasificarLoDeclarado, contrastarHechos, textoDeLoDeclarado, plazosCitados, procedenciasDeCriterios, antecedentesDe, textoDeAntecedentes, lugarDeAporte, aplicadoComoDe, validarCriterio, declarable, esReferenciaDeLaCasa, USO_DE_LO_DECLARADO,
 } from "./loDeclarado.js";
 import { conCriteriosDeEmpresa, setBenchmarkOverride, ETIQUETA_ORIGEN, ORIGEN, etiquetaDeProcedencia } from "../../config/businessPolicy.js";
 import { PIEZAS_CONOCIMIENTO } from "../conocimiento/piezas.js";
@@ -252,7 +252,7 @@ function _hechosDeLaEntrega(entregaJson) {
  *   · los criterios que declaró y confirmó SON sus umbrales («declarado por la empresa»): van al perfil que el Core resuelve en `initTenant` (`conCriteriosDeEmpresa`); el rastro de lo que se
  *     tomó de un documento (§7.3·58) viaja con el valor;
  *   · `benchmarkDeclarado` pisa también el benchmark embebido por fila del dato (la vara de la empresa, como C.2): quien llama lo aplica DENTRO del tramo del Core (`setBenchmarkOverride`). */
-function _datasetDeLaEmpresa(datasetDelTenant, estadoPerfil, loDeclarado) {
+export function _datasetDeLaEmpresa(datasetDelTenant, estadoPerfil, loDeclarado) {   // exportada para los candados que prueban lo MISMO que usan `consultar` y `retomar` (el piso de cobranza declarado, bloque 5)
   const datasetConPerfil = estadoPerfil ? conPerfilDeclarado(datasetDelTenant, estadoPerfil.vigentes) : datasetDelTenant;
   const criterios = loDeclarado && Array.isArray(loDeclarado.criterios) ? loDeclarado.criterios : [];
   const { dataset, aplicados: criteriosAplicados } = conCriteriosDeEmpresa(datasetConPerfil, Object.fromEntries(criterios.map((c) => [c.llave, c.valor])), procedenciasDeCriterios(criterios));
@@ -500,7 +500,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       const declarado = salida.ok && (criteriosAplicados.length || hechosContrastados.length || plazosEnJuego.length) ? {
         criterios: loDeclarado.criterios.map((c) => {
           const a = criteriosAplicados.find((x) => x.llave === c.llave);
-          return { id: c.id, concepto: c.concepto, rotulo: c.rotulo, valor: c.valor, unidad: c.unidad, origen: c.origen, etiquetaDeOrigen: etiquetaDeProcedencia(c.procedencia), fuente: c.procedencia.fuente, sello: c.sello, aplicadoComo: "umbral de la empresa", ...(a ? { desplaza: { valor: a.desplaza.valor, origen: a.desplaza.origen, etiquetaDeOrigen: ETIQUETA_ORIGEN[a.desplaza.origen] || null } } : {}) };
+          return { id: c.id, concepto: c.concepto, rotulo: c.rotulo, valor: c.valor, unidad: c.unidad, origen: c.origen, etiquetaDeOrigen: etiquetaDeProcedencia(c.procedencia), fuente: c.procedencia.fuente, sello: c.sello, aplicadoComo: aplicadoComoDe(c, { conocimientoActivo }), ...(a ? { desplaza: { valor: a.desplaza.valor, origen: a.desplaza.origen, etiquetaDeOrigen: ETIQUETA_ORIGEN[a.desplaza.origen] || null } } : {}) };
         }),
         hechos: hechosContrastados.map((h) => ({ id: h.id, concepto: h.concepto, rotulo: h.rotulo, entidad: h.entidad, periodo: h.periodo, valor: h.valor, unidad: h.unidad, origen: h.origen, etiquetaDeOrigen: etiquetaDeProcedencia(h.procedencia), fuente: h.procedencia.fuente, sello: h.sello, estado: h.estado, medido: h.medido, diferencia: h.diferencia, ...(h.motivoNoComparable ? { motivoNoComparable: h.motivoNoComparable } : {}) })),
         ...(plazosEnJuego.length ? { plazos: plazosEnJuego.map((q) => ({ id: q.id, concepto: q.concepto, rotulo: q.rotulo, entidad: q.entidad, valor: q.valor, unidad: q.unidad, origen: q.origen, etiquetaDeOrigen: etiquetaDeProcedencia(q.procedencia), fuente: q.procedencia.fuente, sello: q.sello, citadoPor: { tipo: "pregunta_abierta", sobre: q.citadoPor.entidad, pregunta: q.citadoPor.pregunta }, nota: "no cambia ningún cálculo: el saldo vencido sigue siendo el medido" })) } : {}),
@@ -641,7 +641,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
             entendido: { clase: entendido.clase, concepto: entendido.concepto, entidad: entendido.entidad, periodo: entendido.periodo, valor: entendido.valor, unidad: entendido.unidad },
             conflictoCon: r.conflictoCon || null,
             paraConfirmar: r.estado === "pendiente",
-            lugar: lugarDeAporte(entendido),   // dónde se usaría cuando se confirme (o que se queda en la memoria): se dice AL DECLARARLO
+            lugar: lugarDeAporte(entendido, { conocimientoActivo }),   // dónde se usaría cuando se confirme (o que se queda en la memoria): se dice AL DECLARARLO
           });
         }
 

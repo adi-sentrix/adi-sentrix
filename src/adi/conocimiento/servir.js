@@ -283,7 +283,7 @@ export function servirBloquePisoDeCobranza(pieza, porEntidad, cierreTexto, { suj
   for (const [entidad, m] of porEntidad) {
     if (!m || !m.partes) continue;
     const p = m.partes;
-    if (pisoDe == null) pisoDe = p.declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI";
+    if (pisoDe == null) pisoDe = p.pisoDe;
     if (m.estado === "senal") {
       if (_despliegaCompleta(entidad, sujeto, abierta)) {
         señalLineas.push(`${entidad}: ${p.propio} del vencido contra ${p.resto} de la venta a crédito; ${p.puntos}, ${p.monto} de diferencia; supera ${pisoDe} (${p.pisoTexto}). Señal.`);
@@ -371,7 +371,7 @@ export function servirMencionPisoDeCobranza(pieza, porEntidad, { nombradas = new
   for (const [entidad, m] of porEntidad) {
     if (!m || !m.partes || m.estado !== "senal" || !nombradas.has(entidad)) continue;
     const p = m.partes;
-    const pisoDe = p.declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI";
+    const pisoDe = p.pisoDe;
     clausulas.push(`${entidad} pesa más en el vencido que en la venta a crédito — ${p.propio} del vencido contra ${p.resto} de la venta a crédito; ${p.puntos}, ${p.monto} de diferencia; supera ${pisoDe} (${p.pisoTexto})`);
   }
   if (!clausulas.length) return null;
@@ -424,7 +424,7 @@ export function servirOfertaPisoDeCobranza(pieza, porEntidad, cierre) {
   const señales = [];
   for (const [entidad, m] of porEntidad) { if (m && m.estado === "senal" && m.partes) señales.push({ entidad, m }); }
   if (!señales.length) return null;
-  const pisoDe = señales[0].m.partes.declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI";
+  const pisoDe = señales[0].m.partes.pisoDe;
   const n = señales.length;
   // ★ PRI-04 compara la participación en el vencido con la participación en la venta a crédito — NUNCA "contra el resto
   // de la cartera" (esa es la comparación de CAU-01; la corrección del owner tras revisar la oferta anterior).

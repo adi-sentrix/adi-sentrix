@@ -11,7 +11,7 @@
  * UN DATO DECLARADO TIENE LUGAR EN LA ENTREGA SOLO SI LA CASA YA TIENE EL LUGAR DE ESE CONCEPTO — y solo cuenta lo VIGENTE (= confirmado; un pendiente
  * nunca entra, `continuidad/empresa.js`). Tres destinos, y ninguno se fuerza:
  *   1 · UN CRITERIO (clase «criterio», concepto = una referencia de la casa: benchmark · nivel_carga · umbral_materialidad · piso_rotacion · techo_cobertura ·
- *       umbral_frenado) es EL UMBRAL «declarado por la empresa»: entra por el mismo mecanismo que ya resuelve el origen de toda llave (`businessPolicy.js:umbral`,
+ *       umbral_frenado — y, desde el bloque 5, el piso de materialidad de cobranza: `piso_materialidad_cobranza`, criterio de materialidad que no modifica ninguna medición) es EL UMBRAL «declarado por la empresa»: entra por el mismo mecanismo que ya resuelve el origen de toda llave (`businessPolicy.js:umbral`,
  *       el registro del criterio de conversación) y la Entrega lo muestra con su origen donde lo usa (el Marco). Vale para TODA la empresa: un criterio con
  *       entidad o período no tiene ese lugar.
  *   2 · UN HECHO (clase «hecho», concepto = una métrica del léxico) se muestra declarado AL LADO de lo medido de la MISMA métrica y la MISMA entidad, cada uno
@@ -28,7 +28,7 @@
 import { CLAVES_DE_METRICA } from "../notario/lexico.js";
 import { normalizar } from "../notario/afirmacion.js";
 import { formatoDeLaCasa, formatoDeReferencia } from "../notario/hechos.js";
-import { POLICY_DE_REFERENCIA, ETIQUETA_ORIGEN, ORIGEN, etiquetaDeProcedencia } from "../../config/businessPolicy.js";
+import { POLICY_DE_REFERENCIA, ETIQUETA_ORIGEN, ORIGEN, etiquetaDeProcedencia, CRITERIOS_FUERA_DE_POLICY } from "../../config/businessPolicy.js";
 import { admiteDeclarado } from "../../config/contract/metricRegistry.js";
 import { CRITERIA } from "../criteria.js";   // SOLO los límites de plausibilidad de cada criterio (los mismos de «mi margen mínimo es 28 %»): nunca su reconocedor de frases
 
@@ -45,7 +45,18 @@ const _limitesDe = (llave) => { const c = Object.values(CRITERIA).find((x) => x.
 export const CRITERIOS_DECLARABLES = Object.freeze(CLAVES_DE_METRICA.filter((m) => m.referencia).map((m) => Object.freeze({
   concepto: m.clave, rotulo: m.nombre, unidad: m.unidad, llave: POLICY_DE_REFERENCIA[m.clave] || null, ..._limitesDe(POLICY_DE_REFERENCIA[m.clave]),
 })));
-const _criterioDe = (concepto) => CRITERIOS_DECLARABLES.find((c) => c.concepto === _txt(concepto) && c.llave) || null;
+/** EL PISO DE MATERIALIDAD DE COBRANZA (Etapa 2, bloque 5 · owner 2026-10-04): un criterio de la empresa como los demás —lo declara conversando, queda pendiente hasta que lo confirma y entonces rige en la
+ *  capa de conocimiento (PRI-04) «declarado por la empresa»— pero NO es una referencia del léxico ni una llave de POLICY (no lo lee el Core): vive en la tabla `businessPolicy.js:CRITERIOS_FUERA_DE_POLICY`, de donde salen
+ *  su concepto, su unidad, su rango y su llave; acá solo se le da lugar. FRONTERA (owner): el piso es un criterio de materialidad —decide qué cuentas quedan como señal, bajo el piso o al borde—, NO modifica saldos,
+ *  atrasos ni ninguna medición de cobranza. */
+export const NOTA_FRONTERA_PISO_DE_COBRANZA = "decide qué cuentas quedan como señal, bajo el piso o al borde; no modifica ningún saldo, atraso ni medición de cobranza";
+const _P = CRITERIOS_FUERA_DE_POLICY.pisoMaterialidadCobranza;
+export const CRITERIO_PISO_DE_COBRANZA = Object.freeze({
+  concepto: _P.concepto, rotulo: _P.rotulo, unidad: _P.unidad, llave: "pisoMaterialidadCobranza", min: _P.min, max: _P.max,
+  aplicadoComo: `criterio de materialidad de cobranza (${NOTA_FRONTERA_PISO_DE_COBRANZA})`,
+});
+const _esPiso = (concepto) => _txt(concepto) === CRITERIO_PISO_DE_COBRANZA.concepto;
+const _criterioDe = (concepto) => CRITERIOS_DECLARABLES.find((c) => c.concepto === _txt(concepto) && c.llave) || (_esPiso(concepto) ? CRITERIO_PISO_DE_COBRANZA : null);
 /** ¿el concepto es una referencia de la casa con llave de POLICY? (un criterio con lugar en la Entrega) */
 export const esReferenciaDeLaCasa = (concepto) => !!_criterioDe(concepto);
 
@@ -94,8 +105,9 @@ const _esPlazo = (concepto) => _txt(concepto) === PLAZO_DE_COBRO.concepto;
 /** declarable() → lo que el anfitrión puede declarar con lugar en la Entrega, con la forma exacta del aporte (para `conocerEmpresa`). */
 export function declarable() {
   return {
-    criterios: CRITERIOS_DECLARABLES.filter((c) => c.llave).map((c) => ({
+    criterios: [...CRITERIOS_DECLARABLES.filter((c) => c.llave), CRITERIO_PISO_DE_COBRANZA].map((c) => ({
       concepto: c.concepto, rotulo: c.rotulo, unidad: c.unidad, ...(c.min != null ? { min: c.min, max: c.max } : {}),
+      ...(_esPiso(c.concepto) ? { nota: `Es un criterio de materialidad: ${NOTA_FRONTERA_PISO_DE_COBRANZA}.` } : {}),
       comoDeclarar: { clase: "criterio", concepto: c.concepto, valor: { raw: "<número>", unidad: c.unidad } },
     })),
     hechos: HECHOS_DECLARABLES.map((h) => ({ concepto: h.concepto, rotulo: h.rotulo, unidad: h.unidad, dominio: h.dominio, comoDeclarar: { clase: "hecho", concepto: h.concepto, entidad: "<la entidad, o ninguna si es del negocio>", valor: { raw: "<número>", unidad: h.unidad } } })),
@@ -121,14 +133,23 @@ export function validarCriterio({ concepto, raw, unidad = null, entidad = null, 
   return { ok: true, llave: c.llave, valorNumerico: v, unidad: c.unidad, rotulo: c.rotulo };
 }
 
+/** aplicadoComoDe(criterio, { conocimientoActivo }) → cómo se dice, en `declarado.criterios`, a qué se aplicó un criterio vigente: «umbral de la empresa» (los de siempre) o, el piso de cobranza, «criterio de materialidad de cobranza (…)»; con la capa de conocimiento apagada, que no se aplica a nada hoy. */
+export function aplicadoComoDe(c, { conocimientoActivo = true } = {}) {
+  if (!c || !c.aplicadoComo) return "umbral de la empresa";
+  return conocimientoActivo === false ? `criterio de materialidad de cobranza declarado (sin efecto hoy: la capa de conocimiento del oficio no está activa; ${NOTA_FRONTERA_PISO_DE_COBRANZA})` : c.aplicadoComo;
+}
+
 /** lugarDeAporte(entendido) → { enLaEntrega, como?, motivo?, validos? } · dónde se usaría lo que se acaba de declarar (cuando se CONFIRME): lo dice al declararlo, nunca después. */
-export function lugarDeAporte(e) {
+export function lugarDeAporte(e, { conocimientoActivo = true } = {}) {
   if (!e || typeof e !== "object") return { enLaEntrega: false, motivo: "sin aporte" };
   const clase = _txt(e.clase), concepto = _txt(e.concepto);
   if (clase === "criterio") {
     const c = _criterioDe(concepto);
+    /* el piso de cobranza lo lee SOLO la capa de conocimiento del oficio (PRI-04): con esa capa apagada no se aplica a nada, y decir «la Entrega lo usa» sería una promesa falsa */
+    if (c && _esPiso(concepto) && conocimientoActivo === false) return { enLaEntrega: false, motivo: `queda en la memoria de la empresa: el piso de materialidad de cobranza lo usa la capa de conocimiento del oficio, que hoy no está activa; cuando lo esté, regirá «${ETIQUETA_ORIGEN[ORIGEN.EMPRESA]}». Es un criterio de materialidad: ${NOTA_FRONTERA_PISO_DE_COBRANZA}` };
+    if (c && _esPiso(concepto)) return { enLaEntrega: true, como: `criterio de materialidad de cobranza (${c.rotulo}): al confirmarse, la Entrega lo usa y lo muestra «${ETIQUETA_ORIGEN[ORIGEN.EMPRESA]}»; ${NOTA_FRONTERA_PISO_DE_COBRANZA}` };
     if (c) return { enLaEntrega: true, como: `umbral de la empresa (${c.rotulo}): al confirmarse, la Entrega lo usa y lo muestra «${ETIQUETA_ORIGEN[ORIGEN.EMPRESA]}»` };
-    return { enLaEntrega: false, motivo: "este criterio no es una de las referencias que ADI usa en la Entrega: queda en la memoria de la empresa, sin aplicarse", validos: CRITERIOS_DECLARABLES.filter((c2) => c2.llave).map((c2) => c2.concepto) };
+    return { enLaEntrega: false, motivo: "este criterio no es una de las referencias que ADI usa en la Entrega: queda en la memoria de la empresa, sin aplicarse", validos: [...CRITERIOS_DECLARABLES.filter((c2) => c2.llave), CRITERIO_PISO_DE_COBRANZA].map((c2) => c2.concepto) };
   }
   if (clase === "hecho") {
     if (_criterioDe(concepto)) return { enLaEntrega: false, motivo: `«${concepto}» es una referencia de la empresa: se declara con la clase «criterio», no como un hecho`, validos: ["criterio"] };
@@ -180,7 +201,7 @@ export function clasificarLoDeclarado(filas) {
       if (!val.ok) continue;
       const previo = porLlave.get(c.llave);
       if (previo && String(previo.declaradoEn || "") >= String(f.declaradoEn || "")) continue;
-      porLlave.set(c.llave, { id: f.id, concepto: c.concepto, rotulo: c.rotulo, llave: c.llave, valor: val.valorNumerico, unidad: c.unidad, origen: ORIGEN_DECLARADO, procedencia: procedenciaDeFila(f), sello: _sello(f), declaradoEn: f.declaradoEn || null });
+      porLlave.set(c.llave, { id: f.id, concepto: c.concepto, rotulo: c.rotulo, llave: c.llave, valor: val.valorNumerico, unidad: c.unidad, ...(c.aplicadoComo ? { aplicadoComo: c.aplicadoComo } : {}), origen: ORIGEN_DECLARADO, procedencia: procedenciaDeFila(f), sello: _sello(f), declaradoEn: f.declaradoEn || null });
     } else if (clase === "hecho") {
       const v = f.valor && typeof f.valor === "object" ? f.valor : {};
       const raw = _num(v.raw);

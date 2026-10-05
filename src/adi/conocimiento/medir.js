@@ -49,14 +49,14 @@
  * `src/adi/entrega/componer.js`). Si el índice falta, o un hecho no verifica, la pieza mide "no se puede saber"
  * — nunca una cifra sin verificar. */
 import { libroDeHechos, peorProcedencia, formatoDeLaCasa } from "../notario/hechos.js";
-import { pisoMaterialidadCobranzaDe, BORDE_FACTOR_INFERIOR, BORDE_FACTOR_SUPERIOR } from "../../config/contract/pisoMaterialidadCobranza.js";
+import { BORDE_FACTOR_INFERIOR, BORDE_FACTOR_SUPERIOR } from "../../config/contract/pisoMaterialidadCobranza.js";
 import { getTenantData } from "../../data/tenantStore.js";
 /* ── CAU-01 · LA CARGA COMERCIAL DE LA CUENTA CONTRA EL RESTO DE LA CARTERA (owner 2026-09-23, diseño aprobado)
  * — el MISMO piso que ya decide "Carga comercial alta" en el detector del Core (nunca recalculado aparte: se
  * toma de `pisoFocosUSD()`, specRetrieval.js) y la MISMA doctrina de propiedad que ya resuelve `businessPolicy.js`
  * para el resto de los umbrales de POLICY (`materialidadFocoEsDelNegocio`, hermana de `cargaEsDelNegocio`). */
 import { pisoFocosUSD } from "../specRetrieval.js";
-import { POLICY, materialidadFocoEsDelNegocio, formatoDeUmbral } from "../../config/businessPolicy.js";   /* §7.3·40(d): el piso de materialidad es un umbral DECLARADO (de la empresa o criterio de ADI): se escribe exacto */
+import { POLICY, materialidadFocoEsDelNegocio, formatoDeUmbral, pisoMaterialidadCobranzaDe } from "../../config/businessPolicy.js";   /* el piso de COBRANZA: su valor y su dueño salen de la función de origen de la casa (bloque 5, owner 2026-10-04) */   /* §7.3·40(d): el piso de materialidad es un umbral DECLARADO (de la empresa o criterio de ADI): se escribe exacto */
 
 /* el número crudo de un hecho YA VERIFICADO por `libroDeHechos` (h.ok === true): para `cifra` es el único valor
  * declarado; para `razon` es el ÚLTIMO de los tres (numerador, denominador, razón) — ver hechos.js:_razon, que
@@ -356,7 +356,9 @@ const CALCULOS = {
     const saldoEvaluado = _sumaVerificada("saldo_evaluado", evaluables, "saldo_pendiente", I);
     if (!saldoEvaluado) return { insuficiente: true, motivo: "el saldo pendiente del universo evaluable no se pudo verificar", resolveria: "correr la boleta de cobranza para todas las cuentas con plazo declarado" };
 
-    const { k, procedencia: procK, declaradoPorLaEmpresa } = pisoMaterialidadCobranzaDe(getTenantData());
+    /* el piso que rige y su DUEÑO salen de la función de origen (lo declarado por la empresa —conversando y confirmado, o en su perfil— o el criterio general de ADI): ningún texto de abajo escribe el dueño a mano */
+    const piso = pisoMaterialidadCobranzaDe(getTenantData());
+    const { k, procedencia: procK, declaradoPorLaEmpresa } = piso;
 
     const libroA = libroDeHechos([
       { id: "vencido_total", tipo: "cifra", sujeto: "negocio", metrica: "saldo_vencido" },
@@ -384,7 +386,7 @@ const CALCULOS = {
       ] },
       { id: "piso_monto", tipo: "derivada", op: "producto", de: [
         { constante: _constOperando(saldoEvaluado, "saldo_evaluado", "saldo_pendiente") },
-        { constante: { raw: k * 100, unidad: "pct", texto: formatoDeUmbral(k * 100, "pct"), procedencia: procK, label: "piso_criterio_adi", concepto: "Piso de materialidad" } },
+        { constante: { raw: k * 100, unidad: "pct", texto: formatoDeUmbral(k * 100, "pct"), procedencia: procK, ...(declaradoPorLaEmpresa ? { origen: "declarado" } : {}), label: "piso_materialidad_cobranza", concepto: "Piso de materialidad" } },
       ] },
     ], { indice: I });
     const [hDifMonto, hPisoMonto] = libroC.hechos;
@@ -416,8 +418,8 @@ const CALCULOS = {
     // agrega jerga de procedencia («estimación contra referencia») al texto del usuario (owner, segunda vuelta).
     // La procedencia ESTRUCTURAL sigue viva en `procedencia` (nunca "medido") para quien la necesite verificar.
     const pisoDesc = `${formatoDeUmbral(k * 100, "pct")} del saldo pendiente evaluable, ${pisoTxt}`;
-    /* el dueño del piso se nombra según quién lo puso (regla 1): si la empresa lo ajustó, NO es «de ADI». */
-    const pisoDe = declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI";
+    /* el dueño del piso se nombra según quién lo puso (regla 1): si la empresa lo declaró, NO es «de ADI». Lo dice la función de origen (`piso.dueno`), no una frase escrita acá. */
+    const pisoDe = piso.dueno;
     // ═══ AJUSTE DE REDACCIÓN (owner 2026-09-23, cierre de CAU-01) — «no escribas "Queda bajo el piso de ADI
     // ($50K)" al lado de "$131K a su favor" — se lee contradictorio» — misma claridad que CAU-01, CERO cambio de
     // veredicto: `material` ya daba `false` en esta rama (difRaw negativo o cero nunca alcanza `pisoRaw` positivo).
@@ -446,6 +448,8 @@ const CALCULOS = {
         propio: shareVencidoTxt, resto: shareVentaTxt, puntos: puntosTxt, monto: montoAbsTxt,
         sentido: difPpRaw > 0 ? "mas" : difPpRaw < 0 ? "menos" : "igual",
         pisoTexto: pisoTxt, declaradoPorLaEmpresa,
+        /* quién puso el piso, tal como lo resolvió la función de origen: el dueño con que cada texto lo nombra y el origen estructural (nunca «supuesto del usuario») */
+        pisoDe, pisoEtiqueta: piso.etiqueta, pisoOrigen: piso.origen, pisoOrigenEnElLibro: hPisoMonto.origen ? hPisoMonto.origen.titular : null,
       },
     };
   },
@@ -585,10 +589,12 @@ export function coberturaPisoDeCobranza(tabla) {
   if (nSenal + nBajoPiso + nAlDia !== evaluables.length) return null;
 
   const pctSaldo = (x) => (saldoTotalRaw > 0 ? formatoDeLaCasa((x / saldoTotalRaw) * 100, "pct") : "0%");
-  const { k, procedencia: procK, declaradoPorLaEmpresa } = pisoMaterialidadCobranzaDe(getTenantData());
+  const piso = pisoMaterialidadCobranzaDe(getTenantData());
+  const { k, procedencia: procK, declaradoPorLaEmpresa } = piso;
+  /* el dueño del piso lo dice la función de origen (`piso.etiqueta`/`piso.dueno`): «declarado por tu empresa» o «criterio general de ADI, ajustable por tu empresa», nunca una frase escrita acá */
   const lineaPiso = declaradoPorLaEmpresa
-    ? `Piso de materialidad: ${formatoDeUmbral(k * 100, "pct")} del saldo pendiente, declarado por tu empresa.`
-    : `Piso de materialidad: ${formatoDeUmbral(k * 100, "pct")} del saldo pendiente. Es el criterio general de ADI, ajustable por tu empresa; no es una referencia del sector ni una meta.`;
+    ? `Piso de materialidad: ${formatoDeUmbral(k * 100, "pct")} del saldo pendiente, ${piso.etiqueta}.`
+    : `Piso de materialidad: ${formatoDeUmbral(k * 100, "pct")} del saldo pendiente. Es el ${piso.etiqueta}; no es una referencia del sector ni una meta.`;
   void procK;
 
   // ── caso «ningún cliente tiene plazo declarado» (Aclaración 3) — no hay vencido calculable en absoluto ──
@@ -622,17 +628,15 @@ export function coberturaPisoDeCobranza(tabla) {
   // misma identidad (evaluados+sinPlazo=total, señal+bajo_piso+al_dia=evaluados) — ya verificados arriba. */
   if (!truncado && !sinPlazo.length) {
     const pisoTxtCorto = formatoDeLaCasa(pisoSobreEvaluado, "money");
-    const pisoLineaCorta = declaradoPorLaEmpresa
-      ? `Piso: ${formatoDeUmbral(k * 100, "pct")} del saldo pendiente (${pisoTxtCorto}), declarado por tu empresa; no es una referencia del sector ni una meta.`
-      : `Piso: ${formatoDeUmbral(k * 100, "pct")} del saldo pendiente (${pisoTxtCorto}), criterio general de ADI, ajustable por tu empresa; no es una referencia del sector ni una meta.`;
-    const vtLineaCorta = vtOk ? `Vencido total: ${hVT.render.valor} (${pctSaldo(vtRaw)} del saldo pendiente).${vencidoTotalBajoPiso ? ` El vencido total queda bajo ${declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI"}: ninguna cuenta puede ser señal en este turno.` : ""}` : null;
+    const pisoLineaCorta = `Piso: ${formatoDeUmbral(k * 100, "pct")} del saldo pendiente (${pisoTxtCorto}), ${piso.etiqueta}; no es una referencia del sector ni una meta.`;
+    const vtLineaCorta = vtOk ? `Vencido total: ${hVT.render.valor} (${pctSaldo(vtRaw)} del saldo pendiente).${vencidoTotalBajoPiso ? ` El vencido total queda bajo ${piso.dueno}: ninguna cuenta puede ser señal en este turno.` : ""}` : null;
     const clientesLineaCorta = `${evaluables.length} clientes evaluados, todos con plazo declarado: ${nSenal} señal · ${nBajoPiso} bajo el piso · ${nAlDia} al día.`;
     return { texto: [vtLineaCorta, clientesLineaCorta, pisoLineaCorta].filter(Boolean).join(" "), vencidoTotal };
   }
 
   if (vtOk) {
     partes.push(`Vencido total: ${hVT.render.valor} (${pctSaldo(vtRaw)} ${baseLabel}).`);
-    if (vencidoTotalBajoPiso) partes.push(`El vencido total queda bajo ${declaradoPorLaEmpresa ? "el piso declarado por tu empresa" : "el piso de ADI"}: ninguna cuenta puede ser señal en este turno.`);
+    if (vencidoTotalBajoPiso) partes.push(`El vencido total queda bajo ${piso.dueno}: ninguna cuenta puede ser señal en este turno.`);
   }
   // ★ REGLA B — nunca "100% del saldo" (ni "N clientes" a secas) si el universo de la fuente es más grande que
   // lo que esta evidencia pudo verificar: la cobertura se declara PARCIAL, con el conteo exacto de lo que falta.

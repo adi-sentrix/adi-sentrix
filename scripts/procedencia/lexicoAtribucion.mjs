@@ -93,8 +93,10 @@ const ventana = (cl, idx, largo, despues = 0) => cl.slice(Math.max(0, idx - 70),
 
 /** atribuciones(texto) → [{ forma, claves, clausula, tipo: "empresa"|"adi"|"pendiente" }]
  *  `empresa` = algún marcador pegado a un sujeto, sin exclusión; `adi` = dice «general de ADI» junto a una llave (para el control inverso); `pendiente` = una forma declarada pendiente (se cuenta aparte). */
-export function atribuciones(texto) {
+export function atribuciones(texto, { claves = null, excluir = [] } = {}) {
   const out = [];
+  /* `claves` (bloque 5, el piso de cobranza): el texto es de UNA sola referencia —los textos de PRI-04 hablan del piso de cobranza y de nada más—, así que el sujeto no se adivina por palabras: lo fija quien llama. «piso de ADI» también atribuye a ADI. */
+  const sujetoFijo = claves ? () => new Set(claves) : null;
   for (const cl0 of clausulas(texto)) {
     /* lo que es una forma pendiente se cuenta aparte y se RETIRA de la cláusula: el resto se juzga por sí mismo */
     let cl = cl0;
@@ -102,13 +104,13 @@ export function atribuciones(texto) {
       if (reDe(p).test(cl)) { out.push({ forma: p.id, claves: clavesDe(cl0), clausula: cl0.slice(0, 160), tipo: "pendiente" }); cl = cl.replace(reDe(p, "g"), p.reemplazo || " "); }
     }
     let m;
-    const gAdi = /general de ADI/gi;
-    while ((m = gAdi.exec(cl0))) { const k = clavesCercanas(ventana(cl0, m.index, m[0].length)); if (k.size) out.push({ forma: "general_de_adi", claves: k, clausula: cl0.slice(0, 160), tipo: "adi" }); }
-    if (EXC.some((e) => e.re.test(cl))) continue;
+    const gAdi = sujetoFijo ? /(?:general de|piso de) ADI/gi : /general de ADI/gi;
+    while ((m = gAdi.exec(cl0))) { const k = sujetoFijo ? sujetoFijo() : clavesCercanas(ventana(cl0, m.index, m[0].length)); if (k.size) out.push({ forma: "general_de_adi", claves: k, clausula: cl0.slice(0, 160), tipo: "adi" }); }
+    if (EXC.some((e) => e.re.test(cl)) || excluir.some((re) => re.test(cl))) continue;   /* `excluir`: lo que, en los textos de esa referencia, contiene un marcador y no atribuye (p. ej. «plazo de pago declarado» es un dato de la cartera) */
     for (const mk of MARCADORES) {
       const r = reDe(mk, "g");
       while ((m = r.exec(cl))) {
-        const k = (mk.forma === "posesivo" ? clavesDe : clavesCercanas)(ventana(cl, m.index, m[0].length, mk.forma === "posesivo" ? 25 : 0));
+        const k = sujetoFijo ? sujetoFijo() : (mk.forma === "posesivo" ? clavesDe : clavesCercanas)(ventana(cl, m.index, m[0].length, mk.forma === "posesivo" ? 25 : 0));
         if (k.size) out.push({ forma: mk.forma, claves: k, clausula: cl.slice(0, 160), tipo: "empresa" });
       }
     }

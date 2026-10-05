@@ -284,13 +284,12 @@ H("5 · el candado: «declarado/a por la empresa» no puede estar escrito como t
   const FRASE = /declarad[oa] por la empresa/gi;
   const fuentes = {};
   (function recorrer(dir) { for (const f of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, f.name); if (f.isDirectory()) recorrer(p); else if (/\.(js|jsx|mjs)$/.test(f.name)) fuentes[p.replace(/\\/g, "/")] = fs.readFileSync(p, "utf8"); } })("src");
-  /* los ÚNICOS sitios permitidos, con el conteo FIJADO: la tabla única, y tres textos que NO atribuyen un valor concreto (la definición del glosario nombra las dos posibilidades; el rastro de un campo del perfil «camino B» y el del piso de materialidad de cobranza son el perfil declarado por definición) */
+  /* los ÚNICOS sitios permitidos, con el conteo FIJADO: la tabla única, y tres textos que NO atribuyen un valor concreto (la definición del glosario nombra las dos posibilidades; el rastro de un campo del perfil «camino B» es el perfil declarado por definición. El piso de materialidad de cobranza YA NO escribe la frase a mano —bloque 5, owner 2026-10-04: su origen y su frase salen de la función única—, por eso su sitio permitido se retiró) */
   const PERMITIDOS = {
     "src/config/businessPolicy.js": { n: 2, por: "LA TABLA ÚNICA (ETIQUETA_ORIGEN masculino y femenino)" },
     "src/adi/sentrix/glossary.js": { n: 8, por: "el molde neutral de las definiciones: «puede ser la declarada por la empresa o la general de ADI, y la Entrega/pantalla dice cuál» (nombra las DOS posibilidades; no atribuye)" },
     "src/adi/conocimiento/piezas.js": { n: 1, por: "la descripción de un insumo de Knowledge: «criterio de ADI, o declarado por la empresa» (no atribuye)" },
     "src/config/contract/perfilCliente.js": { n: 1, por: "la `fuente` de un campo del perfil declarado por la empresa (camino B): es la declaración misma" },
-    "src/config/contract/pisoMaterialidadCobranza.js": { n: 1, por: "la `fuente` del ajuste que la empresa declaró en su perfil (camino B): es la declaración misma" },
   };
   const barrer = (fs_) => Object.entries(fs_).map(([ruta, src]) => ({ ruta, n: (sinComentarios(src).match(FRASE) || []).length })).filter((x) => x.n > 0 && !(PERMITIDOS[x.ruta] && PERMITIDOS[x.ruta].n === x.n));
   const sueltas = barrer(fuentes);
@@ -441,6 +440,32 @@ H("8 · el nombre de la referencia y del conjunto según su origen real: empresa
   const r0 = await acc.consultar({ tenant: { id: "x", nombre: "x", dataset: EMPRESAS.nada, version: "v1" }, encargo: { version: "encargo/v1", partes: [{ id: "p1", tema: "inventario", cierre: "lectura", universo: { eje: "sku", estados: ["rota lento"] } }] } });
   const cab = r0.uso.join(" ");
   ok(/el benchmark lleva su origen \(declarado por la empresa o criterio general de ADI\) y no es un promedio/.test(cab) && !/el benchmark es el que declaró la empresa/.test(cab) && r0.uso.length === 4, "★ la cabecera de uso del anfitrión dice que el benchmark lleva su origen (declarado por la empresa o criterio general de ADI) y no es un promedio; el resto de la cabecera igual (4 líneas)", cab);
+  initTenant(TENANT_DEMO);
+}
+
+/* ═══ 9 · EL PISO DE COBRANZA (PRI-04) EN EL BARRIDO DE LAS TRES EMPRESAS (Etapa 2, bloque 5 · owner 2026-10-04) ══════════════════════════════════════════════ */
+H("9 · el piso de materialidad de cobranza (PRI-04) entra al barrido: demo y la que declara otras llaves (rige el criterio de ADI) · la que lo declara · cero atribuciones falsas por significado");
+{
+  const { textosDePiso } = await import("./scripts/procedencia/textosDePiso.mjs");
+  const CLAVE = ["pisoMaterialidadCobranza"];
+  const NO_ATRIBUYEN = [/plazos?\s+(?:de\s+pago\s+)?declarad[oa]s?/i];   /* «todos con plazo declarado»: el plazo de pago es un dato de cada cuenta, no el criterio del piso */
+  const atribDe = (t) => atribuciones(t, { claves: CLAVE, excluir: NO_ATRIBUYEN });
+  const CON_PISO = { ...EMPRESAS.algunas, perfil: { ...EMPRESAS.algunas.perfil, pisoMaterialidadCobranza: 2 } };
+  const TRES = { demo: [EMPRESAS.demo, new Set()], nada: [EMPRESAS.nada, new Set()], algunas: [EMPRESAS.algunas, new Set()], "algunas+piso": [CON_PISO, new Set(CLAVE)] };
+  for (const [e, [dataset, declarado]] of Object.entries(TRES)) {
+    const textos = textosDePiso(dataset);
+    const todas = textos.flatMap((t) => atribDe(t));
+    const falsas = todas.filter((a) => esFalsa(a, declarado));
+    ok(textos.length >= 10 && falsas.length === 0, `★ ${e}: CERO atribuciones falsas por significado sobre ${textos.length} textos de PRI-04 (${todas.length} atribuciones leídas)`, falsas.slice(0, 2).map((a) => a.clausula).join(" | "));
+    const aEmpresa = todas.filter((a) => a.tipo === "empresa").length, aAdi = todas.filter((a) => a.tipo === "adi").length;
+    ok(declarado.size ? aEmpresa > 0 && aAdi === 0 : aEmpresa === 0 && aAdi > 0, `control · ${e}: ${declarado.size ? "el piso se atribuye a la empresa y nunca a ADI" : "el piso se atribuye a ADI y nunca a la empresa"}`, `${aEmpresa}/${aAdi}`);
+  }
+  /* declarar OTRAS llaves (benchmark, techo, materialidad) no hace «declarado» al piso de cobranza */
+  const pAlgunas = BP.pisoMaterialidadCobranzaDe(EMPRESAS.algunas);
+  ok(pAlgunas.origen === "adi", "★ la empresa que declara otras llaves pero no el piso de cobranza: rige el criterio de ADI", jj(pAlgunas));
+  /* la carnada: la frase fija «declarado por tu empresa» escrita sin declaración → el oráculo la marca falsa */
+  const mentira = textosDePiso(EMPRESAS.nada).map((t) => t.split("criterio general de ADI, ajustable por tu empresa").join("declarado por tu empresa").split("el piso de ADI").join("el piso declarado por tu empresa"));
+  ok(mentira.flatMap((t) => atribDe(t)).some((a) => esFalsa(a, new Set())), "★ CARNADA · «declarado por tu empresa» sin declaración (la empresa «nada») → el barrido la marca falsa (rojo)");
   initTenant(TENANT_DEMO);
 }
 

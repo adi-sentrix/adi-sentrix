@@ -175,8 +175,8 @@ function _procedenciaDeOperando(op, libro) {
  * productor declara un origen ≠ medido sobre una fig real («aportar contexto» y el motor de escenarios no
  * existen todavía — este módulo solo tiene que saber RECIBIRLOS), así que `origen.titular` es SIEMPRE "medido"
  * para todo lo existente y la tabla reconstruye el valor legado byte a byte. La ÚNICA procedencia legada con
- * origen ≠ medido que existe hoy es la constante "supuesto_usuario" de `pisoMaterialidadCobranza.js`
- * (CAU-01/PRI-04, firmadas — no se tocan): se decompone con `_naturalezaDeLegado`/`_origenDeLegado` para que su
+ * origen ≠ medido que existe hoy es la constante "supuesto_usuario" del piso de materialidad de CAU-01 (`medir.js`, firmada — no se toca; desde el bloque 5, 2026-10-04, el piso de
+ * cobranza de PRI-04 que la empresa declaró YA NO es un «supuesto_usuario»: su constante lleva `procedencia: "estimacion_referencia"` y `origen: "declarado"`, el eje nuevo — ver `_operandoConstante`): se decompone con `_naturalezaDeLegado`/`_origenDeLegado` para que su
  * combinación con otros insumos, DENTRO de una misma razón/derivada/lectura, siga reconstruyendo el mismo
  * resultado (verificado con la suite completa: `_hechos_gate`, `_entrega_gate`, `_verificador_crudo_gate`,
  * `_anclas_gate`, `_cau01_carga_resto_gate`, `_piso_materialidad_gate`, `_notario_v3_flujo_gate` — los 7 gates
@@ -184,7 +184,7 @@ function _procedenciaDeOperando(op, libro) {
  * dos ejes no es matemáticamente equivalente al «peor de 5 categorías» plano en TODAS las combinaciones
  * teóricas (un "derivado" combinado con un "supuesto_usuario" dentro del MISMO peor-cálculo reconstruye
  * "derivado", no "supuesto_usuario") — esa combinación no es alcanzable hoy en ningún camino real del código
- * (se auditó: el único productor de "supuesto_usuario" es `pisoMaterialidadCobranzaDe`, y su constante solo se
+ * (se auditó: el único productor de "supuesto_usuario" es el piso de materialidad de CAU-01, y su constante solo se
  * combina, dentro de un mismo cálculo, con insumos "medido"); si un futuro productor la alcanza, el candado
  * `_origenes_gate.mjs` la cubre con una carnada sintética. */
 export const ORIGENES = ["medido", "documento", "declarado", "supuesto"];
@@ -478,6 +478,8 @@ const _operandoConstante = (c) => {
     raw, unidad, entidad: c.entidad || "negocio", concepto: c.concepto || c.label || "constante",
     conceptoNorm: normalizar(c.concepto || c.label || "constante"), crudo: true,
     procedenciaDeclarada: c.procedencia !== undefined ? c.procedencia : null,
+    /* el ORIGEN de quien puso la constante (owner 2026-10-04, piso de cobranza declarado): con `origen` (uno de ORIGENES) el eje nuevo lo dice — «declarado», no «supuesto» — y la categoría legada sigue siendo la de `procedencia`; sin `origen`, todo igual que siempre */
+    ...(ORIGENES.includes(c.origen) ? { origenDeclarado: c.origen, naturalezaDeclarada: _naturalezaDeLegado(c.procedencia) } : {}),
     fig: { id: null, value: c.texto != null ? String(c.texto) : formatoDeLaCasa(raw, unidad) },
   };
 };

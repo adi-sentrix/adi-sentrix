@@ -14,12 +14,12 @@ import { ENTITIES } from "./entityRegistry.js";
 import { METRICS } from "./metricRegistry.js";
 import { RULES, TOLERANCE } from "./validationRules.js";
 import { getTenantData } from "../../data/tenantStore.js";   // F2 multiempresa · el perfil del tenant también se valida al entrar
-import { POLICY_CONFIG } from "../businessPolicy.js";        // … contra las llaves reales de POLICY (una verdad)
+import { POLICY_CONFIG, CRITERIOS_FUERA_DE_POLICY } from "../businessPolicy.js";        // … contra las llaves reales de POLICY (una verdad)
 
 export function validateDataset(mode = "demo") {
   const ctx = {
     SOURCES, ENTITIES, METRICS, TOLERANCE, mode,
-    tenant: getTenantData(), POLICY_CONFIG,
+    tenant: getTenantData(), POLICY_CONFIG, CRITERIOS_FUERA_DE_POLICY,
     load: (name) => { try { return SOURCES[name]?.load() || []; } catch { return []; } },
   };
   const findings = { blocker: [], warning: [], info: [] };

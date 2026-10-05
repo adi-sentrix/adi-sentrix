@@ -154,6 +154,8 @@ export const RULES = [
             if (!okL) out.push({ where: "perfil.pnlLineas", msg: `línea inválida (${JSON.stringify(l)}) — nombre 2-30 chars y pct (0, 50] · se ignora` });
           }
         }
+        /* un criterio de la empresa que no es una llave de POLICY pero sí un criterio declarable (el piso de materialidad de cobranza): un número —lo declarado conversando— o el objeto {valor, procedencia} del camino B */
+        else if (ctx.CRITERIOS_FUERA_DE_POLICY && k in ctx.CRITERIOS_FUERA_DE_POLICY) { if (!((typeof v === "number" && isFinite(v)) || (v && typeof v === "object" && isFinite(Number(v.valor))))) out.push({ where: `perfil.${k}`, msg: `valor no válido (${JSON.stringify(v)}) — se ignora y cae al criterio general de ADI` }); }
         else if (!(k in ctx.POLICY_CONFIG)) out.push({ where: `perfil.${k}`, msg: "llave desconocida — no es una llave de POLICY (se ignora)" });
         else if (typeof v !== "number" || !isFinite(v)) out.push({ where: `perfil.${k}`, msg: `valor no numérico (${JSON.stringify(v)}) — se ignora y cae al default de config` });
       }
