@@ -53,7 +53,7 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
   const porClase = { 1: _vacioClase(), 2: _vacioClase(), 3: _vacioClase(), 4: _vacioClase() };
   const porClaseBruto = { 1: _vacioClase(), 2: _vacioClase(), 3: _vacioClase(), 4: _vacioClase() };
   const porForma = { A: _vacioClase(), B: _vacioClase(), C: _vacioClase() };
-  const materiales = [], fallasDelMedidor = [], paraRevisar = [], cruces = [], naturalidad = [], derivaciones = [];
+  const materiales = [], fallasDelMedidor = [], paraRevisar = [], cruces = [], naturalidad = [], derivaciones = [], declaradasPorLaPersona = [], nombresDeLaPersona = [];
   let totalBruto = 0, verdaderasBruto = 0, materialesBruto = 0;
   let total = 0, verdaderas = 0;
 
@@ -76,6 +76,7 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
         if (["ignorado"].includes(a.veredicto)) continue;
         k += 1;
         const id = _id(hilo.hiloId, t.sesion, t.turno, k);
+        if (a.declaradoPor === "persona") declaradasPorLaPersona.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, token: a.token, origen: a.origen, oracion: a.oracion });   // la cifra la dijo la PERSONA en el hilo (con su origen): no es de ADI ni la inventó el anfitrión
         if (a.derivacion) derivaciones.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, token: a.token, oracion: a.oracion, operacion: a.derivacion.operacion, operandos: a.derivacion.operandos, descripcion: a.derivacion.descripcion });   // una cifra que no traza directo pero es la suma o la diferencia de DOS entregadas: queda a la vista
         const evaluable = a.veredicto === "traza" || VEREDICTOS_FALSOS.has(a.veredicto);
         if (!evaluable) { if (VEREDICTOS_PARA_REVISAR.has(a.veredicto) && !decisiones[id]) paraRevisar.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, ...a }); if (!decisiones[id]) continue; }
@@ -88,6 +89,7 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
         if (!v && m) materiales.push({ id, hilo: hilo.hiloId, forma: hilo.forma, turno: `${t.sesion}.${t.turno}`, clase: a.clase, veredicto: a.veredicto, oracion: a.oracion, motivo: a.motivo, revisadoPorPersona: Boolean(d) });
       }
       for (const c of r.cruces) { cruces.push({ hilo: hilo.hiloId, empresa: hilo.empresa, turno: `${t.sesion}.${t.turno}`, nombreAjeno: c.nombre }); }
+      for (const fl of r.flags || []) if (fl.tipo === "nombre_ajeno_dicho_por_la_persona") nombresDeLaPersona.push({ hilo: hilo.hiloId, empresa: hilo.empresa, turno: `${t.sesion}.${t.turno}`, nombre: fl.nombre });   // la persona escribió ese nombre: repetirlo no es un cruce
       // juez (clases 3-4)
       const j = juez && juez.turnos && juez.turnos[`${hilo.hiloId}|${t.sesion}|${t.turno}`];
       if (j && j.ok) {
@@ -145,7 +147,7 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
     corpus: manifiesto && manifiesto.corpus, veredicto, porQue, regla: REGLA_DE_CIERRE,
     verdad: { bruto: { afirmaciones: totalBruto, verdaderas: verdaderasBruto, pct: pctBruto, materiales: materialesBruto }, real: { afirmaciones: total, verdaderas, pct: pctVerdad, materiales: erroresMateriales } },
     porClase: { real: porClase, bruto: porClaseBruto }, porForma,
-    erroresMateriales: materiales, cruces, derivaciones, fallasDelMedidor, paraRevisar, naturalidad,
+    erroresMateriales: materiales, cruces, derivaciones, declaradasPorLaPersona, nombresDeLaPersona, fallasDelMedidor, paraRevisar, naturalidad,
     clases34Juzgadas: juzgoClases34,
     invalidaciones, turnos: { hechos: turnosHechos, planeados: cierre ? cierre.turnosPlaneados : null, hilos: hilos.length, hilosAnulados: hilos.filter((h) => h.anulado).length },
     consumo, consumoDelRepo: repoConsumo ? { salieron: repoConsumo.salieron, costoUSD: repoConsumo.costoUSD, modelosSinPrecio: repoConsumo.modelosSinPrecio, sinConteo: repoConsumo.sinConteo.total } : null,
@@ -178,6 +180,8 @@ export function informeEnMarkdown(i) {
   for (const e of i.erroresMateriales.slice(0, 60)) L.push(`- [${e.id}] clase ${e.clase} · ${e.veredicto} · ${e.oracion ? `«${String(e.oracion).slice(0, 120)}»` : ""} — ${e.motivo || ""}${e.revisadoPorPersona ? " (confirmado por la persona)" : ""}`);
   L.push("", `## Derivaciones aritméticas aceptadas · ${(i.derivaciones || []).length} (cifras que no trazan directo pero son la suma o la diferencia de DOS cifras entregadas, exacta a lo impreso — se listan para que una persona las vea)`);
   for (const d of (i.derivaciones || []).slice(0, 60)) L.push(`- [${d.id}] ${d.descripcion} (${d.operacion}) · «${String(d.oracion || "").slice(0, 100)}»`);
+  if ((i.declaradasPorLaPersona || []).length) { L.push("", `## Cifras declaradas por la persona en el hilo · ${i.declaradasPorLaPersona.length} (la dijo ella, no ADI: no se cuentan como cifra inventada; se lista el origen)`); for (const d of i.declaradasPorLaPersona.slice(0, 40)) L.push(`- [${d.id}] «${d.token}» ← ${d.origen} · «${String(d.oracion || "").slice(0, 100)}»`); }
+  if ((i.nombresDeLaPersona || []).length) { L.push("", `## Nombres de la otra empresa que escribió la PERSONA · ${i.nombresDeLaPersona.length} (el anfitrión los repite para contestarle o para decir que no están: no es un cruce)`); for (const d of i.nombresDeLaPersona.slice(0, 30)) L.push(`- hilo ${d.hilo} (${d.empresa}) turno ${d.turno}: «${d.nombre}»`); }
   L.push("", `## Fallas del medidor · ${i.fallasDelMedidor.length} (no cuentan contra el anfitrión)`);
   for (const e of i.fallasDelMedidor.slice(0, 30)) L.push(`- [${e.id}] ${e.veredicto} → revertida${e.nota ? `: ${e.nota}` : ""}`);
   L.push("", `## Para revisar por una persona · ${i.paraRevisar.length}`);

@@ -357,6 +357,119 @@ seccion("F2 · el rastreo acepta solo derivaciones aritméticas demostrables (lo
   ok(falsosPositivos === 0, `la regla no es laxa: de ${probadas} sumas «inventadas» entre 1,1 y 60 M dichas en ese turno, solo la que cierra con las dos cifras citadas pasa (${falsosPositivos} falsos positivos)`);
 }
 
+/* ═════ F3 · EL RASTREO TRAS EL CLASIFICADOR DEL ENSAYO 2 (owner 2026-10-05) ═══════════════════════════════════════════════════
+ * El ensayo 2 marcó 169 «errores materiales» de cifra y 6 «cruces». El clasificador (`ensayo-2/clasificacion.md`) los separó con evidencia: 143 eran falsas alarmas del VERIFICADOR (la afirmación era verdadera según lo
+ * entregado o lo dicho por la persona), 25 errores REALES del anfitrión (2 graves: un total mal sumado y un porcentaje sobre ese total) y 1 verdadero que el rastreo sigue marcando. Cada patrón de falsa alarma se corrigió con UNA
+ * regla (`REGLAS` en `rastreo.mjs`); acá cada regla tiene (a) el caso REAL del ensayo que pasa a verdadero, (b) la prueba de que sin la regla el caso vuelve a marcarse (la regla es la que lo rescata, no la suerte) y (c) la
+ * variante FALSA del mismo caso que sigue marcada. La prosa y las Entregas son las reales (`fixtures/medicion-anfitrion/ensayo-2-compacto.json`). */
+seccion("F3 · el rastreo tras el clasificador del ensayo 2 (143 falsas alarmas del verificador, una regla por patrón)");
+{
+  const { REGLAS, hechosDeLaPersona, clausulaDe, aliasesDe } = await import(D + "rastreo.mjs");
+  const FX2 = JSON.parse(fs.readFileSync(new URL("./fixtures/medicion-anfitrion/ensayo-2-compacto.json", import.meta.url), "utf8")).hilos;
+  const clon2 = (x) => JSON.parse(JSON.stringify(x));
+  const hilo2 = (id) => clon2(FX2[id]);
+  const turno2 = (h, k) => h.turnos.find((t) => `${t.sesion}.${t.turno}` === k);
+  const con2 = (id, k, de, a) => { const h = hilo2(id); const t = turno2(h, k); if (!t.texto.includes(de)) throw new Error(`la prosa de ${id} ${k} ya no trae «${de}»`); t.texto = t.texto.replace(de, a); return h; };
+  const anade2 = (id, k, extra) => { const h = hilo2(id); const t = turno2(h, k); t.texto = `${t.texto}${extra}`; return h; };
+  const afirma2 = (h, k) => rastrearHilo(h).find((t) => `${t.sesion}.${t.turno}` === k);
+  const v2 = (h, k, rx, enOr = null) => afirma2(h, k).afirmaciones.filter((a) => a.clase === 1 && a.veredicto !== "ignorado" && rx.test(a.token) && (!enOr || enOr.test(a.oracion))).map((a) => a.veredicto);
+  const sinRegla = (regla, f) => { REGLAS[regla] = false; try { return f(); } finally { REGLAS[regla] = true; } };
+  const TRAZA = (xs) => xs.length > 0 && xs.every((x) => x === "traza");
+  const FALSA = (xs) => xs.length > 0 && xs.every((x) => ["no_traza", "dueno_distinto", "metrica_distinta"].includes(x));
+  const caso = (regla, id, k, rx, msg, enOr = null, h = hilo2(id)) => {
+    const con = v2(h, k, rx, enOr);
+    const sin = sinRegla(regla, () => v2(h, k, rx, enOr));
+    ok(TRAZA(con), `★ ${msg}: con la regla «${regla}» traza`, JSON.stringify(con));
+    ok(FALSA(sin), `   y sin la regla vuelve a marcarse (la regla es la que lo rescata)`, JSON.stringify(sin));
+  };
+  const sigue = (h, k, rx, msg, esperados = ["no_traza", "dueno_distinto", "metrica_distinta"], enOr = null) => { const x = v2(h, k, rx, enOr); ok(x.length > 0 && x.every((y) => esperados.includes(y)), `★ CARNADA · ${msg}`, JSON.stringify(x)); };
+
+  // — «269d»: los días como los imprime la casa
+  ok(JSON.stringify(num("269d")) === JSON.stringify([["days", [269]]]) && num("8d")[0][0] === "days" && num("$15K, 24d, 68 unidades").map((x) => x[0]).join() === "money,days,count", "«269d» y «8d» son días (como los imprime la casa); «68 unidades» sigue siendo un conteo");
+  caso("dias_d", "A02", "1.1", /^8 días/, "caso real A02 1.1 · «Andes del Sur y Alerce llevan 8 días de atraso» (la Entrega trae «8d», E1.h14)", /llevan 8 días/);
+  sigue(con2("A02", "1.1", "llevan 8 días de atraso", "llevan 9 días de atraso"), "1.1", /^9 días/, "«9 días» no es lo entregado (8d): sigue siendo error", ["no_traza", "dueno_distinto", "metrica_distinta"], /llevan 9 días/);
+  sigue(anade2("A02", "1.1", "\n\nMayorista El Roble lleva 8 días de atraso."), "1.1", /^8 días/, "los «8 días» son de Andes del Sur y Alerce, no de El Roble (269d): `dueno_distinto`", ["dueno_distinto"], /Mayorista El Roble lleva/);
+  // — lo que la persona DECLARÓ en el hilo
+  const hp = hechosDeLaPersona([{ texto: "Hola, vendo con crédito a 60 días.", sesion: 1, turno: 1 }, { texto: "Perdón, me corrijo: el plazo de cobro es a 45 días, no a 60.", sesion: 1, turno: 2 }, { texto: "Cadena Quillay creció 50% ¿verdad?", sesion: 1, turno: 3 }]);
+  ok(hp.declarados.map((h) => h.valor).join() === "45" && hp.preguntados.map((h) => h.valor).join() === "50", "lo declarado por la persona: «45 días» sí; el «60» que RETIRÓ («no a 60») ya no; el «50%» de una pregunta no es una declaración", JSON.stringify(hp.declarados.map((h) => [h.valor, h.origen])));
+  caso("persona", "A02", "1.2", /^45 días/, "caso real A02 1.2 · «el piso de 45 días» (lo dijo la persona en 1.1; la Entrega no lo trae)");
+  { const r = afirma2(hilo2("A02"), "1.2").afirmaciones.find((a) => /^45 días/.test(a.token)); ok(r && r.declaradoPor === "persona" && /^persona@1\.1$/.test(r.origen), "la afirmación guarda el ORIGEN: persona@1.1", JSON.stringify(r)); }
+  sigue(con2("A02", "1.2", "piso de 45 días", "piso de 55 días"), "1.2", /^55 días/, "«piso de 55 días»: la persona no dijo 55");
+  sigue(con2("A01", "1.5", "crédito a 45 días", "crédito a 60 días"), "1.5", /^60 días/, "«crédito a 60 días»: la persona RETIRÓ el 60 («es a 45 días, no a 60»): no es una cifra suya vigente (queda en `eco_persona`, para el supervisor)", ["no_traza", "dueno_distinto", "metrica_distinta", "eco_persona"], /crédito a 60 días/);
+  { const x = v2(con2("A02", "1.4", "Andes del Sur y Alerce llevan 8 días de atraso", "Casa Lomas lleva 45 días de atraso"), "1.4", /^45 días/, /Casa Lomas lleva/); ok(x.length > 0 && x.every((y) => y !== "traza"), "★ CARNADA · una cifra de la persona NO es de una cuenta que la oración nombra («Casa Lomas lleva 45 días»: Casa Lomas tiene 281d)", JSON.stringify(x)); }
+  // — lo entregado como dato: el criterio que desplaza y el rango aceptado
+  caso("libro_numerico", "A01", "1.4", /^30,1 %/, "caso real A01 1.4 · «Antes de su declaración, ADI usaba 30,1 %» (`declarado.criterios[0].desplaza.valor`)");
+  sigue(con2("A01", "1.4", "un 30,1 %", "un 28 %"), "1.4", /^28 %/, "«ADI usaba 28 %»: lo que desplazó es 30.1 (y un dato entregado como número se cita a su precisión)", ["no_traza", "dueno_distinto", "metrica_distinta"], /ADI usaba/);
+  caso("libro_numerico", "B02", "2.4", /^60%/, "caso real B02 2.4 · «El benchmark acepta valores entre 5% y 60%» (`declarable.criterios[0].min/max`)");
+  sigue(con2("B02", "2.4", "entre 5% y 60%", "entre 5% y 70%"), "2.4", /^70%/, "«entre 5% y 70%»: el rango aceptado es 5–60");
+  sigue(con2("A02", "1.2", "el piso de 45 días", "el plazo máximo de 365 días"), "1.2", /^365 días/, "el tope del catálogo (365) no rescata un «365 días» que ninguna oración del criterio nombra");
+  // — la referencia de la empresa no es de una cuenta
+  caso("referencia", "B02", "2.3", /^30\.1%/, "caso real B02 2.3 · «Contra el benchmark declarado de 30.1%, Jumbo queda 6.1 pp abajo…» (el benchmark es de la empresa)", /Contra el benchmark declarado/);
+  sigue(con2("B02", "2.3", "benchmark declarado de 30.1%", "benchmark declarado de 29.9%"), "2.3", /^29\.9%/, "«benchmark de 29.9%»: no es el 30.1 de la empresa", ["no_traza", "dueno_distinto", "metrica_distinta"], /Contra el benchmark declarado/);
+  sigue(anade2("B02", "2.3", "\n\n\n\nJumbo tiene un margen de 30.1%."), "2.3", /^30\.1%$/, "«Jumbo tiene un margen de 30.1%»: el benchmark no es el margen de Jumbo (24%)", ["dueno_distinto", "metrica_distinta"], /Jumbo tiene un margen/);
+  // — «Maipo»: el nombre abreviado e inequívoco
+  const al = aliasesDe(["Centro Constructor Maipo", "Mayorista El Roble", "Mercado Libre", "Hogar Mayor", "Supermercados Andes del Sur", "Tiendas Costa Verde"], (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase());
+  ok(al.get("maipo") === "Centro Constructor Maipo" && al.get("el roble") === "Mayorista El Roble" && al.get("andes del sur") === "Supermercados Andes del Sur" && !al.has("libre") && !al.has("mayor") && !al.has("verde"), "los alias: «Maipo», «El Roble», «Andes del Sur» sí; una palabra corriente («libre», «mayor», «verde») no", [...al.keys()].join(", "));
+  caso("alias", "A02", "1.5", /^\$16,4M/, "caso real A02 1.5 · «Maipo es el cuarto en ventas ($16,4M)» (Centro Constructor Maipo, E3.h7)", /Maipo es el cuarto/);
+  sigue(con2("A02", "1.5", "Maipo es el cuarto en ventas ($16,4M)", "Maipo es el cuarto en ventas ($6,8M)"), "1.5", /^\$6,8M/, "«Maipo… ($6,8M)»: $6,8M es la contribución de Costa Verde", ["no_traza", "dueno_distinto", "metrica_distinta"], /Maipo es el cuarto/);
+  // — un entero sin unidad no tiene dueño ni métrica que juzgar
+  { const con = afirma2(hilo2("A02"), "1.3").afirmaciones.find((a) => a.token === "2" && /Andes del Sur/.test(a.oracion)); const sinR = sinRegla("entero", () => afirma2(hilo2("A02"), "1.3").afirmaciones.find((a) => a.token === "2" && /Andes del Sur/.test(a.oracion)));
+    ok(con && con.veredicto === "sin_unidad" && !con.material && sinR && sinR.material, "★ caso real A02 1.3 · el puesto «| 2 | Supermercados Andes del Sur |» se lista (no se juzga); sin la regla era `dueno_distinto`", JSON.stringify([con && con.veredicto, sinR && sinR.veredicto])); }
+  sigue(con2("A02", "1.3", "| 2 | Supermercados Andes del Sur | $15,0M |", "| 2 | Supermercados Andes del Sur | $15,9M |"), "1.3", /^\$15,9M/, "lo que SÍ tiene unidad se sigue juzgando: «$15,9M» no es el saldo de Andes del Sur ($15,0M)");
+  // — la métrica se lee donde se dice
+  ok(clausulaDe("Los $115K de Lampa rotan en 29d, así que ahí el costo de oportunidad es mucho menor.", 5) === "Los $115K de Lampa rotan en 29d" && clausulaDe("Los $115K rotan, así que ahí el costo es menor.", 40).includes("costo"), "la cláusula de una cifra: «…rotan en 29d» no es «…el costo de oportunidad es menor»");
+  caso("metrica", "B02", "1.1", /^(34|33|32\.5|32|31)%/, "caso real B02 1.1 · «**Sobre el benchmark:** La Polar (34%), Hites (33%)…»: «sobre el benchmark» COMPARA márgenes", /Sobre el benchmark/);
+  sigue(con2("B02", "1.1", "**Sobre el benchmark:** La Polar (34%)", "**Ventas:** La Polar (34%)"), "1.1", /^34%/, "«Ventas: La Polar (34%)»: 34% es el MARGEN de La Polar", ["metrica_distinta"], /\*\*Ventas:\*\*/);
+  caso("metrica", "A01", "1.4", /^(21,5|24) %/, "caso real A01 1.4 · «con márgenes de 21,5 % a 24 %» (el regex de la métrica no entendía «márgenes»)", /con márgenes de|con ventas de/);
+  sigue(con2("A01", "1.4", "- **Los clientes más grandes tienen los márgenes más bajos.** Falabella, Lider y Jumbo venden entre $17M y $19M cada uno, con márgenes de 21,5 % a 24 %.", "- **Los clientes más grandes tienen los rebates más altos.** Falabella, Lider y Jumbo tienen rebates de 21,5 % a 24 %."), "1.4", /^21,5 %/, "«tienen rebates de 21,5 %»: 21,5 % es el margen de Lider", ["metrica_distinta"], /rebates de/);
+  caso("metrica", "B03", "2.1", /^\$15K/, "caso real B03 2.1 · «RC-0637: 190d, $15K, 15 unidades»: «unidades» es del 15, no del $15K", /RC-0637: 190d/);
+  sigue(con2("B03", "2.1", "RC-0637: 190d, $15K, 15 unidades", "RC-0637: 190d, $15K de ventas, 15 unidades"), "2.1", /^\$15K/, "«$15K de ventas»: $15K es el capital de RC-0637", ["metrica_distinta"], /RC-0637: 190d/);
+  caso("metrica", "B03", "2.5", /^\$115K/, "caso real B03 2.5 · «Los $115K de Lampa rotan en 29d, así que ahí el costo de oportunidad…»: el costo es de la otra cláusula", /rotan en 29d/);
+  sigue(con2("B03", "2.5", "Los $115K de Lampa rotan en 29d", "Los $115K de costo de Lampa rotan en 29d"), "2.5", /^\$115K/, "«$115K de costo de Lampa»: $115K es su capital", ["metrica_distinta"], /rotan en 29d/);
+  // — las derivaciones de DOS cifras: con lo que la persona declaró y con lo que ADI entregó en `apoyo`
+  caso("derivacion", "A02", "1.4", /^236 días/, "caso real A02 1.4 · «| Casa Lomas | 281 | 236 días |» = 281d (Casa Lomas) − 45 días (su piso, lo dijo la persona)");
+  { const d = afirma2(hilo2("A02"), "1.4").afirmaciones.find((a) => /^236 días/.test(a.token)); ok(d && d.derivacion && d.derivacion.operacion === "diferencia" && d.derivacion.operandos.some((o) => /^persona@/.test(o.origen || "")) && d.derivacion.operandos.some((o) => o.ref === "E1.h17"), "la derivación registra los operandos con su origen: 281d (E1.h17) y 45 días (persona@1.1)", JSON.stringify(d && d.derivacion)); }
+  sigue(con2("A02", "1.4", "| Casa Lomas | 281 | 236 días |", "| Casa Lomas | 281 | 237 días |"), "1.4", /^237 días/, "«237 días»: 281 − 45 es 236");
+  { const h = hilo2("A02"); turno2(h, "1.4").texto = "| Cliente | Días vencido | Exceso | Saldo vencido |\n|---|---|---|---|\n| Casa Lomas | 281 | 236 días | $2,0M |";
+    sigue(h, "1.4", /^236 días/, "una diferencia con lo que la persona declaró solo vale si la prosa lo pone a la vista (su piso, la cifra 45): una tabla que no lo nombra no se rescata"); }
+  ok((() => { const x = v2(con2("A02", "1.4", "| Casa Lomas | 281 | 236 días |", "| Casa Lomas | 281 | 326 días |"), "1.4", /^326 días/); return x.length > 0 && !x.includes("traza"); })(), "★ CARNADA · lo que la persona declaró solo entra en una DIFERENCIA (exceso sobre su piso), no en una suma: 281 + 45 = 326 no se acepta");
+  caso("apoyo", "B01", "2.2", /^\$9\.8M/, "caso real B01 2.2 · «Ahora lo separan $9.8M de Costa Verde»: ADI entregó la diferencia en `apoyo` (E4.e13: $40.8M − $31.1M = $9.8M)");
+  sigue(con2("B01", "2.2", "Ahora lo separan $9.8M de Costa Verde", "Ahora lo separan $9.4M de Costa Verde"), "2.2", /^\$9\.4M/, "«$9.4M»: no es la diferencia que entregó ADI ($40.8M − $31.1M = $9.8M)");
+  caso("derivacion", "B03", "2.5", /^\$150K/, "caso real B03 2.5 · «$150K de capital en Lampa y Rancagua» = $115K + $35K (el «Capital» es la métrica del inventario)");
+  sigue(con2("B03", "2.5", "$150K de capital en Lampa y Rancagua", "$140K de capital en Lampa y Rancagua"), "2.5", /^\$140K/, "«$140K»: 115 + 35 es 150", ["no_traza", "dueno_distinto", "metrica_distinta"], /de capital en Lampa/);
+  caso("derivacion", "B02", "1.5", /^\$8\.0M/, "caso real B02 1.5 · «unos $8.0M ($3.8M Lider y $4.2M Jumbo)»: la suma de las dos cifras que la misma oración cita (aunque $8.0M coincida por azar con la contribución de otra cuenta)");
+  sigue(con2("B02", "1.5", "entre las dos dejan unos $8.0M ($3.8M Lider y $4.2M Jumbo)", "Jumbo deja unos $8.0M"), "1.5", /^\$8\.0M/, "«Jumbo deja unos $8.0M»: sin las dos cifras citadas en la oración, el $8.0M que coincide por azar con otra cuenta (Electrodomésticos) sigue siendo `dueno_distinto`", ["dueno_distinto"], /Jumbo deja/);
+  sigue(hilo2("B02"), "2.5", /^(2|4) pp/, "los ejemplos «subir el margen de Falabella y Lider 2 pp o 4 pp» NO se rescatan con una resta casual (4 = 22% − 18%): son cifras que nadie entregó");
+  sigue(hilo2("A01"), "1.5", /^30 %/, "«por ejemplo 22 %, 25 % o 30 %»: el «30 %» no se rescata ni con el 30.1 (se cita a su precisión) ni con 15 + 15");
+  // — la contraparte que el hilo ya nombró, y el sujeto colectivo y el tema
+  caso("contraparte", "C02", "1.4", /^(24\.0%|\$10\.5M)$/, "caso real C02 1.4 · «Norvik … (24.2% frente a 24.0%) … ($14.3M frente a $10.5M)»: tras «frente a» la cifra es de la contraparte que la persona nombró (Teravolt)");
+  sigue(con2("C02", "1.4", "(24.2% frente a 24.0%)", "(24.0% frente a 24.2%)"), "1.4", /^24\.0%$/, "invertida («24.0% frente a 24.2%»): la primera cifra es de Teravolt, no de Norvik", ["dueno_distinto"]);
+  caso("contraparte", "C02", "1.5", /^\$59\.0M/, "caso real C02 1.5 · «Sus ventas son $59.0M y las de Alsen $51.6M»: «Sus» es Norvik (la pregunta de la persona)");
+  sigue(con2("C02", "1.5", "Sus ventas son $59.0M y las de Alsen", "Sus ventas son $8.5M y las de Alsen"), "1.5", /^\$8\.5M$/, "«Sus ventas son $8.5M…»: $8.5M es de Kestrel, una cuenta que el hilo no nombró (la contraparte es Norvik)", ["dueno_distinto"]);
+  caso("colectivo", "A03", "1.2", /^58 días/, "caso real A03 1.2 · «El resto está entre 15 y 58 días»: el sujeto es un conjunto (SAM-TV55 tiene 58d)");
+  sigue(con2("A03", "1.2", "entre 15 y 58 días", "entre 15 y 59 días"), "1.2", /^59 días/, "«entre 15 y 59 días»: ninguno tiene 59");
+  caso("tema", "B01", "1.3", /^28%$/, "caso real B01 1.3 · «Su margen es 28%» (viñeta bajo «Cadena Quillay quedó 5.º…»: Quillay tiene 28%)");
+  sigue(con2("B01", "1.3", "Su margen es 28%", "Su margen es 23,5%"), "1.3", /^23,5%/, "«Su margen es 23,5%»: es el de Maipo, no el de Quillay ni el de Bazar Cordillera");
+  // — los nombres que la persona escribió no son cruces
+  { const h = hilo2("C01"); const r = afirma2(h, "1.4"); const rs = sinRegla("cruce_persona", () => afirma2(h, "1.4"));
+    ok(r.cruces.length === 0 && r.flags.some((f) => f.tipo === "nombre_ajeno_dicho_por_la_persona" && f.nombre === "Casa Lomas") && rs.cruces.length === 3, "★ caso real C01 1.4 · la persona preguntó «¿Y Casa Lomas cómo anda?»: el anfitrión repite el nombre para decir que no figura (no es un cruce; sin la regla eran 3)", JSON.stringify([r.cruces.length, rs.cruces.length])); }
+  ok(afirma2(anade2("A01", "1.4", "\n\nCasa Lomas lidera la cartera."), "1.4").cruces.length === 1, "★ CARNADA · si la persona NO escribió el nombre de la otra empresa, el anfitrión que lo nombra sigue siendo un cruce");
+  // — la regla no se vuelve laxa: una cifra inventada lejos de todo lo entregado no traza, con ninguna regla
+  { let traza = 0, probadas = 0;
+    for (let v = 101; v <= 400; v += 7) { const h = anade2("A02", "1.3", `\n\nSe acumulan $${v},3M en total.`); const x = v2(h, "1.3", new RegExp(`^\\$${v},3M`)); probadas += 1; if (x.some((y) => y === "traza")) traza += 1; }
+    for (let d = 300; d <= 400; d += 9) { const h = anade2("A02", "1.3", `\n\nMayorista El Roble lleva ${d} días de atraso.`); const x = v2(h, "1.3", new RegExp(`^${d} días`)); probadas += 1; if (x.some((y) => y === "traza")) traza += 1; }
+    ok(traza === 0, `ninguna de ${probadas} cifras inventadas (dinero y días) lejos de lo entregado traza con las reglas nuevas (${traza} falsos positivos)`); }
+  // — el informe deja a la vista lo que aceptó
+  { const inf = calcularInforme({ manifiesto: null, cierre: null, hilos: [{ ...hilo2("A02"), anulado: false }, { ...hilo2("C01"), anulado: false }] });
+    ok(inf.declaradasPorLaPersona.length >= 3 && inf.declaradasPorLaPersona.every((d) => /^persona@/.test(d.origen)) && inf.nombresDeLaPersona.length === 4 && inf.cruces.length === 0, "★ el informe lista las cifras declaradas por la persona (con su origen) y los nombres que ella escribió (no son cruce)", JSON.stringify([inf.declaradasPorLaPersona.length, inf.nombresDeLaPersona.length, inf.cruces.length]));
+    const md = informeEnMarkdown(inf); ok(md.includes("## Cifras declaradas por la persona en el hilo") && md.includes("## Nombres de la otra empresa que escribió la PERSONA"), "el informe en texto trae las dos secciones"); }
+  // — el conjunto: del ensayo 2 quedan marcados SOLO los 25 errores reales del anfitrión y el 1 verdadero sin patrón
+  { const todos = Object.keys(FX2).flatMap((id) => rastrearHilo(hilo2(id)).flatMap((t) => t.afirmaciones.filter((a) => a.clase === 1 && a.material).map((a) => `${id}|${t.turno}|${a.token}`)));
+    const graves = ["$195M", "48%"];
+    ok(graves.every((g) => todos.some((x) => x.endsWith("|" + g))), "★ los 2 errores GRAVES del anfitrión siguen marcados: «$195M» (las 13 ventas entregadas suman $176.0M) y «48%» (94.3 ÷ 176.0 = 53.6%)", todos.join(" "));
+  }
+}
+
 /* ═════ G · EL ARNÉS POR LA VÍA API ════════════════════════════════════════════════════════════════════════════ */
 seccion("G · el arnés por la vía api (anfitrión simulado)");
 // G1 · rechazos ANTES de leer el catálogo
