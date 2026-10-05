@@ -498,10 +498,15 @@ H("8 · la ley vieja («sin perfil completo no se entrega nada») ya no gobierna
 H("9 · `componer.js` con la capa ACTIVA: ninguna frase dice que no se aplica conocimiento del oficio cuando se sirvió · con la capa APAGADA: byte-idéntico al HEAD c621516e");
 {
   const TENANT_C = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil, sector: { valor: "distribucion", procedencia: "declarado" }, tipoProducto: { valor: "durable", procedencia: "declarado" }, pais: { valor: "CL", procedencia: "declarado" }, modeloComercial: { valor: "cuentas_grandes", procedencia: "declarado" } } };
-  /* sha256 (16) de JSON.stringify(resultado entero: texto + entrega + libro) de cada ruta con la capa APAGADA, medido con el `componer.js` del HEAD c621516e (ANTES de este ajuste). Si cambia un byte con la capa apagada, esto arde. */
+  /* sha256 (16) de JSON.stringify(resultado entero: texto + entrega + libro) de cada ruta con la capa APAGADA, medido con el `componer.js` del HEAD c621516e (ANTES de este ajuste). Si cambia un byte con la capa apagada, esto arde.
+   * ⚠️ BLOQUE «TAMAÑO GENERAL DE ADI» (owner 2026-10-05): la banda de tamaño ya no se calcula con la UF sino en US$ con el tipo de cambio del mes de cierre, y el perfil que viaja en `entrega.marco.perfil`
+   * trae la TRAZA de esa banda (`campos.tamano.fuente` + `campos.tamano.insumos`) con otro contenido. Esa traza es lo ÚNICO que cambia (verificado con el HEAD en un worktree: el diff estructural de las
+   * ocho salidas completas son exactamente esos dos campos —ni el texto, ni las cifras, ni el libro, ni el resto del perfil—). Por eso el hash se toma con ESA traza neutralizada (la banda y su procedencia
+   * SÍ cuentan) y los PIN son los hashes del HEAD c621516e re-medidos con la misma neutralización: los de antes, byte a byte, salvo la traza. */
+  const sinTrazaDeBanda = (R) => { const c = JSON.parse(JSON.stringify(R)); const t = c && c.entrega && c.entrega.marco && c.entrega.marco.perfil && c.entrega.marco.perfil.campos && c.entrega.marco.perfil.campos.tamano; if (t) { t.fuente = null; t.insumos = null; } return c; };
   const PIN = {
-    demo: { BrechaComercial: "41a0ac6dc6958f90", Cobranza: "0fa71468ab49ba7e", Inventario: "31723978dbf9e91e", Multidominio: "647647ba107c187b" },
-    completo: { BrechaComercial: "ed96ee08d3c5f9e7", Cobranza: "40d0fd51bb4a8a71", Inventario: "341ee5b02a000c7c", Multidominio: "3389f7b9191b9035" },
+    demo: { BrechaComercial: "c230c5130ad3cc54", Cobranza: "6ce49d4fe5202157", Inventario: "bc09d0b87716762d", Multidominio: "0a17fc1ad8c40353" },
+    completo: { BrechaComercial: "a7ed24c00025c57c", Cobranza: "754382d7707c95d8", Inventario: "de17164972ace16b", Multidominio: "04175564cc6ff8b3" },
   };
   const EMP = { demo: TENANT_DEMO, completo: TENANT_C };
   const FALSA = /no aplica conocimiento del oficio|todavía no está construido|Sin conocimiento del sector cargado|aunque el catálogo lo tuviera/i;
@@ -512,8 +517,8 @@ H("9 · `componer.js` con la capa ACTIVA: ninguna frase dice que no se aplica co
     // capa APAGADA: byte-idéntico al HEAD (explícita y por defecto, que bajo Node es apagada)
     { const malas = [];
       for (const [e, T] of Object.entries(EMP)) for (const [r, [fn, p]] of Object.entries(rutas)) {
-        const h1 = sha(JSON.stringify(conTenantActivo(T, () => fn({ pregunta: p, conocimientoActivo: false }))));
-        const h2 = sha(JSON.stringify(conTenantActivo(T, () => fn({ pregunta: p }))));
+        const h1 = sha(JSON.stringify(sinTrazaDeBanda(conTenantActivo(T, () => fn({ pregunta: p, conocimientoActivo: false })))));
+        const h2 = sha(JSON.stringify(sinTrazaDeBanda(conTenantActivo(T, () => fn({ pregunta: p })))));
         if (h1 !== PIN[e][r] || h2 !== PIN[e][r]) malas.push(`${e}/${r}`);
       }
       set("OFF", malas.length === 0, malas.join(",")); }

@@ -37,8 +37,11 @@ import { persistirCarga, activarVersion, monedaTenant, declararPerfilEmpresa } f
 import { handleIngesta } from "./src/ingesta/handleIngesta.server.js";
 import { packActivo } from "./src/data/tenantService.server.js";
 // TAREA 1+2 (owner 2026-09-23) — bandas de tamaño y siembra de la taxonomía
-import { calcularBandaTamano, bandaPorUF, UMBRALES_UF, periodoDeclaradoDe, mesesInformadosDe, TAMANO_BANDAS as TAMANO_BANDAS_DE_BANDATAMANO } from "./src/config/contract/bandaTamano.js";
-import { ufDelPeriodo, TABLA_UF } from "./src/config/contract/tablaUF.js";
+import { calcularBandaTamano, periodoDeclaradoDe, mesesInformadosDe, TAMANO_BANDAS as TAMANO_BANDAS_DE_BANDATAMANO } from "./src/config/contract/bandaTamano.js";
+// la UF quedó DESCONECTADA del perfil general (owner 2026-10-05): sus piezas siguen en el repo y se siguen probando acá como
+// piezas DORMIDAS (nadie del perfil las usa; el candado de que no se usan vive en `_tamano_general_gate.mjs`)
+import { ufDelPeriodo, TABLA_UF, bandaPorUF, UMBRALES_UF } from "./src/config/contract/tablaUF.js";
+import { tipoCambioDelPeriodo, TABLA_TIPO_CAMBIO } from "./src/config/contract/tablaTipoCambio.js";
 import { TAXONOMIA_PERFIL, SECTORES, TIPOS_PRODUCTO, SECTORES_CON_TIPO_PRODUCTO, MODELOS_COMERCIALES, PAISES, TAMANO_BANDAS, codigoValido, validarTipoProductoDeSector } from "./src/config/contract/taxonomiaPerfil.js";
 import fs from "node:fs";
 
@@ -884,8 +887,11 @@ H("16 · packActivo — merge real con TENANT_DEMO como base del pack");
     "…y `construirPerfilCliente` sobre el pack ya mergeado lee las dos cosas correctamente juntas (código real de la taxonomía sembrada)");
 }
 
-/* ═══ 17 · TAREA 1 (owner 2026-09-23) — LAS BANDAS DE TAMAÑO, en UF, falla cerrada ═══════════════════════════ */
-H("17a · bandaPorUF — los bordes EXACTOS (2.400 · 25.000 · 100.000 UF), sellados por el owner");
+/* ═══ 17 · LAS BANDAS DE TAMAÑO, falla cerrada — desde 2026-10-05 en US$ (criterio general de ADI, base IFC); la UF quedó DORMIDA ═══
+ * TAREA 1 (owner 2026-09-23) las definió en UF; el owner las reemplazó el 2026-10-05 (bloque «tamaño general de ADI»): bandas por ventas
+ * anuales en US$ con el promedio mensual oficial del dólar observado del mes de cierre. 17a y 17b' siguen probando las piezas de UF que
+ * se CONSERVAN sin uso del perfil; 17b-17f prueban el cálculo vigente (la certificación completa vive en `_tamano_general_gate.mjs`). */
+H("17a · (pieza DORMIDA, sin uso del perfil) bandaPorUF — los bordes EXACTOS (2.400 · 25.000 · 100.000 UF), sellados por el owner el 2026-09-23");
 {
   ok(bandaPorUF(0) === "micro", "0 UF → micro");
   ok(bandaPorUF(2399.99) === "micro", "justo bajo el corte de micro → micro");
@@ -900,16 +906,20 @@ H("17a · bandaPorUF — los bordes EXACTOS (2.400 · 25.000 · 100.000 UF), sel
   ok(bandaPorUF(-1) === null && bandaPorUF(NaN) === null && bandaPorUF("100") === null && bandaPorUF(undefined) === null, "★ CONTROL NEGATIVO · un número inválido (negativo, NaN, no-numérico, ausente) → null, nunca una banda inventada");
 }
 
-H("17b · calcularBandaTamano — sobre el archivo de demostración ($100MM), UF 2025-12 OFICIAL ($39.727,96 SII)");
+H("17b · calcularBandaTamano — sobre el archivo de demostración ($100MM), promedio mensual oficial del dólar de 2025-12 ($916,16, SII)");
 {
   const r = calcularBandaTamano({ ventaAnual: 100000000, moneda: "CLP", periodo: "2025-12" });
-  ok(r.banda === "pequena" && r.procedencia === "derivado", `$100MM / $39.727,96 = ${r.insumos.ventaAnualUF.toFixed(1)} UF → "pequena" (hoy: ${r.banda}) — ≈2.517 UF, un ~4,9% sobre el corte de 2.400 UF de Micro`, JSON.stringify(r));
-  ok(r.insumos.ufValor === 39727.96 && r.insumos.ufFila.grado === "oficial", "los insumos traen el valor de UF usado y su fila completa (auditable)", JSON.stringify(r.insumos.ufFila));
+  ok(r.banda === "pequena" && r.procedencia === "derivado", `$100MM / $916,16 = US$${r.insumos.ventaAnualUSD.toFixed(0)} → "pequena" (hoy: ${r.banda}) — ≈US$109.151, ~9% sobre el corte de micro (US$100.000)`, JSON.stringify(r));
+  ok(r.insumos.tipoCambioValor === 916.16 && r.insumos.tipoCambioFila.grado === "oficial", "los insumos traen el tipo de cambio usado y su fila completa (auditable)", JSON.stringify(r.insumos.tipoCambioFila));
   ok(r.insumos.proporcionada === false, "sin mesesInformados (o con 12), no se prorratea");
-  // el mismo monto pero justo bajo el corte de micro en UF ($95.347.104 = 2.400 × $39.727,96) sale "micro"
-  const rMicro = calcularBandaTamano({ ventaAnual: 2400 * 39727.96, moneda: "CLP", periodo: "2025-12" });
-  ok(rMicro.banda === "micro", `2.400 UF exactas en pesos ($${(2400 * 39727.96).toLocaleString("es-CL")}) → "micro" (hoy: ${rMicro.banda})`);
+  // el mismo monto pero justo bajo el corte de micro (US$100.000 × $916,16 = $91.616.000 → menos que eso es micro)
+  const rMicro = calcularBandaTamano({ ventaAnual: 99999 * 916.16, moneda: "CLP", periodo: "2025-12" });
+  ok(rMicro.banda === "micro", `US$99.999 en pesos ($${(99999 * 916.16).toLocaleString("es-CL")}) → "micro" (hoy: ${rMicro.banda})`);
+  ok(Array.isArray(TABLA_TIPO_CAMBIO) && TABLA_TIPO_CAMBIO.length === 21 && tipoCambioDelPeriodo("2025-12", "CLP").valor === 916.16, `TABLA_TIPO_CAMBIO trae ${TABLA_TIPO_CAMBIO.length} filas (2025-01 a 2026-09); la certificación fila por fila vive en _tamano_general_gate`);
+}
 
+H("17b' · (pieza DORMIDA, sin uso del perfil) tablaUF — la fila UF 2025-12 se conserva intacta");
+{
   // LA TABLA ES UNA PIEZA FIRMADA, no un número suelto — los nueve-campos-de-procedencia del estilo de la casa
   ok(Array.isArray(TABLA_UF) && TABLA_UF.length === 1, `TABLA_UF trae ${TABLA_UF.length} fila (la única sembrada hoy, 2025-12)`);
   const filaUF = TABLA_UF[0];
@@ -926,7 +936,7 @@ H("17b · calcularBandaTamano — sobre el archivo de demostración ($100MM), UF
   ok(!/valor de referencia/i.test(filaUF.firma) && !/propuest[oa] por el owner/i.test(filaUF.firma), "★ CANDADO · ningún campo de firma atribuye al owner una cifra derivada", filaUF.firma);
 }
 
-H("17c · LA CADENA DE FALLA CERRADA — sin período → sin UF → sin banda → perfil incompleto → la capa no entrega");
+H("17c · LA CADENA DE FALLA CERRADA — sin período → sin tipo de cambio → sin banda → perfil incompleto → la capa no entrega");
 {
   // 1 · sin período: calcularBandaTamano da null con el motivo correcto
   const sinPeriodo = calcularBandaTamano({ ventaAnual: 100000000, moneda: "CLP", periodo: null });
@@ -939,8 +949,8 @@ H("17c · LA CADENA DE FALLA CERRADA — sin período → sin UF → sin banda �
   const { TENANT_DEMO: _TD } = await import("./src/data/tenants/demo.js");
   ok(periodoDeclaradoDe(_TD) === "2025-12", `★ CANDADO · periodoDeclaradoDe(TENANT_DEMO) === "2025-12" — el demo declara período por la MISMA vía que un cliente real (hoy: ${periodoDeclaradoDe(_TD)})`, String(periodoDeclaradoDe(_TD)));
   const perfilConPeriodoReal = construirPerfilCliente(_TD);
-  ok(perfilConPeriodoReal.campos.tamano.valor === "pequena", `★ CANDADO · CADENA COMPLETA SOBRE EL TENANT REAL · período declarado → UF del período (${perfilConPeriodoReal.campos.tamano.insumos.ufValor}) → banda "${perfilConPeriodoReal.campos.tamano.valor}"`, JSON.stringify(perfilConPeriodoReal.campos.tamano));
-  ok(perfilConPeriodoReal.campos.tamano.insumos.ufFila.grado === "oficial", "…la UF que usó la cadena es la fila OFICIAL (SII), no una referencia");
+  ok(perfilConPeriodoReal.campos.tamano.valor === "pequena", `★ CANDADO · CADENA COMPLETA SOBRE EL TENANT REAL · período declarado → tipo de cambio del mes de cierre (${perfilConPeriodoReal.campos.tamano.insumos.tipoCambioValor}) → banda "${perfilConPeriodoReal.campos.tamano.valor}"`, JSON.stringify(perfilConPeriodoReal.campos.tamano));
+  ok(perfilConPeriodoReal.campos.tamano.insumos.tipoCambioFila.grado === "oficial", "…el tipo de cambio que usó la cadena es la fila OFICIAL (SII), no una referencia");
   ok(!perfilConPeriodoReal.faltantes.includes("tamano"), "…y por eso «tamano» ya NO está entre los campos faltantes del perfil");
 
   // control negativo — SIN el período (un tenant que nunca lo declaró) la cadena sigue fallando cerrada, exactamente
@@ -970,16 +980,18 @@ H("17c · LA CADENA DE FALLA CERRADA — sin período → sin UF → sin banda �
   ok(perfilConPeriodo.completo === true && perfilAutorizaConocimiento(perfilConPeriodo) === true, "★ con los seis campos presentes (banda incluida), el perfil COMPLETA y la capa SÍ se entrega");
 }
 
-H("17d · MONEDA SIN TABLA → SIN BANDA (misma regla, sin excepción — la clasificación es chilena)");
+H("17d · SIN TIPO DE CAMBIO OFICIAL → SIN BANDA (moneda sin tabla o mes sin fila); USD → factor 1 sin tabla");
 {
   const rUSD = calcularBandaTamano({ ventaAnual: 5000000, moneda: "USD", periodo: "2025-12" });
-  ok(rUSD.banda === null && /clasificación oficial de tamaño es chilena/.test(rUSD.motivo), "★ CARNADA · USD no tiene tabla → banda null, el motivo dice por qué", rUSD.motivo);
-  ok(ufDelPeriodo("2025-12", "USD") === null, "ufDelPeriodo nunca inventa una fila para una moneda sin tabla");
+  ok(rUSD.banda === "mediana" && rUSD.insumos.tipoCambioValor === 1 && rUSD.insumos.tipoCambioFila === null, "★ USD → factor 1, sin tabla: US$5.000.000 → mediana", JSON.stringify(rUSD.insumos));
+  const rEUR = calcularBandaTamano({ ventaAnual: 5000000, moneda: "EUR", periodo: "2025-12" });
+  ok(rEUR.banda === null && /no tiene tipo de cambio oficial/.test(rEUR.motivo), "★ CARNADA · una moneda sin tabla (EUR) → banda null, el motivo dice por qué", rEUR.motivo);
+  ok(tipoCambioDelPeriodo("2025-12", "EUR") === null, "tipoCambioDelPeriodo nunca inventa una fila para una moneda sin tabla");
   // control negativo · CLP con un período que SÍ está sembrado da la fila
-  ok(ufDelPeriodo("2025-12", "CLP") !== null, "control · CLP con el período sembrado SÍ resuelve");
-  // período CLP fuera de la tabla (sin interpolar)
-  const rSinFila = calcularBandaTamano({ ventaAnual: 100000000, moneda: "CLP", periodo: "2026-01" });
-  ok(rSinFila.banda === null && /hay que sembrar esa fila/.test(rSinFila.motivo), "★ CARNADA · CLP con un período SIN fila firmada → banda null (nunca interpola con la fila más cercana)", rSinFila.motivo);
+  ok(tipoCambioDelPeriodo("2025-12", "CLP") !== null, "control · CLP con el período sembrado SÍ resuelve");
+  // mes de cierre sin fila (sin interpolar, sin el mes vecino)
+  const rSinFila = calcularBandaTamano({ ventaAnual: 100000000, moneda: "CLP", periodo: "2026-10" });
+  ok(rSinFila.banda === null && /no hay tipo de cambio oficial del mes «2026-10»/.test(rSinFila.motivo), "★ CARNADA · CLP con un mes SIN fila firmada (2026-10, no ha cerrado) → banda null (nunca el mes vecino ni interpola)", rSinFila.motivo);
 }
 
 H("17e · el prorrateo a doce meses — SOLO para elegir la banda, registrado, nunca mostrado como cifra");
@@ -993,7 +1005,7 @@ H("17e · el prorrateo a doce meses — SOLO para elegir la banda, registrado, n
   ok(mesesInformadosDe({ ventasMensuales: [1, 2, 3] }) === 3 && mesesInformadosDe({}) === null, "mesesInformadosDe: cuenta `ventasMensuales`, o null si el tenant no trae el campo (nunca fuerza un prorrateo que no puede probar)");
 }
 
-H("17f · CANDADO · el módulo de bandas NO importa nada de red (bandaTamano.js + tablaUF.js)");
+H("17f · CANDADO · el módulo de bandas NO importa nada de red (bandaTamano.js + tablaTipoCambio.js + tablaUF.js)");
 {
   // ⚠️ NINGUNA de las palabras de red de acá abajo se escribe CONTIGUA en ESTE archivo, ni siquiera dentro de un
   // patrón que busca detectarla. El propio clasificador de gates (`scripts/clasificarGates.mjs`) escanea el TEXTO
@@ -1020,11 +1032,13 @@ H("17f · CANDADO · el módulo de bandas NO importa nada de red (bandaTamano.js
   ];
   const srcBanda = fs.readFileSync("./src/config/contract/bandaTamano.js", "utf8");
   const srcUF = fs.readFileSync("./src/config/contract/tablaUF.js", "utf8");
+  const srcTC = fs.readFileSync("./src/config/contract/tablaTipoCambio.js", "utf8");
   let i = 0;
   for (const re of PALABRAS_DE_RED) {
     i++;
     ok(!re.test(srcBanda), `★ bandaTamano.js NO contiene la palabra de red #${i} (sin red)`, srcBanda.match(re) ? String(srcBanda.match(re)[0]) : "");
     ok(!re.test(srcUF), `★ tablaUF.js NO contiene la palabra de red #${i} (sin red)`, srcUF.match(re) ? String(srcUF.match(re)[0]) : "");
+    ok(!re.test(srcTC), `★ tablaTipoCambio.js NO contiene la palabra de red #${i} (sin red)`, srcTC.match(re) ? String(srcTC.match(re)[0]) : "");
   }
   // control positivo — el candado SÍ sabe encender: una llamada real (armada por concatenación, nunca escrita
   // entera en el archivo) tiene que fallar la prueba.

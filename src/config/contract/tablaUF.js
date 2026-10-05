@@ -44,6 +44,30 @@
  * calculado o propuesto la cifra: la firma solo puede aprobar la FUENTE.
  */
 
+/* ═══ ⛔ SIN USO DEL PERFIL GENERAL (owner 2026-10-05, bloque «tamaño general de ADI») ═══════════════════════════
+ * La banda de tamaño del perfil de ADI YA NO se calcula con la UF: es un criterio general y regional de ADI, por
+ * ventas anuales en US$ (`bandaTamano.js` + `tablaTipoCambio.js`), no una clasificación legal. Este archivo, la
+ * tabla de abajo y `UMBRALES_UF`/`bandaPorUF` (movidos aquí desde `bandaTamano.js`, sin cambiar un valor) se
+ * CONSERVAN en el repo, pero ningún módulo del perfil general los importa ni los usa (candado: `_tamano_general_gate`).
+ * Solo existirían para una capacidad futura que necesite la clasificación LEGAL chilena (en UF); abrirla es una
+ * decisión de producto aparte. ═══════════════════════════════════════════════════════════════════════════════════ */
+
+/** LOS UMBRALES EN UF, SELLADOS POR EL OWNER (2026-09-23, textual: «UMBRALES CONFIRMADOS POR EL OWNER:
+ *  2.400 · 25.000 · 100.000 UF»). Semántica de borde: el umbral pertenece a la banda DE ABAJO — 2.400 UF exactos
+ *  siguen siendo Micro, 25.000 UF exactos Pequeña, 100.000 UF exactos Mediana. Solo lo que supera estrictamente el
+ *  umbral sube de banda. (Sin uso del perfil general desde 2026-10-05; ver la nota de arriba.) */
+export const UMBRALES_UF = Object.freeze({ micro: 2400, pequena: 25000, mediana: 100000 });
+
+/** bandaPorUF(ventaAnualUF) → "micro" | "pequena" | "mediana" | "grande" | null (si el número no es válido). Pura,
+ *  sin insumos externos. Sin uso del perfil general desde 2026-10-05. */
+export function bandaPorUF(ventaAnualUF) {
+  if (typeof ventaAnualUF !== "number" || !Number.isFinite(ventaAnualUF) || ventaAnualUF < 0) return null;
+  if (ventaAnualUF <= UMBRALES_UF.micro) return "micro";
+  if (ventaAnualUF <= UMBRALES_UF.pequena) return "pequena";
+  if (ventaAnualUF <= UMBRALES_UF.mediana) return "mediana";
+  return "grande";
+}
+
 /** El vocabulario de procedencia de una pieza de conocimiento — el mismo patrón que ya usan `ausencias.js` y
  *  la tabla de bandas: fuente, fecha en que se firmó, vigencia declarada, quién firma y el grado de certeza. Un
  *  valor "referencia" NUNCA se sirve como si fuera "oficial" sin que el motivo lo diga con todas las letras. */
@@ -56,7 +80,7 @@ export const GRADOS_DE_LA_UF = ["oficial", "referencia"];
  * un cálculo ni una interpolación: UF al 31 de diciembre de 2025 = $39.727,96.
  *
  * EQUIVALENTES EN PESOS DE LOS UMBRALES CON ESTA UF — PRESENTACIÓN, NUNCA EL UMBRAL. El umbral vivo y sellado
- * está en UF (`bandaTamano.js:UMBRALES_UF` — 2.400 · 25.000 · 100.000 UF, sin tocar). Estos pesos son lo que esos
+ * está en UF (`UMBRALES_UF` (arriba) — 2.400 · 25.000 · 100.000 UF, sin tocar). Estos pesos son lo que esos
  * mismos umbrales VALEN hoy, con ESTA fila de UF, solo para que quien lea el archivo no tenga que hacer la
  * cuenta — si mañana cambia la fila de UF, estos pesos cambian con ella, el umbral en UF no:
  *   · Micro   hasta 2.400 UF   ≈ 2.400   × 39.727,96 = $95.347.104

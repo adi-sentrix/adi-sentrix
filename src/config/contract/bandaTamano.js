@@ -1,73 +1,78 @@
-/* === config/contract/bandaTamano.js · LA BANDA DE TAMAÑO · SE CALCULA, NUNCA SE PREGUNTA (owner 2026-09-23) ===
+/* === config/contract/bandaTamano.js · EL TAMAÑO GENERAL DE ADI · SE CALCULA, NUNCA SE PREGUNTA (owner 2026-10-05) ===
  * ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
- * TAREA 1 del encargo: `_ADI_PERFIL_VOCABULARIOS_PROPUESTA.md` §3, «Tamaño: tres [cuatro] bandas, derivadas, sin
- * tipo de cambio». Textual del owner: «la clasificación oficial está definida en UF... pero el usuario trabaja y
- * ve pesos.» Consecuencia de diseño (propuesta §3, textual): «el umbral se guarda en UF; los pesos son
- * presentación.»
+ * BLOQUE «TAMAÑO GENERAL DE ADI» (Etapa 2). Decisiones del owner (2026-10-05), textuales en su sentido:
+ *   · El tamaño en ADI es un **criterio general y regional de ADI para el contexto de Knowledge**: NO es una
+ *     clasificación legal ni una medición financiera de precisión. Acotado a eso — no abre la clasificación legal
+ *     local ni otros usos.
+ *   · Bandas por **ventas anuales en US$**, base **IFC** (International Finance Corporation, «Definitions of
+ *     Targeted Sectors», https://www.ifc.org/ → Financial Institutions → Definitions of Targeted Sectors, columna
+ *     «Annual sales US$»: micro < US$100.000 · pequeña US$100.000 a < US$3 millones · mediana US$3 a US$15 millones,
+ *     verificado el 2026-10-05) y «grande» **sobre US$15 millones como EXTENSIÓN PROPIA DE ADI** (la fuente no define
+ *     una banda mayor; la declaración vive en la `fuente` de esa banda, abajo).
+ *   · Conversión: la venta anual (en la moneda del negocio) se pasa a US$ con el **promedio MENSUAL oficial del tipo de
+ *     cambio del mes de CIERRE del período declarado**, publicado tal cual (`tablaTipoCambio.js`; ADI no calcula
+ *     promedios). Sin tipo de cambio oficial válido para esa moneda y período → **NO clasifica** y declara por qué
+ *     (falla cerrada: nunca el mes vecino, nunca interpolación). Moneda USD → factor 1, sin tabla.
+ *   · La UF queda DESCONECTADA del perfil general: `tablaUF.js` (y `UMBRALES_UF`/`bandaPorUF`, movidos allí sin
+ *     cambiar un valor) siguen en el repo SIN uso de este módulo ni del perfil; solo existirían para una capacidad
+ *     futura que necesite la clasificación legal chilena. Reemplaza el diseño anterior de 2026-09-23 (umbrales
+ *     2.400 · 25.000 · 100.000 UF), que clasificaba con la UF del cierre.
+ *   · La procedencia de la banda es «criterio general de ADI» (la escribe `perfilCliente.js` desde la función única de
+ *     origen de `businessPolicy.js`), `procedencia: "derivado"`: jamás «declarado por la empresa» ni «clasificación
+ *     oficial».
  *
- * ⚠️ SIN RED. Este módulo importa SOLO `tablaUF.js` (una tabla de datos, ver su cabecera) y
- * `taxonomiaPerfil.js` (vocabulario puro) — nada de `fetch`, `oracle/llmGateway`, ni ningún cliente HTTP. El
- * candado `_uf_offline_gate` en `_entrega_gate.mjs` lee el TEXTO de este archivo y de `tablaUF.js` y se enciende
- * si aparece la palabra `fetch`, un `import` de un gateway o de cualquier módulo de red conocido.
+ * LOS BORDES (decisión documentada, el owner pidió definir de qué lado cae el valor exacto): se sigue la tabla IFC
+ * LITERAL, que es de límite inferior inclusivo —micro «< US$100.000»; pequeña «US$100.000 – < US$3 millones»; mediana
+ * «US$3 millones – US$15 millones»—. Por lo tanto: exactamente US$100.000 → pequeña; exactamente US$3.000.000 →
+ * mediana; exactamente US$15.000.000 → mediana (el techo de la mediana es cerrado en la fuente); solo lo que supera
+ * US$15.000.000 es grande. Si el owner prefiere el borde «hasta» (micro ≤ 100.000), se cambia en UNA constante
+ * (`BANDAS_DE_TAMANO`), sin tocar la lógica.
  *
- * LA CADENA DE FALLA CERRADA (propuesta §3 + el encargo, textual): «sin período declarado no hay UF aplicable →
- * no hay banda → el perfil queda incompleto → la capa no se entrega.» Y lo mismo para una moneda sin tabla
- * firmada — «es la misma regla, sin excepción.» Ninguna de las dos rutas devuelve un valor aproximado: cuando
- * falta un insumo, `calcularBandaTamano` devuelve `banda: null` con el motivo exacto de qué faltó.
+ * ⚠️ SIN RED. Este módulo importa SOLO `tablaTipoCambio.js` (una tabla de datos, ver su cabecera) y
+ * `taxonomiaPerfil.js` (vocabulario puro) — nada de `fetch`, `oracle/llmGateway`, ni ningún cliente HTTP. El candado
+ * `_tamano_general_gate` lee el TEXTO de este archivo y de `tablaTipoCambio.js` y se enciende si aparece una palabra
+ * de red.
  *
- * QUÉ UF SE USA cuando el período abarca varios meses — DECISIÓN DE SIGNIFICADO, con fundamento (owner
- * 2026-09-23, «quiero tu lectura, no mi supuesto»): la del CIERRE del período (`periodo_actual`), nunca un
- * promedio de los doce meses ni la del día de hoy. Tres razones, ninguna es la costumbre por sí sola:
- *   1. Es la práctica de la clasificación oficial chilena: SII/SERCOTEC clasifican con la venta anual declarada
- *      en el ejercicio tributario y la UF vigente al cierre de ESE ejercicio, no un promedio de UF intra-año.
- *      Usar el cierre es alinearse con el mismo criterio que define los propios umbrales (2.400/25.000/100.000
- *      UF, `UMBRALES_UF` abajo), no un criterio distinto aplicado a una escala ajena.
- *   2. Es la única UF que el dato puede sostener sin inventar historia: `periodo_actual` es una fecha de cierre
- *      única (una sola fecha, `plantilla.js:PARAMETROS`), no un rango — no hay 12 fechas de cierre mensuales
- *      declaradas con las que promediar, y esta tabla nunca interpola ni reconstruye una serie que el cliente no
- *      entregó (misma ley que gobierna toda la tabla: «sin interpolación ni estimación»).
- *   3. Es la que más le importa al negocio cerca de un corte: la banda de una empresa que cruza 2.400 UF a mitad
- *      de año debe reflejar dónde TERMINÓ el ejercicio, no un promedio que diluye el cruce — clasificar "Micro"
- *      a una empresa que cerró el año ya "Pequeña" (o viceversa) sería la banda de un año que no fue.
- * Cambia en qué banda cae una empresa cerca de un corte: una empresa que promedia bajo el umbral pero CIERRA
- * sobre él (o al revés) tiene una banda distinta según qué UF se use — por eso queda esta decisión escrita, no
- * implícita en el código. `periodo_actual` es una fecha de cierre (una sola fecha), así que no hay ambigüedad de
- * "cuál mes del rango" una vez tomada esta decisión — la pregunta que sí sería una decisión de significado
- * (promediar UF entre varios meses) no se presenta con la forma actual del dato.
+ * QUÉ MES SE USA cuando el período abarca varios meses — el del CIERRE (`periodo_actual`), nunca un promedio de los
+ * doce meses ni el del día de hoy: es la única fecha que el dato declara (`plantilla.js:PARAMETROS` — una fecha de
+ * cierre, no un rango), y esta capa nunca reconstruye una serie que el cliente no entregó.
  *
- * DE DÓNDE SALE EL PERÍODO — SONDA (ver el informe de la tarea, sección "la sonda del período"): el `dataset`
- * que devuelve `motorKpi.js:calcularDataset` (el que se vuelve `tenant`/`pack`) NO expone el período declarado
- * como campo de primer nivel — se leyó el objeto `dataset` completo (líneas 410-450 de `motorKpi.js`) y no hay
- * ninguna clave de período. La única ruta MEDIDA que sobrevive hasta el `tenant` en producción es
- * `tenant.hechos.parametros.periodo_actual` (la fecha cruda que declaró el archivo, dentro de
- * `packAGuardar.hechos` — `persistirCarga.server.js`, y la reconstruye `activarVersion` en la fusión histórica,
- * línea 271). Un tenant escrito a mano (`empresa2`, el tenant vacío) que NO declara esa ruta da «sin período
- * declarado» — que es la verdad: nunca declaró un período en el sentido de la plantilla. `TENANT_DEMO` SÍ la
- * declara desde la corrección del owner 2026-09-23 (`data/tenants/demo.js`, ver el comentario junto a `hechos`
- * ahí: la evidencia del propio archivo para el período real del demo). `periodoDeclaradoDe` lee ESA ruta y
- * ninguna otra; no inventa un fallback (por ejemplo, tomar el último mes de `ventasMensuales`) porque eso sería
- * exactamente el tipo de inferencia silenciosa que este perfil prohíbe en cualquier otro campo. */
-import { ufDelPeriodo } from "./tablaUF.js";
+ * DE DÓNDE SALE EL PERÍODO — SONDA (2026-09-23): el `dataset` que devuelve `motorKpi.js:calcularDataset` no expone el
+ * período declarado como campo de primer nivel; la única ruta MEDIDA que sobrevive hasta el `tenant` en producción es
+ * `tenant.hechos.parametros.periodo_actual` (`persistirCarga.server.js`, `activarVersion`). Un tenant escrito a mano
+ * que NO declara esa ruta da «sin período declarado» — que es la verdad. `periodoDeclaradoDe` lee ESA ruta y ninguna
+ * otra; no inventa un fallback (p. ej. el último mes de `ventasMensuales`): sería una inferencia silenciosa. */
+import { tipoCambioDelPeriodo, monedasConTipoDeCambio } from "./tablaTipoCambio.js";
 import { TAMANO_BANDAS } from "./taxonomiaPerfil.js";
 
 export { TAMANO_BANDAS };
 
-/** LOS UMBRALES EN UF, SELLADOS POR EL OWNER (2026-09-23, textual: «UMBRALES CONFIRMADOS POR EL OWNER:
- *  2.400 · 25.000 · 100.000 UF»). Semántica de borde (propuesta, tabla §3 — "hasta 2.400 UF" para Micro y
- *  "sobre 100.000 UF" para Grande): el umbral pertenece a la banda DE ABAJO — 2.400 UF exactos siguen siendo
- *  Micro, 25.000 UF exactos siguen siendo Pequeña, 100.000 UF exactos siguen siendo Mediana. Solo lo que supera
- *  estrictamente el umbral sube de banda. */
-export const UMBRALES_UF = Object.freeze({ micro: 2400, pequena: 25000, mediana: 100000 });
+/** El origen de las tres bandas que define la fuente, y la declaración de la que NO define. */
+const FUENTE_IFC = "IFC (International Finance Corporation), «Definitions of Targeted Sectors», ventas anuales en US$ — ifc.org, verificado el 2026-10-05";
+const FUENTE_EXTENSION_ADI = "extensión propia de ADI: IFC no define una banda sobre US$15 millones; se declara así, no se atribuye a IFC";
 
-/** bandaPorUF(ventaAnualUF) → una de TAMANO_BANDAS | null (si el número no es válido). Pura, sin insumos
- *  externos — la función que de verdad clasifica, separada de dónde salen sus insumos para que la carnada de
- *  bordes pueda probarla directo, sin tener que armar un tenant completo. */
-export function bandaPorUF(ventaAnualUF) {
-  if (typeof ventaAnualUF !== "number" || !Number.isFinite(ventaAnualUF) || ventaAnualUF < 0) return null;
-  if (ventaAnualUF <= UMBRALES_UF.micro) return "micro";
-  if (ventaAnualUF <= UMBRALES_UF.pequena) return "pequena";
-  if (ventaAnualUF <= UMBRALES_UF.mediana) return "mediana";
-  return "grande";
+/** LAS BANDAS, EN UNA SOLA CONSTANTE (ventas anuales en US$). `desdeIncluido`/`hastaIncluido` dicen de qué lado cae el
+ *  valor exacto del umbral (ver «LOS BORDES» arriba): la tabla IFC es de límite inferior inclusivo; el techo de la
+ *  mediana (15 millones) es cerrado en la fuente. `hastaUSD: null` = sin techo. Contiguas y en el orden de
+ *  `TAMANO_BANDAS` (el gate lo verifica). Los códigos son los de la taxonomía del perfil: no hace falta migración. */
+export const BANDAS_DE_TAMANO = Object.freeze([
+  Object.freeze({ codigo: "micro",   desdeUSD: 0,       desdeIncluido: true,  hastaUSD: 100000,   hastaIncluido: false, fuente: FUENTE_IFC }),
+  Object.freeze({ codigo: "pequena", desdeUSD: 100000,  desdeIncluido: true,  hastaUSD: 3000000,  hastaIncluido: false, fuente: FUENTE_IFC }),
+  Object.freeze({ codigo: "mediana", desdeUSD: 3000000, desdeIncluido: true,  hastaUSD: 15000000, hastaIncluido: true,  fuente: FUENTE_IFC }),
+  Object.freeze({ codigo: "grande",  desdeUSD: 15000000, desdeIncluido: false, hastaUSD: null,     hastaIncluido: false, fuente: FUENTE_EXTENSION_ADI }),
+]);
+
+/** bandaPorVentaUSD(ventaAnualUSD) → una de TAMANO_BANDAS | null (si el número no es válido). Pura, sin insumos
+ *  externos — la función que de verdad clasifica, separada de dónde salen sus insumos para que la carnada de bordes
+ *  pueda probarla directo, sin armar un tenant completo. */
+export function bandaPorVentaUSD(ventaAnualUSD) {
+  if (typeof ventaAnualUSD !== "number" || !Number.isFinite(ventaAnualUSD) || ventaAnualUSD < 0) return null;
+  for (const b of BANDAS_DE_TAMANO) {
+    const sobreElPiso = b.desdeIncluido ? ventaAnualUSD >= b.desdeUSD : ventaAnualUSD > b.desdeUSD;
+    const bajoElTecho = b.hastaUSD == null ? true : (b.hastaIncluido ? ventaAnualUSD <= b.hastaUSD : ventaAnualUSD < b.hastaUSD);
+    if (sobreElPiso && bajoElTecho) return b.codigo;
+  }
+  return null;
 }
 
 /** periodoDeclaradoDe(tenant) → "aaaa-mm" | null — ver la nota de la sonda arriba: la ÚNICA ruta medida que
@@ -80,22 +85,22 @@ export function periodoDeclaradoDe(tenant) {
 }
 
 /** mesesInformadosDe(tenant) → number | null — cuántos meses de venta trae el archivo. Reusa `ventasMensuales`
- *  (ya viaja en el dataset persistido, `motorKpi.js` línea 433 — a diferencia de `periodos.todos`, que solo
- *  vivía en la preview de carga y no sobrevivía al pack, medido en la misma sonda). `null` cuando el campo no
- *  está — un tenant sin esta forma no fuerza un prorrateo que no puede probar. */
+ *  (ya viaja en el dataset persistido). `null` cuando el campo no está — un tenant sin esta forma no fuerza un
+ *  prorrateo que no puede probar. */
 export function mesesInformadosDe(tenant) {
   const vm = tenant && tenant.ventasMensuales;
   return Array.isArray(vm) ? vm.length : null;
 }
 
-/** calcularBandaTamano({ ventaAnual, moneda, periodo, mesesInformados }) → el resultado con TODOS sus insumos,
- *  para poder auditar por qué se eligió ese benchmark (propuesta §8, nota técnica). Pura: no toca `tenant`, no
- *  hace red, no adivina. Cadena de falla cerrada, en orden:
+/** calcularBandaTamano({ ventaAnual, moneda, periodo, mesesInformados }) → el resultado con TODOS sus insumos, para
+ *  poder auditar por qué se eligió esa banda. Pura: no toca `tenant`, no hace red, no adivina. Cadena de falla
+ *  cerrada, en orden:
  *    1. sin `ventaAnual` numérica → sin banda.
- *    2. sin `periodo` (aaaa-mm) → sin banda («sin período declarado no hay UF aplicable»).
- *    3. sin tabla de UF para esa `moneda` → sin banda («la clasificación es chilena»; toda moneda que no sea
- *       CLP no tiene tabla hoy, y no tenerla ES la respuesta, no un caso pendiente de programar).
- *    4. sin una fila EXACTA para ese `periodo` en la tabla de esa moneda → sin banda (nunca se interpola). */
+ *    2. sin `periodo` (aaaa-mm) → sin banda («sin período declarado no hay tipo de cambio aplicable»).
+ *    3. sin `moneda` → sin banda.
+ *    4. moneda USD → factor 1 (sin tabla); cualquier otra → la fila EXACTA del mes de cierre en
+ *       `tablaTipoCambio.js`; sin fila (moneda sin tabla, o mes sin tipo de cambio oficial) → sin banda y el
+ *       motivo dice cuál de las dos cosas falta. Nunca el mes vecino, nunca interpolación. */
 export function calcularBandaTamano({ ventaAnual, moneda, periodo, mesesInformados = null } = {}) {
   const insumosBase = { ventaAnual: typeof ventaAnual === "number" ? ventaAnual : null, moneda: moneda || null, periodo: periodo || null, mesesInformados };
 
@@ -103,24 +108,26 @@ export function calcularBandaTamano({ ventaAnual, moneda, periodo, mesesInformad
     return { banda: null, procedencia: null, motivo: "no hay venta anual con qué calcular la banda", insumos: insumosBase };
   }
   if (!periodo || !/^\d{4}-\d{2}$/.test(String(periodo).slice(0, 7))) {
-    return { banda: null, procedencia: null, motivo: "sin período declarado no hay UF aplicable — la banda no se calcula sin saber de qué mes es la venta", insumos: insumosBase };
+    return { banda: null, procedencia: null, motivo: "sin período declarado no hay tipo de cambio aplicable — la banda no se calcula sin saber de qué mes es la venta", insumos: insumosBase };
   }
   if (!moneda) {
-    return { banda: null, procedencia: null, motivo: "sin moneda declarada no hay tabla de umbrales que consultar", insumos: insumosBase };
+    return { banda: null, procedencia: null, motivo: "sin moneda declarada no hay con qué convertir la venta a US$", insumos: insumosBase };
   }
 
-  const uf = ufDelPeriodo(periodo, moneda);
-  if (!uf) {
-    const motivo = String(moneda).toUpperCase() === "CLP"
-      ? `no hay UF firmada para el período «${periodo}» en la tabla (\`tablaUF.js\`) — hay que sembrar esa fila antes de poder clasificar este período`
-      : `la moneda «${moneda}» no tiene tabla de umbrales firmada — la clasificación oficial de tamaño es chilena, expresada en UF; sin tabla propia para esta moneda no hay banda (misma regla, sin excepción)`;
+  const esUSD = String(moneda).toUpperCase() === "USD";
+  const tc = esUSD ? { valor: 1, fila: null } : tipoCambioDelPeriodo(periodo, moneda);
+  if (!tc) {
+    const periodoMes = String(periodo).slice(0, 7);
+    const motivo = monedasConTipoDeCambio().includes(String(moneda).toUpperCase())
+      ? `no hay tipo de cambio oficial del mes «${periodoMes}» para la moneda «${moneda}» en la tabla (\`tablaTipoCambio.js\`) — ese mes de cierre no tiene promedio mensual publicado y firmado; ADI no usa el mes vecino ni interpola, así que no clasifica el tamaño`
+      : `la moneda «${moneda}» no tiene tipo de cambio oficial en la tabla (\`tablaTipoCambio.js\`) — sin él no hay con qué convertir la venta a US$, y ADI no clasifica el tamaño sin ese dato (misma regla, sin excepción)`;
     return { banda: null, procedencia: null, motivo, insumos: insumosBase };
   }
 
   const proporcionada = typeof mesesInformados === "number" && mesesInformados > 0 && mesesInformados < 12;
   const ventaEfectiva = proporcionada ? ventaAnual * (12 / mesesInformados) : ventaAnual;
-  const ventaAnualUF = ventaEfectiva / uf.valor;
-  const banda = bandaPorUF(ventaAnualUF);
+  const ventaAnualUSD = ventaEfectiva / tc.valor;
+  const banda = bandaPorVentaUSD(ventaAnualUSD);
 
   return {
     banda,
@@ -130,10 +137,25 @@ export function calcularBandaTamano({ ventaAnual, moneda, periodo, mesesInformad
       ...insumosBase,
       ventaAnualProrrateada: proporcionada ? ventaEfectiva : null,
       proporcionada,
-      ufValor: uf.valor,
-      ufFila: uf.fila,
-      ventaAnualUF,
-      umbralesUF: UMBRALES_UF,
+      tipoCambioValor: tc.valor,
+      tipoCambioFila: tc.fila,
+      ventaAnualUSD,
+      bandas: BANDAS_DE_TAMANO,
     },
   };
+}
+
+/** textoDeFuenteDeBanda(resultado, etiquetaDeCriterio) → la `fuente` que acompaña a la banda en el perfil: nombra el
+ *  criterio general (la etiqueta la entrega quien la toma de `businessPolicy.js`, nunca escrita acá), el tipo de
+ *  cambio usado y la base IFC/extensión de ADI; y dice qué NO es. `null` si no hay banda. */
+export function textoDeFuenteDeBanda(resultado, etiquetaDeCriterio) {
+  if (!resultado || !resultado.banda || !resultado.insumos || !etiquetaDeCriterio) return null;
+  const i = resultado.insumos;
+  /* el decimal canónico es el PUNTO (owner, `figureType.js:SEPARADOR_DECIMAL`) y los umbrales se dicen sin separador de miles ambiguo: «100 mil», «3 millones» */
+  const usd = (n) => (n >= 1000000 ? `${n / 1000000} millones` : `${n / 1000} mil`);
+  const [micro, pequena, mediana, grande] = BANDAS_DE_TAMANO;
+  const conversion = i.tipoCambioFila
+    ? `venta anual convertida a US$ con el promedio mensual del dólar observado de ${i.periodo.slice(0, 7)} publicado por el SII ($${i.tipoCambioValor} por US$)`
+    : "venta anual ya en US$ (factor 1, sin tipo de cambio)";
+  return `${etiquetaDeCriterio} — ${conversion}, ubicada en las bandas de ADI: micro menor que US$${usd(micro.hastaUSD)}, pequeña hasta menos de US$${usd(pequena.hastaUSD)} y mediana hasta US$${usd(mediana.hastaUSD)} (base IFC), y grande sobre US$${usd(grande.desdeUSD)} (extensión propia de ADI, no de IFC). Es un contexto para Knowledge, no una clasificación legal ni una medición financiera de precisión`;
 }

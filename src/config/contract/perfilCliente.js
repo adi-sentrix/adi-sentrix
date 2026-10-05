@@ -58,14 +58,22 @@
  * ── TAREA 1+2 (owner 2026-09-23, `_ADI_PERFIL_VOCABULARIOS_PROPUESTA.md`): LAS BANDAS DE TAMAÑO Y LA SIEMBRA ──
  * «subsector» se renombra a **tipoProducto** acá y en la migración 013 (la propuesta §2, nota: «el plan lo
  * llamaba subsector pero el contenido es tipo de producto» — el owner lo confirmó al usar «tipoProducto» en el
- * encargo mismo). La BANDA de tamaño deja de estar frenada: `bandaTamano.js` la calcula (venta anual ÷ UF del
- * período declarado, contra los umbrales sellados por el owner), nunca se pregunta. El vocabulario de los cinco
+ * encargo mismo). La BANDA de tamaño deja de estar frenada: `bandaTamano.js` la calcula (venta anual ÷ tipo de
+ * cambio oficial del mes de cierre, contra las bandas en US$ del criterio general de ADI —owner 2026-10-05; antes se
+ * calculaba en UF y esa vía quedó desconectada de este módulo—), nunca se pregunta. El vocabulario de los cinco
  * campos (sector/tipoProducto/modeloComercial/país/tamanoBanda) vive en `taxonomiaPerfil.js` — UNA sola fuente,
  * que este módulo usa para validar cualquier código que llegue por camino B antes de darlo por bueno. */
 import { factorComercialDe } from "./figureType.js";
 import { monedaDelNegocio } from "../moneda.js";
-import { calcularBandaTamano, periodoDeclaradoDe, mesesInformadosDe } from "./bandaTamano.js";
+import { calcularBandaTamano, periodoDeclaradoDe, mesesInformadosDe, textoDeFuenteDeBanda } from "./bandaTamano.js";
+import { etiquetaDeProcedencia, ORIGEN } from "../businessPolicy.js";
 import { codigoValido, validarTipoProductoDeSector } from "./taxonomiaPerfil.js";
+
+/** El nombre del origen de la banda de tamaño: «criterio general de ADI». Sale de la función única de origen de
+ *  `businessPolicy.js` (`etiquetaDeProcedencia`), nunca escrito a mano; se toma solo su primer tramo porque la banda NO
+ *  es «ajustable por la empresa» (se calcula, nunca se declara). Jamás «declarado por la empresa» ni «clasificación
+ *  oficial» (owner 2026-10-05, bloque «tamaño general de ADI»). */
+export const CRITERIO_GENERAL_DE_ADI = String(etiquetaDeProcedencia({ origen: ORIGEN.ADI })).split(",")[0];
 
 /** Los seis campos que el plan §3 nombra, en el orden del encargo. `tipoProducto` — antes «subsector» — es el
  *  nombre que fija la propuesta §2 (tarea 2026-09-23). */
@@ -90,7 +98,7 @@ export const ETIQUETA_DEL_CAMPO = { sector: "sector", tipoProducto: "tipo de pro
  * `"declarado"`; se acepta el legado `"medido"` (012/013, antes de que la 015 corrigiera el vocabulario: ahí
  * "medido" significaba "lo tipeó el usuario") y se traduce igual — nunca `"derivado"`, que ya no es válido
  * para estos cuatro campos. La banda de tamaño es la EXCEPCIÓN INVERSA: `bandaTamano.js` la CALCULA siempre a
- * partir de la venta y la UF — «no se pregunta, se calcula» (owner 2026-09-23) — así que su única procedencia
+ * partir de la venta y el tipo de cambio del mes de cierre — «no se pregunta, se calcula» (owner 2026-09-23) — así que su única procedencia
  * válida es `"derivado"`; un legado `"medido"` para la banda representaría un ajuste manual que la ley ya no
  * admite, y NO se traduce (traducirlo a "derivado" mentiría sobre su origen) — se descarta, igual que la
  * migración 015 lo limpia en la base (nunca se re-etiqueta un origen, ley general: «nunca se reemplaza en
@@ -165,8 +173,8 @@ export function construirPerfilCliente(tenant) {
   const monedaCod = monedaDelNegocio(t);   // "CLP" | null — NUNCA inferida (config/moneda.js, ley del owner)
 
   // TAMAÑO — el valor (venta anual real) se deriva; la BANDA se CALCULA siempre (propuesta §3, textual: «no se
-  // pregunta, se calcula») con `bandaTamano.js` — venta anual ÷ UF del período declarado, contra los umbrales
-  // sellados por el owner. ★ CORREGIDO (supervisor, 2026-09-26): la puerta de un "ajuste humano manual" de la
+  // pregunta, se calcula») con `bandaTamano.js` — venta anual ÷ tipo de cambio oficial del mes de cierre,
+  // contra las bandas en US$ del criterio general de ADI (owner 2026-10-05; la UF ya no interviene). ★ CORREGIDO (supervisor, 2026-09-26): la puerta de un "ajuste humano manual" de la
   // banda (antes, un valor de camino B con procedencia "medido") queda CERRADA — la ley del owner dice que el
   // perfil "no se infiere", y la banda es la excepción inversa: ADI la calcula, la empresa nunca la declara.
   // `procedenciaNormalizadaPerfilEmpresa("tamanoBanda", ...)` ya no admite "medido" para este campo (SOLO
@@ -188,7 +196,7 @@ export function construirPerfilCliente(tenant) {
     : {
         valor: bandaCalculada.banda,
         procedencia: bandaCalculada.procedencia,
-        fuente: bandaCalculada.banda ? "config/contract/bandaTamano.js:calcularBandaTamano — venta anual ÷ UF del período declarado, contra los umbrales sellados por el owner (2.400 · 25.000 · 100.000 UF)" : null,
+        fuente: bandaCalculada.banda ? textoDeFuenteDeBanda(bandaCalculada, CRITERIO_GENERAL_DE_ADI) : null,
         ...(bandaCalculada.banda ? {} : { motivo: bandaCalculada.motivo }),
         insumos: bandaCalculada.insumos,
         ventaAnual: ventaAnual != null

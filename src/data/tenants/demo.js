@@ -582,10 +582,11 @@ export const flujoComercial = {
  * campo que este perfil necesita es el cierre del período que informa la VENTA/P&L, que es el que clasifica el
  * tamaño de la empresa (`bandaTamano.js`). Se declara por la MISMA vía que usaría un cliente real
  * (`tenant.hechos.parametros.periodo_actual` — ver `motorKpi.js:448`, `bandaTamano.js:periodoDeclaradoDe`), no
- * por un atajo del demo: es la prueba de que el camino completo (período → UF del período → banda → perfil)
+ * por un atajo del demo: es la prueba de que el camino completo (período → tipo de cambio del mes de cierre → banda → perfil)
  * funciona igual para el archivo de fábrica que para un cliente real. Verificado con carnada real en
- * `_entrega_gate.mjs` §17c: con esta fecha, la banda calculada es "pequena" (venta anual $100MM ≈ 2.517 UF con
- * la UF oficial de `tablaUF.js`, un 4,9% sobre el corte de "micro").
+ * `_entrega_gate.mjs` §17c y `_tamano_general_gate.mjs`: con esta fecha, la banda calculada es "pequena" (venta
+ * anual $100MM ÷ $916,16, el promedio mensual del dólar observado de 2025-12 publicado por el SII, ≈ US$109.151,
+ * un 9% sobre el corte de "micro" de US$100.000; criterio general de ADI desde 2026-10-05, ya no en UF).
  *
  * `empresa2` (el segundo tenant de fábrica) NO recibe este campo: su comentario propio dice que existe "para no
  * declarar nada" a propósito (prueba el camino de un tenant que no declaró — ver su cabecera de VOCABULARIO DE

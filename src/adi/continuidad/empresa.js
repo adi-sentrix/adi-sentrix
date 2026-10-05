@@ -445,7 +445,7 @@ export async function yaFueOmitido(store, tenantId, { clase = null, concepto, ej
  *   'medido' (= el usuario lo tipeó)   → origen "declarado"
  *   'declarado' (015, explícito)       → origen "declarado"
  *   'derivado' (= lo calculó el motor) → origen "medido" (es una medición de ADI sobre datos reales, p. ej. la
- *                                         banda de tamaño calculada desde la venta en UF — `bandaTamano.js`)
+ *                                         banda de tamaño calculada desde la venta en US$ — `bandaTamano.js`)
  * `origen:"medido"` acá es la ÚNICA excepción a `ORIGENES_HECHO_EMPRESA`: es de lectura, nunca se guarda. */
 export function hechoDePerfilCampo(campo, { codigo, procedencia } = {}) {
   if (!campo || codigo == null || codigo === "") return null;
