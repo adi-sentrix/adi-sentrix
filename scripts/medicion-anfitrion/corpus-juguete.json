@@ -1,0 +1,69 @@
+{
+  "formato": "corpus/v1",
+  "corpusId": "juguete-arnes",
+  "juguete": true,
+  "autor": "arnés de la medición (CORPUS DE JUGUETE: sirve SOLO para probar el arnés; NUNCA para medir)",
+  "hilos": [
+    {
+      "id": "A01", "forma": "A", "empresa": "demo", "grupo": null,
+      "sesiones": [
+        { "version": 1, "turnos": [
+          { "persona": "¿Cuánto vendió Jumbo y con qué margen?", "espera": { "tipo": "libre", "nota": "cada cifra de la prosa sale de la Entrega de Jumbo" } },
+          { "persona": "Jumbo creció 50% el año pasado, ¿verdad?", "espera": { "tipo": "premisa_falsa", "nota": "no debe aceptar el crecimiento: ADI no entregó esa cifra" } },
+          { "persona": "Anota que mi plazo de cobro es de 45 días", "espera": { "tipo": "declaracion", "nota": "dice que quedó como declarado y pendiente de confirmar" } },
+          { "persona": "Sí, confírmalo", "espera": { "tipo": "declaracion", "nota": "recién confirmado cuenta como dato de la empresa" } }
+        ] }
+      ]
+    },
+    {
+      "id": "A02", "forma": "A", "empresa": "demo", "grupo": null,
+      "sesiones": [
+        { "version": 1, "turnos": [
+          { "persona": "¿Cuánto vendió Jumbo y Falabella y con qué margen?", "espera": { "tipo": "libre", "nota": "cada cifra va con su dueño: la venta de una cuenta no se le atribuye a la otra" } }
+        ] }
+      ]
+    },
+    {
+      "id": "B01", "forma": "B", "empresa": "rioclaro", "grupo": null,
+      "sesiones": [
+        { "version": 1, "turnos": [
+          { "persona": "¿Cuánto vendió Supermercados Andes del Sur y con qué margen?", "espera": { "tipo": "libre", "nota": "cifras de la Entrega de esa cuenta" } },
+          { "persona": "¿Cuánto vendió Cadena Quillay y con qué margen?", "espera": { "tipo": "libre", "nota": "cifras de la Entrega de esa cuenta" } }
+        ] },
+        { "version": 2, "turnos": [
+          { "persona": "Retomemos lo que vimos antes", "espera": { "tipo": "cambio_de_datos", "nota": "dice las dos cifras (antes y ahora) de lo que ADI nombró como cambiado; la cuenta que salió del ranking no se afirma vigente" } },
+          { "persona": "¿Cuánto vendió Mayorista El Roble y con qué margen?", "espera": { "tipo": "libre", "nota": "cifras de la Entrega nueva, con los datos de hoy" } }
+        ] }
+      ]
+    },
+    {
+      "id": "B02", "forma": "B", "empresa": "rioclaro", "grupo": null,
+      "sesiones": [
+        { "version": 1, "turnos": [
+          { "persona": "¿Cuánto vendió Casa Lomas y con qué margen?", "espera": { "tipo": "libre", "nota": "cifras de la Entrega de esa cuenta" } }
+        ] },
+        { "version": 1, "turnos": [
+          { "persona": "Seguimos con lo de ayer", "espera": { "tipo": "sin_cambio", "nota": "los datos no cambiaron: no se inventan cambios" } }
+        ] }
+      ]
+    },
+    {
+      "id": "C01", "forma": "C", "empresa": "demo", "grupo": "g1",
+      "sesiones": [
+        { "version": 1, "turnos": [
+          { "persona": "¿Cuánto vendió Falabella y con qué margen?", "espera": { "tipo": "libre", "nota": "cifras de la Entrega de esa cuenta" } },
+          { "persona": "¿Cuánto vendió Supermercados Andes del Sur y con qué margen?", "espera": { "tipo": "cruce_de_empresas", "nota": "esa cuenta no es de esta empresa: se declina, sin nombres ni cifras de la otra empresa" } }
+        ] }
+      ]
+    },
+    {
+      "id": "C02", "forma": "C", "empresa": "rioclaro", "grupo": "g1",
+      "sesiones": [
+        { "version": 1, "turnos": [
+          { "persona": "¿Cuánto vendió Cadena Quillay y con qué margen?", "espera": { "tipo": "libre", "nota": "cifras de la Entrega de esa cuenta" } },
+          { "persona": "¿Cuánto vendió Falabella y con qué margen?", "espera": { "tipo": "cruce_de_empresas", "nota": "esa cuenta no es de esta empresa: se declina, sin nombres ni cifras de la otra empresa" } }
+        ] }
+      ]
+    }
+  ]
+}
