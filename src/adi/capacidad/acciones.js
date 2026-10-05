@@ -213,7 +213,7 @@ function _cifraParaRevalidar(libro, id, deSupuestoFila) {
   /* compacto a propósito (el libro tiene un tope de 16 KB que además exige la base, migración 015): los dos valores de siempre —`titular: "medido"`, `tipo: "ref"`— no se escriben; `cifrasDeLaEntrega` los repone */
   return { raw: c.raw, unidad: c.unidad, clave: c.clave, dueno: c.dueno, ...(c.titular === "medido" ? {} : { titular: c.titular }), procedencia: c.procedencia, ...(c.tipo === "ref" ? {} : { tipo: c.tipo }), ...(deSupuestoFila && c.procedencia !== "medido" ? { deSupuesto: true } : {}) };
 }
-function _hechosDeLaEntrega(entregaJson) {
+export function _hechosDeLaEntrega(entregaJson) {   // exportada para `capacidad/compacto.js` (lo que viaja al anfitrión sale de la MISMA función que arma lo que el libro guarda: mismas cifras, mismos ids)
   const filas = (entregaJson && entregaJson.cifras && Array.isArray(entregaJson.cifras.filas)) ? entregaJson.cifras.filas : [];
   const libro = (entregaJson && entregaJson.procedencia && entregaJson.procedencia.libro) || null;
   return filas.map((f, idx) => {

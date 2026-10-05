@@ -40,7 +40,7 @@ const { extraerNumeros, valorImpreso, rastrearHilo } = await import(D + "rastreo
 const { chequearLimpieza } = await import(D + "limpieza.mjs");
 const { ejecutarArnes, huellaDelCodigo, validarArgs, parsearArgs } = await import(D + "arnes.mjs");
 const { crearTransporteApiSimulado } = await import(D + "anfitrion-simulado.mjs");
-const { calcularInforme, cargarSalida, cierreDeEtapa, escribirInforme } = await import(D + "informe.mjs");
+const { calcularInforme, cargarSalida, cierreDeEtapa, escribirInforme, informeEnMarkdown } = await import(D + "informe.mjs");
 const { carpetaAislada, armarComandoCli, entornoDelCli, localizarClaude } = await import(D + "anfitrion-cli.mjs");
 const { huellaDeInstruccion, huellaDeHerramientas, INSTRUCCION_DE_SISTEMA, nombresMcpDelCli } = await import(D + "instruccion.mjs");
 const { parsearVeredictoDelJuez, huellaDelJuez } = await import(D + "juez.mjs");
@@ -251,15 +251,15 @@ ok(num("45 días")[0][0] === "days", "«45 días» son días");
 ok(valorImpreso("$588K").valor === 588000 && valorImpreso("$588K").unc === 500, "lo impreso «$588K» lleva su precisión (±500)");
 // el libro: UNA Entrega real, y la prosa del anfitrión en cada variante
 const E1 = r1;     // consultar a Cadena Quillay (no-demo)
-const filasE1 = E1.entrega.json.cifras.filas.map((f) => f.valores);
-const venta = filasE1.find((f) => f["Métrica"] === "Venta")["Valor"];
+const filasE1 = E1.entrega.cifras;     // la respuesta COMPACTA que viaja al anfitrión: cada cifra con su id (`capacidad/compacto.js`)
+const venta = filasE1.find((f) => f.metrica === "Venta").valor;
 const hiloBase = (texto, persona = "¿cuánto vendió Cadena Quillay?", llamadas = [{ herramienta: "consultar", args: {}, resultado: E1 }]) => ({ hiloId: "X", forma: "A", empresa: "rioclaro", turnos: [{ sesion: 1, turno: 1, persona, textoEnviado: persona, texto, llamadas }] });
 const rastro = (texto, o = {}) => rastrearHilo(hiloBase(texto, o.persona, o.llamadas))[0];
 const veredictos = (r) => r.afirmaciones.map((a) => a.veredicto);
 ok(veredictos(rastro(`Cadena Quillay vendió ${venta}.`)).includes("traza") && !veredictos(rastro(`Cadena Quillay vendió ${venta}.`)).includes("no_traza"), "★ una cifra de la Entrega, con su dueño, traza");
 ok(veredictos(rastro("Cadena Quillay vendió $99.9M este año.")).includes("no_traza"), "★ CARNADA: una cifra INVENTADA no traza");
 ok(veredictos(rastro(`Falabella vendió ${venta}.`)).length >= 1 && rastro(`Falabella vendió ${venta}.`).cruces.length === 1, "★ CARNADA: nombrar a una cuenta del OTRO universo se detecta como cruce entre empresas");
-const ventaOtro = { ...E1, entrega: { ...E1.entrega, json: { ...E1.entrega.json, cifras: { ...E1.entrega.json.cifras, filas: [...E1.entrega.json.cifras.filas, { valores: { "Entidad / grupo": "Casa Lomas", Tema: "comercial", "Métrica": "Venta", Valor: "$5.3M", Tipo: "medido" }, hechos: ["e9"] }] } } } };
+const ventaOtro = { ...E1, entrega: { ...E1.entrega, cifras: [...E1.entrega.cifras, { id: "E1.h99", entidad: "Casa Lomas", metrica: "Venta", valor: "$5.3M", procedencia: "medido" }] } };
 ok(veredictos(rastro("Casa Lomas vendió $5.3M.", { llamadas: [{ herramienta: "consultar", args: {}, resultado: ventaOtro }] })).includes("traza"), "control: la cifra de otra cuenta que SÍ se entregó, atribuida a su dueño, traza");
 ok(veredictos(rastro(`Casa Lomas vendió ${venta}.`, { llamadas: [{ herramienta: "consultar", args: {}, resultado: ventaOtro }] })).includes("dueno_distinto"), "★ CARNADA: la cifra de una cuenta atribuida a OTRA es «dueño distinto»");
 ok(veredictos(rastro("Cadena Quillay vendió $13.0M.")).every((v) => v !== "no_traza"), "el redondeo a lo impreso («$13.0M» ≈ lo entregado) no es error", JSON.stringify(rastro("Cadena Quillay vendió $13.0M.").afirmaciones));
@@ -285,6 +285,77 @@ ok(!veredictos(turnoSin("Los datos no cambiaron desde la última vez.")).some((v
 ok(veredictos(turnoSin("Los datos cambiaron: la venta subió bastante.")).includes("cambio_inventado_revisar"), "CARNADA: decir que los datos cambiaron cuando ADI no trae cambios se lista para revisar");
 const hSin = rt3.hechos.find((h) => ["sin_reverificar", "no_comparable", "ya_no_existe"].includes(h.revalidacion.estado));
 if (hSin) ok(veredictos(turnoRet(`${hSin.sujeto}: ${hSin.metrica} sigue en ${hSin.revalidacion.anterior.valor}.`)).includes("afirmado_como_vigente_revisar") && !veredictos(turnoRet(`${hSin.sujeto}: ${hSin.metrica} (${hSin.revalidacion.anterior.valor}) no se pudo reverificar con los datos actuales.`)).includes("afirmado_como_vigente_revisar"), "CARNADA: lo «sin reverificar» afirmado como vigente se lista; decir por qué no se revalida, no");
+
+/* ═════ F2 · EL RASTREO ACEPTA SOLO DERIVACIONES ARITMÉTICAS DEMOSTRABLES (owner 2026-10-05, tras el ensayo 1) ═════════════════════════
+ * «Aceptar solo derivaciones aritméticas demostrables con las cifras entregadas. Si una suma, resta o diferencia no cierra exactamente, debe seguir marcándose
+ * como error.» Los SEIS casos que el ensayo marcó como error material y el supervisor verificó como VERDADEROS (hilo A01, la prosa real del anfitrión y lo que
+ * ADI le entregó, `fixtures/medicion-anfitrion/ensayo-1-A01-compacto.json`): la suma de dos cifras entregadas, la diferencia contra el benchmark, y cifras
+ * correctas dichas bajo una oración que nombra varias métricas. Con sus carnadas: una suma que no cierra, tres sumandos, otra métrica. */
+seccion("F2 · el rastreo acepta solo derivaciones aritméticas demostrables (los 6 casos reales del ensayo 1)");
+{
+  const FIX = JSON.parse(fs.readFileSync(new URL("./fixtures/medicion-anfitrion/ensayo-1-A01-compacto.json", import.meta.url), "utf8"));
+  const clonF = (x) => JSON.parse(JSON.stringify(x));
+  const real = rastrearHilo(FIX);
+  const del = (r, turno) => r.find((t) => t.turno === turno).afirmaciones.filter((a) => a.veredicto !== "ignorado");
+  const malas = real.flatMap((t) => t.afirmaciones.filter((a) => ["no_traza", "dueno_distinto", "metrica_distinta"].includes(a.veredicto)).map((a) => `${t.turno}: ${a.veredicto} «${a.token}»`));
+  ok(malas.length === 0, "★ el hilo A01 del ensayo (5 turnos, la prosa real del anfitrión) queda SIN errores de cifra: los 6 casos que se marcaron como material ya son verdad", malas.join(" | "));
+  const t1 = del(real, 1).find((a) => /37,2/.test(a.token));
+  ok(t1 && t1.veredicto === "traza" && t1.derivacion && t1.derivacion.operacion === "suma" && t1.derivacion.operandos.map((o) => o.texto).sort().join() === "$17.8M,$19.4M", "★ caso 1 · «suman unos $37,2 M» = $19.4M (Falabella) + $17.8M (Lider): traza, y la derivación queda registrada (operación y operandos)", JSON.stringify(t1));
+  const t4 = del(real, 4).find((a) => /8,6/.test(a.token));
+  ok(t4 && t4.veredicto === "traza" && t4.derivacion && t4.derivacion.operacion === "diferencia" && t4.derivacion.operandos.map((o) => o.texto).sort().join() === "21.5%,30.1%", "★ caso 2 · «8,6 puntos por debajo» = 30.1% (benchmark) − 21.5% (Lider): traza, derivación registrada", JSON.stringify(t4));
+  const brecha = del(real, 4).filter((a) => /1,5 M|1,6 M/.test(a.token));
+  ok(brecha.length === 2 && brecha.every((a) => a.veredicto === "traza" && !a.derivacion), "★ casos 3 y 4 · «brecha $1,5 M / $1,6 M»: cifras entregadas bajo la métrica que la oración nombra (la oración nombra varias): traza directa, sin derivación");
+  const bench = del(real, 5).filter((a) => /21,5|22 %/.test(a.token));
+  ok(bench.length === 2 && bench.every((a) => a.veredicto === "traza"), "★ casos 5 y 6 · «contra tu propio benchmark de 30,1 %, Lider (21,5 %) y Falabella (22 %)»: traza");
+  ok(real.flatMap((t) => t.afirmaciones).filter((a) => a.derivacion).length === 2, "solo esas DOS cifras necesitaron derivación: todo lo demás del hilo traza directo");
+  ok(!JSON.stringify(real.flatMap((t) => t.afirmaciones).filter((a) => a.derivacion).map((a) => a.derivacion)).includes("raw"), "la derivación registrada dice qué cifras (como se imprimieron) y qué operación, no números sueltos");
+
+  // el informe las deja a la vista: qué cifras, qué operación
+  const infD = calcularInforme({ manifiesto: null, cierre: null, hilos: [{ ...FIX, anulado: false }] });
+  ok(infD.derivaciones.length === 2 && infD.derivaciones.every((d) => d.id && d.operacion && d.operandos.length === 2 && /=/.test(d.descripcion)) && infD.erroresMateriales.length === 0, "★ el informe registra las derivaciones aceptadas (id, operación, operandos) y el hilo queda sin errores materiales", JSON.stringify(infD.derivaciones));
+  ok(informeEnMarkdown(infD).includes("## Derivaciones aritméticas aceptadas · 2") && informeEnMarkdown(infD).includes("$37,2 M = $19.4M (Falabella) + $17.8M (Lider)"), "★ el informe en texto lista cada derivación: «$37,2 M = $19.4M (Falabella) + $17.8M (Lider)»");
+
+  // ── CARNADAS: la misma prosa con UN cambio. Cada una tiene que seguir marcándose como error.
+  const conTexto = (turno, de, a) => { const h = clonF(FIX); const t = h.turnos.find((x) => x.turno === turno); if (!t.texto.includes(de)) throw new Error(`la prosa del turno ${turno} ya no trae «${de}»`); t.texto = t.texto.replace(de, a); return h; };
+  const veredictoDe = (h, turno, rx) => { const a = del(rastrearHilo(h), turno).find((x) => rx.test(x.token)); return a ? a.veredicto : null; };
+  ok(veredictoDe(conTexto(1, "$37,2 M", "$37,3 M"), 1, /37,3/) === "no_traza", "★ CARNADA · una suma que NO cierra (37,3 en vez de 37,2 = 19,4 + 17,8) sigue siendo error (no_traza)");
+  ok(veredictoDe(conTexto(1, "$37,2 M", "$37,1 M"), 1, /37,1/) === "no_traza" && veredictoDe(conTexto(1, "$37,2 M", "$38 M"), 1, /38/) === "no_traza", "CARNADA · tampoco cierra 37,1 ni «38» (a la precisión con que se imprime no es lo mismo que 37,2)");
+  ok(veredictoDe(conTexto(1, "$37,2 M", "$37 M"), 1, /^\$37 M/) === "traza", "control · «$37 M» (la misma suma, impresa con un entero) SÍ es el mismo valor impreso: traza");
+  ok(veredictoDe(conTexto(4, "8,6 puntos", "8,7 puntos"), 4, /8,7/) === "no_traza", "★ CARNADA · una diferencia que NO cierra (8,7 en vez de 8,6 = 30,1 − 21,5) sigue siendo error");
+  ok(veredictoDe(conTexto(4, "8,6 puntos", "8,5 puntos"), 4, /8,5/) === "no_traza" && veredictoDe(conTexto(4, "8,6 puntos", "8,4 puntos"), 4, /8,4/) === "no_traza" && veredictoDe(conTexto(4, "8,6 puntos", "10 puntos"), 4, /^10 pun/) === "no_traza", "CARNADA · 8,5, 8,4 y «10 puntos» tampoco cierran");
+  ok(veredictoDe(conTexto(4, "8,6 puntos", "9 puntos"), 4, /^9 pun/) === "traza", "control · «9 puntos» es 8,6 impreso con un entero (el redondeo a lo impreso no es error, como en toda cifra); el empate de media unidad no cierra");
+  // tres operandos: 19,4 + 17,8 + 17,3 = 54,5, y ninguna PAREJA de las tres da 54,5 → no se acepta
+  const tres = conTexto(1, "Entre los dos suman unos $37,2 M (CLP).", "Falabella, Lider y Jumbo ($17,3 M) suman $54,5 M.");
+  ok(veredictoDe(tres, 1, /54,5/) === "no_traza", "★ CARNADA · TRES operandos (19,4 + 17,8 + 17,3 = 54,5) no se aceptan: la regla es de DOS cifras");
+  const tresBien = conTexto(1, "Entre los dos suman unos $37,2 M (CLP).", "Falabella, Lider y Jumbo ($17,3 M) suman $37,2 M.");
+  ok(veredictoDe(tresBien, 1, /37,2/) === "traza", "control · si dos de las cifras citadas SÍ suman lo que la prosa dice, traza (la regla mira parejas)");
+  // producto y cociente: nunca
+  ok(veredictoDe(conTexto(4, "8,6 puntos", "6,5 puntos"), 4, /6,5/) === "no_traza" && veredictoDe(conTexto(4, "8,6 puntos", "9,3 %"), 4, /9,3/) === "no_traza", "CARNADA · ni un producto ni un cociente ni un «porcentaje de porcentaje» (30,1 × 21,5 %, 21,5 ÷ 30,1…) se aceptan como derivación");
+  // otra métrica: una cifra que coincide SOLO con otra métrica de la entidad sigue siendo `metrica_distinta`
+  ok(veredictoDe(conTexto(4, "Lider queda unos 8,6 puntos por debajo.", "La contribución de Jumbo es de $17,3 M."), 4, /17,3/) === "metrica_distinta", "★ CARNADA · $17,3 M es la VENTA de Jumbo: dicho como su contribución sigue siendo `metrica_distinta`");
+  ok(veredictoDe(conTexto(4, "Lider queda unos 8,6 puntos por debajo.", "Las ventas de Jumbo son de $17,3 M."), 4, /17,3/) === "traza", "control · la misma cifra bajo su métrica traza");
+  ok(veredictoDe(conTexto(4, "Lider queda unos 8,6 puntos por debajo.", "El saldo vencido de Falabella es de $19,4 M."), 4, /19,4/) === "metrica_distinta", "CARNADA · la venta de Falabella dicha como su saldo vencido sigue siendo `metrica_distinta`");
+  // el dueño sigue mandando
+  ok(veredictoDe(conTexto(4, "Lider queda unos 8,6 puntos por debajo.", "Lider vendió $8,2 M."), 4, /8,2/) === "dueno_distinto", "CARNADA · la cifra de OTRA cuenta (Sodimac, $8.2M) dicha de Lider sigue siendo `dueno_distinto`");
+  // una suma sin las cifras a la vista: la oración nombra las dos cuentas y la métrica → las dos cifras ENTREGADAS de esas cuentas bajo esa métrica
+  const sinCitar = conTexto(1, "Entre los dos suman unos $37,2 M (CLP).", "Las ventas de Falabella y de Lider suman unos $37,2 M (CLP).");
+  const dSinCitar = del(rastrearHilo(sinCitar), 1).find((a) => /37,2/.test(a.token));
+  ok(dSinCitar && dSinCitar.veredicto === "traza" && dSinCitar.derivacion && dSinCitar.derivacion.operacion === "suma", "una suma de las ventas de las DOS cuentas que la oración nombra se acepta aunque no cite cada cifra (son cifras entregadas, de esa métrica)", JSON.stringify(dSinCitar));
+  const sinCitarMal = conTexto(1, "Entre los dos suman unos $37,2 M (CLP).", "Las ventas de Falabella y de Lider suman unos $37,3 M (CLP).");
+  ok(del(rastrearHilo(sinCitarMal), 1).find((a) => /37,3/.test(a.token)).veredicto === "no_traza", "y si no cierra, error");
+  // una cifra sin ninguna derivación posible
+  ok(veredictoDe(conTexto(1, "$37,2 M", "$99,9 M"), 1, /99,9/) === "no_traza", "CARNADA · una cifra inventada sigue siendo no_traza");
+  // el rastreo no se vuelve laxo: ninguna cifra inventada «cae» en una derivación al azar sobre el hilo entero
+  let falsosPositivos = 0, probadas = 0;
+  for (let v = 1.1; v <= 60; v += 0.7) {
+    const h = clonF(FIX);
+    const t = h.turnos.find((x) => x.turno === 1);
+    t.texto = `Entre los dos suman unos $${v.toFixed(1).replace(".", ",")} M (CLP).`;
+    const a = rastrearHilo(h)[0].afirmaciones.find((x) => x.clase === 1 && x.veredicto !== "ignorado");
+    probadas += 1; if (a && a.veredicto === "traza" && a.derivacion && Math.abs(v - 37.2) > 0.05) falsosPositivos += 1;   // (una cifra que coincide con una entregada traza DIRECTO: no es derivación)
+  }
+  ok(falsosPositivos === 0, `la regla no es laxa: de ${probadas} sumas «inventadas» entre 1,1 y 60 M dichas en ese turno, solo la que cierra con las dos cifras citadas pasa (${falsosPositivos} falsos positivos)`);
+}
 
 /* ═════ G · EL ARNÉS POR LA VÍA API ════════════════════════════════════════════════════════════════════════════ */
 seccion("G · el arnés por la vía api (anfitrión simulado)");
@@ -407,8 +478,8 @@ ok(huellaDelCodigo() === huellaDelCodigo() && /^[0-9a-f]{64}$/.test(huellaDelCod
 // G6 · el TOPE: una llamada que lo superaría NO se hace
 {
   const reg = [];
-  const rt = await correrApi({ salida: sub("api-tope"), registro: reg, hilo: "A01,B01", extra: ["--tope-usd=0.12"], deps: {} }).catch((e) => ({ error: e }));
-  ok(rt.cierre && rt.cierre.motivo === "tope_alcanzado" && rt.cierre.consumo.costoUSD <= 0.12 && reg.length >= 1, "★ con un tope mínimo (US$0,12) la corrida se DETIENE y el gasto nunca lo supera", JSON.stringify(rt.cierre && rt.cierre.consumo && rt.cierre.consumo.costoUSD));
+  const rt = await correrApi({ salida: sub("api-tope"), registro: reg, hilo: "A01,B01", extra: ["--tope-usd=0.07"], deps: {} }).catch((e) => ({ error: e }));   // con la respuesta COMPACTA los dos hilos cuestan ~US$0,056 en total; el tope mira el PEOR caso de cada llamada (~US$0,06), así que 0,07 deja pasar 2-4 llamadas y para
+  ok(rt.cierre && rt.cierre.motivo === "tope_alcanzado" && rt.cierre.consumo.costoUSD <= 0.07 && reg.length >= 1, "★ con un tope mínimo (US$0,07) la corrida se DETIENE y el gasto nunca lo supera", JSON.stringify(rt.cierre && rt.cierre.consumo && rt.cierre.consumo.costoUSD));
   const antes = reg.length;
   ok(rt.cierre.detalle && /tope duro/.test(rt.cierre.detalle.detalle) && rt.cierre.consumo.topeAlcanzado, "el cierre declara por qué paró y con qué cifras (gastado, peor caso, tope)");
   ok(rt.informe.invalidaciones.some((v) => /90 %/.test(v)), "parar antes del 90 % de los turnos INVALIDA la corrida");
@@ -435,7 +506,7 @@ ok(huellaDelCodigo() === huellaDelCodigo() && /^[0-9a-f]{64}$/.test(huellaDelCod
 {
   const sal = sub("api-reanuda");
   const medida = await correrApi({ salida: sub("api-reanuda-medida"), hilo: "A01,A02,B01" });
-  const tope1 = Math.max(0.12, Number((medida.cierre.consumo.costoUSD * 0.6).toFixed(3)));
+  const tope1 = Math.min(0.08, Number((medida.cierre.consumo.costoUSD * 1.2).toFixed(3)));   // lo bastante para empezar (el tope mira el peor caso de cada llamada) y menos de lo que cuesta correr los tres hilos completos
   const R1 = await correrApi({ salida: sal, extra: [`--tope-usd=${tope1}`], hilo: "A01,A02,B01" });
   const hechos1 = R1.cierre.hilosHechos;
   ok(R1.cierre.motivo === "tope_alcanzado" && R1.cierre.turnosHechos < R1.cierre.turnosPlaneados, "primera mitad: la corrida paró por el tope", JSON.stringify(R1.cierre.motivo));

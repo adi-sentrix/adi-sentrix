@@ -53,7 +53,7 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
   const porClase = { 1: _vacioClase(), 2: _vacioClase(), 3: _vacioClase(), 4: _vacioClase() };
   const porClaseBruto = { 1: _vacioClase(), 2: _vacioClase(), 3: _vacioClase(), 4: _vacioClase() };
   const porForma = { A: _vacioClase(), B: _vacioClase(), C: _vacioClase() };
-  const materiales = [], fallasDelMedidor = [], paraRevisar = [], cruces = [], naturalidad = [];
+  const materiales = [], fallasDelMedidor = [], paraRevisar = [], cruces = [], naturalidad = [], derivaciones = [];
   let totalBruto = 0, verdaderasBruto = 0, materialesBruto = 0;
   let total = 0, verdaderas = 0;
 
@@ -76,6 +76,7 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
         if (["ignorado"].includes(a.veredicto)) continue;
         k += 1;
         const id = _id(hilo.hiloId, t.sesion, t.turno, k);
+        if (a.derivacion) derivaciones.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, token: a.token, oracion: a.oracion, operacion: a.derivacion.operacion, operandos: a.derivacion.operandos, descripcion: a.derivacion.descripcion });   // una cifra que no traza directo pero es la suma o la diferencia de DOS entregadas: queda a la vista
         const evaluable = a.veredicto === "traza" || VEREDICTOS_FALSOS.has(a.veredicto);
         if (!evaluable) { if (VEREDICTOS_PARA_REVISAR.has(a.veredicto) && !decisiones[id]) paraRevisar.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, ...a }); if (!decisiones[id]) continue; }
         const brutoV = a.veredicto === "traza";
@@ -144,7 +145,7 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
     corpus: manifiesto && manifiesto.corpus, veredicto, porQue, regla: REGLA_DE_CIERRE,
     verdad: { bruto: { afirmaciones: totalBruto, verdaderas: verdaderasBruto, pct: pctBruto, materiales: materialesBruto }, real: { afirmaciones: total, verdaderas, pct: pctVerdad, materiales: erroresMateriales } },
     porClase: { real: porClase, bruto: porClaseBruto }, porForma,
-    erroresMateriales: materiales, cruces, fallasDelMedidor, paraRevisar, naturalidad,
+    erroresMateriales: materiales, cruces, derivaciones, fallasDelMedidor, paraRevisar, naturalidad,
     clases34Juzgadas: juzgoClases34,
     invalidaciones, turnos: { hechos: turnosHechos, planeados: cierre ? cierre.turnosPlaneados : null, hilos: hilos.length, hilosAnulados: hilos.filter((h) => h.anulado).length },
     consumo, consumoDelRepo: repoConsumo ? { salieron: repoConsumo.salieron, costoUSD: repoConsumo.costoUSD, modelosSinPrecio: repoConsumo.modelosSinPrecio, sinConteo: repoConsumo.sinConteo.total } : null,
@@ -175,6 +176,8 @@ export function informeEnMarkdown(i) {
   for (const c of i.cruces.slice(0, 30)) L.push(`- hilo ${c.hilo} (${c.empresa}) turno ${c.turno}: nombra «${c.nombreAjeno}»`);
   L.push("", `## Errores materiales · ${i.erroresMateriales.length}`);
   for (const e of i.erroresMateriales.slice(0, 60)) L.push(`- [${e.id}] clase ${e.clase} · ${e.veredicto} · ${e.oracion ? `«${String(e.oracion).slice(0, 120)}»` : ""} — ${e.motivo || ""}${e.revisadoPorPersona ? " (confirmado por la persona)" : ""}`);
+  L.push("", `## Derivaciones aritméticas aceptadas · ${(i.derivaciones || []).length} (cifras que no trazan directo pero son la suma o la diferencia de DOS cifras entregadas, exacta a lo impreso — se listan para que una persona las vea)`);
+  for (const d of (i.derivaciones || []).slice(0, 60)) L.push(`- [${d.id}] ${d.descripcion} (${d.operacion}) · «${String(d.oracion || "").slice(0, 100)}»`);
   L.push("", `## Fallas del medidor · ${i.fallasDelMedidor.length} (no cuentan contra el anfitrión)`);
   for (const e of i.fallasDelMedidor.slice(0, 30)) L.push(`- [${e.id}] ${e.veredicto} → revertida${e.nota ? `: ${e.nota}` : ""}`);
   L.push("", `## Para revisar por una persona · ${i.paraRevisar.length}`);

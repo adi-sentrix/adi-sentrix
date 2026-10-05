@@ -55,13 +55,17 @@ export function crearLlamadorPuerta({ manejarPuerta, env, opciones = {}, codigos
 }
 
 /* ── lo que se retiene de cada respuesta ──────────────────────────────────────────────────────────────────────── */
-const _cifrasDe = (r) => ((r && r.entrega && r.entrega.json && r.entrega.json.cifras && r.entrega.json.cifras.filas) || [])
-  .map((f) => ({ entidad: f.valores["Entidad / grupo"] || f.valores["Entidad"] || null, metrica: f.valores["Métrica"] || null, valor: f.valores["Valor"] || null, tipo: f.valores["Tipo"] || null, hechos: f.hechos || [] }));
+/* lo que VIAJA al anfitrión es la respuesta COMPACTA (`capacidad/compacto.js`: `entrega.cifras`, cada una con el id del libro); la completa (`entrega.json.cifras.filas`) se sigue leyendo cuando es lo que se tiene (acciones sin puerta) */
+const _cifrasDe = (r) => (r && r.entrega && !r.entrega.json && Array.isArray(r.entrega.cifras)
+  ? r.entrega.cifras.map((c) => ({ entidad: c.entidad || null, metrica: c.metrica || null, valor: c.valor || null, tipo: c.procedencia || null, hechos: c.id ? [c.id] : [], id: c.id || null }))
+  : ((r && r.entrega && r.entrega.json && r.entrega.json.cifras && r.entrega.json.cifras.filas) || [])
+    .map((f) => ({ entidad: f.valores["Entidad / grupo"] || f.valores["Entidad"] || null, metrica: f.valores["Métrica"] || null, valor: f.valores["Valor"] || null, tipo: f.valores["Tipo"] || null, hechos: f.hechos || [] })));
+const _marcoDe = (r) => (r && r.entrega && (r.entrega.marco || (r.entrega.json && r.entrega.json.marco))) || null;
 export function resumirConsulta(r) {
   return {
     ok: Boolean(r && r.ok),
-    empresa: (r && r.entrega && r.entrega.json && r.entrega.json.marco && r.entrega.json.marco.empresa) || null,
-    periodo: (r && r.entrega && r.entrega.json && r.entrega.json.marco && r.entrega.json.marco.periodo && r.entrega.json.marco.periodo.texto) || null,
+    empresa: (_marcoDe(r) && _marcoDe(r).empresa) || null,
+    periodo: (_marcoDe(r) && _marcoDe(r).periodo && _marcoDe(r).periodo.texto) || null,
     cifras: _cifrasDe(r),
     conversacionId: (r && r.continuidad && r.continuidad.conversacionId) || null,
     turno: (r && r.continuidad && r.continuidad.estadoVigente && r.continuidad.estadoVigente.turno) || null,
@@ -210,7 +214,7 @@ export function compararAntesDespues({ antes, despues, empresas }) {
     // idénticas a LO ENTREGADO: cada cifra de E1/E2 que se mostró está en el libro con el mismo sujeto, métrica y valor
     const entregadas = [...a.e1.cifras, ...a.e2.cifras];
     const enLibro = d.retomar.hechos;
-    const faltan = entregadas.filter((c) => !enLibro.some((h) => h.sujeto === c.entidad && h.metrica === c.metrica && h.valor === c.valor));
+    const faltan = entregadas.filter((c) => !enLibro.some((h) => h.sujeto === c.entidad && h.metrica === c.metrica && h.valor === c.valor && (!c.id || h.id === c.id)));   // y, si la cifra viajó con su id, el libro la guardó CON ESE id
     chk(entregadas.length > 0 && faltan.length === 0 && enLibro.length === entregadas.length, `${R} · el libro tiene EXACTAMENTE las cifras que se entregaron (sujeto · métrica · valor)`, JSON.stringify({ entregadas: entregadas.length, enLibro: enLibro.length, faltan }));
     chk(d.retomar.hechos.every((h) => /^E[12]\.h\d+$/.test(h.id)) && new Set(d.retomar.hechos.map((h) => h.id)).size === d.retomar.hechos.length, `${R} · los ids de los hechos son E1.hk / E2.hk, sin repetirse`);
     chk(iguales(d.retomar.estadoVigente, a.retomar.estadoVigente), `${R} · el estado vigente es idéntico`);

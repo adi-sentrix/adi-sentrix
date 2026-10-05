@@ -58,6 +58,9 @@ const leer = (p) => fs.readFileSync(new URL(p, import.meta.url), "utf8");
 let _tick = 0;
 const relojDeGate = () => new Date(Date.UTC(2026, 9, 3, 12, 0, 0) + (++_tick) * 1000).toISOString();
 
+/* el Marco de una respuesta: la COMPACTA que viaja por la puerta (`entrega.marco`, `capacidad/compacto.js`) o la completa de las acciones directas (`entrega.json.marco`, los bancos con el defecto inyectado) */
+const marcoDe = (r) => (r && r.entrega ? (r.entrega.marco || (r.entrega.json && r.entrega.json.marco)) : null);
+
 /* ── los tres encargos del campo de prueba (formas ya tipadas, las de `fixtures/encargos-desarrollo.json`) ─────────── */
 const _c = (conv) => (conv ? { conversacionId: conv } : {});
 const encComercial = (conv = null) => ({ version: "encargo/v1", ..._c(conv), partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], entidades: [{ nombre: "Jumbo" }] }] });
@@ -275,7 +278,7 @@ async function guion(banco) {
   const res = [];
   const R = (id, cond, det = "") => res.push({ id, ok: Boolean(cond), det: cond ? "" : String(det).slice(0, 400) });
   const L = (e, a, args = {}) => banco.llamar(e, a, args);
-  const perfilDe = (c) => c.entrega.json.marco.perfil;
+  const perfilDe = (c) => marcoDe(c).perfil;
   const una = (c, campo) => Boolean(c.perfil && c.perfil.pregunta && c.perfil.pregunta.campo === campo);
   const nada = (c) => c.ok === true && c.perfil === undefined;
 
@@ -288,7 +291,7 @@ async function guion(banco) {
   R("A1 pide algo que necesita el sector → ofrece UNA pregunta: la del sector", c1.ok && q1 && !Array.isArray(q1) && q1.campo === "sector", JSON.stringify(c1.perfil));
   R("A1 con las opciones válidas de la taxonomía, cada una con su rótulo y la pregunta con su significado", q1 && JSON.stringify(q1.opciones.map((o) => o.codigo)) === JSON.stringify(sectores) && q1.opciones.every((o) => o.rotulo) && q1.significado && q1.paraQue);
   R("A1 se puede omitir y dice cómo responder", q1 && q1.omitible === true && q1.comoResponder.aporte.clase === "perfil" && q1.comoResponder.aporte.concepto === "sector" && q1.comoResponder.siNoQuiereResponder.omitir[0] === "sector");
-  R("A1 la consulta se responde igual (la Entrega viene, con su límite de perfil incompleto)", c1.entrega && c1.entrega.json && c1.entrega.json.cifras && perfilDe(c1).faltantes.includes("sector"));
+  R("A1 la consulta se responde igual (la Entrega viene, con su límite de perfil incompleto)", c1.entrega && Array.isArray(c1.entrega.cifras) && perfilDe(c1).faltantes.includes("sector"));
 
   const a2 = await L("alfa", "aportarContexto", { conversacionId: conv, aportes: [{ clase: "perfil", concepto: "sector", valor: "distribucion" }] });
   const r2 = (a2.resultados || [])[0] || {};
@@ -335,7 +338,7 @@ async function guion(banco) {
   const b3 = await L("beta", "consultar", { encargo: encComercial(bconv) });
   R("B3 omitido: NO vuelve a preguntar el sector", b3.ok && !(b3.perfil && b3.perfil.pregunta), JSON.stringify(b3.perfil && b3.perfil.pregunta && b3.perfil.pregunta.campo));
   R("B3 la limitación queda declarada en la consulta (qué no se aplica por esa omisión)", b3.perfil && b3.perfil.limitaciones && b3.perfil.limitaciones.length === 1 && b3.perfil.limitaciones[0].campo === "sector" && /no aplica las referencias del oficio/.test(b3.perfil.limitaciones[0].texto), JSON.stringify(b3.perfil));
-  R("B3 y la consulta se responde igual, con sus cifras", b3.ok && b3.entrega && b3.entrega.json.cifras && b3.entrega.json.cifras.filas.length > 0);
+  R("B3 y la consulta se responde igual, con sus cifras", b3.ok && b3.entrega && Array.isArray(b3.entrega.cifras) && b3.entrega.cifras.length > 0);
   const b4 = await L("beta", "consultar", { encargo: encCobranza(bconv) });
   R("B4 sigue sin preguntar, en cualquier consulta de esa conversación, y sigue declarando la limitación", b4.ok && !(b4.perfil && b4.perfil.pregunta) && b4.perfil && b4.perfil.limitaciones.length === 1);
   const b5 = await L("beta", "consultar", { encargo: encComercial() });
@@ -396,7 +399,7 @@ async function guion(banco) {
     if (sec(x) !== "distribucion") cruce.push(`alfa vio ${sec(x)}`);
     if (sec(y) !== "servicios") cruce.push(`beta vio ${sec(y)}`);
     if (sec(z) !== null) cruce.push(`gamma vio ${sec(z)}`);
-    if (x.entrega.json.marco.empresa !== "Comercial Alfa" || y.entrega.json.marco.empresa !== "Comercial Beta" || z.entrega.json.marco.empresa !== "Comercial Gamma") cruce.push("la Entrega nombra a otra empresa");
+    if (marcoDe(x).empresa !== "Comercial Alfa" || marcoDe(y).empresa !== "Comercial Beta" || marcoDe(z).empresa !== "Comercial Gamma") cruce.push("la Entrega nombra a otra empresa");
     if (kx.perfil.campos.sector.valor !== "distribucion" || ky.perfil.campos.sector.valor !== "servicios" || kz.perfil.campos.sector.valor !== null) cruce.push("conocerEmpresa mezcló perfiles");
     if ((kz.perfil.porConfirmar || []).length !== 2 || kx.perfil.porConfirmar || ky.perfil.porConfirmar) cruce.push("lo por confirmar de una apareció en otra");
   }
@@ -441,7 +444,7 @@ const CARNADAS = {
       ...acc,
       consultar: async (a) => {
         const r = await acc.consultar(a);
-        if (!r.ok || r.entrega.json.marco.perfil.campos.sector.valor) return r;
+        if (!r.ok || marcoDe(r).perfil.campos.sector.valor) return r;
         return { ...r, perfil: { porConfirmar: [], limitaciones: [], uso: [], ...(r.perfil || {}), pregunta: PC.preguntasDelPerfil(["sector"])[0] } };
       },
     }),
@@ -452,7 +455,7 @@ const CARNADAS = {
       ...acc,
       consultar: async (a) => {
         const r = await acc.consultar(a);
-        if (!r.ok || r.perfil || r.entrega.json.marco.perfil.campos.sector.valor) return r;
+        if (!r.ok || r.perfil || marcoDe(r).perfil.campos.sector.valor) return r;
         return { ...r, perfil: { pregunta: PC.preguntasDelPerfil(["sector"])[0], porConfirmar: [], limitaciones: [], uso: [] } };
       },
     }),
@@ -588,10 +591,10 @@ async function correrAzar({ banco, empresas, semilla, pasos, verTodo = true }) {
         if ((p ? p.campo : null) !== ex.pregunta) V(`#${i} ${E.id} (${tema}): la pregunta debía ser ${ex.pregunta} y fue ${p ? p.campo : null}`);
         const lim = ((r.perfil && r.perfil.limitaciones) || []).map((l) => l.campo).sort();
         if (JSON.stringify(lim) !== JSON.stringify([...ex.lim].sort())) V(`#${i} ${E.id}: limitaciones ${JSON.stringify(lim)} ≠ esperadas ${JSON.stringify(ex.lim)}`);
-        const camp = r.entrega.json.marco.perfil.campos;
+        const camp = marcoDe(r).perfil.campos;
         for (const c of ["sector", "modeloComercial", "pais"]) if ((camp[c].valor || null) !== (m.vig[c] || null)) V(`#${i} ${E.id}: la Entrega trae ${c}=${camp[c].valor} y lo declarado/confirmado de ESTA empresa es ${m.vig[c] || null}`);
         for (const c of ["sector", "modeloComercial", "pais"]) if (camp[c].valor && camp[c].procedencia !== "declarado") V(`#${i} ${E.id}: ${c} con procedencia ${camp[c].procedencia} (debe ser declarado)`);
-        if (r.entrega.json.marco.empresa !== E.nombre) V(`#${i} ${E.id}: la Entrega nombra a ${r.entrega.json.marco.empresa}`);
+        if (marcoDe(r).empresa !== E.nombre) V(`#${i} ${E.id}: la Entrega nombra a ${marcoDe(r).empresa}`);
         const pc = ((r.perfil && r.perfil.porConfirmar) || []).map((x) => `${x.campo}:${x.valor}`).sort();
         const pe = Object.entries(m.pend).map(([c, x]) => `${c}:${x.valor}`).sort();
         if (JSON.stringify(pc) !== JSON.stringify(pe)) V(`#${i} ${E.id}: por confirmar ${JSON.stringify(pc)} ≠ ${JSON.stringify(pe)}`);

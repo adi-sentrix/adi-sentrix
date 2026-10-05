@@ -18,7 +18,7 @@ import { nombresDelDemo, nombresDeLaEmpresaNoDemo, EMPRESA_NO_DEMO } from "./emp
 
 /* ── números ──────────────────────────────────────────────────────────────────────────────────────────────────── */
 const _ESCALA = { k: 1e3, mil: 1e3, m: 1e6, mm: 1e6, mill: 1e6, millon: 1e6, millones: 1e6 };
-const RX_NUM = /(\$\s?)?(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(\s?(?:millones|millón|mill\.?|MM|M|K|mil)\b|\s?%|\s?pp\b|\s?puntos?\b|\s?d[ií]as?\b)?/gi;
+const RX_NUM = /(\$\s?)?(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(\s?(?:millones|millón|mill\.?|MM|M|K|mil)(?![A-Za-zÁÉÍÓÚÜÑáéíóúüñ])|\s?%|\s?pp\b|\s?puntos?\b|\s?d[ií]as?\b)?/gi;
 
 function _candidatos(numTxt) {
   const t = numTxt.replace(/\s/g, "");
@@ -129,9 +129,13 @@ export function construirLibro(llamadas, buscar) {
   const hechos = [];
   const entidades = new Set();
   const retomares = [];
-  const agregarCifra = ({ entidades: ents = [], metrica = null, texto, origen, ref = null }) => {
+  /* `metrica`: el rótulo de UNA cifra (una fila de la tabla, un hecho tipado) → su clave; `metricas`: las claves que NOMBRA la línea donde se imprimió (una línea de prosa dice varias: «el margen de 21.5% contra
+   * el benchmark de 30.1%»): la cifra queda asociada a todas — la entrega no dice cuál de las que nombra es la suya, y el anfitrión que la cita bajo cualquiera de ellas no se equivoca de métrica */
+  const agregarCifra = ({ entidades: ents = [], metrica = null, metricas = null, texto, origen, ref = null }) => {
+    const clave = _claveDeMetrica(metrica);
+    const claves = metricas ? [...new Set(metricas)] : (clave ? [clave] : []);
     for (const tok of extraerNumeros(texto)) {
-      for (const c of tok.candidatos) hechos.push({ unidad: tok.unidad, valor: c.valor, unc: c.unc, entidades: ents, metrica: _claveDeMetrica(metrica), origen, ref, texto: tok.crudo });
+      for (const c of tok.candidatos) hechos.push({ unidad: tok.unidad, valor: c.valor, unc: c.unc, entidades: ents, metrica: clave || claves[0] || null, metricas: claves, origen, ref, texto: tok.crudo });
     }
   };
   const recorrer = (nodo, origen, ctx = {}) => {
@@ -139,7 +143,7 @@ export function construirLibro(llamadas, buscar) {
       for (const linea of nodo.split("\n")) {
         const ents = buscar(linea).map((x) => x.nombre);
         ents.forEach((e) => entidades.add(e));
-        agregarCifra({ entidades: ents, metrica: [...(_metricasDe(linea))][0] || null, texto: linea, origen });
+        agregarCifra({ entidades: ents, metricas: [..._metricasDe(linea)], texto: linea, origen });
       }
       return;
     }
@@ -154,7 +158,19 @@ export function construirLibro(llamadas, buscar) {
     const r = ll.resultado;
     if (!r || typeof r !== "object") continue;
     const origen = `${ll.herramienta}@${ll.sesion ?? "?"}.${ll.turno ?? "?"}`;
-    if (ll.herramienta === "consultar" && r.entrega) {
+    if (ll.herramienta === "consultar" && r.entrega && !r.entrega.json) {
+      // LA RESPUESTA COMPACTA (`capacidad/compacto.js`, lo que viaja al anfitrión): cifras con su id · apoyo (otras cifras que el texto imprime) · lo que quedó fuera del texto · el texto íntegro
+      const e = r.entrega;
+      for (const c of [...(e.cifras || []), ...((e.detalle && e.detalle.fueraDelTexto) || [])]) {
+        if (c.entidad) entidades.add(c.entidad);
+        agregarCifra({ entidades: c.entidad ? [c.entidad] : [], metrica: c.metrica, texto: String(c.valor || ""), origen, ref: c.id || null });
+        if (c.supuesto) recorrer(c.supuesto, origen);
+      }
+      // `apoyo` NO se indexa aparte: cada valor de apoyo está, por construcción, impreso en el texto (es el criterio con que entra), y ahí se indexa línea por línea como siempre — una entrada de apoyo con varias cuentas y varios valores pierde quién es dueño de cuál
+      recorrer(e.texto, origen);
+      if (e.marco) recorrer({ empresa: e.marco.empresa, periodo: e.marco.periodo, universo: e.marco.universo }, origen);
+      if (e.detalle) recorrer(e.detalle.oraciones, origen);
+    } else if (ll.herramienta === "consultar" && r.entrega) {
       const filas = (r.entrega.json && r.entrega.json.cifras && r.entrega.json.cifras.filas) || [];
       for (const f of filas) {
         const ent = f.valores && (f.valores["Entidad / grupo"] || f.valores["Entidad"]);
@@ -242,6 +258,36 @@ function _afirmaCambio(texto) {
 }
 const RX_CALIFICA_NO_VIGENTE = /no (es|son|era|eran|resulta[n]?) comparable|no se (puede|pudo|puede) (comparar|reverificar|revalidar|confirmar)|no se revalida|sin (reverificar|revalidar|reverificación)|ya no (figura|aparece|existe|se encuentra)|otro per[ií]odo|otra (moneda|unidad|referencia|fecha)|no (figura|aparece) (en|entre)|distint[oa] (per[ií]odo|fecha|corte)|no (hay|tengo) (dato|datos|cifra)/i;
 
+/* ── DERIVACIONES ARITMÉTICAS DEMOSTRABLES (owner 2026-10-05, tras el ensayo: «aceptar solo derivaciones aritméticas demostrables con las cifras entregadas; si una suma, resta o diferencia no cierra exactamente,
+ * debe seguir marcándose como error»). Una cifra de la prosa que NO traza directo se acepta SOLO si es la SUMA o la DIFERENCIA de DOS cifras entregadas en este hilo —de la misma unidad y de la misma métrica— que
+ * cierra EXACTAMENTE a la precisión con que la prosa la imprime (el valor impreso es el mismo: «37,2» = 19,4 + 17,8; «37,3» no). Las dos cifras son las que el propio anfitrión citó en el turno (nadie suma lo que no dijo) o las
+ * de las dos entidades que la oración nombra bajo la métrica que nombra. A lo más dos operandos; ni porcentaje de porcentaje, ni producto, ni cociente, ni tres sumandos: cualquier otra cuenta sigue siendo `no_traza`.
+ * Cada derivación aceptada queda registrada (qué cifras, qué operación) en la afirmación y en el informe: la acepta la regla, no la suerte. */
+const _UNIDADES_DERIVABLES = new Set(["money", "pct", "pp", "days"]);
+const _firmaDeOperando = (h) => `${h.unidad === "pp" ? "pct" : h.unidad}|${h.valor}|${[...(h.entidades || [])].map(_sinAcento).sort().join(",")}`;
+const _metricasSolapan = (a, b) => (a.metricas || []).some((m) => (b.metricas || []).includes(m));
+/** derivacionDe(tok, { citados, delaOracion }) → { operacion, operandos:[...], descripcion } | null */
+export function derivacionDe(tok, { citados = [], delaOracion = [], nombradas = [] } = {}) {
+  if (!_UNIDADES_DERIVABLES.has(tok.unidad)) return null;
+  const buenos = (lista) => { const v = new Map(); for (const h of lista) if (_UNIDADES_DERIVABLES.has(h.unidad) && _compatibles(h.unidad, tok.unidad === "pp" ? "pct" : tok.unidad) && !v.has(_firmaDeOperando(h) + "|" + (h.metricas || []).join(",") + "|" + h.texto)) v.set(_firmaDeOperando(h) + "|" + (h.metricas || []).join(",") + "|" + h.texto, h); return [...v.values()].slice(0, 80); };
+  for (const grupo of [buenos(citados), buenos(delaOracion)]) {
+    for (let i = 0; i < grupo.length; i++) for (let j = i + 1; j < grupo.length; j++) {
+      const a = grupo[i], b = grupo[j];
+      if (_firmaDeOperando(a) === _firmaDeOperando(b) || !_compatibles(a.unidad, b.unidad) || !_metricasSolapan(a, b)) continue;
+      // si la oración nombra una entidad, la cuenta es SOBRE ella: al menos un operando es suyo (una cifra de otras cuentas no la explica)
+      if (nombradas.length && ![a, b].some((h) => (h.entidades || []).some((e) => nombradas.some((d) => _sinAcento(d) === _sinAcento(e))))) continue;
+      for (const [operacion, signo, d] of [["suma", "+", a.valor + b.valor], ["diferencia", "−", Math.abs(a.valor - b.valor)]]) {
+        /* «cierra exactamente a lo impreso»: el resultado, impreso con la precisión de la prosa, es el MISMO valor — a menos de media unidad de la última cifra (4.5 impreso con un entero es 5, no 4: el empate NO cierra) */
+        if (!tok.candidatos.some((c) => Math.abs(c.valor - d) < c.unc * (1 - 1e-9))) continue;
+        const rotulo = (h) => `${h.texto}${h.entidades && h.entidades.length ? ` (${h.entidades.join("/")})` : ""}`;
+        const [x, y] = operacion === "diferencia" && a.valor < b.valor ? [b, a] : [a, b];
+        return { operacion, operandos: [x, y].map((h) => ({ texto: h.texto, entidades: h.entidades || [], metrica: h.metrica || null, ref: h.ref || null, origen: h.origen || null })), descripcion: `${tok.crudo} = ${rotulo(x)} ${signo} ${rotulo(y)}` };
+      }
+    }
+  }
+  return null;
+}
+
 /**
  * rastrearTurno({ texto, persona, llamadasDelHilo, buscarNombres, empresaId, prevHuboEntregas }) → { afirmaciones[], cruces[], flags[] }
  *   llamadasDelHilo: todas las llamadas de herramienta HASTA ESTE TURNO (inclusive), de todas las sesiones del hilo.
@@ -254,6 +300,9 @@ export function rastrearTurno({ texto, persona = "", llamadasDelHilo, llamadasDe
   const libro = construirLibro(llamadasDelHilo, buscarTodos);
   const numerosPersona = extraerNumeros(persona);
   const unidades = partirEnUnidades(t);
+  /* las cifras entregadas que la prosa de este turno CITÓ, con el párrafo donde las dijo: los operandos de una derivación son cifras que el anfitrión puso a la vista cerca de la que deriva */
+  const citas = [];
+  for (const u of unidades) for (const tk of extraerNumeros(u.texto)) if (!tk.sinUnidad) for (const h of libro.hechos) if (_coincide(tk, h)) citas.push({ h, parrafo: u.parrafo });
 
   // ── clase 1 · cada cifra de la prosa
   const entidadesDeParrafo = new Map();      // parrafo → última lista de entidades vista
@@ -272,6 +321,10 @@ export function rastrearTurno({ texto, persona = "", llamadasDelHilo, llamadasDe
       if (!coinciden.length) {
         if (tok.sinUnidad) { afirmaciones.push({ ...base, veredicto: esEcoDePersona ? "eco_persona" : "sin_unidad", material: false, motivo: "entero sin unidad que no coincide con ninguna cifra entregada: se lista, no se juzga" }); continue; }
         if (esEcoDePersona) { afirmaciones.push({ ...base, veredicto: "eco_persona", material: false, motivo: "la cifra la dijo la persona: no es una cifra de ADI (el supervisor juzga si el anfitrión la aceptó)" }); continue; }
+        const delaOracion = mets.size && dueñas.length ? libro.hechos.filter((h) => h.entidades.some((e) => dueñas.some((d) => _sinAcento(d) === _sinAcento(e))) && (h.metricas || []).some((m) => mets.has(m))) : [];
+        const citados = [...new Set(citas.filter((c) => c.parrafo === u.parrafo || c.parrafo === u.parrafo - 1 || (ents.length && c.h.entidades.some((e) => ents.some((d) => _sinAcento(d) === _sinAcento(e))))).map((c) => c.h))];
+        const deriv = derivacionDe(tok, { citados, delaOracion, nombradas: ents });
+        if (deriv) { afirmaciones.push({ ...base, veredicto: "traza", material: false, derivacion: deriv, motivo: `derivación aritmética demostrable: ${deriv.descripcion}` }); continue; }
         afirmaciones.push({ ...base, veredicto: "no_traza", material: true, motivo: "ninguna cifra entregada en este hilo coincide con este valor" });
         continue;
       }
@@ -279,7 +332,7 @@ export function rastrearTurno({ texto, persona = "", llamadasDelHilo, llamadasDe
       const dueño = dueñas.length ? coinciden.filter((h) => !h.entidades.length || h.entidades.some((e) => dueñas.some((d) => _sinAcento(d) === _sinAcento(e)))) : coinciden;
       if (!dueño.length) { afirmaciones.push({ ...base, veredicto: "dueno_distinto", material: true, motivo: `el valor está entregado, pero a otro dueño (${[...new Set(coinciden.flatMap((h) => h.entidades))].slice(0, 3).join(", ")}) y la oración habla de ${dueñas.join(", ")}`, dueñas }); continue; }
       // métrica
-      const metricasDeLasCoincidentes = new Set(dueño.map((h) => h.metrica).filter(Boolean));
+      const metricasDeLasCoincidentes = new Set(dueño.flatMap((h) => (h.metricas && h.metricas.length ? h.metricas : [h.metrica])).filter(Boolean));
       if (mets.size && metricasDeLasCoincidentes.size && ![...metricasDeLasCoincidentes].some((m) => mets.has(m))) {
         afirmaciones.push({ ...base, veredicto: "metrica_distinta", material: true, motivo: `la cifra existe pero es de ${[...metricasDeLasCoincidentes].join("/")} y la oración habla de ${[...mets].join("/")}`, confianza: "media" });
         continue;

@@ -22,6 +22,10 @@ const _AJENO = /<system-reminder>|claudeMd|CLAUDE\.md|# auto memory|MEMORY\.md|<
 
 /** chequearLimpieza({ eventos, enviados, modelo, dirTrabajo }) → { limpia, hallazgos[], residuos }
  *   enviados: los textos de usuario que el ARNÉS mandó en la sesión (lo único permitido como texto de usuario) */
+/* residuo declarado por el owner (2026-10-05): plugins incluidos en el CLI que no aportan herramientas, comandos ni habilidades */
+export const RESIDUO_ACEPTADO = Object.freeze(["cc-plugin-agents-md", "cc-plugin-plugin-authoring"]);
+export const AGENTES_ACEPTADOS = Object.freeze(["claude", "Explore", "general-purpose", "Plan", "statusline-setup"]);
+const _NOMBRE_RESIDUO = /agents-md|plugin-authoring|"subagent_type"|"name":"(Agent|Task)"|statusline-setup|general-purpose/i;
 export function chequearLimpieza({ eventos = [], enviados = [], modelo = null, dirTrabajo = null } = {}) {
   const hallazgos = [];
   const h = (regla, detalle) => hallazgos.push({ regla, detalle });
@@ -44,7 +48,22 @@ export function chequearLimpieza({ eventos = [], enviados = [], modelo = null, d
     else if (adi.status && adi.status !== "connected") h("adi_no_conectado", `el servidor «adi» quedó en estado «${adi.status}»`);
     for (const campo of ["skills", "agents", "plugins"]) {
       const v = init[campo];
-      const lista = Array.isArray(v) ? v : [];
+      let lista = Array.isArray(v) ? v : [];
+      /* RESIDUO DECLARADO (owner 2026-10-05): los dos plugins que el CLI trae incluidos («@builtin») se aceptan SOLO mientras no
+       * aporten herramientas, comandos ni habilidades. Si el init trae cualquier herramienta que no sea de ADI, algún comando o
+       * alguna habilidad, o si cualquiera de los dos aparece en la sesión (ver `_NOMBRE_RESIDUO` abajo), la corrida se anula. */
+      if (campo === "plugins") {
+        const sinAporte = (init.tools || []).every((t) => String(t).startsWith("mcp__adi__"))   /* los agentes internos se juzgan aparte (AGENTES_ACEPTADOS) */
+          && !(Array.isArray(init.slash_commands) && init.slash_commands.length)
+          && !(Array.isArray(init.skills) && init.skills.length);
+        lista = lista.filter((x) => !(sinAporte && x && RESIDUO_ACEPTADO.includes(x.name) && /@builtin$/.test(String(x.source || ""))));
+      }
+      /* RESIDUO DECLARADO (owner 2026-10-05): los agentes internos que el CLI lista se aceptan SOLO si no hay herramienta para
+       * invocarlos (el init no trae más herramientas que las de ADI). Si alguno interviene en la sesión, `residuo_intervino` anula. */
+      if (campo === "agents") {
+        const sinHerramientaDeAgentes = (init.tools || []).every((t) => String(t).startsWith("mcp__adi__"));
+        lista = lista.filter((x) => !(sinHerramientaDeAgentes && AGENTES_ACEPTADOS.includes(typeof x === "string" ? x : x && x.name)));
+      }
       if (lista.length) h("instruccion_ajena_en_init", `el init trae ${campo} cargados: ${lista.map((x) => (typeof x === "string" ? x : x && (x.name || x.id))).slice(0, 8).join(", ")}`);
     }
     if (dirTrabajo && init.cwd && String(init.cwd).replace(/[\\/]+$/, "").toLowerCase() !== String(dirTrabajo).replace(/[\\/]+$/, "").toLowerCase()) h("carpeta_distinta", `la carpeta de trabajo del anfitrión es ${init.cwd}, no la vacía del arnés (${dirTrabajo})`);
@@ -56,6 +75,8 @@ export function chequearLimpieza({ eventos = [], enviados = [], modelo = null, d
   for (const e of eventos) {
     if (!e || typeof e !== "object") continue;
     if (e.type === "system" && /^hook/i.test(String(e.subtype || ""))) h("hook", `evento de hook en la sesión (${e.subtype})`);
+    /* el residuo declarado NO puede intervenir: cualquier evento posterior al init que lo nombre anula la corrida */
+    if (!(e.type === "system" && e.subtype === "init") && _NOMBRE_RESIDUO.test(JSON.stringify(e))) h("residuo_intervino", "un plugin incluido aceptado como residuo (agents-md / plugin-authoring) aparece en la sesión: la corrida se anula");
     if (e.type === "assistant") {
       for (const b of _blocks(e.message)) {
         if (b.type === "tool_use" && !permitidas.has(b.name)) h("tool_use_ajeno", `el modelo llamó a «${b.name}», que no es una acción de ADI`);

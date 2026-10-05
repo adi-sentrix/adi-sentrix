@@ -259,9 +259,13 @@ function accionesDe(store, carnada = null, { ahora = relojDeGate, vistaBase = (s
 const encRota = (conv = null, extra = {}) => ({ version: "encargo/v1", ...(conv ? { conversacionId: conv } : {}), ...extra, partes: [{ id: "p1", tema: "inventario", cierre: "lectura", universo: { eje: "sku", estados: ["rota lento"] } }] });
 const encInv = (conv = null) => ({ version: "encargo/v1", ...(conv ? { conversacionId: conv } : {}), partes: [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital_inmovilizado"], eje: "sku" }] });
 const encCob = (ent, conv = null, extra = {}) => ({ version: "encargo/v1", ...(conv ? { conversacionId: conv } : {}), ...extra, partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["dias_vencido", "saldo_pendiente"], entidades: [{ nombre: ent, eje: "cliente" }] }] });
-const clausulaDe = (c) => ((c && c.entrega && c.entrega.json.marco.definiciones) || []).find((d) => d.startsWith("Criterio de inventario — ")) || "";
-const universoDe = (c) => ((c && c.entrega && c.entrega.json.universos[0] && c.entrega.json.universos[0].entidades) || []).slice().sort();
-const filasDe = (c) => (c && c.entrega && c.entrega.json.cifras && c.entrega.json.cifras.filas) || [];
+/* lo que viaja por la puerta es la respuesta COMPACTA (`capacidad/compacto.js`): el Marco con sus definiciones (`entrega.marco`), las cifras con su id (`entrega.cifras`) y los universos con su id y su tamaño; el JSON completo es de las acciones directas */
+const marcoDeC = (c) => (c && c.entrega ? (c.entrega.marco || (c.entrega.json && c.entrega.json.marco)) : null);
+const clausulaDe = (c) => ((marcoDeC(c) && marcoDeC(c).definiciones) || []).find((d) => d.startsWith("Criterio de inventario — ")) || "";
+const universoDe = (c) => ((c && c.entrega && (c.entrega.json ? c.entrega.json.universos : c.entrega.universos) || [])[0] || {}).entidades || [];   // la compacta dice los miembros de un universo que cabe a la vista (`universos[].entidades`)
+const universoOrdenado = (c) => universoDe(c).slice().sort();
+const filasDe = (c) => (c && c.entrega && c.entrega.json ? ((c.entrega.json.cifras && c.entrega.json.cifras.filas) || [])
+  : ((c && c.entrega && c.entrega.cifras) || []).map((x) => ({ valores: { "Entidad / grupo": x.entidad, "Métrica": x.metrica, "Valor": x.valor, "Tipo": x.procedencia }, procedencia: x.procedencia })));   // la compacta: cada cifra con su id, entidad, métrica, valor y procedencia
 const rotaMenorQue = (E, piso) => packSinUmbrales(E).skuInventario.filter((s) => s.rotacion < piso).map((s) => s.sku).sort();
 const EMP = Object.fromEntries(EMPRESAS.map((E) => [E.id, E]));
 const SNAPSHOT_CORE = () => jj({ rot: umbral("rotacionMin"), techo: umbral("dohMax"), bench: umbral("benchmark"), p: [POLICY.rotacionMin, POLICY.dohMax, POLICY.benchmark, POLICY.targetCarga], ov: getBenchmarkOverride() });
@@ -287,7 +291,7 @@ async function guionDe(banco, res) {
   R("A0 conocerEmpresa dice qué se puede declarar con lugar: los 6 criterios del léxico (más el piso de materialidad de cobranza, bloque 5) y los hechos comparables (nada de dinero)", c0.ok && c0.declarable && cmp(c0.declarable.criterios.map((x) => x.concepto), [...REFS, "piso_materialidad_cobranza"]) && c0.declarable.hechos.length > 5 && c0.declarable.hechos.every((h) => h.unidad !== "money"), jj(c0.declarable && c0.declarable.criterios.map((x) => x.concepto)));
   const a1 = await L("alfa", "consultar", { encargo: encRota() });
   const convA = a1.continuidad.conversacionId;
-  R("A1 sin declarar nada: el piso de rotación rige como «criterio general de ADI» (2.0x), sin bloque «declarado»", a1.ok && /piso de rotación: 2\.0x, criterio general de ADI/.test(clausulaDe(a1)) && a1.declarado === undefined && a1.antecedentes === undefined && cmp(universoDe(a1), rotaMenorQue(EMP.alfa, 2)), clausulaDe(a1));
+  R("A1 sin declarar nada: el piso de rotación rige como «criterio general de ADI» (2.0x), sin bloque «declarado»", a1.ok && /piso de rotación: 2\.0x, criterio general de ADI/.test(clausulaDe(a1)) && a1.declarado === undefined && a1.antecedentes === undefined && cmp(universoOrdenado(a1), rotaMenorQue(EMP.alfa, 2)), clausulaDe(a1));
   sinResiduo("A1");
   const a2 = await aportar("alfa", convA, [{ clase: "criterio", concepto: "piso_rotacion", valor: { raw: 1.5, unidad: "ratio" } }]);
   const idPiso = (a2.resultados[0] || {}).id;
@@ -297,7 +301,7 @@ async function guionDe(banco, res) {
   await confirmar("alfa", convA, [idPiso]);
   const a4 = await L("alfa", "consultar", { encargo: encRota(convA) });
   R("A4 confirmado: la Entrega lo USA — el Marco lo muestra «declarado por la empresa» con su valor", a4.ok && /piso de rotación: 1\.5x, declarado por la empresa/.test(clausulaDe(a4)), clausulaDe(a4));
-  R("A4 y lo usa DE VERDAD: los SKU que rotan lento son los que el dato dice con ese piso (calculado aparte, del dato)", cmp(universoDe(a4), rotaMenorQue(EMP.alfa, 1.5)) && !cmp(universoDe(a4), universoDe(a1)), jj([universoDe(a4), rotaMenorQue(EMP.alfa, 1.5)]));
+  R("A4 y lo usa DE VERDAD: los SKU que rotan lento son los que el dato dice con ese piso (calculado aparte, del dato)", cmp(universoOrdenado(a4), rotaMenorQue(EMP.alfa, 1.5)) && !cmp(universoOrdenado(a4), universoOrdenado(a1)), jj([universoOrdenado(a4), rotaMenorQue(EMP.alfa, 1.5)]));
   const k4 = a4.declarado && a4.declarado.criterios[0];
   R("A4 el bloque estructurado dice su origen «declarado», su sello de confirmación y lo que desplazó (el criterio de ADI que regía)", k4 && k4.concepto === "piso_rotacion" && k4.valor === 1.5 && k4.origen === "declarado" && k4.etiquetaDeOrigen === "declarado por la empresa" && k4.sello && k4.sello.medio === "chat-anfitrion" && k4.desplaza && k4.desplaza.valor === 2 && k4.desplaza.origen === "adi", jj(k4));
   sinResiduo("A4");
@@ -309,7 +313,7 @@ async function guionDe(banco, res) {
   const b2 = await aportar("beta", convB, [{ clase: "criterio", concepto: "piso_rotacion", valor: { raw: 0.9, unidad: "ratio" } }]);
   await confirmar("beta", convB, [(b2.resultados[0] || {}).id]);
   const b3 = await L("beta", "consultar", { encargo: encRota(convB) });
-  R("B3 beta confirma el suyo (0.9x): lo usa, con su origen, y calcula con SU dato", b3.ok && /piso de rotación: 0\.9x, declarado por la empresa/.test(clausulaDe(b3)) && cmp(universoDe(b3), rotaMenorQue(EMP.beta, 0.9)), clausulaDe(b3));
+  R("B3 beta confirma el suyo (0.9x): lo usa, con su origen, y calcula con SU dato", b3.ok && /piso de rotación: 0\.9x, declarado por la empresa/.test(clausulaDe(b3)) && cmp(universoOrdenado(b3), rotaMenorQue(EMP.beta, 0.9)), clausulaDe(b3));
   const a5 = await L("alfa", "consultar", { encargo: encRota(convA) });
   R("B4 alfa de nuevo: sigue con el SUYO (1.5x), nunca el de beta", a5.ok && /piso de rotación: 1\.5x, declarado por la empresa/.test(clausulaDe(a5)) && !/0\.9x/.test(a5.entrega.texto), clausulaDe(a5));
   const g1 = await L("gamma", "consultar", { encargo: encRota() });
@@ -374,8 +378,8 @@ async function guionDe(banco, res) {
   const convC = t1.continuidad.conversacionId;
   const t2 = await L("alfa", "consultar", { encargo: encRota(convC) });
   const rt = await L("alfa", "retomar", { conversacionId: convC });
-  const esperadosE1 = filasDe(t1).map((f, k) => ({ id: `E1.h${k + 1}`, sujeto: f.valores["Entidad / grupo"], metrica: f.valores["Métrica"], valor: f.valores["Valor"], origen: f.procedencia, ref: f.hechos[0] }));
-  const elegir = (hs) => hs.map((h) => ({ id: h.id, sujeto: h.sujeto, metrica: h.metrica, valor: h.valor, origen: h.origen, ref: h.ref }));
+  const esperadosE1 = filasDe(t1).map((f, k) => ({ id: `E1.h${k + 1}`, sujeto: f.valores["Entidad / grupo"], metrica: f.valores["Métrica"], valor: f.valores["Valor"], origen: f.procedencia }));   // sin `ref`: es el id interno del hecho en la Entrega (e1…), que la respuesta compacta no manda
+  const elegir = (hs) => hs.map((h) => ({ id: h.id, sujeto: h.sujeto, metrica: h.metrica, valor: h.valor, origen: h.origen }));
   const t3 = await L("alfa", "consultar", { encargo: encRota(convC, { contexto: { entregaRef: "E1" } }) });
   const aE1 = t3.antecedentes && t3.antecedentes[0];
   R("C1 `contexto: \"E1\"` trae E1: sus hechos con id, TAL CUAL se entregaron (los mismos que vio quien consultó entonces)", t3.ok && aE1 && aE1.tipo === "entrega" && aE1.id === "E1" && cmp(elegir(aE1.hechos), esperadosE1) && esperadosE1.length === 2, jj(aE1 && elegir(aE1.hechos)));
@@ -533,7 +537,7 @@ async function correrAzar({ semilla, nOps, carnada = null }) {
         const fmtP = Number.isInteger(piso) ? `${piso}.0` : String(piso);
         if (!cl.includes(`piso de rotación: ${fmtP}x, ${origenP}`)) V(E, op, "el piso de rotación no es el esperado (valor u origen)", `esperaba ${fmtP}x ${origenP} | ${cl}`);
         if (op === "inv" && !cl.includes(`techo de días de inventario: ${techo} días, ${origenT}`)) V(E, op, "el techo de cobertura no es el esperado (valor u origen)", `esperaba ${techo} días ${origenT} | ${cl}`);
-        if (op === "rota" && !cmp(universoDe(r), rotaMenorQue(E, piso))) V(E, op, "los SKU que rotan lento no salen con el piso esperado", jj([universoDe(r), rotaMenorQue(E, piso)]));
+        if (op === "rota" && !cmp(universoOrdenado(r), rotaMenorQue(E, piso))) V(E, op, "los SKU que rotan lento no salen con el piso esperado", jj([universoDe(r), rotaMenorQue(E, piso)]));
         // todo declarado usado lleva su origen: la lista estructurada son EXACTAMENTE los criterios vigentes, cada uno con su origen y su sello
         const vigs = Object.entries(modelo.crit).filter(([, m]) => m.vig).map(([k, m]) => ({ k, v: m.vig.valor }));
         const lista = (r.declarado && r.declarado.criterios) || [];
@@ -578,7 +582,7 @@ async function correrAzar({ semilla, nOps, carnada = null }) {
         const n = minN + idRng.entero(conv.turnos.length - minN + 1);
         const tipo = idRng.elegir(["entrega", "hecho", "universo"]);
         const T = conv.turnos[n - 1];
-        const esperaH = T.filas.map((f, k) => ({ id: `E${n}.h${k + 1}`, sujeto: f.valores["Entidad / grupo"], metrica: f.valores["Métrica"], valor: f.valores["Valor"], origen: f.procedencia, ref: f.hechos[0] }));
+        const esperaH = T.filas.map((f, k) => ({ id: `E${n}.h${k + 1}`, sujeto: f.valores["Entidad / grupo"], metrica: f.valores["Métrica"], valor: f.valores["Valor"], origen: f.procedencia }));   // sin `ref`: es el id interno del hecho en la Entrega (e1…), que la respuesta compacta no manda
         let contexto, esperado = null;
         if (tipo === "entrega") { contexto = { entregaRef: `E${n}` }; esperado = { tipo: "entrega" }; }
         else if (tipo === "hecho" && esperaH.length) { const k = 1 + idRng.entero(esperaH.length); contexto = { hechosRef: [`E${n}.h${k}`] }; esperado = { tipo: "hecho", h: esperaH[k - 1] }; }
@@ -588,7 +592,7 @@ async function correrAzar({ semilla, nOps, carnada = null }) {
         if (r.continuidad && r.continuidad.conversacionId) conv.id = r.continuidad.conversacionId;
         if (!r.ok) { V(E, op, "la consulta con cita no salió", jj(r.noResuelto)); continue; }
         const a = r.antecedentes && r.antecedentes[0];
-        const el = (xs) => xs.map((h) => ({ id: h.id, sujeto: h.sujeto, metrica: h.metrica, valor: h.valor, origen: h.origen, ref: h.ref }));
+        const el = (xs) => xs.map((h) => ({ id: h.id, sujeto: h.sujeto, metrica: h.metrica, valor: h.valor, origen: h.origen }));
         if (esperado.tipo === "inexistente") { if (a || !(r.noResuelto || []).some((x) => x.campo === "contexto" && x.motivo === "contexto_no_disponible")) V(E, op, "una cita inexistente debía declinarse con su motivo y no traer nada", jj(r.noResuelto)); }
         else if (esperado.tipo === "entrega") { if (!a || a.tipo !== "entrega" || a.entrega.n !== n || !cmp(el(a.hechos), esperaH) || a.entrega.versionId !== E.version) V(E, op, "la cita no trae exactamente lo entregado", jj(a && el(a.hechos))); }
         else if (esperado.tipo === "hecho") { if (!a || a.tipo !== "hecho" || !cmp(el([a.hecho]), [esperado.h])) V(E, op, "el hecho citado no es el entregado", jj(a && a.hecho)); }

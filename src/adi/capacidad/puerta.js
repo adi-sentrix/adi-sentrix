@@ -27,8 +27,13 @@
  *      argumentos de la acción tal cual (sin sobre JSON-RPC), en la ruta `/api/adi-capacidad/<accion-en-kebab>`.
  *   `GET /api/adi-capacidad/openapi.json` sirve el documento OpenAPI — sin bearer: es el contrato público que un
  *   GPT necesita LEER antes de poder llamar con su token; ninguna acción real corre sin bearer, esto solo
- *   describe la forma. */
+ *   describe la forma.
+ *
+ * LO QUE VIAJA AL ANFITRIÓN ES LA RESPUESTA COMPACTA (owner 2026-10-05, `compacto.js`): las acciones calculan, guardan y verifican con la estructura completa (libro de hechos, universos, procedencia —de 60 a 2.300 KB
+ * por consulta—), pero un anfitrión real (Claude Code, Claude.ai, ChatGPT) limita lo que devuelve una herramienta. Por los dos transportes sale una proyección pura de lo que la acción devolvió: el texto de la Entrega
+ * íntegro, las cifras con sus ids del libro (`E<n>.h<k>`), lo declarado, la continuidad y lo que no se pudo resolver; las cifras, el Core y el Notario no se tocan. */
 import { crearAcciones } from "./acciones.js";
+import { compactarParaAnfitrion } from "./compacto.js";
 import { crearAlmacenEnMemoria } from "../continuidad/almacen.js";
 import { crearAlmacenSupabase } from "../continuidad/almacenSupabase.js";
 import { CAMPOS_PERFIL_DECLARABLES } from "../continuidad/empresa.js";
@@ -234,8 +239,11 @@ async function _despachar(nombreAccion, argsCrudos, { tenant, acciones }) {
   else if (nombreAccion === "aportarContexto") salida = await acciones.aportarContexto({ tenant, conversacionId: limpio.conversacionId ?? null, aportes: limpio.aportes || [], confirmar: limpio.confirmar || [], omitir: limpio.omitir || [] });
   else salida = await acciones.retomar({ tenant, conversacionId: limpio.conversacionId });
 
-  if (!advertencias.length) return salida;
-  return { ...salida, advertencias: [...(salida.advertencias || []), ...advertencias] };
+  /* LO QUE VIAJA AL ANFITRIÓN es la respuesta COMPACTA (`compacto.js`, owner 2026-10-05): el texto de la Entrega íntegro, las cifras con sus ids, la continuidad y lo declarado; la estructura interna
+   * completa (libro de hechos, universos, procedencia) se queda DENTRO de ADI — las acciones de arriba la calcularon, guardaron y verificaron con ella. Un anfitrión real limita lo que una herramienta devuelve. */
+  const viaja = compactarParaAnfitrion(nombreAccion, salida);
+  if (!advertencias.length) return viaja;
+  return { ...viaja, advertencias: [...(viaja.advertencias || []), ...advertencias] };
 }
 
 /* ── TRANSPORTE 1 · MCP JSON-RPC 2.0 ─────────────────────────────────────────────────────────────────────────── */

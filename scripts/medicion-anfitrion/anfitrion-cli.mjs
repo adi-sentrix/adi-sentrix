@@ -31,12 +31,22 @@ const GUARDA_OFFLINE = pathToFileURL(join(AQUI, "..", "offline-guard.mjs")).href
 
 /* ── el entorno del hijo: sin credencial de API; con el ruido del CLI apagado hasta donde se puede ────────────────── */
 const _CREDENCIALES_DE_API = /^(ANTHROPIC_(API_KEY|AUTH_TOKEN|BASE_URL|MODEL|SMALL_FAST_MODEL)|OPENAI_|AZURE_OPENAI|GEMINI_|GOOGLE_API_KEY|AWS_|CLAUDE_CODE_USE_(BEDROCK|VERTEX|FOUNDRY)|CLAUDE_CODE_API_KEY_HELPER|LLM_)/i;
+const _SESION_DEL_HOST = /^(CLAUDECODE$|CLAUDE_CODE_|CLAUDE_AGENT_SDK|CLAUDE_PID$|CLAUDE_EFFORT$|CLAUDE_PREVIEW_)/;
 export function entornoDelCli(base = process.env, { conservarBaseUrl = false } = {}) {
   const env = {};
   const quitadas = [];
-  for (const [k, v] of Object.entries(base)) { if (_CREDENCIALES_DE_API.test(k) && !(conservarBaseUrl && k === "ANTHROPIC_BASE_URL")) quitadas.push(k); else env[k] = v; }
+  for (const [k, v] of Object.entries(base)) {
+    const deApi = _CREDENCIALES_DE_API.test(k) && !(conservarBaseUrl && k === "ANTHROPIC_BASE_URL");
+    /* supervisor 2026-10-05: el arnés corre DENTRO de una sesión de Claude Code (app de escritorio) y hereda sus variables de
+     * sesión (CLAUDECODE, CLAUDE_CODE_SESSION_ID, CLAUDE_CODE_ENABLE_ASK_USER_QUESTION_TOOL, CLAUDE_CODE_MESSAGING_*…): el hijo
+     * se comportaría como una subsesión de ella (p. ej. sumando AskUserQuestion). Ninguna variable de sesión de Claude pasa al
+     * hijo; solo las que este arnés fija abajo. */
+    const deSesion = _SESION_DEL_HOST.test(k);
+    if (deApi || deSesion) quitadas.push(k); else env[k] = v;
+  }
   // best-effort (no todas existen en todas las versiones): el chequeo de limpieza es la garantía, no estas variables
-  Object.assign(env, { CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", DISABLE_AUTOUPDATER: "1", CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" });
+  /* MAX_MCP_OUTPUT_TOKENS (supervisor 2026-10-05): sin subirlo, Claude Code guarda en un archivo la respuesta grande de una herramienta y el anfitrión no ve la Entrega completa (humo-3: intentó leerla con bash) */
+  Object.assign(env, { MAX_MCP_OUTPUT_TOKENS: "200000", CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", DISABLE_AUTOUPDATER: "1", CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" });
   return { env, quitadas };
 }
 

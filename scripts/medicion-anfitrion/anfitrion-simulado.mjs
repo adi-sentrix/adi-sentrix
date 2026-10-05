@@ -15,7 +15,10 @@
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const OTRA_EMPRESA = { demo: "Cadena Quillay", rioclaro: "Falabella" };
 
-const _filas = (r) => ((r && r.entrega && r.entrega.json && r.entrega.json.cifras && r.entrega.json.cifras.filas) || []).map((f) => ({ ent: f.valores["Entidad / grupo"], met: f.valores["Métrica"], val: f.valores["Valor"] }));
+/* las cifras de la Entrega: la respuesta COMPACTA que viaja por la puerta (`entrega.cifras`), o la completa de antes (`entrega.json.cifras.filas`) si es lo que se tiene */
+const _filas = (r) => (r && r.entrega && !r.entrega.json && Array.isArray(r.entrega.cifras)
+  ? r.entrega.cifras.map((c) => ({ ent: c.entidad, met: c.metrica, val: c.valor }))
+  : ((r && r.entrega && r.entrega.json && r.entrega.json.cifras && r.entrega.json.cifras.filas) || []).map((f) => ({ ent: f.valores["Entidad / grupo"], met: f.valores["Métrica"], val: f.valores["Valor"] })));
 const _ultimo = (hist, nombre) => [...hist].reverse().find((l) => l.herramienta === nombre);
 const _convId = (hist, persona) => { const ll = [...hist].reverse().find((l) => l.resultado && (l.resultado.conversacionId || (l.resultado.continuidad && l.resultado.continuidad.conversacionId))); return ll ? (ll.resultado.conversacionId || ll.resultado.continuidad.conversacionId) : ((String(persona).match(UUID) || [])[0] || null); };
 
