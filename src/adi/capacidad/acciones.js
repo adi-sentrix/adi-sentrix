@@ -85,8 +85,9 @@ import { PIEZAS_CONOCIMIENTO } from "../conocimiento/piezas.js";
 import { ADI_CONOCIMIENTO } from "../../config/voiceFlags.js";
 import {
   libroNuevo, emitirConversacionId, detectarCambioVersion, registrarEntrega,
-  actualizarCriterio, agregarSupuestoVivo, registrarPremisa, registrarHechoAportado,
+  actualizarCriterio, agregarSupuestoVivo, registrarPremisa, registrarHechoAportado, registrarDerivacion, derivacionesDe,
 } from "../continuidad/libro.js";
+import { validarDerivacion, calcularDerivacion, derivacionParaElLibro, respuestaDeLaDerivacion, cifrasDeLosOperandos, llaveDeDerivacion } from "./derivar.js";
 import { estadoVigenteDe, eventosDeContinuidad, lineaDeContinuidad } from "../continuidad/estadoVigente.js";
 import { retomar as reverificarConversacion } from "../continuidad/retomar.js";
 import { cifraDeHecho, referenciasDe, revalidarEntrega, reverificadorDe, encargoParaElLibro } from "../continuidad/revalidar.js";
@@ -102,8 +103,7 @@ import { conTenantActivo } from "./aislamiento.js";
  * «benchmark ≠ promedio ≠ meta»); y la libertad de redacción tiene un único límite — nombrar la simulación o la
  * entidad SOLO cuando de verdad hay ambigüedad (ley del colapso de escenarios: el texto dice «simulación»). */
 export const CABECERA_DE_USO = Object.freeze([
-  "Las cifras de esta respuesta ya están verificadas por ADI: no se recalculan ni se derivan a mano sobre el texto — un número nuevo se pide como una consulta nueva.",
-  "No calcule por su cuenta totales ni promedios de más de dos cifras: use el total que entrega ADI o pídaselo como una consulta nueva.",
+  "Toda cifra empresarial que usted diga —en números o en palabras, incluidos totales, diferencias, porcentajes y conteos— debe ser un hecho que ADI le entregó en esta conversación. Si la cifra que necesita no está entre lo entregado, no la calcule ni la complete: pídasela a ADI (derivar, sobre identificadores ya entregados; o una consulta nueva). Redondear a lo impreso no es calcular.",
   "Lo que la Entrega declara en «Lo que no se puede concluir» se respeta: son hallazgos, no excusas — no se afirma lo contrario ni se rellena el hueco con una suposición.",
   `La «Referencia del oficio» es conocimiento general del sector, no un dato de esta empresa ni un objetivo suyo; el benchmark lleva su origen (${ETIQUETA_ORIGEN[ORIGEN.EMPRESA]} o criterio general de ADI) y no es un promedio.`,
   "Redacte con total libertad — resuma, ordene, adapte el tono al lector — y nombre la simulación o la entidad exacta SOLO cuando haya ambigüedad real sobre a cuál se refiere la cifra.",
@@ -215,7 +215,7 @@ function _cifraParaRevalidar(libro, id, deSupuestoFila) {
   /* compacto a propósito (el libro tiene un tope de 16 KB que además exige la base, migración 015): los dos valores de siempre —`titular: "medido"`, `tipo: "ref"`— no se escriben; `cifrasDeLaEntrega` los repone */
   return { raw: c.raw, unidad: c.unidad, clave: c.clave, dueno: c.dueno, ...(c.titular === "medido" ? {} : { titular: c.titular }), procedencia: c.procedencia, ...(c.tipo === "ref" ? {} : { tipo: c.tipo }), ...(deSupuestoFila && c.procedencia !== "medido" ? { deSupuesto: true } : {}) };
 }
-export function _hechosDeLaEntrega(entregaJson) {   // exportada para `capacidad/compacto.js` (lo que viaja al anfitrión sale de la MISMA función que arma lo que el libro guarda: mismas cifras, mismos ids)
+export function _hechosDeLaEntrega(entregaJson, { conFueraDelTexto = true } = {}) {   // exportada para `capacidad/compacto.js` (lo que viaja al anfitrión sale de la MISMA función que arma lo que el libro guarda: mismas cifras, mismos ids)
   const filas = (entregaJson && entregaJson.cifras && Array.isArray(entregaJson.cifras.filas)) ? entregaJson.cifras.filas : [];
   const libro = (entregaJson && entregaJson.procedencia && entregaJson.procedencia.libro) || null;
   /* EL TOTAL DEL LISTADO (owner 2026-10-05): cuando la Entrega sirvió un listado COMPLETO de una métrica aditiva, `componerEntrega` declaró en el libro la SUMA EXACTA de sus filas y la dejó en `cifras.totales` (no impresa en el texto).
@@ -228,7 +228,7 @@ export function _hechosDeLaEntrega(entregaJson) {   // exportada para `capacidad
     const c = libro && t.hecho ? _cifraParaRevalidar(libro, t.hecho, false) : null;
     return c ? { ...base, rv: { ...c, dueno: "listado completo", deListado: true, prioridad: filas.length + j } } : base;
   });
-  return filas.map((f, idx) => {
+  const hechoDeFila = (f, idx) => {
     const v = (f && f.valores) || {};
     const ids = Array.isArray(f.hechos) ? f.hechos : [];
     const hecho = {
@@ -255,7 +255,13 @@ export function _hechosDeLaEntrega(entregaJson) {   // exportada para `capacidad
     const l0 = columnaDe(ids[0]);
     const mas = ids.slice(1).map((id) => { const cf = _cifraParaRevalidar(libro, id, deSupuestoFila); if (!cf) return null; const l = columnaDe(id); return { ref: id, metrica: l.col, valor: l.texto, ...cf }; }).filter(Boolean);
     return { ...hecho, rv: { ...primera, prioridad, sujeto: typeof v[claves[0]] === "string" ? v[claves[0]] : null, metrica: l0.col, valor: l0.texto, ...(mas.length ? { mas } : {}) } };
-  }).concat(hechosDeTotales);
+  };
+  /* LAS CIFRAS DE `detalle.fueraDelTexto` (owner 2026-10-05, §8.2 del Contrato del Anfitrión: «toda cifra que viaja al anfitrión lleva id»): lo que la Entrega recortó de la tabla de Cifras va al detalle y viaja al anfitrión; ahora entra al libro
+   * DESPUÉS de las filas y de los totales (ningún id `E<n>.h<k>` existente se mueve), con su `rv` — así el anfitrión puede derivar sobre ellas y `retomar` las revalida. `fuera:true` las distingue: no son parte de la tabla de la Entrega (el rango de ids
+   * del estado vigente y las entidades entregadas siguen siendo las de siempre). */
+  const detalleFilas = conFueraDelTexto && entregaJson && entregaJson.detalle && Array.isArray(entregaJson.detalle.filas) ? entregaJson.detalle.filas : [];
+  const hechosFuera = detalleFilas.map((f, j) => ({ ...hechoDeFila(f, filas.length + totales.length + j), fuera: true }));
+  return filas.map(hechoDeFila).concat(hechosDeTotales, hechosFuera);
 }
 /* ── EL DATASET «DE HOY» DE UNA EMPRESA: la ficha que cargó + lo que declaró conversando y confirmó (bloques 2 y 3) ──────────────────────────────────────────────────────────
  * UNA sola función para `consultar` y para `retomar` (bloque 4): para que una cifra revalidada hoy salga de EXACTAMENTE el mismo dataset con el que `consultar` la daría hoy (una sola
@@ -271,7 +277,7 @@ export function _datasetDeLaEmpresa(datasetDelTenant, estadoPerfil, loDeclarado)
   return { dataset, criteriosAplicados, benchmarkDeclarado: criterios.find((c) => c.llave === "benchmark") || null };
 }
 
-/** crearAcciones({ continuidad?, ahora? }) → { conocerEmpresa, consultar, aportarContexto, retomar }
+/** crearAcciones({ continuidad?, ahora? }) → { conocerEmpresa, consultar, aportarContexto, retomar, derivar }
  *
  *  `continuidad` es el ALMACÉN inyectable de `src/adi/continuidad/almacen.js` — UNA interfaz asíncrona para la
  *  memoria en proceso (`crearAlmacenEnMemoria()`, el default: la misma instancia que usan los gates) y para
@@ -451,6 +457,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       const cambioVersion = detectarCambioVersion(libro, versionIdActivo);
 
       const eventosBase = { cambioVersion, cifrasReverificadas: [], premisasFalsas: [], criterioCambio: null, supuestosVivosRelevantes: [] };
+      let fueraSinId = false;   /* las cifras de `fueraDelTexto` no caben en el libro (16 KB): se entregan como siempre, sin id (ver más abajo) */
 
       if (salida.ok && salida.entrega) {
         // § criterio (§4·2 del contrato del encargo, ya resuelto por `validarEncargo` — nunca se infiere acá)
@@ -480,9 +487,9 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
 
         // § lo entregado, como referencias (paso 8) — ver `_hechosDeLaEntrega`
         const hechosParaLibro = _hechosDeLaEntrega(salida.entrega);
-        const entidadesEntregadas = [...new Set(hechosParaLibro.map((h) => h.sujeto).filter(Boolean))];
+        const entidadesEntregadas = [...new Set(hechosParaLibro.filter((h) => !h.fuera).map((h) => h.sujeto).filter(Boolean))];   /* las de la tabla de la Entrega: las cifras de `fueraDelTexto` entran al libro con id pero no cambian quiénes se entregaron */
         const cierres = [...new Set((resolucion.partes || []).map((p) => p.cierre).filter(Boolean))];
-        libro = registrarEntrega(libro, {
+        const entradaDeLaEntrega = {
           versionId: versionIdActivo,
           temas: salida.entrega.temasCubiertos || [],
           entidades: entidadesEntregadas,
@@ -493,7 +500,16 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
           periodo: (salida.entrega.marco && salida.entrega.marco.periodo) || null,
           // BLOQUE 4: lo que hace falta para REVALIDAR esta Entrega al retomar (el Encargo, con qué referencias se calculó, la moneda): se guarda en el libro, nunca sale en esta respuesta
           revalidable: true, encargo: encargoParaElLibro(resolucion.encargo), referencias: referenciasDe({ criteriosAplicados, marco: salida.entrega.marco }), moneda: (salida.entrega.marco && salida.entrega.marco.moneda) || null,
-        });
+        };
+        let conFuera = registrarEntrega(libro, entradaDeLaEntrega);
+        /* EL TOPE DE 16 KB MANDA (Contrato del Anfitrión, §8.2): las cifras de `fueraDelTexto` con id entran al libro SOLO si con ellas el libro no recorta más Entregas que sin ellas — nunca le cuestan al hilo una Entrega que antes se conservaba.
+         * Si no caben, esta Entrega queda como siempre (sin esas cifras en el libro) y sus cifras de `fueraDelTexto` viajan SIN id: no se puede derivar sobre lo que el libro no guarda. */
+        if (hechosParaLibro.some((h) => h.fuera)) {
+          const sinFuera = registrarEntrega(libro, { ...entradaDeLaEntrega, hechos: hechosParaLibro.filter((h) => !h.fuera) });
+          const vivas = (L) => L.entregas.filter((e) => !e.recortada).length;
+          if (vivas(conFuera) < vivas(sinFuera)) { conFuera = sinFuera; fueraSinId = true; }
+        }
+        libro = conFuera;
       }
 
       // 4 · ESCRIBIR (base) — después de salir del tramo del Core. Si SOLO falla guardar, la Entrega (verdadera) se
@@ -549,7 +565,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
 
       return {
         ok: Boolean(salida.ok),
-        entrega: salida.ok ? { texto: textoConContinuidad, json: salida.entrega } : null,
+        entrega: salida.ok ? (fueraSinId ? Object.defineProperty({ texto: textoConContinuidad, json: salida.entrega }, "fueraSinId", { value: true }) : { texto: textoConContinuidad, json: salida.entrega }) : null,   /* `fueraSinId`: no enumerable —no sale en el JSON—; solo se lo dice a `compacto.js` */
         noResuelto: resolucion.noResuelto || [],
         uso: CABECERA_DE_USO,
         ...(avisosDeForma.length ? { advertencias: avisosDeForma } : {}),
@@ -788,5 +804,47 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
     };
   }
 
-  return { conocerEmpresa, consultar, aportarContexto, retomar };
+  /* 5 · derivar({ tenant, conversacionId, operacion, sobre, base?, condicion? }) → un HECHO NUEVO (`D<k>`, procedencia «derivado») calculado por ADI sobre cifras que ya entregó en esta conversación (Contrato del Anfitrión, owner 2026-10-05:
+   * «si necesita una cifra, total, porcentaje, conteo o diferencia que ADI no le entregó, debe volver a ADI en vez de calcularlo»). Suma · diferencia · participación · conteo, con aritmética exacta sobre los crudos del libro
+   * (`derivar.js`, puro). NO toca el Core: no pasa por `validarEncargo` ni `componerEntrega` ni entra a `conTenantActivo` — opera sobre el libro de la conversación.
+   *
+   * ORDEN (D2): 1 · LEER el libro (base) → 2 · calcular (puro, sin Core) → 3 · ESCRIBIR el libro (base), todo serializado por conversación (el mismo candado que `consultar`). A diferencia de `consultar`, que entrega la Entrega
+   * verdadera aunque no pueda guardar, acá el id ES el producto: si GUARDAR falla, la acción FALLA CERRADA (`memoria:"no_disponible"`) — un `D1` que no quedó guardado se reasignaría al siguiente pedido. IDEMPOTENTE: el mismo pedido
+   * (operación, operandos, base, condición) devuelve la derivación que ya existe (`repetida:true`) y NO escribe el libro. */
+  async function derivar({ tenant, conversacionId = null, operacion, sobre, base, condicion } = {}) {
+    const forma = _validarTenant(tenant);
+    if (!forma.ok) return { ok: false, motivo: forma.motivo, uso: CABECERA_DE_USO };
+    const tenantId = tenant.id || null;
+    if (!conversacionId || typeof conversacionId !== "string") {
+      const v = validarDerivacion(null, { conversacionId: null, operacion, sobre });
+      return { ok: false, motivo: v.motivo, detalle: v.detalle, uso: CABECERA_DE_USO };
+    }
+    const trabajo = async () => {
+      let libro;
+      try { libro = await store.leerLibro(tenantId, conversacionId); }
+      catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: CABECERA_DE_USO }; throw e; }
+      const pedido = { conversacionId, operacion, sobre, base, condicion };
+      const v = validarDerivacion(libro, pedido, { tenantId });
+      if (!v.ok) return { ok: false, motivo: v.motivo, detalle: v.detalle, ...(v.ids ? { ids: v.ids } : {}), uso: CABECERA_DE_USO };
+
+      const llave = llaveDeDerivacion({ operacion: v.operacion, sobre: v.operandos.map((x) => x.id), base: v.base ? v.base.id : null, condicion: v.condicion });
+      const previa = derivacionesDe(libro).find((d) => llaveDeDerivacion(d) === llave);
+      if (previa) {
+        const ids = [...previa.sobre, ...(previa.base ? [previa.base] : []), ...(previa.condicion && typeof previa.condicion.valor === "string" ? [previa.condicion.valor] : [])];
+        return { ok: true, conversacionId, ...respuestaDeLaDerivacion(previa, cifrasDeLosOperandos(libro, ids)), repetida: true, continuidad: { conversacionId, guardada: true }, uso: CABECERA_DE_USO };
+      }
+
+      const c = calcularDerivacion(v);
+      if (!c) return { ok: false, motivo: "operando_sin_valor_exacto", detalle: "no se pudo calcular la derivación con las cifras indicadas", uso: CABECERA_DE_USO };
+      const nuevo = registrarDerivacion(libro, derivacionParaElLibro(pedido, v, c));
+      try { await store.guardarLibro(tenantId, nuevo); }
+      catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: CABECERA_DE_USO }; throw e; }
+      const d = nuevo.derivaciones[nuevo.derivaciones.length - 1];
+      const operandosPorId = new Map([...v.operandos, ...(v.base ? [v.base] : []), ...(v.referencia ? [v.referencia] : [])].map((x) => [x.id, x]));
+      return { ok: true, conversacionId, ...respuestaDeLaDerivacion(d, operandosPorId), repetida: false, continuidad: { conversacionId, guardada: true }, uso: CABECERA_DE_USO };
+    };
+    return serializarPorClave(`libro|${tenantId}|${conversacionId}`, trabajo);
+  }
+
+  return { conocerEmpresa, consultar, aportarContexto, retomar, derivar };
 }

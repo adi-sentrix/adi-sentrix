@@ -443,7 +443,7 @@ H("8 · revalidarEntrega (los estados y sus reglas duras) y elegirCambiosANombra
 H("9 · auditorías de código: retomar no escribe, ADI no reconoce frases, la cadena de la puerta sigue sin node:*");
 {
   const acc = sinComentarios(fs.readFileSync("./src/adi/capacidad/acciones.js", "utf8"));
-  const i0 = acc.indexOf("async function retomar("), i1 = acc.indexOf("return { conocerEmpresa, consultar, aportarContexto, retomar };");
+  const i0 = acc.indexOf("async function retomar("), i1 = acc.indexOf("async function derivar(");   /* retomar termina donde empieza la quinta acción (Contrato del Anfitrión) */
   const cuerpo = acc.slice(i0, i1);
   ok(i0 > 0 && i1 > i0 && !/guardarLibro|registrarEntrega|guardarHechoEmpresa|actualizarHechoEmpresa/.test(cuerpo), "★ `retomar` no contiene ninguna escritura (ni al libro ni a la memoria): SOLO LEE");
   ok(/guardarLibro/.test(acc.slice(acc.indexOf("async function consultar(") , i0)) && /registrarEntrega\(/.test(acc), "control: `consultar` sí escribe el libro (el candado de arriba distingue)");

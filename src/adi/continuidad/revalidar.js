@@ -31,6 +31,7 @@
  * fila de Cifras, la MISMA con que `entrega/tamano.js` decide qué se recorta: menor = más prioritaria) y la magnitud solo DESEMPATA. */
 import { formatoDeLaCasa } from "../notario/hechos.js";
 import { normalizar } from "../notario/afirmacion.js";
+import { aritmeticaDeDerivacion } from "../capacidad/derivar.js";   /* el ciclo con `derivar.js` es solo de funciones usadas en una llamada (nada se evalúa al cargar): UNA sola aritmética para derivar y para revalidar */
 
 export const ESTADOS_DE_REVALIDACION = Object.freeze(["igual", "cambio", "ya_no_existe", "no_comparable", "no_se_revalida", "sin_reverificar"]);
 export const MOTIVOS_NO_COMPARABLE = Object.freeze(["otro_periodo", "otra_moneda", "otra_unidad", "otra_referencia", "otro_universo"]);
@@ -123,6 +124,7 @@ const MOTIVO = Object.freeze({
   incompleta: "la consulta ya no se pudo responder completa con los datos actuales",
   ambigua: "la misma cifra aparece más de una vez, con valores distintos, en los datos actuales",
   deListado: "es la suma de las cifras de su listado, que se revalidan una por una: el total no se vuelve a comparar aparte, y no se afirma como vigente",
+  derivacion: "uno de sus operandos no se pudo revalidar: la derivación no se afirma vigente",
 });
 const _motivoDeTitular = (t) => (t === "declarado" ? MOTIVO.declarado : t === "documento" ? MOTIVO.documento : MOTIVO.supuesto);
 
@@ -226,6 +228,37 @@ export function revalidarEntrega(entrega, ctx = {}) {
   return { hechos, resumen: resumirRevalidacion([...hechos.values()]) };
 }
 
+/* ═══ 2b · REVALIDAR UNA DERIVACIÓN (Contrato del Anfitrión, owner 2026-10-05) ═══════════════════════════════════════════════════════════════════════
+ * Una derivación `D<k>` se revalida POR SUS OPERANDOS, nunca volviendo a correr nada: `igual` si todos sus operandos son `igual`; `cambio` si todos tienen cifra de hoy y alguno cambió —se recalcula con los crudos de hoy: anterior, actual y
+ * diferencia los calcula ADI—; `no_se_revalida` si algún operando es `ya_no_existe` / `no_comparable` / `no_se_revalida` / `sin_reverificar` (o la Entrega que lo sostenía ya no se conserva): la derivación no se afirma vigente. Si el recálculo
+ * imprime lo mismo que antes (los cambios se compensan), es `igual`: no hubo cambio de lo que se dijo. */
+const _idsDeLaDerivacion = (d) => [...(Array.isArray(d.sobre) ? d.sobre : []), ...(d.base ? [d.base] : []), ...(d.condicion && typeof d.condicion.valor === "string" ? [d.condicion.valor] : [])];
+/** revalidarDerivacion(d, resultadosPorId, { versionIdActual? }) → revalidacion · `resultadosPorId` = Map id de cifra → su `revalidacion` (la de `revalidarEntrega`) */
+export function revalidarDerivacion(d, resultadosPorId, { versionIdActual = null } = {}) {
+  const R = d && d.resultado && typeof d.resultado === "object" ? d.resultado : {};
+  const anterior = { valor: R.texto != null ? R.texto : null, raw: _finito(R.raw) ? R.raw : null, unidad: R.unidad || null };
+  const mapa = resultadosPorId instanceof Map ? resultadosPorId : new Map();
+  const ids = _idsDeLaDerivacion(d || {});
+  const rs = ids.map((id) => mapa.get(id));
+  const vigente = (r) => r && (r.estado === "igual" || r.estado === "cambio") && r.anterior && _finito(r.anterior.raw) && (r.estado === "igual" || (r.actual && _finito(r.actual.raw)));
+  if (!ids.length || !rs.every(vigente)) return { estado: "no_se_revalida", motivo: MOTIVO.derivacion, anterior };
+  if (rs.every((r) => r.estado === "igual")) return { estado: "igual", anterior };
+  /* los crudos de HOY: el actual de lo que cambió, el guardado de lo que sigue igual */
+  const hoy = new Map(ids.map((id, i) => [id, { raw: rs[i].estado === "cambio" ? rs[i].actual.raw : rs[i].anterior.raw, unidad: rs[i].anterior.unidad || null, clave: null }]));
+  const aHoy = aritmeticaDeDerivacion(d.operacion, {
+    sobre: d.sobre.map((id) => hoy.get(id)), base: d.base ? hoy.get(d.base) : null,
+    condicion: d.condicion ? { op: d.condicion.op, valor: typeof d.condicion.valor === "string" ? hoy.get(d.condicion.valor).raw : d.condicion.valor } : null,
+  });
+  if (!aHoy) return { estado: "no_se_revalida", motivo: MOTIVO.derivacion, anterior };
+  if (aHoy.texto === anterior.valor) return { estado: "igual", anterior };
+  const dif = anterior.raw != null ? aHoy.raw - anterior.raw : null;
+  return {
+    estado: "cambio", anterior, actual: { valor: aHoy.texto, raw: aHoy.raw, unidad: aHoy.unidad, hecho: d.id },
+    ...(dif != null ? { diferencia: { valor: dif, texto: formatoDeLaCasa(Math.abs(dif), aHoy.unidad === "pct" ? "pp" : aHoy.unidad), sentido: dif > 0 ? "sube" : "baja" } } : {}),
+    cargaAnterior: d.versionId != null ? d.versionId : null, cargaActual: versionIdActual,
+  };
+}
+
 /** resumirRevalidacion(revalidaciones) → { total, igual, cambio, ya_no_existe, no_comparable, no_se_revalida, sin_reverificar, noComparablePorMotivo } · el conteo por estado (la suma es siempre el total) */
 export function resumirRevalidacion(revalidaciones) {
   const lista = Array.isArray(revalidaciones) ? revalidaciones : [];
@@ -244,8 +277,17 @@ export function resumirRevalidacion(revalidaciones) {
  *  (su Entrega no se revalidó) vuelve `sin_reverificar`: nunca se adivina un veredicto. */
 export function reverificadorDe(resultadosPorEntrega) {
   const mapa = resultadosPorEntrega instanceof Map ? resultadosPorEntrega : new Map();
-  return (h) => {
+  return (h, ctx) => {
     const id = String((h && h.id) || "");   // el id del libro (`E<n>.h<k>`): el `n` dice a qué re-corrida mirar
+    if (id.length > 1 && id[0] === "D" && Number.isInteger(Number(id.slice(1)))) {   /* una DERIVACIÓN: se revalida por sus operandos (cifras de las Entregas), nunca re-corriendo nada */
+      const libro = ctx && ctx.libro;
+      const d = libro && Array.isArray(libro.derivaciones) ? libro.derivaciones.find((x) => x && x.id === id) : null;
+      const porId = new Map();
+      for (const r of mapa.values()) for (const [k, v] of (r && r.hechos instanceof Map ? r.hechos : [])) porId.set(k, v);
+      const r = d ? revalidarDerivacion(d, porId, { versionIdActual: ctx && ctx.versionIdActual != null ? ctx.versionIdActual : null }) : null;
+      if (!r) return { estado: "sin_reverificar", revalidacion: { estado: "sin_reverificar", motivo: MOTIVO.sinRecorrida, anterior: _anteriorDe(h || {}) } };
+      return { estado: r.estado, ...(r.actual ? { valorNuevo: r.actual.valor } : {}), revalidacion: r };
+    }
     const n = id.startsWith("E") && id.includes(".") ? Number(id.slice(1, id.indexOf("."))) : NaN;
     const r = Number.isFinite(n) && mapa.get(n) && mapa.get(n).hechos.get(id);
     if (!r) return { estado: "sin_reverificar", revalidacion: { estado: "sin_reverificar", motivo: MOTIVO.sinRecorrida, anterior: _anteriorDe(h || {}) } };

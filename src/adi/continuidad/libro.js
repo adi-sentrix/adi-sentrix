@@ -40,6 +40,8 @@
 export const LIBRO_TOPE_BYTES = 16 * 1024;
 export const ENTREGAS_TOPE = 12;
 export const SUPUESTOS_VIVOS_TOPE = 3; // = SUPUESTOS_USUARIO_MAX (oracle/conversationScope.js, encargo/esquema.js)
+/* Las DERIVACIONES de la quinta acción `derivar` (Contrato del Anfitrión, owner 2026-10-05): hechos nuevos `D<k>` calculados por ADI sobre cifras ya entregadas (`libro.derivaciones[]`, aditivo). No consumen los cupos de Entregas ni mueven ningún `E<n>.h<k>`. */
+export const DERIVACIONES_TOPE = 24;
 export const VERSION_LIBRO = "libro/v1";
 /* EL ORIGEN DEL HILO (Etapa 2, bloque 1 · D3): un libro de conversación es SIEMPRE un hilo del Complemento. Es el
  * dato ESTRUCTURAL con el que la base distingue estos hilos de los del chat de la app (`adi_listar_conversaciones`,
@@ -111,6 +113,10 @@ function _esqueleto(e) {
  * absoluto a cualquier costo. */
 export function recortarATope(libro) {
   let L = libro;
+  /* PASO 0 (Contrato del Anfitrión, 2026-10-05): más de `DERIVACIONES_TOPE` derivaciones → se quitan las MÁS viejas (su id `D<k>` no se reasigna jamás: lo garantiza `nDerivaciones`). Un libro sin derivaciones pasa idéntico. */
+  if (Array.isArray(L.derivaciones) && L.derivaciones.length > DERIVACIONES_TOPE) {
+    L = { ...L, derivaciones: L.derivaciones.slice(L.derivaciones.length - DERIVACIONES_TOPE) };
+  }
   if (Array.isArray(L.entregas) && L.entregas.length > ENTREGAS_TOPE) {
     L = { ...L, entregas: L.entregas.slice(L.entregas.length - ENTREGAS_TOPE) };
   }
@@ -125,6 +131,10 @@ export function recortarATope(libro) {
   }
   while (tamanoBytes(L) > LIBRO_TOPE_BYTES && Array.isArray(L.ofertasEnPie) && L.ofertasEnPie.length > 0) {
     L = { ...L, ofertasEnPie: L.ofertasEnPie.slice(1) };
+  }
+  /* último recurso (Contrato del Anfitrión): si aun así excede el tope, las derivaciones más viejas ceden su lugar —nunca la más nueva, que es la que el anfitrión acaba de recibir—. Sin derivaciones, el libro sale como siempre. */
+  while (tamanoBytes(L) > LIBRO_TOPE_BYTES && Array.isArray(L.derivaciones) && L.derivaciones.length > 1) {
+    L = { ...L, derivaciones: L.derivaciones.slice(1) };
   }
   return L;
 }
@@ -156,6 +166,20 @@ export function registrarEntrega(libro, entrada = {}) {
     entregas: [...(libro.entregas || []), entrega],
   };
   return recortarATope(L);
+}
+
+/** registrarDerivacion(libro, derivacion) → Libro · agrega una derivación con su id `D<k>`. El contador `nDerivaciones` es propio y solo crece: un id NUNCA se reutiliza aunque el libro recorte las derivaciones más viejas. Un libro sin el campo
+ *  se lee igual (el contador arranca de lo que haya). No avanza el turno (una derivación no es una Entrega) y aplica el tope de tamaño como toda escritura. La derivación recibe el `turno` vigente. */
+export function registrarDerivacion(libro, derivacion) {
+  const previas = Array.isArray(libro.derivaciones) ? libro.derivaciones : [];
+  const k = (Number.isInteger(libro.nDerivaciones) ? libro.nDerivaciones : previas.length) + 1;
+  const d = { ...derivacion, id: `D${k}`, turno: libro.turno || 0 };
+  return recortarATope({ ...libro, derivaciones: [...previas, d], nDerivaciones: k });
+}
+
+/** derivacionesDe(libro) → [derivación] · las que el libro conserva (copia del arreglo; vacío si el libro no las trae) */
+export function derivacionesDe(libro) {
+  return libro && Array.isArray(libro.derivaciones) ? libro.derivaciones.slice() : [];
 }
 
 /** actualizarCriterio(libro, criterioResuelto) → Libro

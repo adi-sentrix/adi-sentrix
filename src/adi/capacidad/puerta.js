@@ -34,6 +34,7 @@
  * íntegro, las cifras con sus ids del libro (`E<n>.h<k>`), lo declarado, la continuidad y lo que no se pudo resolver; las cifras, el Core y el Notario no se tocan. */
 import { crearAcciones } from "./acciones.js";
 import { compactarParaAnfitrion } from "./compacto.js";
+import { OPERACIONES, OPERADORES } from "./derivar.js";
 import { crearAlmacenEnMemoria } from "../continuidad/almacen.js";
 import { crearAlmacenSupabase } from "../continuidad/almacenSupabase.js";
 import { CAMPOS_PERFIL_DECLARABLES } from "../continuidad/empresa.js";
@@ -149,7 +150,7 @@ function _declararTenantIgnorado(args) {
   return { limpio, ignorado };
 }
 
-/* ── LAS CUATRO HERRAMIENTAS — nombre, descripción y esquema JSON. El vocabulario es de NEGOCIO (temas, encargo,
+/* ── LAS HERRAMIENTAS (las cuatro de siempre + `derivar`, la quinta: Contrato del Anfitrión, owner 2026-10-05) — nombre, descripción y esquema JSON. El vocabulario es de NEGOCIO (temas, encargo,
  * conversación), nunca de mecanismo interno (ningún nombre de tool del Core, ningún "fig", ningún "boleta"). ── */
 export const MCP_TOOLS = [
   {
@@ -219,6 +220,27 @@ export const MCP_TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "derivar",
+    description: "Calcula, verifica y devuelve como hecho nuevo —con identificador y procedencia «derivado»— una cifra que sale de cifras que ADI YA entregó en esta conversación: suma, diferencia, participación o conteo. Úsela SIEMPRE que necesite un total, subtotal, diferencia, porcentaje o conteo que no esté entre lo entregado: nunca lo calcule usted. Solo acepta identificadores de cifras de esta conversación (E<n>.h<k>); lo que no se puede derivar con exactitud se rechaza diciendo por qué. Para una cifra no entregada (otra cuenta, métrica o período) use consultar.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        conversacionId: { type: "string", description: "La conversación con ADI en la que se entregaron las cifras." },
+        operacion: { type: "string", enum: [...OPERACIONES], description: "suma (2 o más cifras de la misma métrica) · diferencia (exactamente 2: la primera menos la segunda) · participacion (una cifra sobre una base) · conteo (cuántas cifras cumplen una condición)." },
+        sobre: { type: "array", items: { type: "string" }, description: "Los identificadores de las cifras entregadas (E<n>.h<k>) sobre las que se calcula. En una participación, el numerador (uno solo)." },
+        base: { type: ["string", "null"], description: "Solo participacion: el identificador de la cifra que es la base (por ejemplo, el total de un listado)." },
+        condicion: {
+          type: ["object", "null"],
+          description: "Solo conteo: qué debe cumplir cada cifra. 'valor' es un número o el identificador de otra cifra entregada; con cifras de dinero, un número solo puede ser 0.",
+          properties: { op: { type: "string", enum: [...OPERADORES] }, valor: {} },
+          required: ["op", "valor"],
+        },
+      },
+      required: ["conversacionId", "operacion", "sobre"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 const _NOMBRES_DE_HERRAMIENTA = new Set(MCP_TOOLS.map((t) => t.name));
@@ -237,6 +259,7 @@ async function _despachar(nombreAccion, argsCrudos, { tenant, acciones }) {
   if (nombreAccion === "conocerEmpresa") salida = await acciones.conocerEmpresa({ tenant, conversacionId: limpio.conversacionId ?? null });
   else if (nombreAccion === "consultar") salida = await acciones.consultar({ tenant, encargo: limpio.encargo });
   else if (nombreAccion === "aportarContexto") salida = await acciones.aportarContexto({ tenant, conversacionId: limpio.conversacionId ?? null, aportes: limpio.aportes || [], confirmar: limpio.confirmar || [], omitir: limpio.omitir || [] });
+  else if (nombreAccion === "derivar") salida = await acciones.derivar({ tenant, conversacionId: limpio.conversacionId ?? null, operacion: limpio.operacion, sobre: limpio.sobre, base: limpio.base ?? undefined, condicion: limpio.condicion ?? undefined });
   else salida = await acciones.retomar({ tenant, conversacionId: limpio.conversacionId });
 
   /* LO QUE VIAJA AL ANFITRIÓN es la respuesta COMPACTA (`compacto.js`, owner 2026-10-05): el texto de la Entrega íntegro, las cifras con sus ids, la continuidad y lo declarado; la estructura interna
@@ -278,6 +301,7 @@ const _RUTA_A_ACCION = {
   "consultar": "consultar",
   "aportar-contexto": "aportarContexto",
   "retomar": "retomar",
+  "derivar": "derivar",
 };
 
 /** construirOpenApi(baseUrl) → el documento OpenAPI 3.1, equivalente a `MCP_TOOLS`, para un GPT con Actions. */

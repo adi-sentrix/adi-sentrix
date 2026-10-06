@@ -3,7 +3,7 @@
  * SIN abrir un socket, SIN el gateway del LLM (esta puerta no lo importa: «cero gasto por diseño»).
  *
  * LO QUE SE CUBRE (el encargo de la pieza):
- *   1 · forma MCP válida — `tools/list` trae las 4 herramientas con su `inputSchema`; `initialize` responde el
+ *   1 · forma MCP válida — `tools/list` trae las 5 herramientas (las 4 de siempre + `derivar`) con su `inputSchema`; `initialize` responde el
  *       protocolo.
  *   2 · `tools/call` de `consultar` con el tenant de demostración → Entrega verdadera, con la cabecera de uso.
  *   3 · sin token → 401 (antes de tocar el cuerpo del pedido); token con firma inválida → 401 también.
@@ -82,7 +82,7 @@ H("2 · identidad — sin token o con token inválido, rechazo (401) ANTES de to
 }
 
 /* ═══ 3 · FORMA MCP VÁLIDA ═══════════════════════════════════════════════════════════════════════════════════════ */
-H("3 · forma MCP — initialize / tools/list trae las 4 herramientas con su inputSchema");
+H("3 · forma MCP — initialize / tools/list trae las 5 herramientas con su inputSchema");
 {
   const auth = { authorization: `Bearer ${CODIGO}` };
   const rInit = await manejarPuerta(peticion("/mcp", rpc("initialize", {}), { headers: auth }), ENV);
@@ -96,8 +96,8 @@ H("3 · forma MCP — initialize / tools/list trae las 4 herramientas con su inp
   ok(rList.status === 200, "tools/list responde 200");
   const jList = await rList.json();
   const nombres = (jList.result && jList.result.tools || []).map((t) => t.name).sort();
-  ok(JSON.stringify(nombres) === JSON.stringify(["aportarContexto", "conocerEmpresa", "consultar", "retomar"].sort()), "tools/list trae EXACTAMENTE las 4 herramientas", JSON.stringify(nombres));
-  for (const nombre of ["conocerEmpresa", "consultar", "aportarContexto", "retomar"]) {
+  ok(JSON.stringify(nombres) === JSON.stringify(["aportarContexto", "conocerEmpresa", "consultar", "derivar", "retomar"].sort()), "tools/list trae EXACTAMENTE las 5 herramientas", JSON.stringify(nombres));
+  for (const nombre of ["conocerEmpresa", "consultar", "aportarContexto", "retomar", "derivar"]) {
     const tool = jList.result.tools.find((t) => t.name === nombre);
     ok(Boolean(tool), `${nombre} está en tools/list`);
     ok(Boolean(tool && tool.description && tool.description.length > 20), `${nombre} trae una descripción de negocio (no un nombre técnico)`, tool && tool.description);
@@ -110,7 +110,7 @@ H("3 · forma MCP — initialize / tools/list trae las 4 herramientas con su inp
     const prohibido = new RegExp(`compareEntities|simulateGeneral|queryMetric|${_gw}|fig\\(|toolRegistry`, "i");
     ok(!prohibido.test(JSON.stringify(tool)), `${nombre} no nombra mecanismos internos del Core en su forma pública`, JSON.stringify(tool));
   }
-  ok(MCP_TOOLS.length === 4, "el módulo exporta exactamente 4 MCP_TOOLS (misma fuente que tools/list)");
+  ok(MCP_TOOLS.length === 5, "el módulo exporta exactamente 5 MCP_TOOLS (misma fuente que tools/list)");
 }
 
 /* ═══ 4 · tools/call consultar CON EL TENANT DE DEMOSTRACIÓN ═══════════════════════════════════════════════════ */
@@ -124,7 +124,7 @@ H("4 · tools/call de consultar, con el tenant de demostración → Entrega verd
   const payload = JSON.parse(j.result.content[0].text);
   ok(payload.ok === true, "consultar sobre el tenant demo responde ok:true", JSON.stringify(payload.noResuelto));
   ok(Boolean(payload.entrega && payload.entrega.texto.includes("Jumbo")), "la Entrega nombra la entidad pedida (Jumbo)");
-  ok(Array.isArray(payload.uso) && payload.uso.length === 5, "trae la cabecera de uso (5 reglas)");
+  ok(Array.isArray(payload.uso) && payload.uso.length === 4, "trae la cabecera de uso (4 reglas)");
   ok(j.result.isError !== true, "isError no viene marcado (la acción tuvo éxito)");
 }
 
@@ -155,7 +155,7 @@ H("6 · REST simple por ruta (GPT Actions) + GET openapi.json sin bearer");
   ok(rSpec.status === 200, "GET openapi.json responde 200 SIN Authorization");
   const spec = await rSpec.json();
   ok(spec.openapi && spec.openapi.startsWith("3."), "el documento declara openapi 3.x", spec.openapi);
-  ok(Object.keys(spec.paths).length === 4, "el OpenAPI describe las 4 operaciones", JSON.stringify(Object.keys(spec.paths)));
+  ok(Object.keys(spec.paths).length === 5, "el OpenAPI describe las 5 operaciones", JSON.stringify(Object.keys(spec.paths)));
   for (const p of Object.values(spec.paths)) {
     ok(Boolean(p.post && p.post.operationId && p.post.security), `cada path trae operationId y exige seguridad (bearer)`, JSON.stringify(p.post && p.post.operationId));
   }

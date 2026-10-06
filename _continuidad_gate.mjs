@@ -25,7 +25,7 @@ import {
   VERSION_LIBRO, LIBRO_TOPE_BYTES, ENTREGAS_TOPE, SUPUESTOS_VIVOS_TOPE, tamanoBytes,
   emitirConversacionId, libroNuevo, detectarCambioVersion, registrarEntrega, actualizarCriterio,
   agregarSupuestoVivo, retirarSupuestoVivo, registrarPremisa, registrarOfertaEnPie, limpiarOfertasEnPie,
-  registrarHechoAportado, recortarATope,
+  registrarHechoAportado, recortarATope, DERIVACIONES_TOPE, registrarDerivacion, derivacionesDe,
 } from "./src/adi/continuidad/libro.js";
 import {
   ESTADO_VIGENTE_TOPE_BYTES, ESTADO_VIGENTE_TOPE_TEXTO, TIPOS_DE_EVENTO,
@@ -349,6 +349,33 @@ H("18 · ofertas en pie y hechos aportados son referencias, sin duplicar");
   libro = registrarHechoAportado(libro, "h-abc-1");
   libro = registrarHechoAportado(libro, "h-abc-1");
   ok(libro.hechosAportados.length === 1, "el mismo id aportado dos veces no se duplica");
+}
+
+/* ═══ 19 · LAS DERIVACIONES DEL LIBRO (Contrato del Anfitrión, paso 1 · owner 2026-10-05) ═══ */
+H("19 · derivaciones `D<k>`: ids estables tras el recorte, aditivas y sin tocar al libro de siempre");
+{
+  ok(DERIVACIONES_TOPE === 24, "el tope de derivaciones es 24");
+  let libro = libroNuevo({ conversacionId: "c-der" });
+  ok(!("derivaciones" in libro) && !("nDerivaciones" in libro), "★ un libro nuevo NO trae el campo (un libro sin derivaciones es el de siempre)");
+  ok(derivacionesDe(libro).length === 0 && derivacionesDe(null).length === 0, "derivacionesDe de un libro sin el campo es vacío");
+  libro = registrarEntrega(libro, { versionId: "v1", temas: ["comercial"], hechos: [{ sujeto: "A", metrica: "Venta", valor: "$1M" }] });
+  const antes = JSON.stringify(libro);
+  ok(JSON.stringify(recortarATope(libro)) === antes, "★ recortarATope de un libro sin derivaciones es byte-idéntico");
+  libro = registrarDerivacion(libro, { operacion: "suma", sobre: ["E1.h1", "E1.h2"], resultado: { raw: 3, unidad: "money", clave: "ventas", texto: "$3" } });
+  ok(libro.derivaciones.length === 1 && libro.derivaciones[0].id === "D1" && libro.nDerivaciones === 1 && libro.derivaciones[0].turno === 1, "la primera derivación es D1, con el turno vigente");
+  ok(libro.turno === 1 && libro.entregas.length === 1 && libro.entregas[0].hechos[0].id === "E1.h1", "★ derivar no avanza el turno ni mueve ningún E<n>.h<k>");
+  for (let i = 0; i < 30; i++) libro = registrarDerivacion(libro, { operacion: "suma", sobre: ["E1.h1", "E1.h2"], resultado: { raw: i, unidad: "money", clave: "ventas", texto: `$${i}` } });
+  ok(libro.derivaciones.length === DERIVACIONES_TOPE && libro.derivaciones[0].id === "D8" && libro.derivaciones[libro.derivaciones.length - 1].id === "D31", "★ pasado el tope se quita la más vieja y los ids siguen: quedan D8…D31", libro.derivaciones.map((d) => d.id).join(","));
+  libro = registrarDerivacion(libro, { operacion: "suma", sobre: ["E1.h1", "E1.h2"], resultado: { raw: 1, unidad: "money", clave: "ventas", texto: "$1" } });
+  ok(libro.derivaciones[libro.derivaciones.length - 1].id === "D32" && libro.nDerivaciones === 32, "★ un id jamás se reutiliza aunque se haya recortado");
+  /* un libro guardado antes (sin contador) arranca de lo que tenga */
+  const viejo = { ...libroNuevo({ conversacionId: "c-viejo" }), derivaciones: [{ id: "D1" }, { id: "D2" }] };
+  ok(registrarDerivacion(viejo, { operacion: "suma", sobre: [] }).derivaciones[2].id === "D3", "sin contador, el id sigue de lo que el libro ya tiene");
+  /* el tope de bytes: las derivaciones más viejas ceden, la más nueva queda */
+  let grande = libroNuevo({ conversacionId: "c-grande" });
+  for (let i = 0; i < 24; i++) grande = registrarDerivacion(grande, { operacion: "suma", sobre: ["E1.h1"], entidad: "x".repeat(1200), resultado: { raw: i } });
+  ok(tamanoBytes(grande) <= LIBRO_TOPE_BYTES && grande.derivaciones[grande.derivaciones.length - 1].id === "D24" && grande.derivaciones.length < 24, "★ si el libro excede 16 KB ceden las derivaciones más viejas y la más nueva se conserva", `${tamanoBytes(grande)} B · ${grande.derivaciones.length}`);
+  ok(grande.premisas.length === 0 && grande.criterioVigente === null, "(control) las premisas y el criterio no se tocan");
 }
 
 console.log(`\n── _continuidad_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);

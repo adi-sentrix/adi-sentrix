@@ -35,7 +35,8 @@ function _supuestoTexto(s) {
 function _entregaTextoCorta(e) {
   const temas = Array.isArray(e.temas) && e.temas.length ? e.temas.join("+") : null;
   const entidades = Array.isArray(e.entidades) && e.entidades.length ? e.entidades.join(", ") : null;
-  const rango = e.hechos && e.hechos.length ? (e.hechos.length > 1 ? `${e.hechos[0].id}–${e.hechos[e.hechos.length - 1].id}` : e.hechos[0].id) : null;
+  const _tabla = Array.isArray(e.hechos) ? e.hechos.filter((h) => !(h && h.fuera)) : [];   /* el rango es el de la tabla de la Entrega: las cifras de `fueraDelTexto` (con id, `fuera:true`) no lo mueven */
+  const rango = _tabla.length ? (_tabla.length > 1 ? `${_tabla[0].id}–${_tabla[_tabla.length - 1].id}` : _tabla[0].id) : null;
   return [`E${e.n}`, temas, entidades, e.cierre, rango].filter(Boolean).join(" · ");
 }
 

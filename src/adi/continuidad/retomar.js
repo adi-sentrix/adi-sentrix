@@ -38,15 +38,22 @@ export function retomar(libro, { versionIdActual = null, reverificar = null, len
   const cambioVersion = detectarCambioVersion(libro, versionIdActual);
   const reverificarFn = typeof reverificar === "function" ? reverificar : null;
 
-  const todosLosHechos = (libro.entregas || []).filter((e) => !e.recortada).flatMap((e) => cifrasDeLaEntrega(e));   // una cifra por hecho (una fila ancha de la tabla trae varias: `revalidar.js:cifrasDeLaEntrega`)
+  const cifrasDeEntregas = (libro.entregas || []).filter((e) => !e.recortada).flatMap((e) => cifrasDeLaEntrega(e));   // una cifra por hecho (una fila ancha de la tabla trae varias: `revalidar.js:cifrasDeLaEntrega`)
+  /* LAS DERIVACIONES (Contrato del Anfitrión, owner 2026-10-05): van DESPUÉS de las cifras de las Entregas, con `origen:"derivado"` y los operandos en `sobre`; el verificador las revalida por sus operandos. Un libro sin derivaciones no agrega nada. */
+  const derivadas = (Array.isArray(libro.derivaciones) ? libro.derivaciones : []).filter((d) => d && d.id).map((d) => ({
+    id: d.id, sujeto: d.entidad != null ? d.entidad : null, metrica: d.metrica || null, valor: d.resultado && d.resultado.texto != null ? d.resultado.texto : null,
+    unidad: null, periodo: null, origen: "derivado", sobre: [...(d.sobre || []), ...(d.base ? [d.base] : [])], derivada: true,
+  }));
+  const todosLosHechos = cifrasDeEntregas.concat(derivadas);
   const hechos = todosLosHechos.map((h) => {
     const r = reverificarFn ? (reverificarFn(h, { versionIdActual, libro }) || { estado: "sin_reverificar" }) : { estado: "sin_reverificar" };
     const estado = ESTADOS_DE_REVALIDACION.includes(r.estado) ? r.estado : "sin_reverificar";
     return { ...h, estadoReverificacion: estado, ...(r.valorNuevo != null ? { valorNuevo: r.valorNuevo } : {}), ...(r.revalidacion ? { revalidacion: r.revalidacion } : {}) };
   });
-  const conRevalidacion = hechos.some((h) => h.revalidacion);
+  const hechosDeEntregas = hechos.filter((h) => !h.derivada);   /* la línea de continuidad nombra a los OPERANDOS que cambiaron, no a su suma: dos veces el mismo cambio sería ruido */
+  const conRevalidacion = hechosDeEntregas.some((h) => h.revalidacion);
 
-  const cifrasReverificadas = hechos
+  const cifrasReverificadas = hechosDeEntregas
     .filter((h) => h.estadoReverificacion === "cambio" || h.estadoReverificacion === "ya_no_existe")
     .map((h) => ({ id: h.id, label: _labelDeHecho(h), estado: h.estadoReverificacion, valorNuevo: h.valorNuevo }));
 
@@ -55,7 +62,7 @@ export function retomar(libro, { versionIdActual = null, reverificar = null, len
   let cambiosDeCifras = null;
   if (conRevalidacion) {
     const candidatos = [];
-    hechos.forEach((h, orden) => {
+    hechosDeEntregas.forEach((h, orden) => {
       if (h.estadoReverificacion !== "cambio" && h.estadoReverificacion !== "ya_no_existe") return;
       const rv = h.revalidacion || {};
       candidatos.push({

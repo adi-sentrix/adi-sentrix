@@ -11,14 +11,18 @@
  * NADA de acá llama a un modelo ni a la red. */
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { rastrearHilo, VEREDICTOS_FALSOS, VEREDICTOS_PARA_REVISAR } from "./rastreo.mjs";
+import { rastrearHilo, VEREDICTOS_FALSOS, VEREDICTOS_PARA_REVISAR, CASOS_DEL_CONTRATO } from "./rastreo.mjs";
 import { resumenDeCorrida } from "../../src/adi/llm/consumo.js";
 
+/* EL CONTRATO DEL ANFITRIÓN (owner 2026-10-05, `_ADI_DISENO_CONTRATO_ANFITRION.md` §5): el cierre ya no mide solo si lo que el anfitrión dijo es VERDAD; mide si cada cifra empresarial que dijo es un HECHO que ADI le entregó.
+ * Una cifra correcta pero calculada por el anfitrión (`fuera_de_contrato`) NO es falsa —no baja la verdad— pero rompe el 100 % de cumplimiento: son dos preguntas distintas. El % de verdad se INFORMA y deja de decidir. */
 export const REGLA_DE_CIERRE = [
-  "Pasa la Etapa 2 cuando DOS corridas consecutivas, con catálogos sellados distintos (v41 y v42) escritos por el autor ciego, dan cada una:",
-  "  · verdad ≥ 99,0 % sobre todas las afirmaciones,",
-  "  · 0 errores materiales (clases 1-3; clase 4 con cifra),",
-  "  · 0 cruces entre empresas (forma C).",
+  "Pasa la Etapa 2 cuando DOS corridas oficiales a ciegas (catálogos sellados distintos, mismo modelo y vía) dan cada una:",
+  "  · cumplimiento del contrato = 100 %: hecho de ADI ÷ todas las cifras empresariales de la prosa (en números y en palabras), tras la revisión humana — una cifra correcta pero calculada por el anfitrión (fuera de contrato) rompe el 100 %,",
+  "  · 0 errores de ADI (el hecho que el contrato dice que ADI entrega y no entregó; un derivar que rechaza una derivación válida; una frase de la Entrega que indujo el error),",
+  "  · 0 errores materiales del anfitrión (clases 1-3; clase 4 con cifra; incluye conteos y relaciones en palabras),",
+  "  · 0 cruces entre empresas.",
+  "El % de verdad se informa; con las tres primeras en cero es redundante y ya no decide.",
   "Invalida una corrida: huella del catálogo rota antes de correr · cambio de modelo o de instrucción a mitad · tope alcanzado antes del 90 % de los turnos ·",
   "sinConteo > 2 % de las llamadas o modelos sin precio (el costo no es verificable) · una corrección de código entre dos mitades · corrida anulada por el chequeo de limpieza (vía cli).",
   "Falla del medidor (el juez o el rastreo marcó falso y la persona lo revierte) no cuenta contra el anfitrión.",
@@ -46,6 +50,8 @@ export function cargarSalida(salida) {
 }
 
 const _vacioClase = () => ({ afirmaciones: 0, verdaderas: 0, falsas: 0, materiales: 0 });
+const _vacioContrato = () => ({ cifras: 0, hechoDeAdi: 0, fueraDeContrato: { total: 0, derivables: [] }, erroresMateriales: 0, cumplimientoPct: null });
+const _cerrarContrato = (c) => { c.cumplimientoPct = c.cifras ? Number(((c.hechoDeAdi / c.cifras) * 100).toFixed(2)) : null; return c; };
 
 /** calcularInforme({ manifiesto, cierre, hilos, juez, revision, repoConsumo }) → el informe como objeto (puro). */
 export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revision = null, repoConsumo = null }) {
@@ -53,7 +59,8 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
   const porClase = { 1: _vacioClase(), 2: _vacioClase(), 3: _vacioClase(), 4: _vacioClase() };
   const porClaseBruto = { 1: _vacioClase(), 2: _vacioClase(), 3: _vacioClase(), 4: _vacioClase() };
   const porForma = { A: _vacioClase(), B: _vacioClase(), C: _vacioClase() };
-  const materiales = [], fallasDelMedidor = [], paraRevisar = [], cruces = [], naturalidad = [], derivaciones = [], declaradasPorLaPersona = [], nombresDeLaPersona = [];
+  const materiales = [], fallasDelMedidor = [], paraRevisar = [], cruces = [], naturalidad = [], derivaciones = [], declaradasPorLaPersona = [], nombresDeLaPersona = [], erroresDeAdi = [];
+  const contrato = _vacioContrato(), contratoPorHilo = {};
   let totalBruto = 0, verdaderasBruto = 0, materialesBruto = 0;
   let total = 0, verdaderas = 0;
 
@@ -68,6 +75,16 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
   for (const hilo of hilos) {
     if (hilo.anulado) continue;
     const rastro = rastrearHilo(hilo);
+    const delHilo = (contratoPorHilo[hilo.hiloId] = _vacioContrato());
+    /* una cifra empresarial más en el contrato (del hilo y del total): su caso FINAL, tras la revisión humana */
+    const alContrato = (caso, a, id, turno) => {
+      for (const c of [delHilo, contrato]) {
+        c.cifras += 1;
+        if (caso === "hecho_de_adi") c.hechoDeAdi += 1;
+        else if (caso === "fuera_de_contrato") { c.fueraDeContrato.total += 1; c.fueraDeContrato.derivables.push({ id, hilo: hilo.hiloId, turno, oracion: a.oracion || null, token: a.token || null, derivacionQueDebioPedirse: a.derivacionQueDebioPedirse || null }); }
+        else c.erroresMateriales += 1;
+      }
+    };
     hilo.turnos.forEach((t, i) => {
       turnosHechos += 1;
       const r = rastro[i];
@@ -77,15 +94,21 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
         k += 1;
         const id = _id(hilo.hiloId, t.sesion, t.turno, k);
         if (a.declaradoPor === "persona") declaradasPorLaPersona.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, token: a.token, origen: a.origen, oracion: a.oracion });   // la cifra la dijo la PERSONA en el hilo (con su origen): no es de ADI ni la inventó el anfitrión
-        if (a.derivacion) derivaciones.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, token: a.token, oracion: a.oracion, operacion: a.derivacion.operacion, operandos: a.derivacion.operandos, descripcion: a.derivacion.descripcion });   // una cifra que no traza directo pero es la suma o la diferencia de DOS entregadas: queda a la vista
+        if (a.derivacion) derivaciones.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, token: a.token, oracion: a.oracion, operacion: a.derivacion.operacion, operandos: a.derivacion.operandos, descripcion: a.derivacion.descripcion, sobre: a.derivacionQueDebioPedirse ? a.derivacionQueDebioPedirse.sobre : [] });   // una cifra que no traza directo pero es la suma o la diferencia de DOS entregadas: queda a la vista
         const evaluable = a.veredicto === "traza" || VEREDICTOS_FALSOS.has(a.veredicto);
         if (!evaluable) { if (VEREDICTOS_PARA_REVISAR.has(a.veredicto) && !decisiones[id]) paraRevisar.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, ...a }); if (!decisiones[id]) continue; }
         const brutoV = a.veredicto === "traza";
         const brutoM = !brutoV && Boolean(a.material);
         const d = decisiones[id];
         let v = brutoV, m = brutoM;
-        if (d) { v = d.veredicto === "verdadera"; m = v ? false : (d.material != null ? Boolean(d.material) : true); if (!brutoV && v) fallasDelMedidor.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, veredicto: a.veredicto, oracion: a.oracion, nota: d.nota || null }); }
+        /* tres veredictos de la persona: «verdadera» · «falsa» · «error_adi» (la cifra es verdadera y la frase también, pero el hecho FALTÓ o la Entrega indujo el error: es culpa de ADI, no del anfitrión) */
+        if (d) { v = d.veredicto === "verdadera" || d.veredicto === "error_adi"; m = v ? false : (d.material != null ? Boolean(d.material) : true); if (!brutoV && v) fallasDelMedidor.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, veredicto: a.veredicto, oracion: a.oracion, nota: d.nota || null }); if (d.veredicto === "error_adi") erroresDeAdi.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, veredicto: a.veredicto, oracion: a.oracion, nota: d.nota || null }); }
         contar(a.clase, hilo.forma, v, m, brutoV, brutoM);
+        if (a.clase === 1) {   /* el CONTRATO: el caso de esta cifra (el del rastreo, o el que la persona fijó al revisarla) */
+          let caso = a.caso || null;
+          if (d) caso = d.veredicto === "falsa" ? "error_material" : (CASOS_DEL_CONTRATO.includes(d.caso) ? d.caso : (caso && caso !== "error_material" ? caso : (d.veredicto === "error_adi" ? "fuera_de_contrato" : "hecho_de_adi")));
+          if (caso) alContrato(caso, a, id, `${t.sesion}.${t.turno}`);
+        }
         if (!v && m) materiales.push({ id, hilo: hilo.hiloId, forma: hilo.forma, turno: `${t.sesion}.${t.turno}`, clase: a.clase, veredicto: a.veredicto, oracion: a.oracion, motivo: a.motivo, revisadoPorPersona: Boolean(d) });
       }
       for (const c of r.cruces) { cruces.push({ hilo: hilo.hiloId, empresa: hilo.empresa, turno: `${t.sesion}.${t.turno}`, nombreAjeno: c.nombre }); }
@@ -98,7 +121,7 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
           const brutoV = a.veredicto === "verdadera", brutoM = !brutoV && Boolean(a.material);
           const d = decisiones[id];
           let v = brutoV, m = brutoM;
-          if (d) { v = d.veredicto === "verdadera"; m = v ? false : (d.material != null ? Boolean(d.material) : true); if (!brutoV && v) fallasDelMedidor.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, veredicto: "juez:falsa", oracion: a.texto, nota: d.nota || null }); }
+          if (d) { v = d.veredicto === "verdadera" || d.veredicto === "error_adi"; m = v ? false : (d.material != null ? Boolean(d.material) : true); if (!brutoV && v) fallasDelMedidor.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, veredicto: "juez:falsa", oracion: a.texto, nota: d.nota || null }); if (d.veredicto === "error_adi") erroresDeAdi.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, veredicto: "juez:falsa", oracion: a.texto, nota: d.nota || null }); }
           contar(a.clase, hilo.forma, v, m, brutoV, brutoM);
           if (!v && m) materiales.push({ id, hilo: hilo.hiloId, forma: hilo.forma, turno: `${t.sesion}.${t.turno}`, clase: a.clase, veredicto: "juez:falsa", oracion: a.texto, motivo: a.motivo, revisadoPorPersona: Boolean(d) });
         });
@@ -135,11 +158,12 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
   const pctBruto = totalBruto ? Number(((verdaderasBruto / totalBruto) * 100).toFixed(2)) : null;
   const juzgoClases34 = Boolean(juez && juez.turnos && Object.keys(juez.turnos).length);
   const erroresMateriales = materiales.length;
+  _cerrarContrato(contrato); Object.values(contratoPorHilo).forEach(_cerrarContrato);
   let veredicto, porQue;
   if (invalidaciones.length) { veredicto = "INVÁLIDA"; porQue = "la corrida no cuenta (ver invalidaciones)"; }
   else if (!juzgoClases34) { veredicto = "NO CONCLUYENTE"; porQue = "las clases 3-4 no se juzgaron (sin juez): el rastreo determinista solo cubre las clases 1-2. Revisar la lista de casos para el supervisor."; }
-  else if (pctVerdad != null && pctVerdad >= 99 && erroresMateriales === 0 && cruces.length === 0) { veredicto = "PASA"; porQue = "verdad ≥ 99,0 %, 0 errores materiales, 0 cruces entre empresas"; }
-  else { veredicto = "NO PASA"; porQue = `verdad ${pctVerdad} % · ${erroresMateriales} error(es) material(es) · ${cruces.length} cruce(s)`; }
+  else if (contrato.cumplimientoPct === 100 && erroresDeAdi.length === 0 && erroresMateriales === 0 && cruces.length === 0) { veredicto = "PASA"; porQue = `cumplimiento del contrato 100 % (${contrato.hechoDeAdi} de ${contrato.cifras} cifras son un hecho de ADI), 0 errores de ADI, 0 errores materiales, 0 cruces entre empresas (verdad ${pctVerdad} %, informada)`; }
+  else { veredicto = "NO PASA"; porQue = `cumplimiento ${contrato.cumplimientoPct == null ? "— (sin cifras que medir)" : `${contrato.cumplimientoPct} %`} (${contrato.fueraDeContrato.total} cifra(s) fuera de contrato) · ${erroresDeAdi.length} error(es) de ADI · ${erroresMateriales} error(es) material(es) · ${cruces.length} cruce(s) · verdad ${pctVerdad} %`; }
 
   const consumo = cierre && cierre.consumo ? cierre.consumo : null;
   return {
@@ -147,6 +171,7 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
     corpus: manifiesto && manifiesto.corpus, veredicto, porQue, regla: REGLA_DE_CIERRE,
     verdad: { bruto: { afirmaciones: totalBruto, verdaderas: verdaderasBruto, pct: pctBruto, materiales: materialesBruto }, real: { afirmaciones: total, verdaderas, pct: pctVerdad, materiales: erroresMateriales } },
     porClase: { real: porClase, bruto: porClaseBruto }, porForma,
+    contrato, contratoPorHilo, erroresDeAdi,
     erroresMateriales: materiales, cruces, derivaciones, declaradasPorLaPersona, nombresDeLaPersona, fallasDelMedidor, paraRevisar, naturalidad,
     clases34Juzgadas: juzgoClases34,
     invalidaciones, turnos: { hechos: turnosHechos, planeados: cierre ? cierre.turnosPlaneados : null, hilos: hilos.length, hilosAnulados: hilos.filter((h) => h.anulado).length },
@@ -168,6 +193,12 @@ export function informeEnMarkdown(i) {
   L.push("", "## Verdad", "", "| | afirmaciones | verdaderas | % | errores materiales |", "|---|---|---|---|---|");
   L.push(`| bruto (máquina) | ${i.verdad.bruto.afirmaciones} | ${i.verdad.bruto.verdaderas} | ${i.verdad.bruto.pct ?? "—"} % | ${i.verdad.bruto.materiales} |`);
   L.push(`| real (tras la revisión humana) | ${i.verdad.real.afirmaciones} | ${i.verdad.real.verdaderas} | ${i.verdad.real.pct ?? "—"} % | ${i.verdad.real.materiales} |`);
+  const c = i.contrato || _vacioContrato();
+  L.push("", "## El contrato del anfitrión", "", "| | cifras | hecho de ADI | fuera de contrato | errores materiales | cumplimiento |", "|---|---|---|---|---|---|");
+  L.push(`| total | ${c.cifras} | ${c.hechoDeAdi} | ${c.fueraDeContrato.total} | ${c.erroresMateriales} | ${c.cumplimientoPct == null ? "—" : `${c.cumplimientoPct} %`} |`);
+  for (const [h, x] of Object.entries(i.contratoPorHilo || {})) L.push(`| hilo ${h} | ${x.cifras} | ${x.hechoDeAdi} | ${x.fueraDeContrato.total} | ${x.erroresMateriales} | ${x.cumplimientoPct == null ? "—" : `${x.cumplimientoPct} %`} |`);
+  L.push("", `## Errores de ADI · ${(i.erroresDeAdi || []).length} (un hecho que el contrato dice que ADI entrega y no entregó, o una frase de la Entrega que indujo el error: cada uno nace como fixture offline rojo antes de re-medir)`);
+  for (const e of (i.erroresDeAdi || []).slice(0, 40)) L.push(`- [${e.id}] «${String(e.oracion || "").slice(0, 120)}»${e.nota ? ` — ${e.nota}` : ""}`);
   L.push("", "## Por clase (real)", "", "| clase | afirmaciones | verdaderas | % | falsas | materiales |", "|---|---|---|---|---|---|");
   const nombres = { 1: "1 · Cifra (rastreo)", 2: "2 · Continuidad (rastreo)", 3: "3 · Procedencia (juez)", 4: "4 · Conducta (juez)" };
   for (const k of [1, 2, 3, 4]) { const c = i.porClase.real[k]; L.push(`| ${nombres[k]} | ${c.afirmaciones} | ${c.verdaderas} | ${_pct(c)} | ${c.falsas} | ${c.materiales} |`); }
@@ -178,8 +209,8 @@ export function informeEnMarkdown(i) {
   for (const c of i.cruces.slice(0, 30)) L.push(`- hilo ${c.hilo} (${c.empresa}) turno ${c.turno}: nombra «${c.nombreAjeno}»`);
   L.push("", `## Errores materiales · ${i.erroresMateriales.length}`);
   for (const e of i.erroresMateriales.slice(0, 60)) L.push(`- [${e.id}] clase ${e.clase} · ${e.veredicto} · ${e.oracion ? `«${String(e.oracion).slice(0, 120)}»` : ""} — ${e.motivo || ""}${e.revisadoPorPersona ? " (confirmado por la persona)" : ""}`);
-  L.push("", `## Derivaciones aritméticas aceptadas · ${(i.derivaciones || []).length} (cifras que no trazan directo pero son la suma o la diferencia de DOS cifras entregadas, exacta a lo impreso — se listan para que una persona las vea)`);
-  for (const d of (i.derivaciones || []).slice(0, 60)) L.push(`- [${d.id}] ${d.descripcion} (${d.operacion}) · «${String(d.oracion || "").slice(0, 100)}»`);
+  L.push("", `## Fuera de contrato (correctas) · ${(i.derivaciones || []).length} (cifras que no son un hecho de ADI pero son demostrables con lo entregado: verdaderas —no cuentan como falsas— y rompen el 100 % de cumplimiento; con la derivación que debió pedirse)`);
+  for (const d of (i.derivaciones || []).slice(0, 60)) L.push(`- [${d.id}] ${d.descripcion} (${d.operacion}) · «${String(d.oracion || "").slice(0, 100)}»${d.sobre && d.sobre.length ? ` → debió pedir derivar ${d.operacion} sobre ${d.sobre.join(", ")}` : ""}`);
   if ((i.declaradasPorLaPersona || []).length) { L.push("", `## Cifras declaradas por la persona en el hilo · ${i.declaradasPorLaPersona.length} (la dijo ella, no ADI: no se cuentan como cifra inventada; se lista el origen)`); for (const d of i.declaradasPorLaPersona.slice(0, 40)) L.push(`- [${d.id}] «${d.token}» ← ${d.origen} · «${String(d.oracion || "").slice(0, 100)}»`); }
   if ((i.nombresDeLaPersona || []).length) { L.push("", `## Nombres de la otra empresa que escribió la PERSONA · ${i.nombresDeLaPersona.length} (el anfitrión los repite para contestarle o para decir que no están: no es un cruce)`); for (const d of i.nombresDeLaPersona.slice(0, 30)) L.push(`- hilo ${d.hilo} (${d.empresa}) turno ${d.turno}: «${d.nombre}»`); }
   L.push("", `## Fallas del medidor · ${i.fallasDelMedidor.length} (no cuentan contra el anfitrión)`);
@@ -211,6 +242,7 @@ export function casosParaRevisar(hilos) {
       const tipo = t.espera && t.espera.tipo;
       if (["declaracion", "pregunta_de_perfil", "sin_perfil_responde", "referencia_no_es_criterio", "premisa_falsa", "no_soportado", "ataque", "cruce_de_empresas"].includes(tipo)) motivos.push(`expectativa de clases 3-4 (${tipo}): sin juez, la revisa una persona`);
       for (const a of r.afirmaciones) if (VEREDICTOS_FALSOS.has(a.veredicto) || VEREDICTOS_PARA_REVISAR.has(a.veredicto)) motivos.push(`${a.veredicto}: «${String(a.oracion || a.token || "").slice(0, 100)}»`);
+      for (const a of r.afirmaciones) if (a.caso === "fuera_de_contrato") motivos.push(`fuera de contrato (verdadera, pero la calculó el anfitrión): «${String(a.token || "").slice(0, 40)}» · debió pedir ${a.derivacionQueDebioPedirse ? `derivar ${a.derivacionQueDebioPedirse.operacion} sobre ${(a.derivacionQueDebioPedirse.sobre || []).join(", ")}` : "a ADI"}`);
       for (const c of r.cruces) motivos.push(`cruce: nombra «${c.nombre}»`);
       if (t.cierre && t.cierre !== "ok") motivos.push(`el turno cerró como «${t.cierre}»`);
       if (motivos.length) casos.push({ id: `${hilo.hiloId}|${t.sesion}|${t.turno}`, hilo: hilo.hiloId, forma: hilo.forma, empresa: hilo.empresa, tipo, nota: t.espera && t.espera.nota, persona: t.persona, prosa: t.texto, herramientas: (t.llamadas || []).map((l) => l.herramienta), motivos });

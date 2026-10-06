@@ -439,7 +439,7 @@ H("8 · el nombre de la referencia y del conjunto según su origen real: empresa
   const acc = crearAcciones({ continuidad: crearAlmacenEnMemoria(), ahora: () => "2026-10-03T12:00:00.000Z" });
   const r0 = await acc.consultar({ tenant: { id: "x", nombre: "x", dataset: EMPRESAS.nada, version: "v1" }, encargo: { version: "encargo/v1", partes: [{ id: "p1", tema: "inventario", cierre: "lectura", universo: { eje: "sku", estados: ["rota lento"] } }] } });
   const cab = r0.uso.join(" ");
-  ok(/el benchmark lleva su origen \(declarado por la empresa o criterio general de ADI\) y no es un promedio/.test(cab) && !/el benchmark es el que declaró la empresa/.test(cab) && r0.uso.length === 5, "★ la cabecera de uso del anfitrión dice que el benchmark lleva su origen (declarado por la empresa o criterio general de ADI) y no es un promedio; el resto de la cabecera igual (5 líneas)", cab);
+  ok(/el benchmark lleva su origen \(declarado por la empresa o criterio general de ADI\) y no es un promedio/.test(cab) && !/el benchmark es el que declaró la empresa/.test(cab) && r0.uso.length === 4, "★ la cabecera de uso del anfitrión dice que el benchmark lleva su origen (declarado por la empresa o criterio general de ADI) y no es un promedio; el resto de la cabecera igual (4 líneas: la regla del contrato fundió las dos primeras)", cab);
   initTenant(TENANT_DEMO);
 }
 

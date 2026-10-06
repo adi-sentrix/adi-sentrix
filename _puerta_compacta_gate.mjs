@@ -73,10 +73,17 @@ function verificarConsulta({ completa, compacta, libro }) {
   const n = libro && libro.entregas && libro.entregas.length ? libro.entregas[libro.entregas.length - 1] : null;
   if (!n) v.push("el libro no guardó la Entrega");
   else if (!n.recortada) {
-    const esperado = cifrasDeLaEntrega(n).map((c) => ({ id: c.id, entidad: c.sujeto, metrica: c.metrica, valor: c.valor, procedencia: c.origen }));
+    /* la tabla de la Entrega (sin las cifras de `fueraDelTexto`, que el libro guarda aparte, marcadas `fuera`, y viajan en `detalle`: §8.2 del Contrato del Anfitrión) */
+    const esperado = cifrasDeLaEntrega({ ...n, hechos: (n.hechos || []).filter((h) => !h.fuera) }).map((c) => ({ id: c.id, entidad: c.sujeto, metrica: c.metrica, valor: c.valor, procedencia: c.origen }));
     const viajo = (e.cifras || []).map(({ supuesto, ...r }) => r);
     const sinNulos = (x) => Object.fromEntries(Object.entries(x).filter(([, y]) => y !== null && y !== undefined));
     if (!mismo(viajo, esperado.map(sinNulos))) v.push(`las cifras que viajan no son las del libro (viajan ${viajo.length}, el libro guardó ${esperado.length}): ${JSON.stringify(viajo.find((c, i) => !mismo(c, sinNulos(esperado[i] || {}))) || null).slice(0, 220)}`);
+    {   /* las cifras de `fueraDelTexto` viajan con el id y el valor que el libro les guardó; si el libro no pudo guardarlas (el tope de 16 KB), viajan sin id, como siempre */
+      const enLibro = cifrasDeLaEntrega({ ...n, hechos: (n.hechos || []).filter((h) => h.fuera) }).map((c) => ({ id: c.id, entidad: c.sujeto, metrica: c.metrica, valor: c.valor, procedencia: c.origen }));
+      const viajoFz = ((e.detalle && e.detalle.fueraDelTexto) || []).map(({ supuesto, ...r }) => r);
+      if (enLibro.length) { if (!mismo(viajoFz, enLibro.map(sinNulos))) v.push(`las cifras de «fuera del texto» que viajan no son las del libro (viajan ${viajoFz.length}, el libro guardó ${enLibro.length})`); }
+      else if (viajoFz.some((c) => c.id !== undefined)) v.push("una cifra de «fuera del texto» viaja con id y el libro no la guardó");
+    }
     const re = new RegExp(`^E${n.n}\\.h\\d+(\\.\\d+)?$`);
     if (!(e.cifras || []).every((c) => re.test(c.id)) || new Set((e.cifras || []).map((c) => c.id)).size !== (e.cifras || []).length) v.push("los ids de las cifras no son E<n>.h<k> distintos");
   }

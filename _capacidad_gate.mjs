@@ -115,7 +115,7 @@ H("3 · consultar(encargo) sobre 5 encargos válidos de fixtures/encargos-desarr
   for (const caso of cincoValidos) {
     const salida = await consultar({ tenant: TENANT, encargo: caso.encargo });
     ok(salida.ok === true, `${caso.id} (${caso.titulo}) · consultar responde ok:true`, JSON.stringify(salida.noResuelto));
-    ok(Array.isArray(salida.uso) && salida.uso.length === 5, `${caso.id} · trae la cabecera de uso completa (5 reglas)`, JSON.stringify(salida.uso));
+    ok(Array.isArray(salida.uso) && salida.uso.length === 4, `${caso.id} · trae la cabecera de uso completa (4 reglas)`, JSON.stringify(salida.uso));
     ok(Boolean(salida.entrega && typeof salida.entrega.texto === "string" && salida.entrega.texto.length > 0), `${caso.id} · la Entrega trae texto`, "");
     ok(Boolean(salida.entrega && salida.entrega.json && Array.isArray(salida.entrega.json.cifras.filas)), `${caso.id} · la Entrega trae json.cifras`, "");
   }
@@ -144,13 +144,14 @@ H("4 · CARNADA · un concepto sintético sin productor real queda EXCLUIDO del 
 /* ═══ 5 · TENANT INYECTADO — SIN dataset se declara, nunca lanza; nunca deja el proceso en un tenant ajeno ══════ */
 H("5 · tenant inyectado: sin dataset → declarado (ok:false), nunca una excepción");
 {
-  const { conocerEmpresa, consultar, aportarContexto, retomar } = crearAcciones();
+  const { conocerEmpresa, consultar, aportarContexto, retomar, derivar } = crearAcciones();
   const SIN_DATASET = { id: "otra-empresa" };
   for (const [nombre, fn, args] of [
     ["conocerEmpresa", conocerEmpresa, { tenant: SIN_DATASET }],
     ["consultar", consultar, { tenant: SIN_DATASET, encargo: { version: "encargo/v1", partes: [] } }],
     ["aportarContexto", aportarContexto, { tenant: SIN_DATASET, aportes: [] }],
     ["retomar", retomar, { tenant: SIN_DATASET, conversacionId: "x" }],
+    ["derivar", derivar, { tenant: SIN_DATASET, conversacionId: "x", operacion: "suma", sobre: ["E1.h1", "E1.h2"] }],
   ]) {
     let lanzo = false, salida = null;
     try { salida = await fn(args); } catch { lanzo = true; }

@@ -173,11 +173,11 @@ H("1e · lo bien formado no cambia: en los 532 encargos de los catálogos sellad
 }
 
 /* ═══ 2 · LA CABECERA DE USO TRAE LA REGLA DEL TOTAL ══════════════════════════════════════════════════════════════════════════════════════════════════ */
-H("2 · la cabecera de uso (instrucción previa al anfitrión): no calcular totales ni promedios de más de dos cifras");
+H("2 · la cabecera de uso (instrucción previa al anfitrión): UNA regla del contrato — toda cifra empresarial es un hecho entregado por ADI (Contrato del Anfitrión, cabecera de cuatro reglas)");
 {
-  const REGLA = "No calcule por su cuenta totales ni promedios de más de dos cifras: use el total que entrega ADI o pídaselo como una consulta nueva.";
-  ok(CABECERA_DE_USO.includes(REGLA) && CABECERA_DE_USO.length === 5, "★ `CABECERA_DE_USO` trae la regla del total (y las otras cuatro, intactas)", JSON.stringify(CABECERA_DE_USO));
-  ok(/cifras de esta respuesta ya están verificadas/.test(CABECERA_DE_USO[0]) && /Redacte con total libertad/.test(CABECERA_DE_USO[CABECERA_DE_USO.length - 1]), "las reglas que ya tenía conservan su texto y la libertad de redacción sigue cerrando la cabecera");
+  const REGLA = "Toda cifra empresarial que usted diga —en números o en palabras, incluidos totales, diferencias, porcentajes y conteos— debe ser un hecho que ADI le entregó en esta conversación. Si la cifra que necesita no está entre lo entregado, no la calcule ni la complete: pídasela a ADI (derivar, sobre identificadores ya entregados; o una consulta nueva). Redondear a lo impreso no es calcular.";
+  ok(CABECERA_DE_USO[0] === REGLA && CABECERA_DE_USO.length === 4, "★ `CABECERA_DE_USO` trae la regla del contrato en `[0]` (las reglas 1/5 y 2/5 se fundieron: cabecera de cuatro)", JSON.stringify(CABECERA_DE_USO));
+  ok(/^Lo que la Entrega declara en «Lo que no se puede concluir»/.test(CABECERA_DE_USO[1]) && /Redacte con total libertad/.test(CABECERA_DE_USO[CABECERA_DE_USO.length - 1]), "las reglas que ya tenía conservan su texto y la libertad de redacción sigue cerrando la cabecera");
   const r = await consultar(E([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente" }]));
   ok(r.ok && r.uso.includes(REGLA), "★ cada `consultar` la trae en `uso`");
   // por la puerta real (JSON-RPC y REST): lo que llega al anfitrión

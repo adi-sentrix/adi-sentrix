@@ -175,7 +175,7 @@ ok(process.env.ADI_ENTREGA === undefined && process.env.ADI_COMPLEMENTO === unde
 const puertaEnProceso = crearPuertaMcp({ almacen: a1, empresaId: "rioclaro" });
 ok(process.env.ADI_ENTREGA === undefined && a1.env.ADI_ENTREGA === "true" && a1.env.ADI_COMPLEMENTO === "true" && a1.env.ADI_MEMORIA_DURABLE === "true", "★ las tres banderas viven en el `env` de la puerta, no en process.env", JSON.stringify(BANDERAS_DE_LA_PUERTA));
 const tl = await puertaEnProceso.manejarMensaje({ jsonrpc: "2.0", id: 1, method: "tools/list" });
-ok(JSON.stringify(tl.result.tools) === JSON.stringify(MCP_TOOLS) && tl.result.tools.length === 4, "★ tools/list devuelve las CUATRO acciones tal cual `MCP_TOOLS` (nombre, descripción y esquema, sin una palabra más)");
+ok(JSON.stringify(tl.result.tools) === JSON.stringify(MCP_TOOLS) && tl.result.tools.length === 5, "★ tools/list devuelve las CINCO acciones tal cual `MCP_TOOLS` (nombre, descripción y esquema, sin una palabra más)");
 ok(puertaEnProceso.manejarMensaje({ jsonrpc: "2.0", method: "notifications/initialized" }) instanceof Promise && (await puertaEnProceso.manejarMensaje({ jsonrpc: "2.0", method: "notifications/initialized" })) === null, "una notificación no se responde");
 const ll = await puertaEnProceso.llamarHerramienta("consultar", { encargo: EN1 });
 ok(ll.resultado && ll.resultado.ok && ll.content[0].type === "text" && ll.isError === false, "tools/call corre `manejarPuerta` y devuelve el resultado como texto MCP");
@@ -193,7 +193,7 @@ const rpc = (id, method, params) => new Promise((res) => { respuestas.set(id, re
 const ini = await rpc(1, "initialize", { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "gate", version: "0" } });
 ok(ini.result.serverInfo.name === "adi" && ini.result.capabilities.tools && ini.result.protocolVersion === "2025-03-26", "stdio: `initialize` responde con la versión del cliente y la capacidad de herramientas");
 const tl2 = await rpc(2, "tools/list", {});
-ok(JSON.stringify(tl2.result.tools) === JSON.stringify(MCP_TOOLS), "stdio: las cuatro herramientas, idénticas a `MCP_TOOLS`");
+ok(JSON.stringify(tl2.result.tools) === JSON.stringify(MCP_TOOLS), "stdio: las cinco herramientas, idénticas a `MCP_TOOLS`");
 const tc = await rpc(3, "tools/call", { name: "consultar", arguments: { encargo: EN1 } });
 const resTc = JSON.parse(tc.result.content[0].text);
 ok(resTc.ok && /Cadena Quillay/.test(resTc.entrega.texto), "stdio: `consultar` por el servidor devuelve la Entrega real de la no-demo");
@@ -313,7 +313,7 @@ seccion("F2 · el rastreo acepta solo derivaciones aritméticas demostrables (lo
   // el informe las deja a la vista: qué cifras, qué operación
   const infD = calcularInforme({ manifiesto: null, cierre: null, hilos: [{ ...FIX, anulado: false }] });
   ok(infD.derivaciones.length === 2 && infD.derivaciones.every((d) => d.id && d.operacion && d.operandos.length === 2 && /=/.test(d.descripcion)) && infD.erroresMateriales.length === 0, "★ el informe registra las derivaciones aceptadas (id, operación, operandos) y el hilo queda sin errores materiales", JSON.stringify(infD.derivaciones));
-  ok(informeEnMarkdown(infD).includes("## Derivaciones aritméticas aceptadas · 2") && informeEnMarkdown(infD).includes("$37,2 M = $19.4M (Falabella) + $17.8M (Lider)"), "★ el informe en texto lista cada derivación: «$37,2 M = $19.4M (Falabella) + $17.8M (Lider)»");
+  ok(informeEnMarkdown(infD).includes("## Fuera de contrato (correctas) · 2") && informeEnMarkdown(infD).includes("$37,2 M = $19.4M (Falabella) + $17.8M (Lider)"), "★ el informe en texto lista cada cifra fuera de contrato (antes «Derivaciones aritméticas aceptadas»): «$37,2 M = $19.4M (Falabella) + $17.8M (Lider)»");
 
   // ── CARNADAS: la misma prosa con UN cambio. Cada una tiene que seguir marcándose como error.
   const conTexto = (turno, de, a) => { const h = clonF(FIX); const t = h.turnos.find((x) => x.turno === turno); if (!t.texto.includes(de)) throw new Error(`la prosa del turno ${turno} ya no trae «${de}»`); t.texto = t.texto.replace(de, a); return h; };
@@ -324,11 +324,14 @@ seccion("F2 · el rastreo acepta solo derivaciones aritméticas demostrables (lo
   ok(veredictoDe(conTexto(4, "8,6 puntos", "8,7 puntos"), 4, /8,7/) === "no_traza", "★ CARNADA · una diferencia que NO cierra (8,7 en vez de 8,6 = 30,1 − 21,5) sigue siendo error");
   ok(veredictoDe(conTexto(4, "8,6 puntos", "8,5 puntos"), 4, /8,5/) === "no_traza" && veredictoDe(conTexto(4, "8,6 puntos", "8,4 puntos"), 4, /8,4/) === "no_traza" && veredictoDe(conTexto(4, "8,6 puntos", "10 puntos"), 4, /^10 pun/) === "no_traza", "CARNADA · 8,5, 8,4 y «10 puntos» tampoco cierran");
   ok(veredictoDe(conTexto(4, "8,6 puntos", "9 puntos"), 4, /^9 pun/) === "traza", "control · «9 puntos» es 8,6 impreso con un entero (el redondeo a lo impreso no es error, como en toda cifra); el empate de media unidad no cierra");
-  // tres operandos: 19,4 + 17,8 + 17,3 = 54,5, y ninguna PAREJA de las tres da 54,5 → no se acepta
+  // tres operandos: 19,4 + 17,8 + 17,3 = 54,5, y ninguna PAREJA de las tres da 54,5. CONTRATO DEL ANFITRIÓN (§3): la derivación pasa de RESCATE a CLASIFICADOR y llega a CINCO sumandos: cierra → verdad, pero fuera de contrato
   const tres = conTexto(1, "Entre los dos suman unos $37,2 M (CLP).", "Falabella, Lider y Jumbo ($17,3 M) suman $54,5 M.");
-  ok(veredictoDe(tres, 1, /54,5/) === "no_traza", "★ CARNADA · TRES operandos (19,4 + 17,8 + 17,3 = 54,5) no se aceptan: la regla es de DOS cifras");
+  { const a = del(rastrearHilo(tres), 1).find((x) => /54,5/.test(x.token));
+    ok(a && a.veredicto === "traza" && a.caso === "fuera_de_contrato" && a.derivacionQueDebioPedirse && a.derivacionQueDebioPedirse.operacion === "suma" && a.derivacionQueDebioPedirse.sobre.length === 3 && a.derivacion.operandos.length === 3, "★ TRES operandos que cierran (19,4 + 17,8 + 17,3 = 54,5): verdad, pero FUERA DE CONTRATO — y queda registrada la derivación que debió pedirse (suma de 3 ids)", JSON.stringify(a)); }
+  ok(veredictoDe(conTexto(1, "Entre los dos suman unos $37,2 M (CLP).", "Falabella, Lider y Jumbo ($17,3 M) suman $54,6 M."), 1, /54,6/) === "no_traza", "★ CARNADA · TRES operandos que NO cierran (54,6 en vez de 54,5) siguen siendo error material");
   const tresBien = conTexto(1, "Entre los dos suman unos $37,2 M (CLP).", "Falabella, Lider y Jumbo ($17,3 M) suman $37,2 M.");
   ok(veredictoDe(tresBien, 1, /37,2/) === "traza", "control · si dos de las cifras citadas SÍ suman lo que la prosa dice, traza (la regla mira parejas)");
+  { const a = del(rastrearHilo(tresBien), 1).find((x) => /37,2/.test(x.token)); ok(a && a.caso === "fuera_de_contrato" && a.derivacionQueDebioPedirse.operacion === "suma", "…y una derivación por pareja también es fuera de contrato (el anfitrión debió pedirla)"); }
   // producto y cociente: nunca
   ok(veredictoDe(conTexto(4, "8,6 puntos", "6,5 puntos"), 4, /6,5/) === "no_traza" && veredictoDe(conTexto(4, "8,6 puntos", "9,3 %"), 4, /9,3/) === "no_traza", "CARNADA · ni un producto ni un cociente ni un «porcentaje de porcentaje» (30,1 × 21,5 %, 21,5 ÷ 30,1…) se aceptan como derivación");
   // otra métrica: una cifra que coincide SOLO con otra métrica de la entidad sigue siendo `metrica_distinta`
@@ -467,6 +470,175 @@ seccion("F3 · el rastreo tras el clasificador del ensayo 2 (143 falsas alarmas 
   { const todos = Object.keys(FX2).flatMap((id) => rastrearHilo(hilo2(id)).flatMap((t) => t.afirmaciones.filter((a) => a.clase === 1 && a.material).map((a) => `${id}|${t.turno}|${a.token}`)));
     const graves = ["$195M", "48%"];
     ok(graves.every((g) => todos.some((x) => x.endsWith("|" + g))), "★ los 2 errores GRAVES del anfitrión siguen marcados: «$195M» (las 13 ventas entregadas suman $176.0M) y «48%» (94.3 ÷ 176.0 = 53.6%)", todos.join(" "));
+  }
+}
+
+/* ═════ F4 · EL CONTRATO DEL ANFITRIÓN: TRES CASOS POR CIFRA, NÚMEROS EN PALABRAS Y EL INFORME QUE CIERRA (owner 2026-10-05) ═════════════════════════
+ * `_ADI_DISENO_CONTRATO_ANFITRION.md` §3 y §5. «Toda cifra empresarial que el anfitrión diga —en números o en palabras— debe ser un hecho que ADI le entregó.» El rastreo clasifica cada cifra: hecho_de_adi · fuera_de_contrato
+ * (verdadera y demostrable con lo entregado, pero la calculó el anfitrión: NO es falsa, rompe el 100 %) · error_material. Los números en palabras (los dos errores graves del ensayo 3: «Ocho de los 13…», «5 de las 9») se leen con
+ * `numerosEnPalabras.mjs`, que IMPORTA la tabla de proporciones del Notario. El informe: cumplimiento = 100 % + 0 errores de ADI + 0 materiales + 0 cruces. */
+seccion("F4 · el contrato del anfitrión: tres casos por cifra, números en palabras y el informe de cierre");
+{
+  const { extraerNumerosEnPalabras, relacionesEnPalabras } = await import(D + "numerosEnPalabras.mjs");
+  const { COTAS_DE_PROPORCION } = await import("./src/adi/notario/lexico.js");
+  const { rastrearHilo: rastrear, CASOS_DEL_CONTRATO, VEREDICTOS_FALSOS: FALSOS } = await import(D + "rastreo.mjs");
+  const { REGLA_DE_CIERRE } = await import(D + "informe.mjs");
+  const { PROMPT_DEL_JUEZ } = await import(D + "juez.mjs");
+  const fmt = (await import("./src/adi/notario/hechos.js")).formatoDeLaCasa;
+  const jsn = (x) => JSON.stringify(x);
+
+  // ── los números en palabras (lista cerrada)
+  const pal = (t) => extraerNumerosEnPalabras(t).map((x) => [x.valorEntero, x.unidad]);
+  ok(jsn(pal("Ocho de los 13 clientes")) === jsn([[8, "count"]]), "★ «Ocho» = 8 (un conteo)");
+  ok(jsn(pal("treinta y cinco días")) === jsn([[35, "days"]]) && jsn(pal("veintiuno")) === jsn([[21, "count"]]) && jsn(pal("noventa y nueve")) === jsn([[99, "count"]]) && jsn(pal("cien")) === jsn([[100, "count"]]), "treinta y cinco días · veintiuno · noventa y nueve · cien");
+  ok(jsn(pal("cuatro millones")) === jsn([[4000000, "money"]]) && jsn(pal("dos mil unidades")) === jsn([[2000, "count"]]) && jsn(pal("ocho por ciento")) === jsn([[8, "pct"]]) && jsn(pal("doce puntos porcentuales")) === jsn([[12, "pp"]]), "cuatro millones (dinero) · dos mil unidades (conteo) · ocho por ciento · doce puntos porcentuales");
+  ok(pal("una cuenta, uno solo y un cliente").length === 0, "«un/uno/una» NO son cifras («una cuenta», «un cliente»)");
+  const rel = (t) => relacionesEnPalabras(t).map((x) => [x.frase, x.tipo]);
+  ok(jsn(rel("es la mitad de la de Lider")) === jsn([["la mitad", "fraccion"]]) && jsn(rel("pesa tres cuartos")) === jsn([["tres cuartos", "fraccion"]]) && rel("casi la mitad")[0][0] === "casi la mitad", "las fracciones salen de la tabla de la casa: la mitad · tres cuartos · casi la mitad");
+  const mitad = relacionesEnPalabras("la mitad")[0], cotaMitad = COTAS_DE_PROPORCION.find((c) => /^la mitad/.test(c.nombre));
+  ok(mitad.lo === cotaMitad.lo && mitad.hi === cotaMitad.hi, "★ el rango de «la mitad» ES el de `COTAS_DE_PROPORCION` (se importa la tabla, no se escribe otra)");
+  ok(/import \{[^}]*COTAS_DE_PROPORCION[^}]*\} from "\.\.\/\.\.\/src\/adi\/notario\/lexico\.js"/.test(fs.readFileSync(D + "numerosEnPalabras.mjs", "utf8")), "el ayudante importa `COTAS_DE_PROPORCION` del Notario");
+  ok(relacionesEnPalabras("la mayoría, casi todos y unos cuantos").length === 0, "«la mayoría», «casi todos», «unos cuantos» NO se leen (van al juez, diseño §3)");
+  ok(jsn(rel("duplica a Lider y casi triplica")) === jsn([["duplica", "multiplo"], ["casi triplica", "multiplo"]]), "los múltiplos: duplica · casi triplica");
+
+  // ── un hilo real: la no-demo, 13 clientes con su saldo vencido y pendiente, y las ventas
+  const aF4 = await abrirAlmacen({ estadoJson: crearEstadoInicial() });
+  const rV = await aF4.llamar("rioclaro", "consultar", { encargo: { version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente" }] } });
+  const convF4 = rV.continuidad.conversacionId;
+  const rS = await aF4.llamar("rioclaro", "consultar", { encargo: { version: "encargo/v1", conversacionId: convF4, partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido", "saldo_pendiente"], eje: "cliente" }] } });
+  const cifrasS = [...rS.entrega.cifras, ...((rS.entrega.detalle && rS.entrega.detalle.fueraDelTexto) || [])];
+  const vencidos = cifrasS.filter((c) => c.entidad && c.metrica === "Saldo vencido");
+  const nVenc = vencidos.filter((c) => c.valor !== "$0").length, nDia = vencidos.length - nVenc;
+  ok(vencidos.length === 13 && nVenc > 0 && nDia > 0, `el hilo trae los 13 saldos vencidos (con id, también los de «fuera del texto»): ${nVenc} con vencido, ${nDia} al día`, `${vencidos.length}/${nVenc}`);
+  const LL = (...res) => res.map((resultado, i) => ({ herramienta: ["consultar", "consultar", "derivar", "derivar"][i] || "consultar", args: {}, resultado }));
+  const hilo1 = (texto, llamadas, persona = "¿cómo está la cobranza?") => rastrear(hiloBase(texto, persona, llamadas))[0];
+  const cifra1 = (r, rx) => r.afirmaciones.filter((a) => a.clase === 1 && a.veredicto !== "ignorado" && rx.test(a.token));
+  const wd = (n) => ({ 1: "una", 2: "dos", 3: "tres", 4: "cuatro", 5: "cinco", 6: "seis", 7: "siete", 8: "ocho", 9: "nueve", 10: "diez", 11: "once", 12: "doce", 13: "trece" }[n]);
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const base = LL(rV, rS);
+
+  // ── CONTEOS EN PALABRAS Y EN CIFRAS
+  {
+    const bien = cifra1(hilo1(`${cap(wd(nVenc))} de los 13 clientes tienen saldo vencido.`, base), new RegExp(`^${wd(nVenc)}$`, "i"));
+    ok(bien.length === 1 && bien[0].veredicto === "traza" && bien[0].caso === "fuera_de_contrato" && bien[0].derivacionQueDebioPedirse.operacion === "conteo" && bien[0].derivacionQueDebioPedirse.sobre.length === 13 && bien[0].derivacionQueDebioPedirse.resultado === `${nVenc} de 13`, `★ «${cap(wd(nVenc))} de los 13 clientes tienen saldo vencido» es VERDAD (${nVenc} de 13) pero FUERA DE CONTRATO: el anfitrión lo contó, debió pedir derivar un conteo sobre los 13 ids`, jsn(bien));
+    ok(!FALSOS.has(bien[0] && bien[0].veredicto), "…y no cuenta como falsa");
+    const mal = cifra1(hilo1(`${cap(wd(nVenc + 2))} de los 13 clientes tienen saldo vencido.`, base), new RegExp(`^${wd(nVenc + 2)}$`, "i"));
+    ok(mal.length === 1 && mal[0].veredicto === "conteo_no_cierra" && mal[0].caso === "error_material" && mal[0].material === true, `★ CARNADA · «${cap(wd(nVenc + 2))} de los 13 clientes tienen saldo vencido» (son ${nVenc}) es un ERROR MATERIAL: el conteo en palabras no cierra`, jsn(mal));
+    const grave1 = cifra1(hilo1("Ocho de los 13 clientes tienen saldo pendiente.", base), /^ocho$/i);
+    ok(grave1.length === 1 && grave1[0].caso === "error_material", "★ el error grave del ensayo 3 «Ocho de los 13 clientes tienen saldo pendiente» (los 13 tienen) queda error_material", jsn(grave1));
+    const grave2 = cifra1(hilo1(`${nVenc + 2} de las 9 cuentas tienen saldo vencido.`, base), new RegExp(`^${nVenc + 2}$`));
+    ok(grave2.length === 1 && grave2[0].caso === "error_material", `★ el error grave «5 de las 9» (en cifras): «${nVenc + 2} de las 9 cuentas tienen saldo vencido» (son ${nVenc}) queda error_material`, jsn(grave2));
+    const alDia = cifra1(hilo1(`${cap(wd(nDia))} clientes están al día.`, base), new RegExp(`^${wd(nDia)}$`, "i"));
+    ok(alDia.length === 1 && alDia[0].veredicto === "traza" && alDia[0].caso === "fuera_de_contrato" && alDia[0].derivacionQueDebioPedirse.condicion.op === "=" , `«${cap(wd(nDia))} clientes están al día» (vencido = 0, la definición de la casa) cierra: fuera de contrato`, jsn(alDia));
+    ok(cifra1(hilo1(`${cap(wd(nDia + 1))} clientes están al día.`, base), new RegExp(`^${wd(nDia + 1)}$`, "i"))[0].caso === "error_material", "CARNADA · uno más al día de los que hay: error material");
+    ok(cifra1(hilo1("Tengo tres opciones y una sola pregunta.", base), /./).filter((x) => x.caso).length === 0, "★ «tres opciones» y «una sola pregunta»: no son cifras empresariales (ninguna lleva un caso del contrato: se ignoran o se listan, no se juzgan)");
+    ok(cifra1(hilo1("Te propongo dos cosas: ver la cartera y luego decidir.", base), /./).length === 0, "un número en palabras que no cuenta un universo entregado no se juzga (va al juez)");
+    // ADI ya lo entregó: derivar un conteo → hecho de ADI
+    const dC = await aF4.llamar("rioclaro", "derivar", { conversacionId: convF4, operacion: "conteo", sobre: vencidos.map((c) => c.id), condicion: { op: ">", valor: 0 } });
+    ok(dC.ok && dC.hecho.valor === `${nVenc} de 13`, `(preparación) \`derivar\` entrega el conteo «${dC.hecho && dC.hecho.valor}» con su id`, jsn(dC).slice(0, 200));
+    const conD = cifra1(hilo1(`${cap(wd(nVenc))} de los 13 clientes tienen saldo vencido.`, LL(rV, rS, dC)), new RegExp(`^${wd(nVenc)}$`, "i"));
+    ok(conD.length === 1 && conD[0].veredicto === "traza" && conD[0].caso === "hecho_de_adi", "★ la MISMA frase con el conteo de `derivar` entregado (D) es un HECHO DE ADI", jsn(conD));
+  }
+
+  // ── SUMAS: «los tres suman $X» sin derivar = fuera de contrato; con D1 = hecho
+  {
+    const ventas = rV.entrega.cifras.filter((c) => c.entidad && c.metrica === "Venta");
+    const imp = (t) => Number(String(t).replace(/[^0-9.]/g, ""));
+    let trio = null;
+    for (let i = 0; i < ventas.length && !trio; i++) for (let j = i + 1; j < ventas.length && !trio; j++) for (let k = j + 1; k < ventas.length && !trio; k++) {
+      const t3 = [ventas[i], ventas[j], ventas[k]];
+      if (new Set(t3.map((x) => x.valor)).size === 3 && Math.abs(imp(t3[0].valor) + imp(t3[1].valor) + imp(t3[2].valor) - Math.round((imp(t3[0].valor) + imp(t3[1].valor) + imp(t3[2].valor)) * 10) / 10) < 1e-9) trio = t3;
+    }
+    const dS = await aF4.llamar("rioclaro", "derivar", { conversacionId: convF4, operacion: "suma", sobre: trio.map((c) => c.id) });
+    const total = dS.hecho.valor;
+    const frase = `${trio[0].entidad} (${trio[0].valor}), ${trio[1].entidad} (${trio[1].valor}) y ${trio[2].entidad} (${trio[2].valor}) suman ${total}.`;
+    const sin = cifra1(hilo1(frase, LL(rV, rS)), new RegExp(`^${total.replace(/[$.]/g, "\\$&")}$`));
+    ok(sin.length === 1 && sin[0].veredicto === "traza" && sin[0].caso === "fuera_de_contrato" && sin[0].derivacionQueDebioPedirse.sobre.length === 3, `★ «los tres suman ${total}» SIN derivar: correcto, FUERA DE CONTRATO (la suma de 3 ids que debió pedirse)`, jsn(sin).slice(0, 500));
+    const con = cifra1(hilo1(frase, LL(rV, rS, dS)), new RegExp(`^${total.replace(/[$.]/g, "\\$&")}$`));
+    ok(con.length === 1 && con[0].veredicto === "traza" && con[0].caso === "hecho_de_adi", `★ la misma frase con la derivación D1 entregada: HECHO DE ADI`, jsn(con).slice(0, 400));
+    const otra = `${trio[0].entidad} (${trio[0].valor}), ${trio[1].entidad} (${trio[1].valor}) y ${trio[2].entidad} (${trio[2].valor}) suman $${(imp(total) + 0.4).toFixed(1)}M.`;
+    const mala = cifra1(hilo1(otra, LL(rV, rS, dS)), new RegExp(`^\\$${(imp(total) + 0.4).toFixed(1).replace(".", "\\.")}M`));
+    ok(mala.length === 1 && mala[0].caso === "error_material", "CARNADA · una suma que no cierra con nada entregado: error material");
+    // la participación con D entregado vs calculada por el anfitrión
+    const dP = await aF4.llamar("rioclaro", "derivar", { conversacionId: convF4, operacion: "participacion", sobre: [ventas[0].id], base: rV.entrega.cifras.find((c) => /total del listado/.test(c.metrica)).id });
+    const pct = dP.hecho.valor;
+    const fraseP = `${ventas[0].entidad} pesa ${pct} de la venta total.`;
+    const pSin = cifra1(hilo1(fraseP, LL(rV, rS)), new RegExp(`^${pct.replace(/[.]/g, "\\.")}$`));
+    ok(pSin.length === 1 && pSin[0].caso === "fuera_de_contrato" && pSin[0].derivacionQueDebioPedirse.operacion === "participacion", `★ una participación (${pct}) calculada por el anfitrión: verdadera, fuera de contrato (cociente sobre una base entregada)`, jsn(pSin).slice(0, 400));
+    const pCon = cifra1(hilo1(fraseP, LL(rV, rS, dP)), new RegExp(`^${pct.replace(/[.]/g, "\\.")}$`));
+    ok(pCon.length === 1 && pCon[0].caso === "hecho_de_adi", "…y con la derivación D entregada, hecho de ADI", jsn(pCon).slice(0, 300));
+    // los ids: D1 y E3.h2 no son cifras
+    const ids = hilo1("Según D1 y E3.h2 (versión 2, año 2026).", LL(rV, rS, dS));
+    ok(cifra1(ids, /./).length === 0, "★ «D1», «E3.h2», «2026» y «versión 2» se ignoran (no son cifras empresariales)", jsn(ids.afirmaciones.filter((a) => a.veredicto !== "ignorado").map((a) => a.token)));
+  }
+
+  // ── RELACIONES EN PALABRAS (dos cuentas, una cifra de la misma métrica de cada una)
+  {
+    const mk = (v1, v2) => ({ ok: true, entrega: { texto: "Ventas.", cifras: [{ id: "E1.h1", entidad: "Cadena Quillay", metrica: "Venta", valor: v1, procedencia: "medido" }, { id: "E1.h2", entidad: "Casa Lomas", metrica: "Venta", valor: v2, procedencia: "medido" }] } });
+    const h = (texto, v1, v2) => rastrear(hiloBase(texto, "compara", [{ herramienta: "consultar", args: {}, resultado: mk(v1, v2) }]))[0].afirmaciones.filter((a) => a.tipo === "relacion");
+    const m1 = h("Las ventas de Cadena Quillay son la mitad de las de Casa Lomas.", "$10.0M", "$20.0M");
+    ok(m1.length === 1 && m1[0].veredicto === "traza" && m1[0].caso === "fuera_de_contrato" && m1[0].derivacionQueDebioPedirse.operacion === "participacion", "★ «la mitad» con una razón de 0,50: verdad, pero la relación la calculó el anfitrión (fuera de contrato: debió pedir una participación)", jsn(m1).slice(0, 400));
+    const m2 = h("Las ventas de Casa Lomas casi duplican a las de Cadena Quillay.", "$11.5M", "$20.0M");
+    ok(m2.length === 1 && m2[0].veredicto === "relacion_no_cierra" && m2[0].caso === "error_material", "★ CARNADA · «casi duplican» con una razón de 1,74× es ERROR MATERIAL (la relación en palabras no cierra)", jsn(m2).slice(0, 400));
+    const m3 = h("Las ventas de Casa Lomas duplican a las de Cadena Quillay.", "$10.0M", "$20.0M");
+    ok(m3.length === 1 && m3[0].veredicto === "traza", "«duplican» con una razón de 2,0×: cierra");
+    const m4 = h("Las ventas de Cadena Quillay son la mitad de las de Casa Lomas.", "$13.0M", "$20.0M");
+    ok(m4.length === 1 && m4[0].caso === "error_material", "CARNADA · «la mitad» con una razón de 0,65: error material");
+    ok(h("Casi todos los clientes compran, la mayoría vuelve.", "$10.0M", "$20.0M").length === 0, "«casi todos» y «la mayoría» no se leen: no hay veredicto de rastreo");
+    ok(h("Cadena Quillay es la mitad del negocio.", "$10.0M", "$20.0M").length === 0, "con UNA sola cuenta nombrada no hay con qué comparar: no se juzga");
+  }
+
+  // ── los tres casos en el resto de los veredictos
+  {
+    const venta = filasE1.find((f) => f.metrica === "Venta").valor;
+    const cs = (t, rx) => rastro(t).afirmaciones.filter((a) => a.clase === 1 && a.veredicto !== "ignorado" && rx.test(a.token));
+    const d = cs(`Cadena Quillay vendió ${venta}.`, /\$/)[0];
+    ok(d.veredicto === "traza" && d.caso === "hecho_de_adi", "una cifra entregada con su dueño: HECHO DE ADI");
+    ok(cs("Cadena Quillay vendió $99.9M este año.", /\$/)[0].caso === "error_material", "una cifra inventada: ERROR MATERIAL");
+    ok(cs("Casa Lomas vendió $13.0M.", /\$/).every((a) => a.caso === "error_material" || a.caso === undefined) && cs(`Casa Lomas vendió ${venta}.`, /\$/)[0].caso === "error_material", "una cifra entregada a OTRO dueño: error material");
+    ok(cs("Cadena Quillay tuvo margen de $13.0M.", /\$/)[0].caso === "error_material", "una cifra de otra métrica: error material");
+    ok(CASOS_DEL_CONTRATO.join() === "hecho_de_adi,fuera_de_contrato,error_material", "los tres casos son EXACTAMENTE esos tres");
+    const dp = rastro("Con tu piso de 45 días, lo normal es sobrepasarlo.", { persona: "Mi piso es 45 días." }).afirmaciones.find((a) => /45/.test(a.token));
+    ok(dp && dp.caso === "hecho_de_adi" && dp.declaradoPor === "persona", "una cifra que declaró la PERSONA: no es verdad nueva del anfitrión (hecho de ADI, con su origen)", jsn(dp));
+  }
+
+  // ── el informe: cumplimiento = 100 % + 0 errores de ADI + 0 materiales + 0 cruces
+  {
+    const venta = filasE1.find((f) => f.metrica === "Venta").valor;
+    const hilosI = (textos, forma = "A") => [{ hiloId: "H", forma, empresa: "rioclaro", turnos: textos.map((tx, k) => ({ sesion: 1, turno: k + 1, persona: "¿cuánto vendió Cadena Quillay?", textoEnviado: "¿cuánto vendió Cadena Quillay?", texto: tx, llamadas: [{ herramienta: "consultar", args: {}, resultado: E1 }] })) }];
+    const manifiesto = { corridaId: "gate", tipo: "oficial", via: "api", modelo: "m", corpus: { corpusId: "c1", sha256: "x", juguete: false }, hashes: { instruccion: "i", herramientas: "h" }, sello: { ok: true } };
+    const cierre = { turnosPlaneados: 3, turnosHechos: 3, motivo: "completa", consumo: { sinConteoPct: 0, modelosSinPrecio: [] } };
+    const juez = (n) => ({ turnos: Object.fromEntries(Array.from({ length: n }, (_, k) => [`H|1|${k + 1}`, { ok: true, afirmaciones: [], naturalidad: null }])) });
+    const informe = (textos, revision = null) => calcularInforme({ manifiesto, cierre: { ...cierre, turnosPlaneados: textos.length, turnosHechos: textos.length }, hilos: hilosI(textos), juez: juez(textos.length), revision });
+    const ok1 = informe([`Cadena Quillay vendió ${venta}.`]);
+    ok(ok1.veredicto === "PASA" && ok1.contrato.cifras === 1 && ok1.contrato.hechoDeAdi === 1 && ok1.contrato.cumplimientoPct === 100 && ok1.erroresDeAdi.length === 0, "★ solo hechos de ADI: cumplimiento 100 %, 0 errores de ADI, 0 materiales, 0 cruces → PASA", `${ok1.veredicto} · ${ok1.porQue}`);
+    ok(ok1.contratoPorHilo.H && ok1.contratoPorHilo.H.cumplimientoPct === 100, "el bloque `contrato` sale por hilo y total");
+    // fuera de contrato correcto: la verdad queda en 100 % pero NO PASA
+    const trio = rS.entrega.cifras.filter((c) => c.entidad && c.metrica === "Saldo vencido").slice(0, 3);
+    const nV = vencidos.filter((c) => c.valor !== "$0").length;
+    const fuera = informe([`Cadena Quillay vendió ${venta}.`, `${cap(wd(nV))} de los 13 clientes tienen saldo vencido.`].slice(0, 1));
+    const hilosF = [{ hiloId: "H", forma: "A", empresa: "rioclaro", turnos: [{ sesion: 1, turno: 1, persona: "¿cómo va la cobranza?", textoEnviado: "¿cómo va la cobranza?", texto: `${cap(wd(nV))} de los 13 clientes tienen saldo vencido.`, llamadas: LL(rV, rS) }] }];
+    const infF = calcularInforme({ manifiesto, cierre: { ...cierre, turnosPlaneados: 1, turnosHechos: 1 }, hilos: hilosF, juez: juez(1), revision: null });
+    ok(infF.verdad.real.pct === 100 && infF.contrato.fueraDeContrato.total === 1 && infF.contrato.cumplimientoPct === 0 && infF.veredicto === "NO PASA" && infF.erroresMateriales.length === 0, "★ un `fuera_de_contrato` CORRECTO no cuenta como falso (verdad 100 %) pero rompe el 100 % de cumplimiento: NO PASA", `${infF.veredicto} · ${infF.porQue}`);
+    ok(infF.contrato.fueraDeContrato.derivables.length === 1 && infF.contrato.fueraDeContrato.derivables[0].derivacionQueDebioPedirse.operacion === "conteo" && /debió pedir derivar conteo/.test(informeEnMarkdown(infF)), "el informe trae, por cada fuera de contrato, la derivación exacta que debió pedirse", jsn(infF.contrato.fueraDeContrato.derivables).slice(0, 300));
+    ok(informeEnMarkdown(infF).includes("## El contrato del anfitrión") && informeEnMarkdown(infF).includes("## Errores de ADI · 0") && informeEnMarkdown(infF).includes("## Fuera de contrato (correctas) · 1"), "el informe en texto trae el bloque del contrato, los errores de ADI y lo fuera de contrato");
+    // error_adi: la cifra y la frase son verdaderas, pero el hecho faltó: NO PASA
+    const idCifra = Object.keys({}).length ? null : "H|1|1|1";
+    const infA = calcularInforme({ manifiesto, cierre: { ...cierre, turnosPlaneados: 1, turnosHechos: 1 }, hilos: hilosF, juez: juez(1), revision: { decisiones: { [idCifra]: { veredicto: "error_adi", nota: "el conteo debía venir entregado" } } } });
+    ok(infA.erroresDeAdi.length === 1 && infA.erroresDeAdi[0].nota && infA.veredicto === "NO PASA" && infA.verdad.real.pct === 100, "★ un `error_adi` (revision.json) es del producto, no del anfitrión: la verdad sigue en 100 %, pero NO PASA", `${infA.veredicto} · ${infA.porQue}`);
+    // error material: NO PASA
+    const infM = informe([`Cadena Quillay vendió $99.9M este año.`]);
+    ok(infM.veredicto === "NO PASA" && infM.erroresMateriales.length === 1 && infM.contrato.erroresMateriales === 1 && infM.contrato.cumplimientoPct === 0, "★ un error material: NO PASA (y baja el cumplimiento)", `${infM.veredicto} · ${infM.porQue}`);
+    // sin cifras no se puede decir que cumple
+    const infN = informe(["Hola, ¿en qué te ayudo?"]);
+    ok(infN.contrato.cifras === 0 && infN.contrato.cumplimientoPct === null && infN.veredicto === "NO PASA", "sin cifras empresariales que medir no se declara cumplimiento: NO PASA", `${infN.veredicto} · ${infN.porQue}`);
+    // revertir a verdadera una falsa de la máquina: falla del medidor, cuenta como hecho de ADI
+    const infR = calcularInforme({ manifiesto, cierre: { ...cierre, turnosPlaneados: 1, turnosHechos: 1 }, hilos: hilosI(["Cadena Quillay vendió $99.9M este año."]), juez: juez(1), revision: { decisiones: { "H|1|1|1": { veredicto: "verdadera", nota: "la cifra sí era de la entrega" } } } });
+    ok(infR.fallasDelMedidor.length === 1 && infR.contrato.hechoDeAdi === 1 && infR.veredicto === "PASA", "la persona revierte una falsa de la máquina: falla del medidor, cuenta como hecho de ADI → PASA");
+    // la regla escrita
+    ok(/cumplimiento del contrato = 100 %/.test(REGLA_DE_CIERRE) && /0 errores de ADI/.test(REGLA_DE_CIERRE) && /0 errores materiales del anfitrión/.test(REGLA_DE_CIERRE) && /0 cruces entre empresas/.test(REGLA_DE_CIERRE) && !/verdad ≥ 99/.test(REGLA_DE_CIERRE), "★ `REGLA_DE_CIERRE` es la nueva: cumplimiento 100 % · 0 errores de ADI · 0 materiales · 0 cruces (el % de verdad se informa, ya no decide)");
+    ok(/Úsela|una afirmación cuantificada sin número/i.test(PROMPT_DEL_JUEZ) && /todos, ninguno, el único, la mayoría/.test(PROMPT_DEL_JUEZ) && /material si nombra una cuenta o una cifra/.test(PROMPT_DEL_JUEZ), "★ el juez trae la línea de clase 4: «una afirmación cuantificada sin número —todos, ninguno, el único, la mayoría— debe sostenerse en hechos entregados…»");
+    void trio; void fuera;
   }
 }
 

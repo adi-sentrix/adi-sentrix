@@ -91,7 +91,7 @@ const _cifraBreve = (c) => _soloConValor({ id: c.id || null, entidad: c.sujeto, 
 /** las cifras de la tabla de Cifras, con los ids del libro: `turno` es el número de la Entrega en la conversación (`continuidad.estadoVigente.turno`: el libro ya la registró) */
 export function cifrasDeLaConsulta(entregaJson, turno) {
   const filas = (entregaJson && entregaJson.cifras && Array.isArray(entregaJson.cifras.filas)) ? entregaJson.cifras.filas : [];
-  const hechos = _hechosDeLaEntrega(entregaJson).map((h, k) => ({ ...h, id: `E${turno}.h${k + 1}` }));
+  const hechos = _hechosDeLaEntrega(entregaJson, { conFueraDelTexto: false }).map((h, k) => ({ ...h, id: `E${turno}.h${k + 1}` }));   /* la tabla de la Entrega: las cifras de `detalle.fueraDelTexto` (que el libro también guarda, con id) viajan en `detalle`, no acá */
   return cifrasDeLaEntrega({ hechos }).map((c) => {
     const b = _cifraBreve(c);
     /* una fila de simulación dice el supuesto con el que se calculó (planteado en la consulta, no medido): viaja con SU cifra */
@@ -118,8 +118,13 @@ function _compactarEntrega(entrega, turno) {
   const d = j.detalle && typeof j.detalle === "object" ? j.detalle : null;
   let detalle = null;
   if (d) {
+    /* cada cifra de `fueraDelTexto` lleva el id que el libro le da (§8.2 del Contrato del Anfitrión: «toda cifra que viaja al anfitrión lleva id»): van DESPUÉS de las filas y los totales de la tabla, en el orden del detalle */
+    const nDeLaTabla = _hechosDeLaEntrega(j, { conFueraDelTexto: false }).length;
+    /* si el libro no las pudo guardar (el tope de 16 KB), viajan como siempre —sin id—: `entrega.fueraSinId` lo dice `acciones.js` */
     const fuera = Array.isArray(d.filas) && d.filas.length
-      ? cifrasDeLaEntrega({ hechos: _hechosDeLaEntrega({ cifras: { filas: d.filas }, procedencia: prov }) }).map((c) => { const { id, ...resto } = _cifraBreve(c); return resto; })
+      ? (entrega.fueraSinId === true
+        ? cifrasDeLaEntrega({ hechos: _hechosDeLaEntrega({ cifras: { filas: d.filas }, procedencia: prov }) }).map((c) => { const { id, ...resto } = _cifraBreve(c); return resto; })
+        : cifrasDeLaEntrega({ hechos: _hechosDeLaEntrega({ cifras: { filas: d.filas }, procedencia: prov }).map((h, k) => ({ ...h, id: `E${turno}.h${nDeLaTabla + k + 1}` })) }).map((c) => _cifraBreve(c)))
       : [];
     detalle = _soloConValor({
       comoPedirlo: d.comoPedirlo || null, notaDeUso: _noVacio(d.notaDeUso) ? d.notaDeUso : null,
@@ -222,7 +227,7 @@ function _compactarRevalidacion(rv) {
 function _compactarRetomar(s) {
   if (!s || typeof s !== "object" || s.ok === false) return s;
   const hechos = (Array.isArray(s.hechos) ? s.hechos : []).map((h) => _soloConValor({
-    id: h.id, sujeto: h.sujeto, metrica: h.metrica, valor: h.valor, origen: h.origen,
+    id: h.id, sujeto: h.sujeto, metrica: h.metrica, valor: h.valor, origen: h.origen, ...(Array.isArray(h.sobre) ? { sobre: h.sobre } : {}),
     estadoReverificacion: h.estadoReverificacion, ...(h.valorNuevo != null ? { valorNuevo: h.valorNuevo } : {}), revalidacion: _compactarRevalidacion(h.revalidacion),
   }));
   const entregas = (Array.isArray(s.entregas) ? s.entregas : []).map((e) => _soloConValor(Object.fromEntries(Object.entries(e || {}).map(([k, v]) => [k, Array.isArray(v) && !v.length ? null : v]))));
@@ -234,5 +239,6 @@ export function compactarParaAnfitrion(accion, salida) {
   if (accion === "consultar") return _compactarConsultar(salida);
   if (accion === "conocerEmpresa") return _compactarConocer(salida);
   if (accion === "retomar") return _compactarRetomar(salida);
+  if (accion === "derivar") return salida;                                         // la derivación ya sale en su forma de anfitrión (un hecho, sus operandos, el uso): viaja tal cual
   return salida;                                                                   // aportarContexto: ya es chica, viaja tal cual
 }
