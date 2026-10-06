@@ -98,10 +98,14 @@ const ningunaVerdadera = (vs) => vs.length > 0 && vs.every((v) => v.veredicto !=
    * El veredicto sobre la DECLARACIÓN es correcto y la reparación se la pide al modelo. Y una novena falsedad real que destapó el inventario
    * verificable: LG-WASH11KG dicho «entre los SKU con más riesgo de quiebre» (8.cierre.6) está «capital sano» por la definición de la Mesa
    * Capital (21 días de cobertura contra un techo de 20), que la proyección ahora declara SKU por SKU. Ninguna otra falsa puede aparecer. */
-  const ESPERADAS_FUERA = new Set(["2.cierre.3", "2.cierre.10", "9.cierre.11", "4.reparacion.9", "8.cierre.6"]);
+  /* UNA SOLA REALIDAD (owner 2026-10-06): cuatro declaraciones MÁS de la corrida archivada pasan a falsas por el dato, no por el resolutor: las brechas al benchmark
+   * de las marcas que el modelo dijo en esa corrida (LG 6,1 · Samsung 5,9 · Philips 3,5 · Bosch 4,1 puntos) eran las de la tabla de entonces; la corrección del dato de
+   * fábrica (§2 b del diseño: el margen de marca ×0,9804 para cuadrar con la contribución de los clientes) las movió 0,5 pp (6,6 · 6,4 · 4,0 · 4,6) — la proyección dice
+   * hoy otra cifra y el veredicto «cifra-distinta» es el correcto. El fixture es un registro histórico y no se reescribe; se nombran por id, una por una, con su razón. */
+  const ESPERADAS_FUERA = new Set(["2.cierre.3", "2.cierre.10", "9.cierre.11", "4.reparacion.9", "8.cierre.6", "10.cierre.1", "10.cierre.5", "10.cierre.11", "10.cierre.14"]);
   const falsasFuera = [];
   for (const [clave, { J }] of juicios) for (const v of J.veredictos) if (v.veredicto === "falsa") { const id = `${clave}.${Number(String(v.id).replace(/^a/, "").split(".")[0]) - 1}`; if (!E.falsasConfirmadasIds.includes(id)) falsasFuera.push(id); }
-  ok(falsasFuera.every((id) => ESPERADAS_FUERA.has(id)), `fuera de las 7 confirmadas, las falsas son solo las 5 nombradas (hoy ${[...new Set(falsasFuera)].length}: ${[...new Set(falsasFuera)].join(", ")})`, falsasFuera.filter((id) => !ESPERADAS_FUERA.has(id)).join(", "));
+  ok(falsasFuera.every((id) => ESPERADAS_FUERA.has(id)), `fuera de las 7 confirmadas, las falsas son solo las 9 nombradas (hoy ${[...new Set(falsasFuera)].length}: ${[...new Set(falsasFuera)].join(", ")})`, falsasFuera.filter((id) => !ESPERADAS_FUERA.has(id)).join(", "));
   /* el verificador no revienta: un error se dicta no-verificable y puede esconder una falsa (pasó con «las 6 cuentas sobre el nivel declarado») */
   const errores = [...juicios.values()].flatMap(({ J }) => J.veredictos.filter((v) => /^error-del-verificador/.test(String(v.motivo))));
   ok(errores.length === 0, `el verificador no revienta en ninguna de las ${[...juicios.values()].reduce((n, { J }) => n + J.veredictos.length, 0)} declaraciones (errores: ${errores.length})`, errores.slice(0, 2).map((v) => v.motivo).join(" | "));

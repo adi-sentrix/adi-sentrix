@@ -24,11 +24,12 @@ let pass = 0, fail = 0;
 const ok = (c, m) => { console.log(`  ${c ? "✓" : "✗"} ${m}`); c ? pass++ : fail++; };
 
 console.log("── 1 · EL ESCENARIO INICIAL ES UNO DECLARADO ──");
-// COLAPSO DEL EJE (C6, 2026-08-30): SCENARIOS (labels de UI) se retiró con el selector — el registro de lo
-// DECLARADO son los transforms del tenant (SCENARIO_TRANSFORMS), que es donde este gate siempre buscó la
-// sustancia (la línea de abajo ya lo exigía). La propiedad guardada es la misma: la base declarada existe.
-ok(!!(SCENARIO_TRANSFORMS && SCENARIO_TRANSFORMS[ESCENARIO_INICIAL]),
-  `«${ESCENARIO_INICIAL}» está declarado en los transforms del tenant: no cae al dato crudo sin ajustar (declarados: ${Object.keys(SCENARIO_TRANSFORMS || {}).join(", ")})`);
+// UNA SOLA REALIDAD (owner 2026-10-06): esta propiedad se INVIRTIÓ a propósito. Antes el gate exigía que «bonanza» estuviera
+// declarado en los transforms (para que la app no cayera «al dato crudo sin ajustar»); hoy el dato crudo ES la realidad y
+// ningún tenant declara transforms. La propiedad que sigue guardada: la ranura es UNA sola declaración y la realidad vigente
+// es la misma en los dos entornos (el candado anti-resurrección vive en _una_sola_realidad_gate).
+ok(Object.keys(SCENARIO_TRANSFORMS || {}).length === 0,
+  `la realidad vigente son las TABLAS del tenant: ningún escenario declarado en los transforms (declarados: ${Object.keys(SCENARIO_TRANSFORMS || {}).join(", ") || "ninguno"})`);
 ok(!(SCENARIO_TRANSFORMS || {}).actual,
   "…y «actual», el string que usaba la consola, NO es un escenario declarado (era el agujero)");
 

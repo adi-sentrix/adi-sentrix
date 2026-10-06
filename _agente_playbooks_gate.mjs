@@ -147,14 +147,14 @@ H("1b · lectura por eje: un playbook, cinco ejes, la herramienta que sirve cada
   // ACEPTACIÓN por eje: el MISMO cerebro mudo, cinco preguntas del protocolo, cinco entregables
   const T = async (q) => answerViaAgente({ text: q, history: [], mem: {}, scenario: "bonanza", callAgente: MUDO });
   const rc = await T("ranking por canal: mejores y peores");
-  ok(rc.r.agente.estado === "playbook" && /Retail: \$94\.4M/.test(rc.r.text) && /E-commerce: \$5\.5M/.test(rc.r.text),
+  ok(rc.r.agente.estado === "playbook" && /Retail: \$94\.5M/.test(rc.r.text) && /E-commerce: \$5\.5M/.test(rc.r.text),
     `★ canal → responde con el eje canal REAL del dato (${rc.r.agente.estado})`, rc.r.text.slice(0, 90));
   const rm = await T("qué marca deja más margen");
   ok(rm.r.agente.estado === "playbook" && /margen por marca, de mayor a menor:/i.test(rm.r.text) && rm.r.text.indexOf("Makita") < rm.r.text.indexOf("LG"),
-    "★ marca → ordenada de mayor a menor (Makita 35.5% antes que LG 24.0%) — el motor solo pone `raw` en las destacadas", rm.r.text.slice(0, 100));
+    "★ marca → ordenada de mayor a menor (Makita 34.8% antes que LG 23.5%) — el motor solo pone `raw` en las destacadas", rm.r.text.slice(0, 100));
   ok(/benchmark de margen es 30\.1%/i.test(rm.r.text), "…y declara el benchmark, para que «deja más» tenga vara");
   const rf = await T("margen por familia");
-  ok(rf.r.agente.estado === "playbook" && /Cuidado Personal: 26\.6%/.test(rf.r.text), `★ familia → responde (${rf.r.agente.estado})`);
+  ok(rf.r.agente.estado === "playbook" && /Cuidado Personal: 26\.1%/.test(rf.r.text), `★ familia → responde (${rf.r.agente.estado})`);
   const rb = await T("capital por bodega");
   ok(rb.r.agente.estado === "playbook" && /Santiago: \$64K/.test(rb.r.text) && !/Ventas|venta/i.test(rb.r.text),
     "★ bodega → capital por bodega, SIN mezclar con venta (los dos universos)", rb.r.text.slice(0, 90));
@@ -1048,7 +1048,7 @@ H("1k · el ask de cuadro: anclado a SU fila, contra el cuadro VIVO");
 
   /* ── COBRO: la fila de ESE cliente; sin fila publicada, el declive nombra lo que hay ── */
   const tC = await texto("¿Cómo viene el cobro de Lider?");
-  ok(/El cobro de Lider: venta del per[ií]odo \(flujo\) \$17\.8M · abonado \$8\.0M · saldo pendiente \$9\.8M · vencido \$4\.6M\./.test(tC),
+  ok(/El cobro de Lider: venta del per[ií]odo \(flujo\) \$17\.9M · abonado \$8\.0M · saldo pendiente \$9\.8M · vencido \$4\.6M\./.test(tC),
     "★ «el cobro de <cliente>» responde SU fila completa de la mesa del cobro", tC.slice(0, 130));
   const tU = await texto("¿Cómo viene el cobro de Unimarc?");
   ok(/no publica la fila de Unimarc/.test(tU) && /vencido total del negocio/.test(tU),
@@ -1437,7 +1437,7 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       "…y en bonanza las 5 marcas del eje traen `raw` finito en su «· Margen» (Makita incluida)",
       JSON.stringify(figsMargen.map((f) => ({ label: f.label, raw: f.raw }))));
     const makita = figsMargen.find((f) => f.label.startsWith("Makita"));
-    ok(!!makita && makita.raw === 35.5, "…y Makita trae raw=35.5, no solo el texto «35.5%»", makita);
+    ok(!!makita && makita.raw === 34.8, "…y Makita trae raw=34.8, no solo el texto «34.8%»", makita);
   }
 
   // (D) `_FUERA` vaciado: una simulación que nombra un eje queda secuestrada por la lectura

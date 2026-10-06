@@ -9,6 +9,7 @@
  *   · y el render: ningún dígito servido lo escribió el modelo (todo número del texto servido proviene de un placeholder o de una cifra verificada
  *     dentro de un ancla).
  * Solo por `npm run gates:offline` (o con el candado: node --import ./scripts/offline-guard.mjs _anclas_gate.mjs). Cero red. */
+/* UNA SOLA REALIDAD · CIFRAS FIJADAS RE-FIJADAS (owner 2026-10-06, _ADI_DISENO_UNA_SOLA_REALIDAD.md §6.5): Lider $17.8M→$17.9M (la venta de la tabla, antes el redondeo de «bonanza»); el render y los casos del corpus (fixtures/anclas, notario-v3-flujo, hechos-tipados: +14,9 %→+15,0 %, Ripley 8,2 %→8,1 %) siguen la cifra del dato. Ningún veredicto esperado cambia. */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -102,7 +103,7 @@ H("4 · el render: los números del texto servido los escribe la casa");
 {
   const prosa = "{{h1: Lider vende {h1}}} y {{h2: arrastra $4,6M vencidos}}; {{h14: {h14.n} de {h14.m} cuentas pasan {h14.umbral}}}.";
   const R = renderizar(prosa, libro);
-  ok(R.texto === "Lider vende $17.8M y arrastra $4.6M vencidos; 3 de 13 cuentas pasan 90 días.", "placeholders y cifras dichas, en el canon de la casa", R.texto);
+  ok(R.texto === "Lider vende $17.9M y arrastra $4.6M vencidos; 3 de 13 cuentas pasan 90 días.", "placeholders y cifras dichas, en el canon de la casa", R.texto);
   ok(!R.faltantes.length, "sin placeholders sin render");
   const R2 = renderizar("{{h1: Lider vende {h1.nada}}}", libro);
   ok(R2.faltantes.length === 1, "un campo que no existe se reporta, no se inventa");

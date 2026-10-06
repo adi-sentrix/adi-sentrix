@@ -48,6 +48,10 @@ import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { TENANT_EMPRESA2 } from "./src/data/tenants/empresa2.js";
 import { TENANT_VACIO } from "./src/data/tenantEmpty.js";
 import { applyScenarioToSkuInventario } from "./src/engine/scenarios.js";
+/* UNA SOLA REALIDAD (owner 2026-10-06): «tensión» y «crisis» ya no son escenarios del motor — son MUNDOS DE PRUEBA que el gate construye
+ * con un insumo explícito (filas perturbadas, scripts/mundos-de-prueba.mjs), con la misma aritmética de siempre. Las propiedades que se
+ * guardan (jerarquía, contención, la pantalla sigue a la fuente) se prueban en el mundo de fábrica y en esos dos negocios distintos. */
+import { inventarioTension, inventarioCrisis } from "./scripts/mundos-de-prueba.mjs";
 import { plantillaEjemplo } from "./src/ingesta/plantilla/generarPlantilla.js";
 import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js";
 import { validarPlantilla } from "./src/ingesta/plantilla/validarPlantilla.js";
@@ -111,13 +115,13 @@ ok("(b) contención se sostiene también con umbral declarado", contencionOk(Jde
 
 /* ── ORIGEN 2 · demo tensión / crisis ────────────────────────────────────────────────────────────────────── */
 console.log("\n── origen 2 · demo tensión / crisis ──");
-const Jtension = jerarquiaInventario(applyScenarioToSkuInventario("tension"));
+const Jtension = jerarquiaInventario(inventarioTension(TENANT_DEMO.skuInventario));
 ok("tensión: total sigue $135.000 (el escenario no toca stockUSD, ver diseño §0.4)", Jtension.total === 135000);
 ok("tensión: inmovilizado = $55.800 · 5 SKU · 41,3% (+SAM-TV55 en sobrestock)", Jtension.inmovilizado.usd === 55800 && Jtension.inmovilizado.n === 5 && Jtension.inmovilizado.pct === 41.3);
 ok("tensión: crítico = $33.200 · 3 SKU (el mismo conjunto que bonanza)", Jtension.critico.usd === 33200 && Jtension.critico.n === 3);
 ok("tensión: (b) contención", contencionOk(Jtension));
 
-const Jcrisis = jerarquiaInventario(applyScenarioToSkuInventario("crisis"));
+const Jcrisis = jerarquiaInventario(inventarioCrisis(TENANT_DEMO.skuInventario));
 ok("crisis: inmovilizado = $43.000 · 4 SKU · 31,9%", Jcrisis.inmovilizado.usd === 43000 && Jcrisis.inmovilizado.n === 4 && Jcrisis.inmovilizado.pct === 31.9);
 ok("crisis: crítico = $43.000 · 4 SKU (PHI-IRON-PRO pasa a crítico)", Jcrisis.critico.usd === 43000 && Jcrisis.critico.n === 4);
 ok("crisis: sobrestock = $0 (nadie queda en el tramo)", Jcrisis.sobrestock.usd === 0 && Jcrisis.sobrestock.n === 0);
@@ -251,8 +255,9 @@ initTenant(TENANT_DEMO);
   ok("(a) motorKpi.calcularDataset().invKPI === jerarquiaInventario sobre las mismas filas", m.dataset.invKPI.inmovilizadoUSD === Jm.inmovilizado.usd && m.dataset.invKPI.criticoUSD === Jm.critico.usd && m.dataset.invKPI.totalUSD === Jm.total);
 }
 {
-  // tensión/crisis: deriveKpis calcula sobre las filas TRANSFORMADAS del escenario (nunca preserva un literal)
-  const dT = deriveKpis("tension").inventario, dC = deriveKpis("crisis").inventario;
+  // tensión/crisis (mundos de prueba): el KPI se CALCULA sobre las filas del mundo (nunca preserva un literal) — deriveKpis sobre el tenant con esas filas
+  const _kpiDe = (filas) => { initTenant({ ...TENANT_DEMO, skuInventario: filas }); const k = deriveKpis("bonanza").inventario; initTenant(TENANT_DEMO); return k; };
+  const dT = _kpiDe(inventarioTension(TENANT_DEMO.skuInventario)), dC = _kpiDe(inventarioCrisis(TENANT_DEMO.skuInventario));
   ok("tensión: inmovilizado recalculado = $55.800 · 5 SKU · 41,3% (no el literal viejo $87.864)", dT.inmovilizadoUSD === 55800 && dT.inmovilizadoPct === 41.3);
   ok("crisis: inmovilizado recalculado = $43.000 · 4 SKU · 31,9% (no el literal viejo $133.452)", dC.inmovilizadoUSD === 43000 && dC.inmovilizadoPct === 31.9);
 }
@@ -315,11 +320,13 @@ ok("ETIQUETA_ORIGEN tiene las cuatro llaves de ORIGEN que umbral() puede devolve
  * builder, mismo patrón que usa `_mesa_capital_gate.mjs`. */
 console.log("\n── ETAPA 3 (e) · la pantalla usa la fuente única, con procedencia ──");
 initTenant(TENANT_DEMO);
+const _MUNDOS_E = { bonanza: TENANT_DEMO, tension: { ...TENANT_DEMO, skuInventario: inventarioTension(TENANT_DEMO.skuInventario) }, crisis: { ...TENANT_DEMO, skuInventario: inventarioCrisis(TENANT_DEMO.skuInventario) } };
 for (const sc of ["bonanza", "tension", "crisis"]) {
-  const inv = applyScenarioToSkuInventario(sc) || [];
+  initTenant(_MUNDOS_E[sc]);   /* el negocio de este caso: la pantalla lee SU inventario (insumo explícito, no un escenario del motor) */
+  const inv = applyScenarioToSkuInventario("bonanza") || [];
   const J = jerarquiaInventario(inv);
   const K = kpiInventario(inv);
-  const mc = buildMesaCapital(sc);
+  const mc = buildMesaCapital("bonanza");
 
   // (e·1) MISMOS SKU Y MONTOS · la pestaña "Capital inmovilizado" (drill.detenido) es el universo ∪ de J
   const skuDrill = mc.drill.detenido.filas.map((f) => f.sku).sort();
@@ -362,6 +369,7 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   ok(`sin umbral, la nota de "Días sin venta" abre la conversación (nunca "no hay frenados") @${sc}`,
     typeof dsv.notaUmbral === "string" && !/no hay/i.test(dsv.notaUmbral) && typeof dsv.askUmbral === "string" && dsv.askUmbral.length > 0);
 }
+initTenant(TENANT_DEMO);   /* vuelve el negocio de fábrica para el resto del gate */
 
 // con umbral declarado (perfil de la empresa, C.2): la pestaña SÍ trae la columna "Venta" y "Días sin venta"
 // marca "Frenada" solo donde el hecho lo sostiene — el veredicto se mide, nunca se asume

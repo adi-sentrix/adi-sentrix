@@ -15,6 +15,7 @@
  *       «casi el doble» contra el dato o contra las cifras que la frase trae; el numerador dicho junto a la fracción manda.
  *   6 · LOS INVENTOS: el % plausible, el monto cerca del real, la participación recomputada, el promedio no publicado, la unidad (K/M, %/pp).
  * Cero red: herramientas puras, fixtures en disco. */
+/* UNA SOLA REALIDAD · CIFRAS FIJADAS RE-FIJADAS (owner 2026-10-06, _ADI_DISENO_UNA_SOLA_REALIDAD.md §6.5): cifras del dato de fábrica (ahora la tabla): la carga sobre el nivel de las seis cuentas $655K→$656K (las cinco materiales $588K y Easy $67K no cambian), la venta total $99.9M→$100.0M, la contribución $25.0M→$25.1M, Ripley −$422K→−$414K, Lider $17.8M→$17.9M. Los veredictos y los universos son los mismos. */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -73,7 +74,7 @@ pasa("Lider: $4.6M de los $9.8M pendientes — el 47% — ya vencieron.", "P1", 
 arde("Lider: $4.6M de los $9.8M pendientes — el 52% — ya vencieron.", CIFRA, "P1", "el mismo con la cuenta mal hecha (es 47 %)");
 arde("Entre Sodimac y Tottus venden $13.5M.", CIFRA, "P1", "8.2 + 6.8 = 15.0");
 arde("Lider crece 15.7% contra el año anterior.", CIFRA, "P1", "una variación inventada cerca de la real (14.9 %)");
-pasa("Ripley cae $422K contra el año anterior.", "P1", "la magnitud sin signo de una variación negativa publicada, con la dirección dicha en la cláusula");
+pasa("Ripley cae $414K contra el año anterior.", "P1", "la magnitud sin signo de una variación negativa publicada, con la dirección dicha en la cláusula");
 pasa("Ocho de trece clientes están bajo el benchmark, y concentran el 86.1% de la venta (73.8% + 12.3%).", "P2", "la suma de dos cifras de grupo, MOSTRADA (corrida viva del gerente, corregida)");
 arde("Ocho de trece clientes están bajo el benchmark, y concentran el 86.1% de la venta.", CIFRA, "P2", "…y sin mostrarla no vale: 86.1 no está en la boleta");
 arde("Entre el vencido de Lider ($4.6M) y el capital frenado ($33K), hay $4.6M inmovilizados.", UNIVERSO, "P1", "la suma en palabras de dos universos que no reconcilian (forma 5 del contrato)");
@@ -91,7 +92,7 @@ arde("Las cuentas grandes tienen markup promedio 41.4%; los sanos, 57.3%.", GRUP
 arde("Lider tiene un markup de 41.4%, el más pegado al costo de la cartera.", GRUPO, "P1", "la cifra de grupo colgada a UNA entidad");
 arde("Hay $4.9M sin capturar en Falabella, Lider y Jumbo.", GRUPO, "P1", "el subtotal de cinco con tres nombres");
 arde("Los ocho bajo el benchmark dejan $4.9M sin capturar.", GRUPO, "P1", "el subtotal de cinco atribuido a los ocho");
-arde("Son $655K de carga sobre el nivel en las 5 cuentas materiales.", GRUPO, "P1", "$655K es de seis cuentas (con Easy); las cinco materiales suman $588K");
+arde("Son $656K de carga sobre el nivel en las 5 cuentas materiales.", GRUPO, "P1", "$656K es de seis cuentas (con Easy); las cinco materiales suman $588K");
 arde("Los $33K frenados: LG-DRYER8KG ($14K) y BOS-SANDER ($11K).", GRUPO, "P1", "el desglose tras los dos puntos no cierra (faltan los $8K de MAK-COMP-AIR)");
 arde("Falabella, Lider, Jumbo y Sodimac están bajo el benchmark. Todas exceden la carga declarada. Su markup promedio, 41.4%, confirma la erosión.", GRUPO, "P1", "el posesivo dos oraciones después de la lista");
 arde("Los que erosionan: Falabella, Lider, Jumbo y Sodimac.\n\nLos cuatro de arriba pesan 73.8% de la venta.", GRUPO, "P1", "«los cuatro de arriba» tras la lista del párrafo anterior");
@@ -100,7 +101,7 @@ arde("Falabella, Lider, Jumbo y Sodimac son el núcleo del problema; ese núcleo
 arde("Falabella y Lider están bajo el benchmark y con carga alta; ambas pesan 73.8% de la venta.", GRUPO, "P1", "«ambas»");
 arde("Easy, La Polar y Hites están sobre el benchmark. No tienen carga alta. En ellos el markup promedio es 57.3%.", GRUPO, "P1", "«en ellos» dos oraciones después");
 arde("Easy y La Polar juntas pesan 13.8% de la venta.", GRUPO, "P1", "dos nombres con la cifra de los cinco sanos");
-arde("Las seis cuentas con carga sobre el nivel —Falabella, Sodimac, Lider, Easy y Ripley— suman $655K.", GRUPO, "P1", "«las seis» con cinco nombres (falta Jumbo)");
+arde("Las seis cuentas con carga sobre el nivel —Falabella, Sodimac, Lider, Easy y Ripley— suman $656K.", GRUPO, "P1", "«las seis» con cinco nombres (falta Jumbo)");
 arde("Los sanos pesan 12.3% de la venta.", GRUPO, "P1", "el papel cambiado: 12.3 % es de margen delgado; los sanos pesan 13.8 %");
 arde("Cinco cuentas explican el 73.8% de la venta.", GRUPO, "P1", "el conteo pegado a la cifra de seis");
 arde("- Falabella, Lider, Jumbo y Sodimac\n  Markup promedio: 41.4%", GRUPO, "P1", "la lista en una línea y la cifra en la siguiente");
@@ -112,10 +113,10 @@ pasa("Los tres motores más grandes —Falabella, Lider y Jumbo— están todos 
 pasa("Los $33K frenados están en dos bodegas: Valparaíso $25K (75%) y Antofagasta $8K (25%).", "P1", "el conteo de OTRO eje (bodegas) no es el conteo del grupo");
 pasa("Capital por bodega: Santiago $64K, Valparaíso $39K, Concepción $19K y Antofagasta $13K — los $135K del total.", "P1", "«los $X del total»: la cifra ES el total");
 pasa("La venta se reparte: 73.8% en las seis que erosionan, 12.3% en las dos de margen delgado y 13.8% en las cinco sanas.", "P1", "los ítems de una lista no se contaminan");
-pasa("Los $655K de carga alta se reparten entre cinco cuentas bajo el benchmark y una sobre (Easy).", "P1", "la partición «cinco … y una»");
+pasa("Los $656K de carga alta se reparten entre cinco cuentas bajo el benchmark y una sobre (Easy).", "P1", "la partición «cinco … y una»");
 pasa("Los $4.9M: la mayor parte en tres cuentas (Falabella $1.6M, Lider $1.5M, Jumbo $1.1M) y el resto en dos (Sodimac $540K, Ripley $240K).", "P1", "la partición con «el resto»");
-pasa("La carga alta de las cinco materiales ($588K) es parte de los $655K de las seis.", "P1", "subtotal dentro del subtotal mayor del mismo concepto");
-pasa("Seis sobre el nivel de carga ($655K) y, de esas seis, cinco bajo el benchmark ($588K).", "P1", "«de esas seis» hacia adelante");
+pasa("La carga alta de las cinco materiales ($588K) es parte de los $656K de las seis.", "P1", "subtotal dentro del subtotal mayor del mismo concepto");
+pasa("Seis sobre el nivel de carga ($656K) y, de esas seis, cinco bajo el benchmark ($588K).", "P1", "«de esas seis» hacia adelante");
 pasa("$1.6M (Falabella), $1.5M (Lider), $1.1M (Jumbo), $540K (Sodimac) y $240K (Ripley) suman $4.9M.", "P1", "el desglose completo que cierra");
 pasa("Entre los que caen, la contribución no capturada suma $4.9M.", "P1", "la descripción cubre al grupo (los cinco materiales son de los que caen): un subconjunto no roba la cifra");
 pasa("Del saldo vencido de $12.6M, $4.6M están en Lider.", "P1", "el control verdadero del cazador: parte y todo del mismo universo");
@@ -127,7 +128,7 @@ pasa("Los diez SKU con más contribución quedan listados arriba; el resto (3 de
 pasa("El precio de lista está más pegado al costo en quienes caen que en los sanos (markup 41.4% contra 57.3%).", "P2", "«quienes caen» es «los que caen»: la descripción propia, en un par «x contra y» (cierre real de la prueba 2)");
 arde("Las cuentas con carga sobre el nivel declarado pesan 73.8% de la venta.", GRUPO, "P2", "la descripción de OTRO grupo de la boleta (las 6 sobre el nivel, con Easy y sin Paris) con la cifra de la erosión");
 pasa("Las cuentas que erosionan por acciones comerciales pesan 73.8% de la venta.", "P2", "la descripción propia del grupo, sin lista");
-pasa("Dos cifras para dimensionar: $4.9M de contribución no capturada en las 5 cuentas materiales y $655K de carga comercial sobre el nivel declarado en 6 cuentas.", "P1", "la coordinación «y $655K» abre su ítem: «las 5 cuentas» es del $4.9M");
+pasa("Dos cifras para dimensionar: $4.9M de contribución no capturada en las 5 cuentas materiales y $656K de carga comercial sobre el nivel declarado en 6 cuentas.", "P1", "la coordinación «y $656K» abre su ítem: «las 5 cuentas» es del $4.9M");
 pasa("El 73.8% está en seis cuentas, el 12.3% en dos y el 13.8% en cinco.", "P1", "«, el 12.3%» abre su ítem: «seis cuentas» es del 73.8 %");
 
 H("3 · EL CONTEO SE CUENTA: contra lo que la boleta permite contar, en todas sus formas");
@@ -168,7 +169,7 @@ arde("El capital frenado está repartido en tres bodegas.", CONTEO, "P1", "son 2
 pasa("Hay 8 clientes bajo el benchmark, 5 de ellos materiales: Falabella, Lider, Jumbo, Sodimac y Ripley.", "P1", "el conteo y su subconjunto material, con la lista");
 pasa("De las 8 cuentas bajo el benchmark, 5 son materiales: Falabella, Lider, Jumbo, Sodimac y Ripley.", "P1", "«De M, N» verdadero");
 pasa("6 cuentas están sobre el nivel de carga declarado (3.5%), y 5 de ellas además están bajo el benchmark; la sexta es Easy.", "P1", "dos conteos verdaderos coordinados");
-pasa("Las 6 cuentas con carga alta ($655K) son 5 bajo el benchmark más Easy.", "P1", "la partición «5 … más Easy»");
+pasa("Las 6 cuentas con carga alta ($656K) son 5 bajo el benchmark más Easy.", "P1", "la partición «5 … más Easy»");
 pasa("4 de 13 cuentas caen: Ripley, La Polar, Easy y Unimarc.", "P1", "«N de M» correcto con la lista completa");
 pasa("Falabella, Jumbo y Lider tienen la contribución más alta; los tres están bajo el benchmark.", "P1", "«los tres» remite a la lista: pertenencia, no conteo");
 noArde("Con la carga comercial -2pp (tu supuesto), la cartera quedaría mejor: quedan sobre el benchmark 6 de 13.", CONTEO, "P1", "el conteo bajo un supuesto declarado es de la simulación, no del dato");
@@ -191,14 +192,14 @@ H("4 · UNIVERSOS Y SUBTOTALES: «de los $X, $Y» solo dentro del mismo universo
 arde("De los $33K frenados, $4.6M están vencidos en Lider.", UNIVERSO, "P1", "vencido (cobranza) dentro del frenado (inventario)");
 arde("De los $12.6M vencidos, $8.2M corresponden a Falabella.", UNIVERSO, "P1", "$8.2M es el PENDIENTE de Falabella");
 arde("Del capital de $135K, $12.6M ya están vencidos.", UNIVERSO, "P1", "inventario y cobranza");
-arde("De los $25.0M de contribución, $19.4M son de Falabella.", UNIVERSO, "P1", "la venta dentro de la contribución");
+arde("De los $25.1M de contribución, $19.4M son de Falabella.", UNIVERSO, "P1", "la venta dentro de la contribución");
 arde("De los $12.6M vencidos, $9.8M están en Lider.", UNIVERSO, "P1", "el pendiente de Lider dentro del vencido");
 arde("De los $41.2M pendientes, $12.2M son de Jumbo.", UNIVERSO, "P1", "lo abonado dentro del pendiente");
 arde("Del capital frenado ($33K), $4.6M corresponden al vencido de Lider.", UNIVERSO, "P1", "la forma 2 (el todo entre paréntesis)");
 arde("De los $33K frenados, $11K están vencidos en BOS-SANDER.", /subtotal-de-otro-universo|metrica-mal-atribuida/, "P1", "la misma cifra con la palabra de otro universo");
 pasa("Del saldo vencido de $12.6M, $4.6M están en Lider.", "P2", "el control verdadero (fn-atribucion-2244, reetiquetado): mismo universo");
-pasa("Son $655K de carga comercial alta en 6 cuentas, de los cuales $588K están en las 5 materiales.", "P1", "el subtotal dentro de su subtotal mayor del mismo concepto");
-pasa("De los $655K de carga alta, $588K corresponden a las cinco materiales y $67K a Easy.", "P1", "el desglose del subtotal mayor");
+pasa("Son $656K de carga comercial alta en 6 cuentas, de los cuales $588K están en las 5 materiales.", "P1", "el subtotal dentro de su subtotal mayor del mismo concepto");
+pasa("De los $656K de carga alta, $588K corresponden a las cinco materiales y $67K a Easy.", "P1", "el desglose del subtotal mayor");
 pasa("Los tres frenados son los $33K del total.", "P1", "«los $X del total» es el total, no una parte de otro universo");
 pasa("De los $4.9M no capturados, $588K son carga comercial alta y $4.4M brecha por precio y costo.", "P1", "la partición medida contra el benchmark (doctrina)");
 
@@ -208,7 +209,7 @@ arde("Lider y Falabella explican dos tercios del vencido.", RELACION, "P1", "7.1
 arde("Lider concentra más de la mitad del vencido total.", RELACION, "P1", "4.6 / 12.6 = 36.5 %");
 arde("En Lider más de la mitad del saldo pendiente ya está vencido ($4.6M de $9.8M).", RELACION, "P1", "47 % con los operandos entre paréntesis");
 arde("Lider y Falabella —las dos con más vencido— suman $7.1M, dos tercios del total vencido de $12.6M.", RELACION, "P1", "7.1 / 12.6 = 56 % con el numerador dicho");
-pasa("Falabella, Lider y Jumbo ($19.4M, $17.8M y $17.3M) concentran más de la mitad de los $99.9M.", "P1", "54.5 / 99.9 = 55 %: la suma de la lista contra el total dicho");
+pasa("Falabella, Lider y Jumbo ($19.4M, $17.9M y $17.3M) concentran más de la mitad de los $100.0M.", "P1", "54.6 / 100.0 = 55 %: la suma de la lista contra el total dicho");
 pasa("Antofagasta tiene un tercio del frenado de Valparaíso ($8K contra $25K).", "P1", "la comparación con una entidad en el complemento: el par entre paréntesis");
 /* owner 2026-09-28 (corrección de coherencia del dato de fábrica, mismo encargo de la etapa 4): el par que
  * "Medida · liberar" recomienda cambió de LG-DRYER8KG+MAK-COMP-AIR ($22K) a LG-DRYER8KG+BOS-SANDER ($25K) — no

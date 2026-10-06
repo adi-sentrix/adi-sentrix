@@ -169,7 +169,7 @@ H("6 · retomar sobre una conversación con Entregas — cada cifra REVALIDADA c
 
   // una carga nueva (versión 2) con la venta de Jumbo distinta: la cifra CAMBIÓ, con las dos cifras, y una sola línea de la casa lo dice
   const datasetNuevo = JSON.parse(JSON.stringify(TENANT_DEMO));
-  datasetNuevo.clientesVentas.find((c) => c.nombre === "Jumbo").anterior = 14000;
+  datasetNuevo.clientesVentas.find((c) => c.nombre === "Jumbo").actual = Math.round(14000 * 1.122);   /* una sola realidad (2026-10-06): la venta es SU actual (la tabla); se conserva la venta que este caso producía (14.000 × el 12,2 % que «bonanza» declaraba para Jumbo = $15.7M) */
   const ret2 = await retomar({ tenant: { ...TENANT_V2, dataset: datasetNuevo }, conversacionId: cid });
   const jumbo = ret2.hechos.find((h) => h.sujeto === "Jumbo" && h.estadoReverificacion === "cambio");
   ok(Boolean(jumbo) && jumbo.revalidacion.anterior.valor === "$17.3M" && jumbo.revalidacion.actual.valor === "$15.7M" && jumbo.revalidacion.diferencia.sentido === "baja", "★ REAL · con una carga nueva, la venta de Jumbo vuelve «cambio»: antes $17.3M, ahora $15.7M, la diferencia calculada por ADI", JSON.stringify(jumbo && jumbo.revalidacion));

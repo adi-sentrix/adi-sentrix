@@ -595,11 +595,18 @@ H("[10] EL AÑO MES A MES · tres series que RECONCILIAN (owner 2026-08-07)");
     `la variación se recalcula sobre las series ancladas — ${e.vsAnteriorFmt}`);
   ok(e.lectura.includes(e.maxMes) && e.lectura.includes(e.minMes), `la lectura nombra el mes más alto y el más bajo — ${e.maxMes} / ${e.minMes}`);
   ok(!/porque|debido a|causa/i.test(e.lectura), "la lectura DESCRIBE el movimiento del año, no lo explica (eso es el bloque 02)");
-  // el defecto que esto cerró: la variación salía del tenant CRUDO, ajena al escenario
-  const crisis = buildResumenComercial("crisis");
-  ok(crisis.evolutivo.totalActual === crisis.total.ventas, `en crisis también reconcilia — ${crisis.evolutivo.totalActualFmt}`);
-  ok(crisis.evolutivo.vsAnteriorPct < 0, `y la variación sigue al escenario, no al dato crudo — crisis: ${crisis.evolutivo.vsAnteriorFmt}`);
-  ok(crisis.kpis[0].pie.includes(crisis.evolutivo.vsAnteriorFmt.replace("+", "")), "el pie del KPI y el evolutivo cuentan la MISMA variación");
+  /* UNA SOLA REALIDAD (owner 2026-10-06): aquí se probaba, con el mundo «crisis», que la variación seguía al escenario y no al tenant
+   * crudo. El escenario ya no existe: la realidad ES el tenant, así que lo que se guarda es lo que importaba — el evolutivo reconcilia con
+   * el total de la cara, su variación es la DE LA TABLA (Σ actual ÷ Σ anterior de los clientes) y el pie del KPI cuenta la misma. «crisis»
+   * es solo un id de ranura: da exactamente lo mismo. */
+  const _cv = getTenantData().clientesVentas;
+  const _varTabla = (_cv.reduce((s, c) => s + c.actual, 0) / _cv.reduce((s, c) => s + c.anterior, 0) - 1) * 100;
+  for (const id of ["actual", "crisis"]) {
+    const real = buildResumenComercial(id);
+    ok(real.evolutivo.totalActual === real.total.ventas, `[${id}] reconcilia — ${real.evolutivo.totalActualFmt}`);
+    ok(Math.abs(real.evolutivo.vsAnteriorPct - _varTabla) < 0.06, `[${id}] la variación es la de la TABLA (${_varTabla.toFixed(1)}%), sin mundo que la reescriba — ${real.evolutivo.vsAnteriorFmt}`);
+    ok(real.kpis[0].pie.includes(real.evolutivo.vsAnteriorFmt.replace("+", "")), `[${id}] el pie del KPI y el evolutivo cuentan la MISMA variación`);
+  }
 }
 
 H("[12] CÓMO SE FORMA EL MARGEN · la identidad, con el estatus de cada línea");
@@ -708,13 +715,18 @@ H("[13] LA CARTERA · una sola mirada, y las dos referencias declaradas");
   });
   ok(bases[0] === bases[1] && bases[1] === bases[2],
     `ningún escenario reescribe el año anterior ni el presupuesto — ${bases[0]} en los tres`);
-  // Y EN CRISIS LA TABLA LO DICE: no puede quedar en verde un año que cae
+  /* LA TABLA DICE LA DIRECCIÓN REAL (una sola realidad, owner 2026-10-06): antes se probaba con «crisis» que un año que cae no quedaba en verde.
+   * Sin ese mundo, la propiedad se guarda sobre la realidad: la dirección y el tono del total siguen el SIGNO de la variación de la tabla, y
+   * cada fila declara su propia dirección (las cuentas que bajan son exactamente las que la tabla dice que bajan). */
   {
-    const C = buildResumenComercial("crisis").cartera;
-    ok(C.total.vsAnterior.dir === "baja" && C.total.vsAnterior.tono === "alerta",
-      `en crisis el total cae y se declara como caída — ${C.total.vsAnterior.pctFmt}`);
-    ok(C.filas.filter((f) => f.vsAnterior.dir === "baja").length > C.filas.length / 2,
-      "y la mayoría de las cuentas cae con él: la tabla sigue al escenario, no al tenant crudo");
+    const C = buildResumenComercial("actual").cartera;
+    const cv = getTenantData().clientesVentas;
+    const subeTabla = cv.reduce((s, c) => s + c.actual, 0) > cv.reduce((s, c) => s + c.anterior, 0);
+    ok((C.total.vsAnterior.dir === "sube") === subeTabla && (C.total.vsAnterior.tono === "ok") === subeTabla,
+      `la dirección y el tono del total siguen el signo de la tabla — ${C.total.vsAnterior.pctFmt} (${C.total.vsAnterior.dir})`);
+    const bajanTabla = cv.filter((c) => c.actual < c.anterior).map((c) => c.nombre).sort().join(",");
+    ok(C.filas.filter((f) => f.vsAnterior.dir === "baja").map((f) => f.nombre).sort().join(",") === bajanTabla,
+      "y las cuentas que la tabla declara en baja son exactamente las que la fila marca en baja");
   }
 }
 

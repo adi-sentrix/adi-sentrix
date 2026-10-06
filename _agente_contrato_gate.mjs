@@ -14,6 +14,7 @@
  * OFFLINE · determinístico · bucle con cerebro INYECTADO · no puede gastar.
  * `node --import ./scripts/offline-guard.mjs _agente_contrato_gate.mjs`
  */
+/* UNA SOLA REALIDAD · CIFRAS FIJADAS RE-FIJADAS (owner 2026-10-06, _ADI_DISENO_UNA_SOLA_REALIDAD.md §6.5): la carga comercial sobre el nivel de las seis cuentas es $656K sobre la tabla (antes $655K sobre «bonanza») y la contribución total $25.1M (antes $25.0M): cifras del dato de fábrica. La partición medida ($588K las cinco materiales · $67K Easy), el universo de cada subtotal y todos los veredictos son los mismos; las figuras inline de las secciones de mecanismo/variación son sintéticas y no cambian. */
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -757,7 +758,7 @@ H("7 · el mecanismo afirmado sin su sello arde, y la cuenta derivada que no cie
     "★★ «no costo estructural» ARDE: negar como hecho un mecanismo indicado es causalidad sin respaldo");
   ok(r("Tottus y Mercado Libre también están bajo benchmark, pero ahí el mecanismo es costo, no carga.").includes("mecanismo-sin-sello"),
     "★★ «ahí el mecanismo es costo» ARDE: el costo está indicado, no probado");
-  ok(!r("El mecanismo medido es carga comercial: $655K por sobre el nivel declarado.").includes("mecanismo-sin-sello"), "…el mecanismo PROBADO se afirma sin problema");
+  ok(!r("El mecanismo medido es carga comercial: $656K por sobre el nivel declarado.").includes("mecanismo-sin-sello"), "…el mecanismo PROBADO se afirma sin problema");
   ok(!r("Tottus · Mercado Libre tienen margen delgado sin carga alta ni volumen: ahí es precio de lista o mix de lo que compran.").includes("mecanismo-sin-sello"), "…la alternativa del composer («precio de lista o mix») pasa");
   ok(!r("El patrón apunta al precio de lista pegado al costo, sin prueba todavía.").includes("mecanismo-sin-sello") && !r("¿Es costo o es mix? Eso el dato no lo separa.").includes("mecanismo-sin-sello") && !r("Si viene de costo, el dato no lo dice: no cruza cliente con familia.").includes("mecanismo-sin-sello"),
     "…y la marca, la pregunta y el límite pasan: la regla cobra el hecho, no el razonamiento");
@@ -785,11 +786,11 @@ H("7 · el mecanismo afirmado sin su sello arde, y la cuenta derivada que no cie
   ok(r("La contribución sube si se renegocia la carga.", { figs: conVenta }).includes("variacion-no-medida"), "…«la contribución sube» sin variación medida también arde");
   ok(!r("El margen promedio cae a 25.1%.", { figs: [...conVenta, { label: "Margen promedio · Variación vs año anterior", text: "-1.2pp", raw: -1.2 }] }).includes("variacion-no-medida"),
     "…y con la variación del margen EN la boleta, «cae» es legítimo");
-  ok(r("De ese subtotal, $655K son directamente atribuibles a carga comercial — capital recuperable con renegociación, no con más venta.").includes("lexico-capital-por-contribucion"),
+  ok(r("De ese subtotal, $656K son directamente atribuibles a carga comercial — capital recuperable con renegociación, no con más venta.").includes("lexico-capital-por-contribucion"),
     "★★ «capital recuperable» por lo que se recupera de la carga ARDE: eso es contribución");
   ok(!r("$67K de capital recuperable si ese SKU vuelve a rotar; hoy está inmovilizado en Valparaíso.").includes("lexico-capital-por-contribucion"),
     "…y «capital recuperable» sobre inventario sigue pasando: ahí capital es la palabra correcta");
-  ok(!r("De ese subtotal, $655K son contribución recuperable con renegociación de la carga comercial.").includes("lexico-capital-por-contribucion"), "…«contribución recuperable» pasa");
+  ok(!r("De ese subtotal, $656K son contribución recuperable con renegociación de la carga comercial.").includes("lexico-capital-por-contribucion"), "…«contribución recuperable» pasa");
   /* ── GARANTÍA TRANSVERSAL 1 (owner 2026-09-13): evolución temporal solo con evidencia temporal — cualquier métrica ── */
   ok(r("La venta creció 7.5% ($99.9M) pero el margen quedó 5.0 puntos bajo el benchmark (25.1% vs 30.1%): crecimiento con calidad deteriorada.", { figs: conVenta }).includes("deterioro-no-medido"),
     "★★ «crecimiento con calidad deteriorada» ARDE: estar bajo el benchmark no prueba deterioro temporal");
@@ -861,13 +862,13 @@ H("7 · el mecanismo afirmado sin su sello arde, y la cuenta derivada que no cie
     const rc = (t) => vetosDeRegistro(t, { huellas, figs: figsC }).map((v) => v.regla);
     const mc = (t) => vetosDeRegistro(t, { huellas, figs: figsC }).map((v) => v.multa).join(" ");
     ok(figsC.some((f) => /^Carga comercial alta · subtotal · \d+ cuentas sobre el nivel declarado \(\d+ de ellas bajo el benchmark\)$/.test(String(f.label))), "★ el subtotal de carga alta declara SU universo en el rótulo (cuentas sobre el nivel, cuántas bajo el benchmark)");
-    ok(rc("La contribución no capturada de las 5 cuentas materiales suma $4.9M. De eso, $655K es contribución cedida en acciones comerciales.").includes("subtotal-de-otro-universo") && /\$588K/.test(mc("La contribución no capturada de las 5 cuentas materiales suma $4.9M. De eso, $655K es contribución cedida en acciones comerciales.")),
-      "★★★ «de los $4.9M … de eso, $655K» ARDE: los $655K son de otro universo (6 cuentas sobre el nivel, una sana) — y la multa nombra la parte que sí cabe ($588K)");
-    ok(rc("La brecha es de $4.9M de contribución no capturada, de los cuales $655K corresponden a acciones comerciales.").includes("subtotal-de-otro-universo") && rc("Son $655K de los $4.9M.").includes("subtotal-de-otro-universo") && rc("De la contribución total de $25.0M, $4.9M no se capturan.").includes("subtotal-de-otro-universo") && rc("De los $1.6M de Falabella, $125K es carga sobre el nivel.").includes("subtotal-de-otro-universo"),
+    ok(rc("La contribución no capturada de las 5 cuentas materiales suma $4.9M. De eso, $656K es contribución cedida en acciones comerciales.").includes("subtotal-de-otro-universo") && /\$588K/.test(mc("La contribución no capturada de las 5 cuentas materiales suma $4.9M. De eso, $656K es contribución cedida en acciones comerciales.")),
+      "★★★ «de los $4.9M … de eso, $656K» ARDE: los $656K son de otro universo (6 cuentas sobre el nivel, una sana) — y la multa nombra la parte que sí cabe ($588K)");
+    ok(rc("La brecha es de $4.9M de contribución no capturada, de los cuales $656K corresponden a acciones comerciales.").includes("subtotal-de-otro-universo") && rc("Son $656K de los $4.9M.").includes("subtotal-de-otro-universo") && rc("De la contribución total de $25.1M, $4.9M no se capturan.").includes("subtotal-de-otro-universo") && rc("De los $1.6M de Falabella, $125K es carga sobre el nivel.").includes("subtotal-de-otro-universo"),
       "★ «de los cuales», «$Y de los $X», «de la contribución total de $X, $Y», y la cifra de OTRA cuenta dentro de una cuenta: todas arden — la ley es de cualquier relación entre subtotales");
-    ok(!rc("De los $4.9M, $588K corresponden a la carga sobre el nivel declarado y el resto, $4.4M, al componente precio y costo.").includes("subtotal-de-otro-universo") && !rc("De los $4.9M, $1.6M son de Falabella, $1.5M de Lider y $1.1M de Jumbo.").includes("subtotal-de-otro-universo") && !rc("De los $1.6M de Falabella, $194K es carga sobre el nivel y $1.4M precio y costo.").includes("subtotal-de-otro-universo") && !rc("De los $655K de carga sobre el nivel, $194K son de Falabella y $155K de Sodimac.").includes("subtotal-de-otro-universo"),
-      "…la partición del mismo universo, las cuentas del subtotal, la parte de una cuenta y el desglose del $655K pasan");
-    ok(!rc("Además, la carga sobre el nivel declarado suma $655K en las 6 cuentas que lo exceden (una de ellas sobre el benchmark): no es parte de los $4.9M.").includes("subtotal-de-otro-universo") && !rc("De eso depende si partes corrigiendo una cuenta ($1.6M en juego) o revisando la política completa.").includes("subtotal-de-otro-universo"),
+    ok(!rc("De los $4.9M, $588K corresponden a la carga sobre el nivel declarado y el resto, $4.4M, al componente precio y costo.").includes("subtotal-de-otro-universo") && !rc("De los $4.9M, $1.6M son de Falabella, $1.5M de Lider y $1.1M de Jumbo.").includes("subtotal-de-otro-universo") && !rc("De los $1.6M de Falabella, $194K es carga sobre el nivel y $1.4M precio y costo.").includes("subtotal-de-otro-universo") && !rc("De los $656K de carga sobre el nivel, $194K son de Falabella y $155K de Sodimac.").includes("subtotal-de-otro-universo"),
+      "…la partición del mismo universo, las cuentas del subtotal, la parte de una cuenta y el desglose del $656K pasan");
+    ok(!rc("Además, la carga sobre el nivel declarado suma $656K en las 6 cuentas que lo exceden (una de ellas sobre el benchmark): no es parte de los $4.9M.").includes("subtotal-de-otro-universo") && !rc("De eso depende si partes corrigiendo una cuenta ($1.6M en juego) o revisando la política completa.").includes("subtotal-de-otro-universo"),
       "…y la cifra dicha APARTE, la relación negada y el «de eso depende» no son relaciones entre subtotales");
     ok(rc("El resto, $4.4M, corresponde a precio de lista.").includes("precio-y-costo-no-se-separan") && rc("La mayor parte de la brecha viene del costo: $4.4M.").includes("precio-y-costo-no-se-separan") && !rc("El resto, $4.4M, es el componente precio y costo, que el dato no separa.").includes("precio-y-costo-no-se-separan"),
       "★★ «$4.4M de precio de lista» / «viene del costo: $4.4M» ARDEN: precio y costo es un componente conjunto que el dato no separa; «precio y costo» pasa");

@@ -44,33 +44,33 @@ export const clientesMargen = [
 ];
 
 export const marcasVentas = [
-  { nombre:"Samsung", sfamilia:"Electrodomésticos",          marca:"Samsung", actual:31600, anterior:30350, unidades:1805, unidadesAnt:1758, pctRebate:4.2 },
-  { nombre:"Philips", sfamilia:"Cuidado Personal",           marca:"Philips", actual:28000, anterior:26140, unidades:1955, unidadesAnt:1845, pctRebate:3.5 },
-  { nombre:"LG",      sfamilia:"Línea Blanca",               marca:"LG",      actual:24600, anterior:21280, unidades:1310, unidadesAnt:1171, pctRebate:3.5 },
-  { nombre:"Bosch",   sfamilia:"Materiales de Construcción", marca:"Bosch",   actual:11000, anterior:10770, unidades:450,  unidadesAnt:448,  pctRebate:5.4 },
-  { nombre:"Makita",  sfamilia:"Materiales de Construcción", marca:"Makita",  actual:4800,  anterior:4360,  unidades:183,  unidadesAnt:167,  pctRebate:4.2 },
+  { nombre:"Samsung", sfamilia:"Electrodomésticos",          marca:"Samsung", actual:31600, anterior:30350, unidades:1747, unidadesAnt:1703, pctRebate:4.4 },
+  { nombre:"Philips", sfamilia:"Cuidado Personal",           marca:"Philips", actual:28000, anterior:26140, unidades:1892, unidadesAnt:1788, pctRebate:3.6 },
+  { nombre:"LG",      sfamilia:"Línea Blanca",               marca:"LG",      actual:24600, anterior:21280, unidades:1268, unidadesAnt:1135, pctRebate:3.6 },
+  { nombre:"Bosch",   sfamilia:"Materiales de Construcción", marca:"Bosch",   actual:11000, anterior:10770, unidades:436,  unidadesAnt:434,  pctRebate:5.4 },
+  { nombre:"Makita",  sfamilia:"Materiales de Construcción", marca:"Makita",  actual:4800,  anterior:4360,  unidades:177,  unidadesAnt:162,  pctRebate:4.2 },
 ];
 
 export const marcasMargen = [
-  { nombre:"Samsung", tipo:"marca", marca:"Samsung", sfamilia:"Electrodomésticos",          venta:31600, costo:22574, rebates:1383, contribucion:7643, pctRebate:4.4, margen:24.2, costoMedio:12.51, precioLista:17.51, unidades:1805, benchmark:30.1 },
-  { nombre:"LG",      tipo:"marca", marca:"LG",      sfamilia:"Línea Blanca",               venta:24600, costo:17801, rebates:892,  contribucion:5907, pctRebate:3.6, margen:24.0, costoMedio:13.59, precioLista:18.78, unidades:1310, benchmark:30.1 },
-  { nombre:"Philips", tipo:"marca", marca:"Philips", sfamilia:"Cuidado Personal",           venta:28000, costo:19543, rebates:1010, contribucion:7447, pctRebate:3.6, margen:26.6, costoMedio:10.00, precioLista:14.32, unidades:1955, benchmark:30.1 },
-  { nombre:"Bosch",   tipo:"marca", marca:"Bosch",   sfamilia:"Materiales de Construcción", venta:11000, costo:7546,  rebates:597,  contribucion:2857, pctRebate:5.4, margen:26.0, costoMedio:16.77, precioLista:24.44, unidades:450,  benchmark:30.1 },
-  { nombre:"Makita",  tipo:"marca", marca:"Makita",  sfamilia:"Materiales de Construcción", venta:4800,  costo:2893,  rebates:202,  contribucion:1705, pctRebate:4.2, margen:35.5, costoMedio:15.81, precioLista:26.23, unidades:183,  benchmark:30.1 },
+  { nombre:"Samsung", tipo:"marca", marca:"Samsung", sfamilia:"Electrodomésticos",          venta:31600, costo:22724, rebates:1383, contribucion:7493, pctRebate:4.4, margen:23.7, costoMedio:13.01, precioLista:18.09, unidades:1747, benchmark:30.1 },
+  { nombre:"LG",      tipo:"marca", marca:"LG",      sfamilia:"Línea Blanca",               venta:24600, costo:17917, rebates:892,  contribucion:5791, pctRebate:3.6, margen:23.5, costoMedio:14.13, precioLista:19.40, unidades:1268, benchmark:30.1 },
+  { nombre:"Philips", tipo:"marca", marca:"Philips", sfamilia:"Cuidado Personal",           venta:28000, costo:19689, rebates:1010, contribucion:7301, pctRebate:3.6, margen:26.1, costoMedio:10.41, precioLista:14.80, unidades:1892, benchmark:30.1 },
+  { nombre:"Bosch",   tipo:"marca", marca:"Bosch",   sfamilia:"Materiales de Construcción", venta:11000, costo:7602,  rebates:597,  contribucion:2801, pctRebate:5.4, margen:25.5, costoMedio:17.44, precioLista:25.23, unidades:436,  benchmark:30.1 },
+  { nombre:"Makita",  tipo:"marca", marca:"Makita",  sfamilia:"Materiales de Construcción", venta:4800,  costo:2927,  rebates:202,  contribucion:1671, pctRebate:4.2, margen:34.8, costoMedio:16.54, precioLista:27.12, unidades:177,  benchmark:30.1 },
 ];
 
 export const sfamiliasVentas = [
-  { nombre:"Electrodomésticos",          sfamilia:"Electrodomésticos",          marca:"Samsung", actual:31600, anterior:30350, unidades:1805, unidadesAnt:1758, pctRebate:4.2 },
-  { nombre:"Cuidado Personal",           sfamilia:"Cuidado Personal",           marca:"Philips", actual:28000, anterior:26140, unidades:1955, unidadesAnt:1845, pctRebate:3.5 },
-  { nombre:"Línea Blanca",               sfamilia:"Línea Blanca",               marca:"LG",      actual:24600, anterior:21280, unidades:1310, unidadesAnt:1171, pctRebate:3.5 },
-  { nombre:"Materiales de Construcción", sfamilia:"Materiales de Construcción", marca:"Bosch",   actual:15800, anterior:15130, unidades:633,  unidadesAnt:615,  pctRebate:5.0 },
+  { nombre:"Electrodomésticos",          sfamilia:"Electrodomésticos",          marca:"Samsung", actual:31600, anterior:30350, unidades:1747, unidadesAnt:1703, pctRebate:4.4 },
+  { nombre:"Cuidado Personal",           sfamilia:"Cuidado Personal",           marca:"Philips", actual:28000, anterior:26140, unidades:1892, unidadesAnt:1788, pctRebate:3.6 },
+  { nombre:"Línea Blanca",               sfamilia:"Línea Blanca",               marca:"LG",      actual:24600, anterior:21280, unidades:1268, unidadesAnt:1135, pctRebate:3.6 },
+  { nombre:"Materiales de Construcción", sfamilia:"Materiales de Construcción", marca:"Bosch",   actual:15800, anterior:15130, unidades:613,  unidadesAnt:596,  pctRebate:5.1 },
 ];
 
 export const sfamiliasMargen = [
-  { nombre:"Electrodomésticos",          tipo:"sfamilia", marca:"Samsung", sfamilia:"Electrodomésticos",          venta:31600, costo:22574, rebates:1383, contribucion:7643, pctRebate:4.4, margen:24.2, costoMedio:12.51, precioLista:17.51, unidades:1805, benchmark:30.1 },
-  { nombre:"Línea Blanca",               tipo:"sfamilia", marca:"LG",      sfamilia:"Línea Blanca",               venta:24600, costo:17801, rebates:892,  contribucion:5907, pctRebate:3.6, margen:24.0, costoMedio:13.59, precioLista:18.78, unidades:1310, benchmark:30.1 },
-  { nombre:"Cuidado Personal",           tipo:"sfamilia", marca:"Philips", sfamilia:"Cuidado Personal",           venta:28000, costo:19543, rebates:1010, contribucion:7447, pctRebate:3.6, margen:26.6, costoMedio:10.00, precioLista:14.32, unidades:1955, benchmark:30.1 },
-  { nombre:"Materiales de Construcción", tipo:"sfamilia", marca:"Bosch",   sfamilia:"Materiales de Construcción", venta:15800, costo:10439, rebates:799,  contribucion:4562, pctRebate:5.1, margen:28.9, costoMedio:16.49, precioLista:24.96, unidades:633,  benchmark:30.1 },
+  { nombre:"Electrodomésticos",          tipo:"sfamilia", marca:"Samsung", sfamilia:"Electrodomésticos",          venta:31600, costo:22724, rebates:1383, contribucion:7493, pctRebate:4.4, margen:23.7, costoMedio:13.01, precioLista:18.09, unidades:1747, benchmark:30.1 },
+  { nombre:"Línea Blanca",               tipo:"sfamilia", marca:"LG",      sfamilia:"Línea Blanca",               venta:24600, costo:17917, rebates:892,  contribucion:5791, pctRebate:3.6, margen:23.5, costoMedio:14.13, precioLista:19.40, unidades:1268, benchmark:30.1 },
+  { nombre:"Cuidado Personal",           tipo:"sfamilia", marca:"Philips", sfamilia:"Cuidado Personal",           venta:28000, costo:19689, rebates:1010, contribucion:7301, pctRebate:3.6, margen:26.1, costoMedio:10.41, precioLista:14.80, unidades:1892, benchmark:30.1 },
+  { nombre:"Materiales de Construcción", tipo:"sfamilia", marca:"Bosch",   sfamilia:"Materiales de Construcción", venta:15800, costo:10529, rebates:799,  contribucion:4472, pctRebate:5.1, margen:28.3, costoMedio:17.18, precioLista:25.77, unidades:613,  benchmark:30.1 },
 ];
 
 export const skuInventario = [
@@ -310,9 +310,27 @@ export const skusMargen = [
   { nombre:"MAK-COMP-AIR", tipo:"sku", marca:"Makita",  sfamilia:"Materiales de Construcción", venta:1700,  costo:1463, rebates:102, contribucion:135,  pctRebate:6.0, margen:7.9,  costoMedio:365.75, precioLista:425.00, unidades:4,   benchmark:30.1 },
 ];
 
-export const ventasKPI = { totalActual:100000, totalAnterior:92900, totalPresupuesto:97000, vsAnterior:7.6, vsPresupuesto:3.1, unidades:5703, ticketProm:17.5 };
+/* LOS KPI DE CABECERA SE DERIVAN DE LAS FILAS (owner 2026-10-06, una sola realidad): como en una planilla real, la venta, el
+ * año anterior, el presupuesto y las unidades son la SUMA del universo cliente (la venta OFICIAL, D8), y la contribución es
+ * venta oficial × margen % por cliente — la misma cuenta que hace el motor (applyScenarioToClientesMargen). Antes eran
+ * literales ($100.000K / 25,6 % / $25.559K) que no coincidían con ninguna suma de filas. Lo único que NO se deriva es el
+ * margen del AÑO ANTERIOR (no hay costo anterior por cliente): el demo lo DECLARA, como la planilla lo mide en motorKpi. */
+const _r1 = (n) => Math.round(n * 10) / 10;
+const _sumCV = (k) => clientesVentas.reduce((s, c) => s + (c[k] || 0), 0);
+const _ventaOficial = Object.fromEntries(clientesVentas.map((c) => [c.nombre, c.actual]));
+const _contribCartera = clientesMargen.reduce((s, c) => s + Math.round((_ventaOficial[c.nombre] ?? c.venta) * c.margen / 100), 0);
+export const ventasKPI = {
+  totalActual: _sumCV("actual"), totalAnterior: _sumCV("anterior"), totalPresupuesto: _sumCV("presupuesto"),
+  vsAnterior: _r1((_sumCV("actual") / _sumCV("anterior") - 1) * 100),
+  vsPresupuesto: _r1((_sumCV("actual") / _sumCV("presupuesto") - 1) * 100),
+  unidades: _sumCV("unidades"), ticketProm: _r1(_sumCV("actual") / _sumCV("unidades")),
+};
 
-export const margenKPI = { pct:25.6, pctAnt:23.8, totalUSD:25559, gapPuntos:1.8 };
+const _MARGEN_ANTERIOR_DECLARADO = 23.8;   // el margen del año anterior: lo declara el negocio (no es derivable de las filas)
+export const margenKPI = {
+  pct: _r1(_contribCartera / _sumCV("actual") * 100), pctAnt: _MARGEN_ANTERIOR_DECLARADO, totalUSD: _contribCartera,
+  gapPuntos: _r1(_r1(_contribCartera / _sumCV("actual") * 100) - _MARGEN_ANTERIOR_DECLARADO),
+};
 
 /* invKPI · CALCULADO más abajo (después de PERFIL, R7: owner 2026-09-28, §7.3·31-32, diseño §8.2) — ya no es un
  * literal escrito a mano. Se declara ahí porque necesita `PERFIL` (el umbral de ESTA empresa) ya definido. */
@@ -324,27 +342,32 @@ export const margenKPI = { pct:25.6, pctAnt:23.8, totalUSD:25559, gapPuntos:1.8 
  *
  * ⚠️ LAS SUMAS CIERRAN EXACTO con lo que la cara Comercial ya publica — una sola verdad por universo:
  *   Σcosto 70,868 + Σacciones 4,075 + Σcontribución 25,057 = Σventa 100,000 (contribución = la de la cartera,
- *   $25.1M) · Σunidades 5,703 = el KPI de cabecera · acciones 4,075 = pctRebate × venta del universo cliente.
+ *   $25.1M) · Σunidades 5,520 = las del universo cliente = el KPI de cabecera · acciones 4,075 = pctRebate × venta del universo cliente.
  * Las historias que estos meses cuentan están DECLARADAS acá, no inventadas por ADI:
  *   Feb  → unidades mínimas con margen en línea (25.2%): faltó volumen, no precio — y repite el piso del año
  *          anterior (estacionalidad, ver patronAnual).
  *   Jul  → la mayor caída del año (desde Jun) llega con la carga de acciones más alta (5.5%) y el margen más
  *          bajo (22.9%): se cedió margen y aún así la venta cayó.
  *   Nov  → el mejor mes también es el mejor ganado: margen máximo (26.3%) con la carga mínima (3.4%).
- *   Dic  → volumen máximo (560 unidades) cediendo margen (23.8%, carga 4.7%): se compró volumen. */
+ *   Dic  → volumen máximo (542 unidades) cediendo margen (23.8%, carga 4.7%): se compró volumen.
+ *
+ * UNA SOLA REALIDAD (owner 2026-10-06): las unidades mensuales (Σ 5,520) y la venta del año anterior de Nov (8,950 →
+ * Σ 92,900) se calibraron para que ESTA tabla cuadre con la venta oficial por cliente (precedente: presupuesto
+ * 2026-07-15, meses 2026-09-09). Antes sumaban 5,703 y 93,000: el Δ de 183 unidades era exactamente Makita, que
+ * está en marcas/familias y no en el universo cliente. */
 export const ventasMensuales = [
-  { mes:"Ene", actual:6800,  anterior:6300, presupuesto:6500, unidades:389, costo:4830, acciones:270 },
-  { mes:"Feb", actual:6500,  anterior:6050, presupuesto:6300, unidades:360, costo:4628, acciones:234 },
-  { mes:"Mar", actual:7800,  anterior:7200, presupuesto:7500, unidades:446, costo:5509, acciones:310 },
-  { mes:"Abr", actual:7400,  anterior:6950, presupuesto:7400, unidades:423, costo:5262, acciones:295 },
-  { mes:"May", actual:8200,  anterior:7650, presupuesto:8000, unidades:469, costo:5800, acciones:325 },
-  { mes:"Jun", actual:8700,  anterior:8050, presupuesto:8400, unidades:497, costo:6128, acciones:345 },
-  { mes:"Jul", actual:8100,  anterior:7600, presupuesto:8100, unidades:468, costo:5800, acciones:445 },
-  { mes:"Ago", actual:9100,  anterior:8400, presupuesto:8700, unidades:520, costo:6429, acciones:360 },
-  { mes:"Sep", actual:8600,  anterior:7950, presupuesto:8500, unidades:491, costo:6101, acciones:340 },
-  { mes:"Oct", actual:9400,  anterior:8700, presupuesto:9100, unidades:537, costo:6624, acciones:370 },
-  { mes:"Nov", actual:9800,  anterior:9050, presupuesto:9500, unidades:543, costo:6893, acciones:330 },
-  { mes:"Dic", actual:9600,  anterior:9100, presupuesto:9000, unidades:560, costo:6864, acciones:451 },
+  { mes:"Ene", actual:6800,  anterior:6300, presupuesto:6500, unidades:377, costo:4830, acciones:270 },
+  { mes:"Feb", actual:6500,  anterior:6050, presupuesto:6300, unidades:348, costo:4628, acciones:234 },
+  { mes:"Mar", actual:7800,  anterior:7200, presupuesto:7500, unidades:432, costo:5509, acciones:310 },
+  { mes:"Abr", actual:7400,  anterior:6950, presupuesto:7400, unidades:409, costo:5262, acciones:295 },
+  { mes:"May", actual:8200,  anterior:7650, presupuesto:8000, unidades:454, costo:5800, acciones:325 },
+  { mes:"Jun", actual:8700,  anterior:8050, presupuesto:8400, unidades:481, costo:6128, acciones:345 },
+  { mes:"Jul", actual:8100,  anterior:7600, presupuesto:8100, unidades:453, costo:5800, acciones:445 },
+  { mes:"Ago", actual:9100,  anterior:8400, presupuesto:8700, unidades:503, costo:6429, acciones:360 },
+  { mes:"Sep", actual:8600,  anterior:7950, presupuesto:8500, unidades:475, costo:6101, acciones:340 },
+  { mes:"Oct", actual:9400,  anterior:8700, presupuesto:9100, unidades:520, costo:6624, acciones:370 },
+  { mes:"Nov", actual:9800,  anterior:8950, presupuesto:9500, unidades:526, costo:6893, acciones:330 },
+  { mes:"Dic", actual:9600,  anterior:9100, presupuesto:9000, unidades:542, costo:6864, acciones:451 },
 ];
 
 export const SUPERFAMILIAS = ["Todas","Electrodomésticos","Línea Blanca","Cuidado Personal","Materiales de Construcción"];
@@ -353,94 +376,20 @@ export const MARCAS_ALL    = ["Samsung","LG","Philips","Bosch","Makita"];
 
 export const SUCURSALES    = ["Santiago","Valparaíso","Concepción","Antofagasta"];
 
-export const SCENARIO_TRANSFORMS = {
-  bonanza: {
-    clientes: {
-      "Falabella":    { growth:  8.2, rebateDelta: 0, marginErosion: 0 },
-      "Lider":        { growth: 14.9, rebateDelta: 0, marginErosion: 0 },
-      "Jumbo":        { growth: 12.2, rebateDelta: 0, marginErosion: 0 },
-      "Sodimac":      { growth:  5.4, rebateDelta: 0, marginErosion: 0 },
-      "Tottus":       { growth:  9.2, rebateDelta: 0, marginErosion: 0 },
-      "Paris":        { growth:  2.6, rebateDelta: 0, marginErosion: 0 },
-      "Mercado Libre":{ growth: 25.3, rebateDelta: 0, marginErosion: 0 },
-      "Ripley":       { growth: -8.2, rebateDelta: 0, marginErosion: 0 },
-      "Easy":         { growth: -5.0, rebateDelta: 0, marginErosion: 0 },
-      "La Polar":     { growth:-12.5, rebateDelta: 0, marginErosion: 0 },
-      "Hites":        { growth:  4.0, rebateDelta: 0, marginErosion: 0 },
-      "ABC":          { growth:  3.0, rebateDelta: 0, marginErosion: 0 },
-      "Unimarc":      { growth: -3.9, rebateDelta: 0, marginErosion: 0 },
-    },
-    kpis: {
-      ventas: { totalActual:99999,  totalAnterior:92900, totalPresupuesto:97000, vsAnterior: 7.6, vsPresupuesto:  3.1 },
-      // Bonanza · Margen: derivado del agregado. ContribTotal ≈ Σ(venta*margen/100) ≈ 25559.
-      margen:     { pct:25.6, pctAnt:23.8, totalUSD:25559, gapPuntos: 1.8, benchmark:30.1 },
-      // inventario: RETIRADO (owner 2026-09-28, §7.3·31-32, diseño §0.4/R7) — `deriveKpis().inventario` y
-      // `getInvKPI` ya NO leen este literal: calculan con `kpiInventario` sobre las filas del escenario
-      // (`applyScenarioToSkuInventario`). `desalineacionPct/USD` y `concentracionPct/TopCat` se retiran con él:
-      // verificado que ningún archivo de `src/` fuera de este tenant los consumía.
-    },
-  },
-
-  tension: {
-    clientes: {
-      // Icónicos (mencionados en tesis ADI): Falabella ~plano, Lider en caída,
-      // Jumbo crece moderado, Mercado Libre crece fuerte, La Polar y Ripley caen.
-      "Falabella":    { growth:  0.5, rebateDelta:+0.8, marginErosion:-2.0 },
-      "Lider":        { growth: -3.0, rebateDelta:+1.0, marginErosion:-3.5 },
-      "Jumbo":        { growth:  4.0, rebateDelta:+1.5, marginErosion:-2.5 },
-      "Sodimac":      { growth:  2.0, rebateDelta:+0.5, marginErosion:-4.3 },
-      "Tottus":       { growth:  1.0, rebateDelta:+0.3, marginErosion:-4.3 },
-      "Paris":        { growth: -1.0, rebateDelta:+0.4, marginErosion:-4.3 },
-      "Mercado Libre":{ growth: 18.0, rebateDelta:+1.7, marginErosion:-1.5 },
-      "Ripley":       { growth: -8.0, rebateDelta:+1.2, marginErosion:-3.5 },
-      "Easy":         { growth: -6.0, rebateDelta:+1.0, marginErosion:-4.3 },
-      "La Polar":     { growth:-12.0, rebateDelta:+0.6, marginErosion:-4.0 },
-      "Hites":        { growth: -5.0, rebateDelta:+0.5, marginErosion:-4.3 },
-      "ABC":          { growth:  0.0, rebateDelta:+0.4, marginErosion:-4.3 },
-      "Unimarc":      { growth: -4.0, rebateDelta:+0.3, marginErosion:-4.3 },
-    },
-    // KPIs RECALIBRADOS desde los growth: totalActual = Σ(anterior*(1+growth/100)) ≈ 92892
-    kpis: {
-      ventas: { totalActual:92892, totalAnterior:92900, totalPresupuesto:97000, vsAnterior:-0.0, vsPresupuesto:-4.2 },
-      // Margen RECALIBRADO desde la erosión: prom ponderado por venta del escenario = 22.4%
-      margen:     { pct:22.4, pctAnt:25.6, totalUSD:20808, gapPuntos:-3.2, benchmark:30.1 },
-      // inventario: RETIRADO — ver la nota de "bonanza" arriba.
-    },
-  },
-
-  crisis: {
-    clientes: {
-      "Falabella":    { growth:-12.0, rebateDelta:+2.0, marginErosion:-6.0 },
-      "Lider":        { growth:-18.0, rebateDelta:+2.8, marginErosion:-8.5 },
-      "Jumbo":        { growth: -7.0, rebateDelta:+2.5, marginErosion:-5.5 },
-      "Sodimac":      { growth:-15.0, rebateDelta:+2.2, marginErosion:-7.0 },
-      "Tottus":       { growth: -9.0, rebateDelta:+1.8, marginErosion:-7.0 },
-      "Paris":        { growth:-14.0, rebateDelta:+2.0, marginErosion:-7.0 },
-      "Mercado Libre":{ growth: 32.0, rebateDelta:+2.5, marginErosion:-3.0 },
-      "Ripley":       { growth:-28.0, rebateDelta:+3.5, marginErosion:-10.0 },
-      "Easy":         { growth:-22.0, rebateDelta:+3.0, marginErosion:-7.0 },
-      "La Polar":     { growth:-35.0, rebateDelta:+3.2, marginErosion:-12.0 },
-      "Hites":        { growth:-17.0, rebateDelta:+2.5, marginErosion:-7.0 },
-      "ABC":          { growth:-12.0, rebateDelta:+1.5, marginErosion:-7.0 },
-      "Unimarc":      { growth:-19.0, rebateDelta:+1.8, marginErosion:-7.0 },
-    },
-    // KPIs RECALIBRADOS: totalActual ≈ 81182, var = -12.6%
-    kpis: {
-      ventas: { totalActual:81182, totalAnterior:92900, totalPresupuesto:97000, vsAnterior:-12.6, vsPresupuesto:-16.3 },
-      // Margen RECALIBRADO: prom ponderado · escenario = 18.9% · contrib = 15343
-      margen:     { pct:18.9, pctAnt:25.6, totalUSD:15343, gapPuntos:-6.7, benchmark:30.1 },
-      // inventario: RETIRADO — ver la nota de "bonanza" arriba.
-    },
-  },
-};
-
+/* UNA SOLA REALIDAD (owner 2026-10-06 · _ADI_DISENO_UNA_SOLA_REALIDAD.md): las TABLAS de este tenant son la realidad
+ * vigente; ya no hay «escenarios» (bonanza/tensión/crisis) como fuentes paralelas de la verdad. Los 13 `growth` literales
+ * de «bonanza» eran la tabla redondeada a un decimal (Δ ≤ $26K por cliente) más un rearme de marcas que inventaba una
+ * partición; «tensión» y «crisis» no tenían ningún uso de producto (solo gates). Las simulaciones EXPLÍCITAS (Simulate v2:
+ * un `override` con deltas sobre la fila real) se conservan en el motor y NO necesitan transform base. Candado
+ * anti-resurrección: `_una_sola_realidad_gate`. */
+export const SCENARIO_TRANSFORMS = {};
 
 /* ── EL TENANT ARMADO · el shape que initTenant(dataset) espera ──────────────────────────────────────
  * Fuentes de fila (contrato/sourceManifest): clientesVentas · clientesMargen · marcasVentas · marcasMargen ·
  * sfamiliasVentas · sfamiliasMargen · skuInventario · skusMargen. Series/KPIs declarados: historialMargen ·
  * ventasKPI · margenKPI · invKPI · ventasMensuales. Perfil estratégico: CLIENTES_STRATEGIC_PROFILE.
- * Catálogos de la UI: SUPERFAMILIAS/MARCAS_ALL/SUCURSALES. Escenarios: SCENARIO_TRANSFORMS (por-tenant:
- * sus transforms nombran SUS entidades — ids bonanza/tension/crisis compartidos con la UI hoy). */
+ * Catálogos de la UI: SUPERFAMILIAS/MARCAS_ALL/SUCURSALES. Simulaciones: SCENARIO_TRANSFORMS = {} (una sola
+ * realidad: las tablas; la simulación explícita es un override sobre la fila real, no un transform base). */
 /* ── PERFIL DE EMPRESA (F2 multiempresa · 2026-07-26) · la POLÍTICA que este negocio declara con su dato ──
  * POLICY se resuelve `perfil del tenant ?? POLICY_CONFIG` en initTenant (businessPolicy), con el criterio C.2
  * del usuario SIEMPRE encima (scopeado por empresa). El demo declara LOS MISMOS valores del config → resultado

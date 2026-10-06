@@ -523,10 +523,17 @@ H("12 · el empujón de R6: declinar sin haber leído recibe UNA chance de verif
    * vigila. La cifra es el vehículo que lleva el eco hasta el punto de conteo; lo medido es cómo se CUENTA.
    * Un check que ya no alcanza el sitio que vigila conserva un texto y pierde la garantía.
    * Y sale del DATO, no de un literal: si mañana el total vuelve a cambiar, este bloque lo sigue. */
-  const _totalHoy = (cifrasDelDato(ESCENARIO_INICIAL).figs || []).find((x) => /^money:/.test(String(x.canon))
+  /* UNA SOLA REALIDAD (owner 2026-10-06): con las TABLAS como realidad, el total de ventas que la proyección publica ($100.0M) es EL MISMO que el «Ventas del período» de la boleta de la foto, y
+   * el playbook de la foto (`foto-sin-margen`) juzga «la foto» a cualquier texto que cite esa cifra: el eco con las ventas totales dejó de ser un rescate y pasó a ser una foto sin margen (el
+   * turno cae al playbook y NUNCA LLEGA AL CONTEO que este bloque vigila — el mismo desvío que ya se midió el 2026-09-01). El vehículo del eco pasa a otra cifra verdadera con dueño del
+   * mismo negocio que la foto no juzga: la CONTRIBUCIÓN total de la cartera. Lo medido sigue siendo cómo se CUENTA el eco de la plantilla. Sale del DATO, no de un literal. */
+  const _ventasHoy = (cifrasDelDato(ESCENARIO_INICIAL).figs || []).find((x) => /^money:/.test(String(x.canon))
     && Array.isArray(x.duenos) && x.duenos.includes("negocio") && x.duenos.includes("total")
     && !x.duenos.includes("anterior") && !x.duenos.includes("presupuesto"));
-  const ECO = `No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: las ventas totales del negocio suman ${_totalHoy.value}. Dime por dónde quieres que siga y lo trabajo sobre lo disponible.`;
+  const _totalHoy = (cifrasDelDato(ESCENARIO_INICIAL).figs || []).filter((x) => /^money:/.test(String(x.canon))
+    && Array.isArray(x.duenos) && x.duenos.includes("negocio") && x.duenos.includes("total")
+    && !x.duenos.includes("anterior") && !x.duenos.includes("presupuesto") && !x.duenos.includes("inventario") && x.canon !== _ventasHoy.canon)[0];
+  const ECO = `No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: la contribución total del negocio suma ${_totalHoy.value}. Dime por dónde quieres que siga y lo trabajo sobre lo disponible.`;
   const re2 = await answerViaAgente({ text: "dame la foto del negocio", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: declarando(async () => ({ tipo: "texto", texto: ECO }), ESCENARIO_INICIAL) });
   ok(re2.r.agente.estado === "limite" && re2.r.text.includes(_totalHoy.value),
     `★ [10]: el eco de la plantilla APRUEBA el muro pero se CUENTA como límite (${re2.r.agente.estado}) — el T8 del examen`);
@@ -1000,10 +1007,12 @@ H("15 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       initTenant(TENANT_DEMO);
       // la cifra sale del DATO, igual que en el bloque [10]: con la vieja el eco muere en el muro y la carnada
       // no llega al conteo que quiere medir — dejaría de cazar sin decirlo.
-      const _t = (cifrasDelDato(ESCENARIO_INICIAL).figs || []).find((x) => /^money:/.test(String(x.canon))
+      /* una sola realidad (2026-10-06): la misma cifra que el bloque [10] — la contribución total, porque el total de ventas ya lo juzga el playbook de la foto (ver el bloque [10]) */
+      const _fs = (cifrasDelDato(ESCENARIO_INICIAL).figs || []).filter((x) => /^money:/.test(String(x.canon))
         && Array.isArray(x.duenos) && x.duenos.includes("negocio") && x.duenos.includes("total")
-        && !x.duenos.includes("anterior") && !x.duenos.includes("presupuesto"));
-      const ECO2 = `No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: las ventas totales del negocio suman ${_t.value}. Dime por dónde quieres que siga y lo trabajo sobre lo disponible.`;
+        && !x.duenos.includes("anterior") && !x.duenos.includes("presupuesto") && !x.duenos.includes("inventario"));
+      const _t = _fs.filter((x) => x.canon !== _fs[0].canon)[0];
+      const ECO2 = `No pude completar la lectura que pediste con la calidad que corresponde. Lo que sí tengo verificado: la contribución total del negocio suma ${_t.value}. Dime por dónde quieres que siga y lo trabajo sobre lo disponible.`;
       const r = await Mut.answerViaAgente({ text: "dame la foto del negocio", history: [], mem: {}, scenario: ESCENARIO_INICIAL, callAgente: declarando(async () => ({ tipo: "texto", texto: ECO2 }), ESCENARIO_INICIAL) });
       return r.r.agente.estado === "verde";   // el defecto: la no-respuesta infla el conteo
     });

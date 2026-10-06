@@ -7,7 +7,7 @@ import { join, dirname } from "node:path";
 
 export const RAIZ_POR_DEFECTO = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-export async function cargarBase(raiz = RAIZ_POR_DEFECTO) {
+export async function cargarBase(raiz = RAIZ_POR_DEFECTO, { dataset = null } = {}) {   /* `dataset`: el negocio con el que se arma la base (por defecto el demo de fábrica) — un insumo explícito para ejercitar un mundo distinto sin tocar el producto */
   const U = (p) => import(pathToFileURL(join(raiz, p)).href);
   const [tenantStore, demo, esquema, validar, componer, verificar, lexico, estados, conjuntos, entityIndex, dato, scenarios, prioridadIntegrada, dominios, specRetrieval, mesaFlujo] = await Promise.all([
     U("src/data/tenantStore.js"), U("src/data/tenants/demo.js"), U("src/adi/encargo/esquema.js"), U("src/adi/encargo/validar.js"),
@@ -16,7 +16,7 @@ export async function cargarBase(raiz = RAIZ_POR_DEFECTO) {
     U("src/config/scenarios.js"), U("src/adi/agente/prioridadIntegrada.js"), U("src/config/contract/dominios.js"), U("src/adi/specRetrieval.js"),
     U("src/adi/sentrix/mesaFlujo.js"),
   ]);
-  tenantStore.initTenant(demo.TENANT_DEMO);
+  tenantStore.initTenant(dataset || demo.TENANT_DEMO);
   /* la PROYECCIÓN del dato (la misma que lee el Notario): una vez por proceso */
   const proyeccion = dato.cifrasDelDato(scenarios.ESCENARIO_INICIAL);
   /* EL DATO PUBLICADO (consolidación, segunda vuelta): qué publica el Core para (eje, concepto), independiente de las piezas de composición de la Entrega. Es la unión de (a) el group-by del

@@ -67,7 +67,9 @@ H("3 · los literales nuevos del demo — cambio visible AUTORIZADO por el owner
 {
   initTenant(TENANT_DEMO);
   const v = composeModuleOverviewV2("bonanza", "ventas").opener;
-  ok(v.includes("Total $100.0M · variación $7.1M · top 3 (Falabella, Lider, Jumbo) concentran 54.6% · Mercado Libre crece +25.3% con carga 1.8% · La Polar cae -12.5%."),
+  /* CIFRAS FIJADAS DEL DEMO, RE-FIJADAS (una sola realidad, owner 2026-10-06): son las de la TABLA — Mercado Libre +25.4 % y La Polar −12.4 % (antes los 13 porcentajes
+   * redondeados de «bonanza»: +25.3 / −12.5) y el total entero se imprime «$100M» (el formateador del overview no pone decimal a un entero). */
+  ok(v.includes("Total $100M · variación $7.1M · top 3 (Falabella, Lider, Jumbo) concentran 54.6% · Mercado Libre crece +25.4% con carga 1.8% · La Polar cae -12.4%."),
     "ventas: cifras y cuentas del dato, caída incluida (antes el guion la callaba)", v);
   ok(v.includes("La dinámica de la cartera depende de pocas cuentas."), "…concentración AFIRMADA porque 54.6% ≥ 50 la sostiene");
   const m = composeModuleOverviewV2("bonanza", "margenes").opener;
@@ -131,8 +133,8 @@ H("3-bis · la tesis ejecutiva (etlg) sale del dato o no sale — las cifras cla
     "ventas del pack: sin el «+7.6%» clavado — la dirección es la del dato", tV.split("\n")[0]);
   initTenant(TENANT_DEMO);
   const rD = await answerADI("márgenes", [], {}, "bonanza");
-  ok(/25\.6%/.test(String((rD && (rD.text || rD.opener)) || "").split("\n")[0]),
-    "el demo dice 25.6% porque ES su cifra (del dato, ya no del mapa clavado)");
+  ok(/25\.1%/.test(String((rD && (rD.text || rD.opener)) || "").split("\n")[0]),
+    "el demo dice 25.1% porque ES su cifra (la del dato —Σ contribución ÷ Σ venta de la tabla—, ya no del mapa clavado ni el 25.6% de un literal)");
 }
 
 /* ═══ 4 · CARNADAS ════════════════════════════════════════════════════════════════════════════════════════════ */

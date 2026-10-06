@@ -46,7 +46,12 @@ let _tick = 0;
 const reloj = () => new Date(Date.UTC(2026, 9, 4, 12, 0, 0) + (++_tick) * 1000).toISOString();   // la hora real no entra al candado
 
 /* ── los datasets: copias del demo con UN cambio cada una (la venta oficial de un cliente sale de `clientesVentas.anterior` × su crecimiento del escenario) ─────── */
-const conVentas = (ds, cambios) => { const c = clon(ds); for (const [nombre, anterior] of Object.entries(cambios)) c.clientesVentas.find((x) => x.nombre === nombre).anterior = anterior; return c; };
+/* UNA SOLA REALIDAD (owner 2026-10-06): la venta de un cliente ya no sale de `anterior × el crecimiento de un escenario` — es SU `actual` (la tabla). Los casos de este gate se
+ * escribieron como «anterior = X»; se conservan EXACTAMENTE las ventas resultantes que esos casos producían (X × (1 + el crecimiento que «bonanza» declaraba para ese cliente),
+ * redondeado), ahora fijadas en `actual`: las cargas «nuevas» son las mismas de siempre y lo único que cambia es la venta de partida (la de la tabla). */
+const CRECIMIENTO_DE_LA_CARGA_DE_ENTONCES = { Falabella: 8.2, Lider: 14.9, Jumbo: 12.2, Sodimac: 5.4, Tottus: 9.2, Paris: 2.6, "Mercado Libre": 25.3, Ripley: -8.2, Easy: -5, "La Polar": -12.5, Hites: 4, ABC: 3, Unimarc: -3.9 };
+const conVentas = (ds, cambios) => { const c = clon(ds); for (const [nombre, anterior] of Object.entries(cambios)) c.clientesVentas.find((x) => x.nombre === nombre).actual = Math.round(anterior * (1 + CRECIMIENTO_DE_LA_CARGA_DE_ENTONCES[nombre] / 100)); return c; };
+const conVentaExacta = (ds, cambios) => { const c = clon(ds); for (const [nombre, actual] of Object.entries(cambios)) c.clientesVentas.find((x) => x.nombre === nombre).actual = actual; return c; };
 const sinCliente = (ds, nombre) => { const c = clon(ds); for (const k of ["clientesVentas", "clientesMargen"]) c[k] = c[k].filter((x) => x.nombre !== nombre); delete c.flujoComercial.clientes[nombre]; return c; };
 const conFechaDeCorte = (ds, fecha) => { const c = clon(ds); c.flujoComercial.fechaCorte = fecha; return c; };
 
@@ -188,8 +193,8 @@ const HOY2 = { base: verdadDeHoy(DS2, ORDEN) };
   const por = (id) => ret.hechos.find((h) => h.id === id);
   ok(ret.ok && auditar(ret, HOY2.base).length === 0, "la auditoría contra lo que da el Core con los datos nuevos no encuentra ni un veredicto mal puesto", auditar(ret, HOY2.base).join(" · "));
   const lider = por("E2.h2");
-  ok(lider.sujeto === "Lider" && lider.estadoReverificacion === "cambio" && lider.revalidacion.anterior.raw === 17843000 && lider.revalidacion.actual.raw === 16086000 && lider.revalidacion.diferencia.valor === -1757000 && lider.revalidacion.diferencia.texto === "$1.8M" && lider.revalidacion.diferencia.sentido === "baja", "★ la venta de Lider: antes $17.8M (17.843.000), ahora $16.1M (16.086.000), diferencia −$1.8M calculada por ADI", jj(lider.revalidacion));
-  ok(lider.revalidacion.anterior.valor === "$17.8M" && lider.revalidacion.actual.valor === "$16.1M" && lider.revalidacion.cargaAnterior === 1 && lider.revalidacion.cargaActual === 2, "con las dos cifras tal como las imprime la casa y las dos cargas (tipadas)");
+  ok(lider.sujeto === "Lider" && lider.estadoReverificacion === "cambio" && lider.revalidacion.anterior.raw === 17857000 && lider.revalidacion.actual.raw === 16086000 && lider.revalidacion.diferencia.valor === -1771000 && lider.revalidacion.diferencia.texto === "$1.8M" && lider.revalidacion.diferencia.sentido === "baja", "★ la venta de Lider: antes $17.9M (17.857.000), ahora $16.1M (16.086.000), diferencia −$1.8M calculada por ADI", jj(lider.revalidacion));
+  ok(lider.revalidacion.anterior.valor === "$17.9M" && lider.revalidacion.actual.valor === "$16.1M" && lider.revalidacion.cargaAnterior === 1 && lider.revalidacion.cargaActual === 2, "con las dos cifras tal como las imprime la casa y las dos cargas (tipadas)");
   const unimarc = por("E2.h13");
   ok(unimarc.sujeto === "Unimarc" && unimarc.estadoReverificacion === "ya_no_existe" && unimarc.revalidacion.anterior.valor === "$2.3M" && unimarc.revalidacion.actual === undefined, "★ Unimarc (retirado de los datos): ya_no_existe, con lo que se entregó y sin valor de hoy");
   ok(ret.hechos.filter((h) => h.id.startsWith("E2.") && h.id !== "E2.h2" && h.id !== "E2.h13" && h.id !== "E2.h14").every((h) => h.estadoReverificacion === "igual"), "los otros 11 clientes de esa Entrega: igual");
@@ -201,20 +206,20 @@ const HOY2 = { base: verdadDeHoy(DS2, ORDEN) };
   const L = ret.lineaContinuidad;
   ok(typeof L === "string" && !L.includes("\n") && lineaLimpia(L), "★ UNA línea, sin «yo», «te» ni «usted», sin versiones ni flechas de carga: tercera persona y lenguaje de negocio", L);
   const distintos = new Set(cambiaron.map((h) => `${h.sujeto}|${h.metrica}|${h.revalidacion.anterior.valor}|${h.revalidacion.actual ? h.revalidacion.actual.valor : ""}`)).size;
-  ok(cuenta(L, "(antes ") === CAMBIOS_NOMBRADOS_MAX && L.includes("(antes $17.8M, ahora $16.1M)") && L.includes("venta de Lider") && L.includes(`, y ${distintos - CAMBIOS_NOMBRADOS_MAX} cambios más; el detalle está disponible`), `★ nombra TRES cambios con «antes … ahora …» y dice cuántos más hay (${distintos} distintos: «y ${distintos - CAMBIOS_NOMBRADOS_MAX} cambios más»), nunca solo el conteo`, L);
-  ok(L.startsWith("los datos cambiaron desde la Entrega 4 · de lo ya entregado, con los datos actuales cambiaron: venta de Lider (antes $17.8M, ahora $16.1M), saldo pendiente de Lider (antes $9.8M, ahora $8.8M), contribución no capturada (brecha estimada) de Lider (antes $1.5M, ahora $1.4M), y "), "los tres nombrados son los de MAYOR PRIORIDAD de las Entregas originales (la fila de Lider, de arriba hacia abajo en cada tabla), la venta repetida en dos Entregas se nombra una vez", L);
+  ok(cuenta(L, "(antes ") === CAMBIOS_NOMBRADOS_MAX && L.includes("(antes $17.9M, ahora $16.1M)") && L.includes("venta de Lider") && L.includes(`, y ${distintos - CAMBIOS_NOMBRADOS_MAX} cambios más; el detalle está disponible`), `★ nombra TRES cambios con «antes … ahora …» y dice cuántos más hay (${distintos} distintos: «y ${distintos - CAMBIOS_NOMBRADOS_MAX} cambios más»), nunca solo el conteo`, L);
+  ok(L.startsWith("los datos cambiaron desde la Entrega 4 · de lo ya entregado, con los datos actuales cambiaron: venta de Lider (antes $17.9M, ahora $16.1M), saldo pendiente de Lider (antes $9.8M, ahora $8.8M), contribución no capturada (brecha estimada) de Lider (antes $1.5M, ahora $1.4M), y "), "los tres nombrados son los de MAYOR PRIORIDAD de las Entregas originales (la fila de Lider, de arriba hacia abajo en cada tabla), la venta repetida en dos Entregas se nombra una vez", L);
   ok(!/Unimarc/.test(L.split(", y ")[0]) && ret.hechos.some((h) => h.id === "E2.h13" && h.estadoReverificacion === "ya_no_existe"), "el cliente retirado NO se nombra en la línea (su prioridad es la última de su tabla) pero sí está completo en el detalle tipado");
   ok(intacto && restaurado, "★ el libro sigue byte a byte igual y el Core quedó como estaba");
   ok(ret.advertencias.length === 0, "no hay nada que no se haya podido revalidar: sin advertencias");
 }
 {
   // «igual» es lo que la casa IMPRIME: una diferencia por debajo de lo impreso no es un aviso (decisión del owner, B)
-  const DS2b = conVentas(TENANT_DEMO, { Lider: 15530 });
+  const DS2b = conVentaExacta(TENANT_DEMO, { Lider: TENANT_DEMO.clientesVentas.find((x) => x.nombre === "Lider").actual + 1 });   /* +1K: distinto crudo, MISMA impresión ($17.9M) */
   const hoyB = verdadDeHoy(DS2b, ORDEN);
   const { ret } = await retomarSinTocar(T(DS2b, 1));
   const lider = ret.hechos.find((h) => h.id === "E2.h2");
   const crudosHoy = hoyB.get(2).get(LLAVE_DE(lider));
-  ok(crudosHoy[0] !== lider.rv.raw && formatoDeLaCasa(crudosHoy[0], "money") === formatoDeLaCasa(lider.rv.raw, "money") && lider.estadoReverificacion === "igual", `★ «sigue igual» = se IMPRIME igual: la venta de Lider pasó de ${lider.rv.raw} a ${crudosHoy[0]} y la casa dice $17.8M en las dos`, jj(lider.revalidacion));
+  ok(crudosHoy[0] !== lider.rv.raw && formatoDeLaCasa(crudosHoy[0], "money") === formatoDeLaCasa(lider.rv.raw, "money") && lider.estadoReverificacion === "igual", `★ «sigue igual» = se IMPRIME igual: la venta de Lider pasó de ${lider.rv.raw} a ${crudosHoy[0]} y la casa dice $17.9M en las dos`, jj(lider.revalidacion));
   ok(auditar(ret, hoyB).length === 0 && ret.lineaContinuidad === null, "y sin nada que decir: cero línea", `${auditar(ret, hoyB).join(" · ")} / ${ret.lineaContinuidad}`);
 }
 
@@ -359,7 +364,7 @@ H("7 · carnadas de la auditoría y de la línea: un «igual» que imprime disti
   ok(sano.length === 0, "control: el resultado sano pasa la auditoría");
   const manipular = (fn) => { const c = clon(ret); fn(c); return auditar(c, HOY2.base); };
   const c1 = manipular((c) => { const h = c.hechos.find((x) => x.id === "E2.h2"); h.estadoReverificacion = "igual"; h.revalidacion = { estado: "igual", anterior: h.revalidacion.anterior }; c.resumen.cambio--; c.resumen.igual++; });
-  ok(c1.some((p) => /«igual» cuyos crudos no imprimen lo mismo/.test(p)), "★ CARNADA · un «cambio» disfrazado de «igual» (los crudos imprimen $17.8M contra $16.1M): la auditoría lo marca", c1.join(" · "));
+  ok(c1.some((p) => /«igual» cuyos crudos no imprimen lo mismo/.test(p)), "★ CARNADA · un «cambio» disfrazado de «igual» (los crudos imprimen $17.9M contra $16.1M): la auditoría lo marca", c1.join(" · "));
   const c2 = manipular((c) => { const h = c.hechos.find((x) => x.estadoReverificacion === "no_se_revalida") || c.hechos[0]; h.estadoReverificacion = "no_se_revalida"; h.revalidacion.estado = "no_se_revalida"; h.revalidacion.actual = { valor: "$1M", raw: 1e6, unidad: "money" }; });
   ok(c2.some((p) => /«actual» dentro de no_se_revalida/.test(p)), "★ CARNADA · un «actual» dentro de un «no se revalida»: la auditoría lo marca", c2.join(" · "));
   const c3 = manipular((c) => { const h = c.hechos.find((x) => x.id === "E2.h13") || c.hechos[0]; h.estadoReverificacion = "sin_reverificar"; h.revalidacion = { estado: "sin_reverificar", motivo: "no se pudo volver a resolver", anterior: h.revalidacion.anterior, actual: { valor: "$2.3M", raw: 2311000, unidad: "money" } }; c.resumen.ya_no_existe--; c.resumen.sin_reverificar++; });

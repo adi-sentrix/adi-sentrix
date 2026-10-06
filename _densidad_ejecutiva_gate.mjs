@@ -24,6 +24,7 @@
  *
  * OFFLINE · determinístico · CERO llamadas.
  * `node --import ./scripts/offline-guard.mjs _densidad_ejecutiva_gate.mjs` */
+/* UNA SOLA REALIDAD · CIFRAS FIJADAS RE-FIJADAS (owner 2026-10-06, _ADI_DISENO_UNA_SOLA_REALIDAD.md §6.5): cifras del demo en las pantallas de prueba (ahora la tabla): la venta +7.5 %→+7.6 %, Lider $17.8M→$17.9M, Sodimac no capturada $540K→$541K. Las reglas de formato, el tope y el veredicto son los mismos. */
 import { readFileSync } from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -55,7 +56,7 @@ initTenant(TENANT_DEMO);
  * no la cifra—, así que la carnada lleva los extremos reales de la boleta (Lider 37.2 · Sodimac 40.6 · Mercado
  * Libre 44.6 · Tottus 45.3) con sus dueños. Todo lo demás, byte a byte. */
 const PANTALLAS = {
-  T1: `El negocio crece, pero deja caja sobre la mesa: venta +7.5% versus el año anterior, margen en 25.1% contra un benchmark de 30.1% — 5 puntos de brecha que representan $4.9M de contribución no capturada en el año.
+  T1: `El negocio crece, pero deja caja sobre la mesa: venta +7.6% versus el año anterior, margen en 25.1% contra un benchmark de 30.1% — 5 puntos de brecha que representan $4.9M de contribución no capturada en el año.
 
 **Quién sostiene y quién presiona (no es lista, es papel):**
 - **Erosión por acciones comerciales (6 cuentas, 73.8% de la venta):** Falabella, Lider, Jumbo, Sodimac, Paris y uno más. Margen bajo el benchmark Y carga comercial por encima del 3.5% de referencia al mismo tiempo. Falabella lidera con $1.6M de contribución no capturada y carga de 4.5%; Lider le sigue con $1.5M y 4.2% de carga.
@@ -78,7 +79,7 @@ Hay una pregunta que ningún dato resuelve: ¿el volumen de Falabella y Jumbo a 
   - Falabella: margen 22.0% (brecha 8.1 pp), carga 4.5%, contribución no capturada $1.6M
   - Lider: margen 21.5% (brecha 8.6 pp, la mayor de la cartera), carga 4.2%, $1.5M
   - Jumbo: margen 24.0% (brecha 6.1 pp), carga 3.8%, $1.1M
-  - Sodimac: margen 23.5% (brecha 6.6 pp), carga 5.4% (la más alta), $540K
+  - Sodimac: margen 23.5% (brecha 6.6 pp), carga 5.4% (la más alta), $541K
 - La misma gente que cae en margen (86.1% de su venta) es la que excede la carga. Esto **no distingue** todavía si la carga arrastra el margen o si viajan juntas por otra razón — la concurrencia es un patrón, no una prueba de dirección causal.
 
 **El segundo camino, más débil pero presente:** en esos mismos 4 clientes, el markup (precio de lista sobre costo) es más bajo que en los sanos — Falabella 39.1%, Lider 37.2%, Jumbo 38.3%, Sodimac 40.6%, contra Easy o La Polar que sostienen el margen con mejor costo. Esta huella —precio pegado al costo— está **indicada**, no probada: el markup bajo coincide con la carga alta, pero no puedo separar cuánto pesa cada uno por separado con lo que tengo.
@@ -98,7 +99,7 @@ No es la peor brecha porcentual — esa es Lider, con 8.6 puntos bajo el benchma
 
 Contexto rápido de dónde está parada la cartera — 8 clientes bajo el benchmark de 30.1%:
 
-- Lider — margen 21.5%, venta $17.8M, brecha 8.6 pp
+- Lider — margen 21.5%, venta $17.9M, brecha 8.6 pp
 - Falabella — margen 22.0%, venta $19.4M, brecha 8.1 pp
 - Sodimac — margen 23.5%, venta $8.2M, brecha 6.6 pp
 - Jumbo — margen 24.0%, venta $17.3M, brecha 6.1 pp
@@ -177,7 +178,7 @@ H("3 · contextual: el detalle pedido abre la estructura; la lista pedida admite
   ok(reglas(DIRECTORIO, "Dame un resumen para directorio con los 3 riesgos principales y las 3 acciones").length === 0,
     "…y el resumen de 3 riesgos + 3 acciones con dos secciones tituladas pasa: la estructura ordena lo que pidieron");
   ok(reglas(DIRECTORIO, "¿Cómo va el negocio?").includes("formato-de-informe"), "★ …pero esa MISMA forma ante «¿cómo va?» arde: nadie pidió un informe");
-  ok(reglas("**El negocio crece, pero deja menos margen del que debería.** La venta viene +7.5% y el margen queda en 25.1% contra 30.1%. Yo entraría por Falabella: ahí coinciden el volumen y la carga excedida.", "¿Cómo va el negocio?").length === 0,
+  ok(reglas("**El negocio crece, pero deja menos margen del que debería.** La venta viene +7.6% y el margen queda en 25.1% contra 30.1%. Yo entraría por Falabella: ahí coinciden el volumen y la carga excedida.", "¿Cómo va el negocio?").length === 0,
     "una conclusión puntual en negrita pasa: la regla no persigue la negrita, persigue el informe");
   ok(reglas("El margen cede.\n- Falabella: 22.0%\n- Lider: 21.5%\n- Jumbo: 24.0%\nYo entraría por Falabella.", "¿Por qué está pasando?").length === 0, "una lista corta (3 ítems) pasa aunque nadie la pidiera: ordena información");
   const PARED = "El negocio " + "crece pero deja menos margen del que debería y eso se ve en la venta que viene arriba mientras el margen queda abajo del benchmark declarado con una contribución no capturada que se concentra en las cuentas grandes ".repeat(4) + "y por eso entraría por Falabella.";
@@ -200,7 +201,7 @@ H("4 · ★★ de punta a punta: el cerebro entrega el informe, se le pide reesc
   ok(/forma de informe/.test(ultimo) && /tesis en una frase/.test(ultimo), "…y la reparación le llevó la multa con la forma que sirve (tesis → evidencia → criterio)", ultimo.slice(0, 200));
   /* el cerebro que SÍ corrige al primer aviso: se acepta como reparado — la oportunidad es real */
   let k = 0;
-  const corrige = async () => { k++; return { tipo: "texto", texto: k === 1 ? PANTALLAS.T1 : "El negocio crece, pero deja menos margen del que debería: la venta viene +7.5% contra el año anterior y el margen queda en 25.1% contra un benchmark de 30.1%, con $4.9M de contribución no capturada. Si fuera mi decisión —criterio mío—, entraría por Falabella: ahí coinciden el volumen y la carga excedida. Cuando digas, la abro.",
+  const corrige = async () => { k++; return { tipo: "texto", texto: k === 1 ? PANTALLAS.T1 : "El negocio crece, pero deja menos margen del que debería: la venta viene +7.6% contra el año anterior y el margen queda en 25.1% contra un benchmark de 30.1%, con $4.9M de contribución no capturada. Si fuera mi decisión —criterio mío—, entraría por Falabella: ahí coinciden el volumen y la carga excedida. Cuando digas, la abro.",
     /* lo que la derivación desde la boleta no alcanza, el guion lo declara a mano como lo haría el modelo (Notario semántico, fase 2) */
     declarar: k === 1 ? [] : [
       { tipo: "relacion", sujeto: "negocio", metrica: "Margen promedio", relacion: { forma: "menor", vs: { sujeto: "negocio", metrica: "Benchmark de margen" } }, texto: "deja menos margen del que debería" },

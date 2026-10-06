@@ -15,6 +15,7 @@
  *
  * OFFLINE · determinístico · CERO llamadas al modelo.
  * `node --import ./scripts/offline-guard.mjs _reformular_gate.mjs` */
+/* UNA SOLA REALIDAD · CIFRAS FIJADAS RE-FIJADAS (owner 2026-10-06, _ADI_DISENO_UNA_SOLA_REALIDAD.md §6.5): cifras del demo en las pantallas de prueba (ahora la tabla): +7.5 %→+7.6 %, Lider $17.8M→$17.9M, $655K→$656K. */
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { esReformular, destinatarioDe, doctrinaDeReformular, vetosDeReformular, componerReformulacion } from "./src/adi/agente/reformular.js";
@@ -197,7 +198,7 @@ H("6 · sin respuesta previa en el hilo: se dice qué falta de verdad, sin gasta
  * escritos a mano, y pasó. En el producto real el turno anterior lo resuelve un PLAYBOOK — las cinco rutas
  * conversacionales lo son— y un turno de playbook no escribía NADA en la memoria del hilo: `aprobado` solo se
  * marca en los caminos del cerebro. Sin `recitaAprobada`, las cifras de la respuesta anterior no estaban
- * autorizadas, el muro vetaba la reformulación («$655K» sin boleta) y la escalera terminaba en el genérico.
+ * autorizadas, el muro vetaba la reformulación («$656K» sin boleta) y la escalera terminaba en el genérico.
  * El owner lo vio tres veces seguidas en producción.
  * LA LECCIÓN, y vale para cualquier ruta que dependa del turno anterior: probar la CADENA, no el eslabón.
  * Acá se encadena de verdad: se corre una ruta real y con SU memoria se pide la reformulación. */
@@ -212,7 +213,7 @@ H("7 · ★★ encadenado de verdad: una ruta real, y después la reformulación
 
   const hist = [{ role: "user", text: "¿por qué vendo más pero gano menos?" }, { role: "adi", text: t1.r.text }];
   /* un cerebro que hace lo que la doctrina pide: re-dice lo anterior con SUS cifras y sus dueños */
-  const REFORMULA = async () => ({ tipo: "texto", texto: "Para el equipo, en corto: la venta creció 7.6% contra el período comparable, pero el margen viene cediendo mes a mes. Se están cediendo $655K de carga comercial por sobre el nivel declarado. El foco de la semana es la condición, no el volumen.",
+  const REFORMULA = async () => ({ tipo: "texto", texto: "Para el equipo, en corto: la venta creció 7.6% contra el período comparable, pero el margen viene cediendo mes a mes. Se están cediendo $656K de carga comercial por sobre el nivel declarado. El foco de la semana es la condición, no el volumen.",
     /* lo que la derivación desde la memoria no alcanza, el guion lo declara a mano como lo haría el modelo (Notario semántico, fase 2) */
     declarar: [
       { tipo: "variacion", sujeto: "negocio", metrica: "Ventas", variacion: { direccion: "sube", valor: "7.6%" }, periodo: "vs año anterior", texto: "la venta creció 7.6% contra el período comparable" },
@@ -251,12 +252,12 @@ H("8 · ★★ el piso: con la respuesta en el hilo, el turno responde aunque el
 {
   const PREVIA_REAL = [
     "Cuatro clientes explican prácticamente toda la brecha: Lider, Falabella, Sodimac y Jumbo concentran el mecanismo probado — carga comercial sobre el nivel de referencia (3.5%) — y entre los cuatro pesan 73.8% de la venta total.",
-    "Lider: brecha 8.6 pp, margen 21.5%, carga comercial 4.2%, venta $17.8M.",
+    "Lider: brecha 8.6 pp, margen 21.5%, carga comercial 4.2%, venta $17.9M.",
     "Con eso, mi recomendación —criterio mío, no algo que el dato ordene— es partir por Falabella: mueve más dinero por punto de ajuste que cualquier otra cuenta.",
   ].join("\n");
   const HILO_REAL = [
     { role: "user", text: "¿Cómo va el negocio?" },
-    { role: "assistant", text: "El margen cruzó, pero deja caja en la mesa: la venta viene +7.5% y el margen cierra en 25.1%, por debajo del benchmark de 30.1%." },
+    { role: "assistant", text: "El margen cruzó, pero deja caja en la mesa: la venta viene +7.6% y el margen cierra en 25.1%, por debajo del benchmark de 30.1%." },
     { role: "user", text: "¿Qué clientes explican más eso?" },
     { role: "assistant", text: PREVIA_REAL },
   ];

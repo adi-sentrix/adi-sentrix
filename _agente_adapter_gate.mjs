@@ -130,7 +130,11 @@ H("6 · el system del agente es un prefijo estable");
   ok(s1 === s2, "dos generaciones → byte a byte idénticas (el caché del proveedor depende de esto)");
   ok(/INVARIANTES/.test(s1) && /MAPA DEL DATO/.test(s1), "trae las invariantes y el mapa");
   /* el Notario semántico (fase 2, 2026-09-15) suma el protocolo de declaración al fijo (~730 tok): el techo sube de 4.000 a 4.700 y sigue bajo el fijo del natural */
-  ok(s1.length / 3.7 < 4700, `y es chico (${Math.round(s1.length / 3.7)} tok — el fijo del natural mide ~6.6K)`);
+  /* UNA SOLA REALIDAD (owner 2026-10-06, diseño §4b — «techo 4.700, hoy 4.711»): el fijo carga el MAPA DEL DATO, y al quedar el demo sin transforms de
+   * escenario (SCENARIO_TRANSFORMS = {}) el mapa le suma la misma línea de límites que ya llevan las planillas —«sin transforms de simulación declarados»,
+   * mapaDelDato.js:142— : +11 tok. Es consecuencia declarada del diseño (la línea ya era cierta para toda planilla; retirarla es decisión aparte, anotada), no
+   * un cambio de contrato: el techo sube de 4.700 a 4.750 (+1 %), con la misma garantía —sigue lejos del fijo del natural (~6.6K)—. */
+  ok(s1.length / 3.7 < 4750, `y es chico (${Math.round(s1.length / 3.7)} tok — el fijo del natural mide ~6.6K)`);
 }
 
 /* ═══ 7 · CARNADAS ════════════════════════════════════════════════════════════════════════════════════════════ */

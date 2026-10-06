@@ -505,8 +505,9 @@ H("9 · `componer.js` con la capa ACTIVA: ninguna frase dice que no se aplica co
    * SÍ cuentan) y los PIN son los hashes del HEAD c621516e re-medidos con la misma neutralización: los de antes, byte a byte, salvo la traza. */
   const sinTrazaDeBanda = (R) => { const c = JSON.parse(JSON.stringify(R)); const t = c && c.entrega && c.entrega.marco && c.entrega.marco.perfil && c.entrega.marco.perfil.campos && c.entrega.marco.perfil.campos.tamano; if (t) { t.fuente = null; t.insumos = null; } return c; };
   const PIN = {
-    demo: { BrechaComercial: "c230c5130ad3cc54", Cobranza: "6ce49d4fe5202157", Inventario: "bc09d0b87716762d", Multidominio: "0a17fc1ad8c40353" },
-    completo: { BrechaComercial: "a7ed24c00025c57c", Cobranza: "754382d7707c95d8", Inventario: "de17164972ace16b", Multidominio: "04175564cc6ff8b3" },
+    /* CIFRAS FIJADAS DEL DEMO, RE-FIJADAS (una sola realidad, owner 2026-10-06, diseño §6.5 ii): los ocho hashes llevan las cifras de las TABLAS corregidas (§2 a–d) y los dos efectos de diseño sobre el libro (Makita ahora tiene variación vs año anterior → una fila más en rankings.marca.variacion; la variación de La Polar y la de Ripley cambian de orden en la fila YoY: «cede más» es La Polar). Medido con el árbol del HEAD (98ad5c03) contra el actual, las ocho salidas completas: fuera de las cifras, lo único que cambia es eso (la fila de Makita y el intercambio Ripley↔La Polar en las cifras YoY del libro). */
+    demo: { BrechaComercial: "149688b6f136c6ec", Cobranza: "855987c8485b28b8", Inventario: "a5babb96b11eb962", Multidominio: "74219ce58f21b21f" },
+    completo: { BrechaComercial: "e926cf5739e45a26", Cobranza: "9a786c3ed336c15a", Inventario: "7a84a84deae0aa46", Multidominio: "4832306a83faba6b" },
   };
   const EMP = { demo: TENANT_DEMO, completo: TENANT_C };
   const FALSA = /no aplica conocimiento del oficio|todavía no está construido|Sin conocimiento del sector cargado|aunque el catálogo lo tuviera/i;

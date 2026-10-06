@@ -16,6 +16,7 @@
  *       si la declaración nueva destapa una falsedad, sigue la reparación completa; y la ASISTENCIA DE IDENTIDAD: una cifra verbatim
  *       con una sola fig la declara la casa (verificada y consistente) — jamás una cifra cuya oración nombra a otra cuenta.
  * Cero red: el cerebro es un guion; herramientas puras; fixtures en disco. */
+import { leerFixtureVigente, refrescarEnProfundidad } from "./scripts/una-sola-realidad/cifrasVigentes.mjs";   /* una sola realidad (2026-10-06): los corpus archivados se leen con las cifras vigentes del demo, sin tocar el archivo */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -29,7 +30,7 @@ const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); }
 const H = (t) => console.log(`\n${t}`);
 const pct = (a, b) => (b ? (100 * a / b).toFixed(1) : "0.0") + " %";
 initTenant(TENANT_DEMO);
-const leer = (f) => JSON.parse(fs.readFileSync(new URL("./fixtures/" + f, import.meta.url), "utf8"));
+const leer = (f) => leerFixtureVigente(new URL("./fixtures/" + f, import.meta.url));
 const S = leer("notario-semantico-2026-09-15.json");
 const FACTUALES = new Set(["cifra", "orden", "relacion", "grupo", "conteo", "variacion", "estado"]);
 const bloque = (afs) => `${MARCA_INICIO}\n${afs.map((a) => JSON.stringify(Object.fromEntries(Object.entries(a).filter(([k]) => !["veredicto_esperado", "verdad", "nota", "evidencia"].includes(k))))).join("\n")}\n${MARCA_FIN}`;

@@ -95,7 +95,9 @@ const libroBase = await base.store.leerLibro(T.id, base.r.continuidad.conversaci
   ok(vs.length === 0, "★ el total del listado viaja con id, valor = suma EXACTA de las 13 filas, universo declarado, procedencia «derivado», el mismo id y valor que el libro, sin impresión en el texto", vs.join(" || "));
   const t = base.c.entrega.cifras.find((x) => /total del listado completo/.test(x.metrica));
   console.log(`   · ${t.id} · ${t.metrica} = ${t.valor} · ${t.procedencia}`);
-  ok(t.valor === "$176.1M" && t.metrica === "Venta · total del listado completo (13 cuentas)" && t.id === "E1.h14", "el caso del ensayo: 13 cuentas → E1.h14 «$176.1M» (las filas impresas suman $176.0M por redondeo; la suma exacta de los crudos es $176.052M)", JSON.stringify(t));
+  /* CIFRA FIJADA DEL DEMO, RE-FIJADA (una sola realidad, owner 2026-10-06, diseño §6.5 ii): Río Claro es el demo renombrado y hereda la venta de la TABLA — la suma exacta de los crudos pasa de $176.052M a $176.248M
+   * (antes con el rearme de «bonanza») y el total impreso de «$176.1M» a «$176.2M». Es una cifra, no una ley: lo que el caso guarda (13 cuentas → E1.h14, suma exacta de los crudos) no cambia. */
+  ok(t.valor === "$176.2M" && t.metrica === "Venta · total del listado completo (13 cuentas)" && t.id === "E1.h14", "el caso del ensayo: 13 cuentas → E1.h14 «$176.2M» (la suma exacta de los crudos es $176.248M; las filas impresas pueden sumar un decimal menos por redondeo)", JSON.stringify(t));
   // las 13 cifras que el anfitrión ya tenía no cambian de id
   const filas = base.c.entrega.cifras.filter((x) => !/total del listado/.test(x.metrica));
   ok(filas.every((x, i) => x.id === `E1.h${i + 1}`), "las 13 filas conservan sus ids E1.h1…E1.h13");
@@ -117,7 +119,7 @@ H("1b · el mismo total por la PUERTA (JSON-RPC)");
   const txt = j.result && j.result.content && j.result.content[0].text;
   let p = null; try { p = JSON.parse(txt); } catch { /* sin payload */ }
   // la puerta resuelve el tenant desde el almacén real (no disponible acá): se prueba con la misma proyección que ella aplica
-  if (p && p.entrega && p.entrega.cifras) ok(p.entrega.cifras.some((x) => x.id === "E1.h14" && x.valor === "$176.1M"), "por la puerta llega el total");
+  if (p && p.entrega && p.entrega.cifras) ok(p.entrega.cifras.some((x) => x.id === "E1.h14" && x.valor === "$176.2M"), "por la puerta llega el total");
   else ok(compactarParaAnfitrion("consultar", base.r).entrega.cifras.some((x) => x.id === "E1.h14"), "(la puerta resuelve la empresa desde la base; sin ella, la proyección que aplica es la compacta) el total viaja en la respuesta compacta");
 }
 
@@ -194,7 +196,7 @@ H("★ carnadas · una respuesta con UN defecto pone en rojo la batería");
   ok(mutar((m) => { m.c.entrega.cifras[iTotal(m)].id = "E1.h13"; }).length > 0, "★ CARNADA «id corrido (E1.h13)»: rojo");
   ok(mutar((m) => { m.c.entrega.cifras[iTotal(m)].procedencia = "medido"; }).length > 0, "★ CARNADA «procedencia medido»: rojo");
   ok(mutar((m) => { m.c.entrega.cifras[iTotal(m)].metrica = "Venta"; }).length > 0, "★ CARNADA «sin universo declarado»: rojo");
-  ok(mutar((m) => { m.c.entrega.texto += `\nTotal del listado completo (13 cuentas): $176.1M`; }).length > 0, "★ CARNADA «el total impreso en el texto»: rojo");
+  ok(mutar((m) => { m.c.entrega.texto += `\nTotal del listado completo (13 cuentas): $176.2M`; }).length > 0, "★ CARNADA «el total impreso en el texto»: rojo");
   ok(mutar((m) => { m.c.entrega.cifras.splice(iTotal(m), 1); }).length > 0, "★ CARNADA «el total no viaja»: rojo");
   // top-N y métrica no aditiva con total: la batería de «no corresponde» (sección 3) los vería; acá se prueba que un total agregado a mano se detecta
   const top5 = await consultar([{ ...PARTE_VENTAS, universo: { eje: "cliente", top: { metrica: "ventas", k: 5 } } }]);

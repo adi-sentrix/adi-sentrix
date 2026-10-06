@@ -12,6 +12,7 @@
  *   5 · el CANON «.0»: misma cifra = mismo canon, en un solo lugar.
  *   6 · los falsos positivos de estructura: la negación de estado, la cota en palabras, el lado negado del «sino», el ítem de lista.
  * Cero red: herramientas puras, fixtures en disco. */
+/* UNA SOLA REALIDAD · CIFRAS FIJADAS RE-FIJADAS (owner 2026-10-06, _ADI_DISENO_UNA_SOLA_REALIDAD.md §6.5): las cifras de las oraciones de prueba (Lider $17.8M→$17.9M, +14.9 %→+15.0 %, Ripley −$422K→−$414K y −8.2 %→−8.1 %, unidades 1.194→1.210…) son las del DATO DE FÁBRICO, que ahora es la tabla (antes los 13 porcentajes redondeados de «bonanza»). Se re-fijan SOLO esas cifras: ninguna oración cambia de veredicto, ninguna regla se toca. */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -58,13 +59,13 @@ const noArde = (frase, re, ctx = "P1", m = "") => { const r = J[ctx](frase); ok(
 H("1 · PERMUTACIÓN ENTRE ENTIDADES NOMBRADAS: la coordinación y el par «contra» se verifican por orden, no se absuelven");
 arde("Lider y Sodimac arrastran $1.9M y $4.6M vencidos, en ese orden.", /cifra-de-boleta-sin-dueno/, "P1", "invertido: Lider $4.6M, Sodimac $1.9M — antes la ventana de 90 lo liberaba");
 pasa("Sodimac $1.9M y Falabella $2.5M vencidos.", "P1", "el par bien asignado, con la cifra pegada al nombre");
-pasa("Lider vende $17.8M y Falabella $19.4M.");
+pasa("Lider vende $17.9M y Falabella $19.4M.");
 arde("Falabella y Jumbo tienen 8 días de atraso.", /cifra-de-boleta-sin-dueno/, "P1", "sujeto plural con UNA cifra: Jumbo no tiene atraso");
-arde("Lider y Jumbo venden $17.8M cada uno.", /cifra-de-boleta-sin-dueno/);
+arde("Lider y Jumbo venden $17.9M cada uno.", /cifra-de-boleta-sin-dueno/);
 pasa("Falabella, Tottus y Paris tienen 8 días de atraso cada una.", "P1", "los tres son dueños de los 8 días (la proyección lo sabe)");
-pasa("Jumbo es el cliente con más unidades vendidas (1.194), pero no el de más contribución: Falabella lo supera ($4.3M contra $4.2M).", "P1", "el pronombre de objeto: (Falabella, Jumbo)");
+pasa("Jumbo es el cliente con más unidades vendidas (1.210), pero no el de más contribución: Falabella lo supera ($4.3M contra $4.2M).", "P1", "el pronombre de objeto: (Falabella, Jumbo)");
 pasa("Lider supera a Falabella en brecha (8.6 pp contra 8.1 pp), pero Falabella la supera en contribución no capturada ($1.6M contra $1.5M).");
-pasa("Falabella vende más que Lider ($19.4M contra $17.8M) y que Jumbo ($19.4M contra $17.3M).", "P1", "dos comparadas, cada par con la suya");
+pasa("Falabella vende más que Lider ($19.4M contra $17.9M) y que Jumbo ($19.4M contra $17.3M).", "P1", "dos comparadas, cada par con la suya");
 pasa("Lider pesa más que Falabella en cobranza: $4.6M vencidos (contra $2.5M) y 45% recuperado (contra 57.7%).", "P1", "el paréntesis «(contra x)» es la cifra de la comparada");
 pasa("Frente a Lider, Falabella tiene menos vencido ($2.5M contra $4.6M) y mejor recuperación (57.7% contra 45%).", "P1", "«frente a X» es la comparada, no el sujeto");
 pasa("Mercado Libre es el caso opuesto a Lider: su carga es la menor de la cartera (1.8%).", "P1", "el marcador de contraste es la comparada");
@@ -76,15 +77,15 @@ arde("Su carga comercial es 5.4%.", /cifra-de-boleta-sin-dueno/, "P1", "posesivo
 pasa("El saldo vencido llega a $4.6M.", "P1", "la cifra suelta sin posesivo sigue pasando (control del cazador)");
 arde("Jumbo creció fuerte. Su carga comercial es 5.4%.", /cifra-de-boleta-sin-dueno/, "P1", "«su» = Jumbo; 5.4% es de Sodimac");
 arde("Falabella vende $19.4M y Lider apenas menos; su saldo vencido llega a $2.5M, el más alto de la cartera.", /cifra-de-boleta-sin-dueno/, "P1", "«su» = Lider (último sujeto); $2.5M es Falabella");
-arde("Lider crece 14.9%; Jumbo también. Este último tiene $4.6M vencidos.", /cifra-de-boleta-sin-dueno/, "P1", "«este último» = Jumbo, sin vencido");
+arde("Lider crece 15.0%; Jumbo también. Este último tiene $4.6M vencidos.", /cifra-de-boleta-sin-dueno/, "P1", "«este último» = Jumbo, sin vencido");
 arde("Falabella y Lider crecen. La segunda tiene 8 días de atraso.", /cifra-de-boleta-sin-dueno/, "P1", "«la segunda» = Lider (269 d)");
 arde("Falabella y Lider crecen; ambas tienen 8 días de atraso.", /cifra-de-boleta-sin-dueno/, "P1", "«ambas»: la cifra tiene que ser de las dos");
-pasa("Falabella y Lider: la primera vende más ($19.4M contra $17.8M), la segunda debe más vencido ($4.6M contra $2.5M).", "P1", "los ordinales resueltos contra la lista");
-pasa("Lider concentra el riesgo. Tiene el peor margen (21.5%). Tiene el mayor vencido ($4.6M). Lleva 269 días de atraso. Y aun así vende menos que Falabella ($17.8M contra $19.4M).", "P1", "el sujeto elidido sostenido cuatro oraciones");
+pasa("Falabella y Lider: la primera vende más ($19.4M contra $17.9M), la segunda debe más vencido ($4.6M contra $2.5M).", "P1", "los ordinales resueltos contra la lista");
+pasa("Lider concentra el riesgo. Tiene el peor margen (21.5%). Tiene el mayor vencido ($4.6M). Lleva 269 días de atraso. Y aun así vende menos que Falabella ($17.9M contra $19.4M).", "P1", "el sujeto elidido sostenido cuatro oraciones");
 pasa("Sodimac: $5.3M pendientes y $1.9M vencidos. Ese cliente recupera solo 35%, el peor porcentaje de la cartera.", "P1", "«ese cliente» es el antecedente");
 pasa("Easy (270 días), Lider (269) y Sodimac (251) son las tres con más atraso; las demás con vencido están en 8 días.", "P1", "«las demás» es el complemento de la lista");
-pasa("Falabella vende $19.4M y Lider $17.8M; sus márgenes son 22% y 21.5%.", "P1", "el posesivo plural reparte por orden");
-{ const t = "Jumbo es el cliente con más unidades vendidas (1.194), pero no el de más contribución: Falabella lo supera ($4.3M contra $4.2M).";
+pasa("Falabella vende $19.4M y Lider $17.9M; sus márgenes son 22% y 21.5%.", "P1", "el posesivo plural reparte por orden");
+{ const t = "Jumbo es el cliente con más unidades vendidas (1.210), pero no el de más contribución: Falabella lo supera ($4.3M contra $4.2M).";
   const L = leerClausula(t, t.indexOf("$4.2M"), { nombres: ["Jumbo", "Falabella", "Lider"] });
   ok(L.pronombreObjeto && L.sujeto && L.sujeto.nombre === "falabella", "el lector lee el pronombre de objeto y el sujeto («Falabella lo supera»)", JSON.stringify({ pron: L.pronombreObjeto, sujeto: L.sujeto }));
   const t2 = "Lider es el caso más claro. Margina 21.5%. Debe $4.6M vencidos. Falabella, en cambio, deja más contribución ($4.3M contra $3.8M).";
@@ -106,30 +107,30 @@ pasa("Lo que sí está medido es el capital detenido, $33K.", "P1", "«detenido�
 pasa("Valparaíso concentra el 75.0% del capital frenado.", "P1", "«% del capital frenado» es una participación, y la larga se lleva a la corta");
 pasa("Los grandes son el 49% de la contribución.", "P1", "un % rotulado con una métrica de dinero es su participación");
 arde("Los grandes son el 22.5% de la contribución.", /metrica-mal-atribuida/, "P1", "22.5% es el margen de los grandes");
-pasa("Ripley cae en venta (-8.2%).", "P1", "«cae en venta» es la variación de la venta");
-pasa("Ripley cae en venta (-8.2%).", "P2", "…también sin salesRead: la proyección publica la variación por cuenta");
+pasa("Ripley cae en venta (-8.1%).", "P1", "«cae en venta» es la variación de la venta");
+pasa("Ripley cae en venta (-8.1%).", "P2", "…también sin salesRead: la proyección publica la variación por cuenta");
 pasa("Lider es peor que Falabella en brecha al benchmark, en saldo vencido, en días de atraso y en porcentaje recuperado (8.6 pp contra 8.1 pp, $4.6M contra $2.5M, 269 días contra 8, 45% contra 57.7%).", "P1", "el ítem de lista no se contamina con la métrica del vecino");
 pasa("El capital frenado no está donde más se vende sino en LG-DRYER8KG ($14K).", "P1", "el lado negado del «sino» no describe la cifra afirmada");
 
 H("4 · DIRECCIÓN Y SIGNO: la palabra y el signo contra la variación publicada");
-arde("Lider cae 14.9% contra el año anterior.", /direccion-contradicha/, "P1", "Lider crece +14.9%");
+arde("Lider cae 15.0% contra el año anterior.", /direccion-contradicha/, "P1", "Lider crece +15.0%");
 arde("Jumbo retrocede $1.9M.", /direccion-contradicha/, "P1", "+$1.9M");
-arde("Ripley suma $422K más que el año pasado.", /direccion-contradicha/, "P1", "-$422K");
+arde("Ripley suma $414K más que el año pasado.", /direccion-contradicha/, "P1", "-$414K");
 arde("Cayendo: Lider (-$2.3M).", /direccion-contradicha/, "P1", "el signo invertido");
-arde("Ripley: +$422K.", /direccion-contradicha/, "P2", "el signo invertido, sin salesRead (la proyección)");
-arde("Ripley: $422K.", /direccion-contradicha/, "P1", "la copia sin signo de una caída");
-pasa("Ripley movió $422K contra el año anterior.", "P1", "el verbo neutro no afirma dirección (control del cazador)");
-pasa("Ripley pierde $422K contra el año anterior.", "P1", "la dirección correcta");
-pasa("Lider crece en venta (+$2.3M, +14.9%).", "P2");
+arde("Ripley: +$414K.", /direccion-contradicha/, "P2", "el signo invertido, sin salesRead (la proyección)");
+arde("Ripley: $414K.", /direccion-contradicha/, "P1", "la copia sin signo de una caída");
+pasa("Ripley movió $414K contra el año anterior.", "P1", "el verbo neutro no afirma dirección (control del cazador)");
+pasa("Ripley pierde $414K contra el año anterior.", "P1", "la dirección correcta");
+pasa("Lider crece en venta (+$2.3M, +15.0%).", "P2");
 arde("Falabella sube 22%.", /direccion-contradicha|variacion-sin-serie/, "P1", "un nivel (su margen) narrado como movimiento");
 arde("Ripley cae 25.0%.", /direccion-contradicha|variacion-sin-serie/, "P1", "su margen 25.0% no es una caída");
 arde("El margen de Lider cayó a 21.5%.", /variacion-sin-serie/, "P1", "no hay serie de margen");
 arde("El margen de Lider viene cayendo.", /variacion-sin-serie/, "P1", "la evolución dicha sin serie");
 arde("La carga de Sodimac subió a 5.4%.", /variacion-sin-serie|direccion-contradicha/);
-arde("El vencido de Lider creció 14.9% en el año.", /variacion-sin-serie/, "P1", "la variación de la venta narrada como del vencido");
+arde("El vencido de Lider creció 15.0% en el año.", /variacion-sin-serie/, "P1", "la variación de la venta narrada como del vencido");
 pasa("Tottus y Mercado Libre (12.3%) caen sin que la carga ni el volumen lo expliquen.", "P1", "«caen» sin ancla temporal es la prosa de la casa para «bajo el benchmark»");
 pasa("Los tres motores más grandes —Falabella, Lider y Jumbo— están todos bajo el benchmark (22%, 21.5% y 24%).", "P1", "la lista del inciso reparte por orden");
-pasa("Mercado Libre es la cuenta que más crece en porcentaje (+25.3%), aunque Lider aporta más dólares nuevos (+$2.3M).", "P1");
+pasa("Mercado Libre es la cuenta que más crece en porcentaje (+25.4%), aunque Lider aporta más dólares nuevos (+$2.3M).", "P1");
 
 H("5 · EL CANON «.0»: misma cifra = mismo canon");
 pasa("Ripley tiene margen 25%.", "P1", "publicado «25.0%»: antes ardía como cifra de Antofagasta");
@@ -154,45 +155,46 @@ H("7 · LA SEGUNDA TANDA (owner 2026-09-14): unidades vendidas vs en stock · la
 /* unidades: parseFigures no las veía; ahora tienen dueño y significado (boleta y proyección) */
 arde("Jumbo vendió 140 unidades.", /cifra-de-boleta-sin-dueno|metrica-mal-atribuida/, "P1", "140 son unidades en stock de PHI-SHAVER9/PHI-IRON-PRO");
 arde("PHI-SHAVER9 vendió 140 unidades en el año.", /metrica-mal-atribuida/, "P1", "sus 140 son stock, no vendidas");
-arde("Falabella tiene 1.042 unidades en stock.", /metrica-mal-atribuida/, "P1", "1.042 son sus unidades VENDIDAS");
-arde("Falabella tiene 1.042 unidades en stock.", /metrica-mal-atribuida/, "P2", "…también sin salesRead: la proyección declara el concepto");
-arde("Lider tiene 894 unidades en inventario.", /metrica-mal-atribuida/, "P1");
+arde("Falabella tiene 1.040 unidades en stock.", /metrica-mal-atribuida/, "P1", "1.040 son sus unidades VENDIDAS");
+arde("Falabella tiene 1.040 unidades en stock.", /metrica-mal-atribuida/, "P2", "…también sin salesRead: la proyección declara el concepto");
+arde("Lider tiene 900 unidades en inventario.", /metrica-mal-atribuida/, "P1");
 arde("LG-DRYER8KG vendió 42 unidades.", /metrica-mal-atribuida/, "P1", "42 son unidades en stock");
-arde("Lider y Jumbo mueven 1.194 unidades.", /cifra-de-boleta-sin-dueno/, "P1", "sujeto plural con UNA cifra: solo Jumbo vende 1.194");
-pasa("Jumbo vendió 1.194 unidades.", "P1");
-pasa("Falabella mueve 1.042 unidades.", "P1", "«unidades» a secas describe a las vendidas");
+arde("Lider y Jumbo mueven 1.210 unidades.", /cifra-de-boleta-sin-dueno/, "P1", "sujeto plural con UNA cifra: solo Jumbo vende 1.210");
+pasa("Jumbo vendió 1.210 unidades.", "P1");
+pasa("Falabella mueve 1.040 unidades.", "P1", "«unidades» a secas describe a las vendidas");
 pasa("PHI-SHAVER9 tiene 140 unidades en stock.", "P1");
-pasa("Jumbo es el cliente con más unidades vendidas (1.194).", "P1");
+pasa("Jumbo es el cliente con más unidades vendidas (1.210).", "P1");
 /* la estructura que faltaba */
 pasa("Los cinco SKU que más contribuyen —PHI-SHAVER9 ($3.4M), LG-WASH11KG ($2.9M), PHI-HAIR-PRO ($2.8M), SAM-TV55 ($2.5M) y SAM-REF500L ($2.4M)—: ninguno tiene capital frenado.", "P2", "un paréntesis dentro de un inciso: el sujeto de $3.4M es PHI-SHAVER9 (la proyección sabe su contribución)");
 arde("Easy contribuye $3.4M.", /metrica-mal-atribuida|cifra-de-boleta-sin-dueno/, "P1", "$3.4M de Easy es su venta");
 noArde("Sodimac merece mención aparte: no es de las más grandes ($8.2M de venta, cuarta de la cartera), pero tiene la peor recuperación (35%), 251 días de atraso, $1.9M vencidos y la segunda carga más alta (5.4%, solo detrás de Easy).", /cifra-de-boleta-sin-dueno|metrica-mal-atribuida/, "P1", "«la segunda carga más alta» no es un ordinal anafórico: el sujeto sigue siendo Sodimac (el superlativo del ordinal lo juzga otra familia)");
 pasa("El resto de las cuentas con vencido está en 8 días de atraso.", "P1", "«el resto» sin lista a la vista no es anáfora de nadie");
-pasa("La venta de Ripley cae -8.2% y la de La Polar -12.5%.", "P1", "«y la de La Polar» abre otro ítem: no es aposición del -8.2%");
-arde("La venta de Ripley cae -12.5% y la de La Polar -8.2%.", /cifra-de-boleta-sin-dueno/, "P1", "…y el invertido arde");
-arde("La venta de Ripley cae -12.5% y la de La Polar -8.2%.", /cifra-de-dato-sin-dueno/, "P2", "sin salesRead, la quinta fuente también VERIFICA por estructura (los dos dueños estaban nombrados)");
-pasa("La venta de Ripley cae -8.2% y la de La Polar -12.5%.", "P2");
-pasa("Jumbo es el que más unidades vende (1.194), pero en contribución Falabella ($4.3M) lo supera ($4.2M).", "P1", "el pronombre de objeto con la cifra sola: del sujeto o del objeto, las dos lecturas");
-arde("Jumbo es el que más unidades vende (1.194), pero en contribución Falabella ($4.3M) lo supera ($3.8M).", /cifra-de-boleta-sin-dueno/, "P1", "$3.8M no es de ninguno de los dos");
-pasa("Crecen: Lider +$2.3M (+14.9%), Jumbo +$1.9M (+12.2%), Falabella +$1.5M (+8.2%) y Mercado Libre +$1.1M (+25.3%).", "P1", "la aposición admite el signo pegado a la cifra");
-arde("Crecen: Lider +$1.1M (+14.9%), Jumbo +$1.9M (+12.2%), Falabella +$1.5M (+8.2%) y Mercado Libre +$2.3M (+25.3%).", /cifra-de-boleta-sin-dueno/, "P1", "…y la permutación arde");
+pasa("La venta de Ripley cae -8.1% y la de La Polar -12.4%.", "P1", "«y la de La Polar» abre otro ítem: no es aposición del -8.1%");
+arde("La venta de Ripley cae -12.4% y la de La Polar -8.1%.", /cifra-de-boleta-sin-dueno/, "P1", "…y el invertido arde");
+arde("La venta de Ripley cae -12.4% y la de La Polar -8.1%.", /cifra-de-dato-sin-dueno/, "P2", "sin salesRead, la quinta fuente también VERIFICA por estructura (los dos dueños estaban nombrados)");
+pasa("La venta de Ripley cae -8.1% y la de La Polar -12.4%.", "P2");
+pasa("Jumbo es el que más unidades vende (1.210), pero en contribución Falabella ($4.3M) lo supera ($4.2M).", "P1", "el pronombre de objeto con la cifra sola: del sujeto o del objeto, las dos lecturas");
+arde("Jumbo es el que más unidades vende (1.210), pero en contribución Falabella ($4.3M) lo supera ($3.8M).", /cifra-de-boleta-sin-dueno/, "P1", "$3.8M no es de ninguno de los dos");
+pasa("Crecen: Lider +$2.3M (+15.0%), Jumbo +$1.9M (+12.4%), Falabella +$1.5M (+8.3%) y Mercado Libre +$1.1M (+25.4%).", "P1", "la aposición admite el signo pegado a la cifra");
+arde("Crecen: Lider +$1.1M (+15.0%), Jumbo +$1.9M (+12.4%), Falabella +$1.5M (+8.3%) y Mercado Libre +$2.3M (+25.4%).", /cifra-de-boleta-sin-dueno/, "P1", "…y la permutación arde");
 pasa("SAM-REF500L queda fuera de los frenados: rota en 17 días.", "P1", "una mención negada («fuera de los frenados») no describe a la cifra");
 pasa("Del capital frenado, el 75% está en Valparaíso y el 25% en Antofagasta.", "P1", "el partitivo delante del porcentaje es participación");
 arde("Del capital frenado, el 75% está en Antofagasta y el 25% en Valparaíso.", /cifra-de-boleta-sin-dueno/, "P1", "…y la permutación arde");
 pasa("La brecha está en Lider ($1.5M sin capturar), el capital frenado en LG-DRYER8KG ($14K).", "P1", "la contribución no capturada es la brecha en dinero");
 arde("La contribución no capturada de Lider es $4.6M.", /metrica-mal-atribuida/, "P1", "$4.6M es su vencido");
-pasa("Mercado Libre crece más rápido que Lider (+25.3% contra +14.9%), pero aporta menos dólares nuevos (+$1.1M contra +$2.3M).", "P2", "el par «contra» en el binding: la segunda cifra es de la comparada");
+pasa("Mercado Libre crece más rápido que Lider (+25.4% contra +15.0%), pero aporta menos dólares nuevos (+$1.1M contra +$2.3M).", "P2", "el par «contra» en el binding: la segunda cifra es de la comparada");
 arde("Mercado Libre vende más que Lider ($1.1M contra $2.3M).", /metrica-mal-atribuida/, "P1", "las variaciones narradas como venta");
 pasa("Los tres grandes (Falabella, Lider y Jumbo) tienen los tres márgenes más bajos si dejo fuera a Sodimac; con Sodimac adentro, son cuatro los que están por debajo de 25%.", "P1", "la cota en palabras no reclama dueño (tampoco por cercanía)");
 arde("Sodimac margina 25%.", /cifra-de-boleta-sin-dueno|entidad-mal-atribuida/, "P1", "…y la atribución directa sigue ardiendo");
 
 H("8 · LO QUE LA SUITE ENSEÑÓ (owner 2026-09-14): los textos reales del producto que la estructura tenía que seguir leyendo bien");
 pasa("Falabella es la cuenta más grande. Ella vende $19.4M.", "P1", "«ella» es el antecedente");
-arde("Falabella es la cuenta más grande. Ella vende $17.8M.", /cifra-de-boleta-sin-dueno/, "P1", "…y verificado: $17.8M es Lider");
+/* la cifra ajena tiene que ser de UNA sola cuenta: con la tabla, «$17.9M» ya es también la venta del año anterior de Falabella (17.942K), así que ya no prueba una atribución falsa; se usa la de Jumbo ($17.3M, que Falabella no tiene en ningún concepto) */
+arde("Falabella es la cuenta más grande. Ella vende $17.3M.", /cifra-de-boleta-sin-dueno/, "P1", "…y verificado: $17.3M es Jumbo");
 pasa("Tus tres principales clientes bajo el benchmark de 30.1% son Lider con 21.5%, Falabella con 22.0% y Sodimac con 23.5%.", "P1", "«Nombre con cifra, Nombre con cifra»: tres ítems, ninguna aposición cruzada (constitución P6)");
 pasa("Si cae en Falabella o Lider (los de mayor peso y menor margen, 22.0% y 21.5%), el negocio crece pero se aleja más del benchmark.", "P1", "la disyunción también coordina y reparte por orden (constitución P4)");
 arde("Si cae en Falabella o Lider (los de mayor peso y menor margen, 21.5% y 22.0%), el negocio crece pero se aleja más del benchmark.", /cifra-de-boleta-sin-dueno/, "P1", "…y la permutación arde");
-pasa("Lider vende $17.8M contra $19.4M de Falabella, y aporta $3.8M contra $4.3M.", "P1", "la comparada puede venir detrás de su cifra («contra $19.4M de Falabella»): el sujeto de $3.8M sigue siendo Lider (playbook de contradicción)");
+pasa("Lider vende $17.9M contra $19.4M de Falabella, y aporta $3.8M contra $4.3M.", "P1", "la comparada puede venir detrás de su cifra («contra $19.4M de Falabella»): el sujeto de $3.8M sigue siendo Lider (playbook de contradicción)");
 pasa("Lider deja $3.8M, mientras Jumbo deja $4.2M. La razón está en el margen: 24.0% contra 21.5%.", "P1", "el par sin sujeto en su oración se verifica contra las entidades de la anterior, en cualquier orden (cuadro explicado)");
 pasa("LG-DRYER8KG concentra el 41% del capital frenado y está en Valparaíso, junto con BOS-SANDER (75% del frenado total en esa bodega).", "P1", "«en esa bodega» remite a Valparaíso, no a BOS-SANDER (reparación real de la prueba 1)");
 arde("LG-DRYER8KG concentra el 41% del capital frenado y está en Antofagasta, junto con BOS-SANDER (75% del frenado total en esa bodega).", /cifra-de-boleta-sin-dueno/, "P1", "…y con la bodega equivocada, arde");

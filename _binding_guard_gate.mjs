@@ -244,9 +244,9 @@ H("[B4] LOS BORRADORES DEL MODELO · lo real arde, los falsos positivos no (prom
   ok(tiene(runG("El margen de Lider supera el benchmark de 30.1%."), "relacion-contradictoria"), "«el margen de Lider supera el benchmark» sigue ardiendo");
   ok(!tiene(runG("Easy supera el benchmark de 30.1% con 32.0% de margen."), "relacion-contradictoria"), "…y «Easy supera el benchmark» pasa: es verdad (32% vs 30.1%) — la relación es de la entidad de la oración, no del primer margen de la boleta");
   ok(tiene(runG("El margen, aunque se encuentra bajo un número saludable, se mantiene en el benchmark requerido."), "relacion-contradictoria"), "…y la frase original de E1.t1 («se mantiene en el benchmark») sigue ardiendo con la cartera: sin entidad, manda el margen promedio (25.1% vs 30.1%)");
-  ok(tiene(runG("Falabella aporta $99.9M de margen."), "metrica-mal-atribuida"), "«$99.9M de margen» sigue ardiendo (pegada por conector: atribuye)");
-  ok(tiene(runG("El margen del negocio es $99.9M."), "metrica-mal-atribuida"), "«el margen del negocio es $99.9M» sigue ardiendo (la mención va antes de la cifra)");
-  ok(!tiene(runG("Cierra $99.9M en ventas, pero el margen promedio queda en 25.1%."), "metrica-mal-atribuida"), "…y «$99.9M en ventas, pero el margen…» pasa: la mención de después de una cláusula nueva no atribuye");
+  ok(tiene(runG("Falabella aporta $100.0M de margen."), "metrica-mal-atribuida"), "«$100.0M de margen» sigue ardiendo (pegada por conector: atribuye)");
+  ok(tiene(runG("El margen del negocio es $100.0M."), "metrica-mal-atribuida"), "«el margen del negocio es $100.0M» sigue ardiendo (la mención va antes de la cifra)");
+  ok(!tiene(runG("Cierra $100.0M en ventas, pero el margen promedio queda en 25.1%."), "metrica-mal-atribuida"), "…y «$100.0M en ventas, pero el margen…» pasa: la mención de después de una cláusula nueva no atribuye");
 }
 
 /* ═══ [B5] MÉTRICAS COMPARABLES · Y EL SUBTOTAL CON SU UNIVERSO (owner 2026-09-13, tres problemas de producto) ═══
@@ -277,7 +277,7 @@ H("[B5] MÉTRICAS COMPARABLES · una comparación ejecutiva solo vale entre mét
   const sub = figs.find((f) => /^Contribuci[oó]n no capturada · subtotal/.test(String(f.label)));
   ok(!!sub && /· 5 cuentas materiales \(de 8 bajo el benchmark\)$/.test(String(sub.label)) && String(sub.value) === "$4.9M",
     "★ el rótulo del subtotal declara su universo: «Contribución no capturada · subtotal · 5 cuentas materiales (de 8 bajo el benchmark)» = $4.9M", sub && sub.label);
-  const ocho = runU("El subtotal de contribución no capturada en los ocho clientes bajo benchmark es $4.9M, de los cuales $655K son carga.");
+  const ocho = runU("El subtotal de contribución no capturada en los ocho clientes bajo benchmark es $4.9M, de los cuales $656K son carga.");
   ok(tiene(ocho, "alcance-promovido") && /subtotal de 5 cuentas/.test(det(ocho)), "★★ «en los ocho clientes bajo benchmark es $4.9M» → BLOQUEA: es el subtotal de 5, no de 8", det(ocho));
   ok(tiene(runU("Hay $4.9M de contribución no capturada. Más adelante: en los ocho clientes bajo benchmark el subtotal es $4.9M."), "alcance-promovido"), "…y también cuando la mención que lo cuelga de otro conteo no es la primera del texto");
   ok(!tiene(runU("Las 5 cuentas materiales bajo el benchmark dejan $4.9M sin capturar (de 8 que están bajo él)."), "alcance-promovido"), "…«las 5 cuentas materiales … (de 8)» pasa: es la definición");
@@ -317,19 +317,19 @@ H("[B6] NATURALEZA · la brecha estimada no es pérdida realizada; lo que no es 
   ok(!tiene(runN("Entre ellas concentran $4.9M de contribución no capturada: la brecha estimada contra el benchmark, lo que sumarían si llegaran a él."), "brecha-narrada-como-perdida"), "…«brecha estimada contra el benchmark» pasa");
   ok(!tiene(runN("Hay $4.9M de contribución no capturada en las cinco cuentas que más pesan."), "brecha-narrada-como-perdida"), "…y la frase de la casa («contribución no capturada») pasa");
   ok(tiene(runN("Falabella deja $1.6M sin capturar: dinero que ya se perdió en el año."), "brecha-narrada-como-perdida"), "…«$1.6M … dinero que ya se perdió» (la palanca por cuenta) también arde");
-  const c1 = runN("El subtotal de esa carga excedida en el grupo completo es $655K — caja que se está yendo en descuentos/rebates.");
-  ok(tiene(c1, "cifra-narrada-como-caja"), "★★ «$655K — caja que se está yendo» → BLOQUEA: es contribución cedida en acciones comerciales, no caja", det(c1));
-  ok(!tiene(runN("El subtotal de esa carga excedida en el grupo completo es $655K — contribución cedida en acciones comerciales por sobre el nivel de referencia."), "cifra-narrada-como-caja"), "…con su naturaleza correcta pasa");
+  const c1 = runN("El subtotal de esa carga excedida en el grupo completo es $656K — caja que se está yendo en descuentos/rebates.");
+  ok(tiene(c1, "cifra-narrada-como-caja"), "★★ «$656K — caja que se está yendo» → BLOQUEA: es contribución cedida en acciones comerciales, no caja", det(c1));
+  ok(!tiene(runN("El subtotal de esa carga excedida en el grupo completo es $656K — contribución cedida en acciones comerciales por sobre el nivel de referencia."), "cifra-narrada-como-caja"), "…con su naturaleza correcta pasa");
   ok(tiene(runN("Falabella vende $19.4M: es la caja que entra por esa cuenta."), "cifra-narrada-como-caja"), "…y la venta narrada como caja también arde: la ley es de toda cifra que no es caja");
   ok(!tiene(runN("¿Ese volumen de Falabella ($19.4M) es una apuesta tuya de rotación y liquidez?"), "cifra-narrada-como-caja"), "…«rotación y liquidez» (lenguaje de negocio) no es caja: pasa");
   /* LA NEGACIÓN ES LA CONDUCTA CORRECTA (corrida 4 del prompt de gerente): el modelo dijo justo lo que la ley pide */
   const neg = runN("La medida para cerrar la brecha al piso de benchmark en las 5 cuentas materiales bajo el benchmark (de las 8 totales) es $4.9M de contribución no capturada — brecha estimada contra el benchmark, no dinero perdido ni caja.");
   ok(!tiene(neg, "brecha-narrada-como-perdida") && !tiene(neg, "cifra-narrada-como-caja") && !tiene(neg, "causa-sobredimensionada"), "★★ «… es $4.9M …, no dinero perdido ni caja» PASA: la negación no afirma, y «la medida para cerrar la brecha» es el nombre de la cifra, no una palanca", det(neg));
-  ok(!tiene(runN("La medida para cerrar la brecha al benchmark en las cuentas materiales es $4.9M (estimado, no pérdida realizada); $655K de eso es contribución ya cedida en carga comercial excedida."), "brecha-narrada-como-perdida"), "…«(estimado, no pérdida realizada)» pasa");
+  ok(!tiene(runN("La medida para cerrar la brecha al benchmark en las cuentas materiales es $4.9M (estimado, no pérdida realizada); $656K de eso es contribución ya cedida en carga comercial excedida."), "brecha-narrada-como-perdida"), "…«(estimado, no pérdida realizada)» pasa");
   ok(!tiene(runN("Falabella solo: $1.6M de contribución no capturada — la mayor de la cartera, aunque no el margen más bajo (ese es Líder, con 21.5% contra 22% de Falabella)."), "superlativo-no-sostenido"), "★ «aunque NO el margen más bajo (ese es Líder)» PASA: un superlativo negado no reclama nada");
   ok(!tiene(runN("Como alternativa, Líder tiene la brecha más grande (8.6 pp) y el margen más bajo de toda la cartera (21.5%) — mismo mecanismo, cifra distinta."), "superlativo-no-sostenido"), "★ «Líder tiene el margen más bajo de toda la cartera» PASA: es verdad, y «Líder» con tilde es Lider");
   ok(tiene(runN("Falabella tiene el margen más bajo de toda la cartera (22%)."), "superlativo-no-sostenido"), "…y el superlativo FALSO sigue ardiendo (el extremo es Lider)");
-  ok(!tiene(runN("El negocio creció: la venta subió 7.5% contra el año anterior ($99.9M), pero el margen promedio de la cartera quedó en 25.1%."), "metrica-mal-atribuida"), "★ «la venta subió 7.5% contra el año anterior ($99.9M)» PASA: la mención tomada por el 7.5% no acerca «variación» al $99.9M");
+  ok(!tiene(runN("El negocio creció: la venta subió 7.6% contra el año anterior ($100.0M), pero el margen promedio de la cartera quedó en 25.1%."), "metrica-mal-atribuida"), "★ «la venta subió 7.6% contra el año anterior ($100.0M)» PASA: la mención tomada por el 7.5% no acerca «variación» al $99.9M");
 }
 
 H("[C] ENTIDAD MAL ATRIBUIDA · promovida de AVISO a BLOQUEO");

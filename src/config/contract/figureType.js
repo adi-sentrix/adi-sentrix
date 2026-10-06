@@ -541,7 +541,11 @@ export const VERIFICABILIDAD_POR_METRICA = [
 ];
 
 // ── CUÁNDO LA RE-DERIVACIÓN DEPENDE DEL ESCENARIO ──────────────────────────────────────────────────────────────
-// No todos los ejes re-derivan igual, y el escenario decide (owner 2026-08-09, decisión 2 · corregido tras medir
+// ⚠️ UNA SOLA REALIDAD (owner 2026-10-06): el escenario ya no existe como fuente paralela — las TABLAS del tenant son la
+// realidad y marca/familia se sirven LITERALES, ordenadas (el rearme desde los clientes se retiró). `ESCENARIOS_CON_TRANSFORM`
+// y `ESCENARIOS_QUE_ALTERAN_TASAS` quedan VACÍAS: las reglas `ejesSoloConEscenario` no tienen disparador y la boleta sella
+// familia/marca como dato real. Lo que sigue describe el estado ANTERIOR (historia para quien lea las reglas de abajo).
+// No todos los ejes re-derivan igual, y el escenario decidía (owner 2026-08-09, decisión 2 · corregido tras medir
 // eje × escenario, no sólo «actual»):
 //   · cliente y canal   → `applyScenarioToClientesMargen` re-deriva SIEMPRE, incluso sin transformación: el
 //                         comentario del propio motor lo dice ("ahora aplicada siempre, no solo con transform")
@@ -563,13 +567,13 @@ export const ESCENARIO_BASE = "actual";
 // mismas que hacen que los agregados por familia dejen de ser el literal. Se replica acá —tres strings— para que
 // este módulo siga SIN IMPORTS (boleta.js lo importa río arriba); `_tipado_cifra_gate.mjs` verifica en cada
 // corrida que las dos listas coinciden, igual que con DOMINIO_INVENTARIO. Declarado y verificado, no a ciegas.
-export const ESCENARIOS_CON_TRANSFORM = ["bonanza", "tension", "crisis"];
+export const ESCENARIOS_CON_TRANSFORM = [];   // una sola realidad (owner 2026-10-06): ningún escenario trae transform base · candado: _una_sola_realidad_gate
 // Y el subconjunto que además mueve las TASAS (margen %, % de acciones comerciales). No es el mismo conjunto:
 // «bonanza» declara las claves `marginErosion`/`rebateDelta` pero en CERO, así que el margen y el % de acciones
 // comerciales que sirve son EXACTAMENTE los almacenados (medido: 0/13 filas difieren). Esa diferencia importa —
 // sellar esas tasas `indicado` en bonanza sería marcar como estimación un dato que no se movió. El gate verifica
 // esta lista derivándola del propio SCENARIO_TRANSFORMS.
-export const ESCENARIOS_QUE_ALTERAN_TASAS = ["tension", "crisis"];
+export const ESCENARIOS_QUE_ALTERAN_TASAS = [];   // idem: sin transforms, ninguno mueve margen % ni % de acciones comerciales
 // escenarioReDeriva(escenario) → ¿este escenario hace que los agregados dejen de ser el literal almacenado?
 // `null` (la cifra no declara escenario) devuelve true: sin saberlo, el sello honesto es el que NO sobre-afirma.
 export function escenarioReDeriva(escenario) {

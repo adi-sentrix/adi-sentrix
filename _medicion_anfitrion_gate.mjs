@@ -560,10 +560,18 @@ seccion("F4 · el contrato del anfitrión: tres casos por cifra, números en pal
     const mala = cifra1(hilo1(otra, LL(rV, rS, dS)), new RegExp(`^\\$${(imp(total) + 0.4).toFixed(1).replace(".", "\\.")}M`));
     ok(mala.length === 1 && mala[0].caso === "error_material", "CARNADA · una suma que no cierra con nada entregado: error material");
     // la participación con D entregado vs calculada por el anfitrión
-    const dP = await aF4.llamar("rioclaro", "derivar", { conversacionId: convF4, operacion: "participacion", sobre: [ventas[0].id], base: rV.entrega.cifras.find((c) => /total del listado/.test(c.metrica)).id });
-    const pct = dP.hecho.valor;
-    const fraseP = `${ventas[0].entidad} pesa ${pct} de la venta total.`;
-    const pSin = cifra1(hilo1(fraseP, LL(rV, rS)), new RegExp(`^${pct.replace(/[.]/g, "\\.")}$`));
+    /* UNA SOLA REALIDAD (owner 2026-10-06): el caso ya no es «la primera cuenta» a ciegas. El rastreo demuestra un cociente con las cifras IMPRESAS (a ÷ b dentro de la
+     * incertidumbre de lo impreso); con la venta de la tabla (Σ $176.248K, antes $176.052K con el rearme de bonanza) el redondeo de la primera cuenta cae a 0,05 pp de
+     * no cerrar. Se toma, en orden, la primera cuenta cuya participación SÍ es demostrable con lo impreso (el mismo criterio de selección que la suma de arriba: «un trío que cierra»);
+     * lo que se guarda no cambia: una participación verdadera calculada por el anfitrión es «fuera de contrato», y con la derivación D entregada es hecho de ADI. */
+    let dP = null, pct = null, fraseP = null, pSin = null, ventaP = null;
+    for (const v of ventas) {
+      const d = await aF4.llamar("rioclaro", "derivar", { conversacionId: convF4, operacion: "participacion", sobre: [v.id], base: rV.entrega.cifras.find((c) => /total del listado/.test(c.metrica)).id });
+      const p = d.hecho.valor, f = `${v.entidad} pesa ${p} de la venta total.`;
+      const s = cifra1(hilo1(f, LL(rV, rS)), new RegExp(`^${p.replace(/[.]/g, "\\.")}$`));
+      if (!dP) { dP = d; pct = p; fraseP = f; pSin = s; ventaP = v; }   /* por si ninguna cierra: se informa la primera */
+      if (s.length === 1 && s[0].caso === "fuera_de_contrato") { dP = d; pct = p; fraseP = f; pSin = s; ventaP = v; break; }
+    }
     ok(pSin.length === 1 && pSin[0].caso === "fuera_de_contrato" && pSin[0].derivacionQueDebioPedirse.operacion === "participacion", `★ una participación (${pct}) calculada por el anfitrión: verdadera, fuera de contrato (cociente sobre una base entregada)`, jsn(pSin).slice(0, 400));
     const pCon = cifra1(hilo1(fraseP, LL(rV, rS, dP)), new RegExp(`^${pct.replace(/[.]/g, "\\.")}$`));
     ok(pCon.length === 1 && pCon[0].caso === "hecho_de_adi", "…y con la derivación D entregada, hecho de ADI", jsn(pCon).slice(0, 300));

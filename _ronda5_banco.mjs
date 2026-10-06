@@ -5,6 +5,7 @@
  *   · casa (respaldo): composer mentiroso o descuidado anclado por anclar.js → servido con falsedad
  * Excluye lo que los escépticos refutaron (sintesis.json). Escribe el detalle en <salida> (JSON) y resume por ángulo.
  * Solo con el candado: node --import ./scripts/offline-guard.mjs _ronda5_banco.mjs [salida.json] [--solo angulo,angulo] [--cada N]. Cero red. */
+import { leerFixtureVigente } from "./scripts/una-sola-realidad/cifrasVigentes.mjs";
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -26,7 +27,7 @@ import { crearDeclarador, filtrarPorTexto } from "./src/adi/notario/declarar.js"
 
 initTenant(TENANT_DEMO);
 const DIR = new URL("./fixtures/ronda5-2026-09-17/", import.meta.url);
-const leer = (f) => JSON.parse(fs.readFileSync(new URL(f, DIR), "utf8"));
+const leer = (f) => leerFixtureVigente(new URL(f, DIR));   /* una sola realidad (2026-10-06): el banco archivado se lee con las cifras vigentes del demo, sin tocar los archivos */
 const args = process.argv.slice(2);
 const salida = args.find((a) => !a.startsWith("--")) || null;
 const solo = (() => { const i = args.indexOf("--solo"); return i >= 0 ? new Set(args[i + 1].split(",")) : null; })();

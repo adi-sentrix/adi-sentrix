@@ -53,14 +53,18 @@ H("1 · el piso es un % DECLARADO que reproduce el histórico sobre el negocio d
 }
 
 /* ═══ 2 · EL DEMO, BYTE POR BYTE, EN LOS 4 ESCENARIOS ═════════════════════════════════════════════════════════ */
-H("2 · el demo no se mueve EN NINGÚN escenario: el piso es del negocio, no del lente (decisión B)");
+/* UNA SOLA REALIDAD (owner 2026-10-06): este gate comparaba el demo en CUATRO mundos (actual · bonanza · tensión · crisis) para
+ * probar que el piso es «del negocio, no del lente». Los mundos se retiraron (el escenario ya no existe: las TABLAS son la realidad),
+ * así que la propiedad se prueba hoy contra las dos ranuras que quedan —«actual» y «bonanza», la misma realidad— y la carnada (c)
+ * («piso por escenario») se RETIRÓ CON NOTA: sin escenarios que cambien la venta, un piso que mirara «el escenario» daría el mismo
+ * número que uno que mira la realidad, y esa carnada ya no puede ponerse en rojo (la propiedad quedó garantizada por construcción:
+ * `_loadReal` y `scenarioLoad` sirven las mismas tablas, lo verifica _una_sola_realidad_gate). */
+H("2 · el demo no se mueve EN NINGUNA ranura de escenario: el piso es del negocio, no del lente (decisión B)");
 {
   initTenant(TENANT_DEMO);
   const CARDS = {
     actual:  { contrib: "$4.9M sin capturar contra tu benchmark · $656K de carga sobre el target", margen: "5 pp bajo tu benchmark (30.1%)" },
-    bonanza: { contrib: "$4.9M sin capturar contra tu benchmark · $655K de carga sobre el target", margen: "5 pp bajo tu benchmark (30.1%)" },
-    tension: { contrib: "$7.2M sin capturar contra tu benchmark · $1.3M de carga sobre el target", margen: "8.1 pp bajo tu benchmark (30.1%)" },
-    crisis:  { contrib: "$9.5M sin capturar contra tu benchmark · $2.3M de carga sobre el target", margen: "11.7 pp bajo tu benchmark (30.1%)" },
+    bonanza: { contrib: "$4.9M sin capturar contra tu benchmark · $656K de carga sobre el target", margen: "5 pp bajo tu benchmark (30.1%)" },
   };
   for (const [esc, exp] of Object.entries(CARDS)) {
     const m = buildMesaEstado(esc);
@@ -151,20 +155,7 @@ H("5 · CARNADA · el candado se prueba con el defecto adentro");
       return items(mutado) > items(sano);   // sin piso entran los clientes chicos que el demo filtraba
     });
 
-  // (c) LA PROPIEDAD B: el piso que mira el escenario del lente en vez de la realidad — la misma fuga
-  //     aparecería y desaparecería entre pestañas de simulación (en crisis la venta baja → el piso baila
-  //     → entran items nuevos → el diagnóstico de crisis del demo deja de ser el de siempre).
-  await carnada("piso por escenario (baila entre pestañas)", "src/adi/specRetrieval.js",
-    [[/const _pisoFocosUSD = \(source, vField\) => \{\n  const base = _loadReal\(source\);[^\n]*\n/,
-      "const _pisoFocosUSD = (source, vField, esc) => {\n  const base = _load(source, esc);\n"],
-     [/const piso = _pisoFocosUSD\(vSF\.source, vSF\.field\);/,
-      "const piso = _pisoFocosUSD(vSF.source, vSF.field, scenario);"]],
-    async (Mut) => {
-      initTenant(TENANT_DEMO);
-      const sano = JSON.stringify(composeSpecDiagnose({ scenario: "crisis" }));
-      const mutado = JSON.stringify(Mut.composeSpecDiagnose({ scenario: "crisis" }));
-      return mutado !== sano;   // el defecto: el demo en crisis ya no es byte-idéntico — el piso siguió al lente
-    });
+  // (c) RETIRADA CON NOTA (una sola realidad, owner 2026-10-06): era «piso por escenario (baila entre pestañas)» — ver la nota de la sección 2.
 
   // (d) el verde que vuelve a callarse el umbral — la pantalla pierde la declaración
   await carnada("el verde sin su umbral declarado", "src/adi/sentrix/mesa.js",

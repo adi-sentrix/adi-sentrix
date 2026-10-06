@@ -24,6 +24,7 @@
  *
  * CERO llamadas a un LLM · CERO red. Solo por `npm run gates:offline` o
  * `node --import ./scripts/offline-guard.mjs _iniciativa_gate.mjs`. */
+/* UNA SOLA REALIDAD · CIFRAS FIJADAS RE-FIJADAS (owner 2026-10-06, _ADI_DISENO_UNA_SOLA_REALIDAD.md §6.5): la participación de Lider en el vencido total es 36,2 % sobre la tabla (antes 36,3 % sobre «bonanza»): cifra del dato de fábrica; la razón, los figs subyacentes y la regla de no repetir son los mismos. */
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { validarEncargo } from "./src/adi/encargo/validar.js";
@@ -231,7 +232,7 @@ H("7 · verificar.js regla 12 — iniciativa servida y verificada; carnadas: sin
 /* ═══ 7b · REVISIÓN DE CALIDAD DEL SUPERVISOR (2026-09-25) — LA INICIATIVA NUNCA REPITE LO PEDIDO ═══════════════
  * «Un hecho de iniciativa cuyo contenido (clave, entidad, valor, universo) ya está servido como pedido NO se
  * sirve otra vez.» Caso real medido: en 2 temas (comercial+cobranza, cartera entera) el PEDIDO ya declara la
- * participación de Lider en el vencido total («De lo vencido en toda la cartera, Lider concentra el 36,3%» —
+ * participación de Lider en el vencido total («De lo vencido en toda la cartera, Lider concentra el 36,2%» —
  * `_planMultiTema`, la razón sobre el vencido de Lider ÷ vencido total); el candidato de iniciativa
  * `participacion-vencido` calcula la MISMA razón sobre los MISMOS figs — tiene que desaparecer (`componer.js`:
  * comparación por firma tipo+figs subyacentes, `_firmasPedido`/`iniciativaSinDuplicar`). */
@@ -241,11 +242,11 @@ H("7b · CARNADA · la iniciativa no repite un hecho ya pedido (misma razón, mi
   const { R } = _comp(base);
   ok(R.ok, "compone ok", R.motivo);
   if (R.ok) {
-    const enPedido = R.entrega.respuesta.some((r) => !r._iniciativa && /Lider concentra el 36[.,]3%/.test(r.texto));
+    const enPedido = R.entrega.respuesta.some((r) => !r._iniciativa && /Lider concentra el 36[.,]2%/.test(r.texto));
     ok(enPedido, "el PEDIDO declara la participación de Lider en el vencido total (línea base del caso)", JSON.stringify(R.entrega.respuesta.map((r) => r.texto)));
-    const duplicadaEnIniciativa = R.entrega.respuesta.some((r) => r._iniciativa && /vencido total/i.test(r.texto) && /Lider/.test(r.texto) && /36[.,]3%/.test(r.texto));
+    const duplicadaEnIniciativa = R.entrega.respuesta.some((r) => r._iniciativa && /vencido total/i.test(r.texto) && /Lider/.test(r.texto) && /36[.,]2%/.test(r.texto));
     ok(!duplicadaEnIniciativa, "★ CARNADA · ninguna oración de iniciativa repite esa misma participación (misma razón, mismos figs)", JSON.stringify(R.entrega.respuesta.filter((r) => r._iniciativa).map((r) => r.texto)));
-    const totalOcurrencias = (R.texto.match(/Lider concentra el 36[.,]3%/g) || []).length;
+    const totalOcurrencias = (R.texto.match(/Lider concentra el 36[.,]2%/g) || []).length;
     ok(totalOcurrencias === 1, `el hecho aparece EXACTAMENTE una vez en todo el texto (apareció ${totalOcurrencias})`, R.texto);
   }
 }

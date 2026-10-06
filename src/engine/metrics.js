@@ -1,7 +1,6 @@
 /* === metrics.js ===
  * MOTOR PURO extraído de 41cc33d8 · misma entrada → misma salida · sin React.
  * Funciones copiadas verbatim; solo se agregan imports. Cero cambio de cálculo. */
-import { SCENARIO_TRANSFORMS } from "../config/scenarios.js";
 import { getTenantData } from "../data/tenantStore.js";
 import { factorComercialDe } from "../config/contract/figureType.js";
 import { benchmarkOf } from "../config/businessPolicy.js";   // la vara única: la puerta (criterio → perfil → config), jamás un literal
@@ -9,15 +8,16 @@ import { benchmarkOf } from "../config/businessPolicy.js";   // la vara única: 
 const _enK = (v) => (Number(v) || 0) * factorComercialDe(getTenantData()) / 1e3;
 import { MESES_IDX, margenKPI, ventasKPI, ventasMensuales } from "../data/baseKpis.js";
 import { clientesVentas } from "../data/demoData.js";
-import { applyScenarioToClientesVentas, applyScenarioToSkuInventario } from "./scenarios.js";
+import { applyScenarioToSkuInventario } from "./scenarios.js";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // colapso del eje: la base real se declara UNA vez
 import { kpiInventario, jerarquiaInventario } from "../adi/diagnosis/economicDiagnosis.js";   // R7 (owner 2026-09-28): getInvKPI deja de leer el literal — misma fuente única que deriveKpis().inventario · jerarquiaInventario: _aggregateInventario (§7.3·30-32)
 
 export function getVentasKPI(filtro, filtros, scenario = ESCENARIO_INICIAL) {
   const mesIdx = filtro && filtro !== "Anual" ? MESES_IDX[filtro] : -1;
-  // ── Base: si hay override de escenario, usarlo; sino ventasKPI estándar
-  const scenarioK = SCENARIO_TRANSFORMS[scenario]?.kpis?.ventas;
-  const baseSource = scenarioK ? { ...ventasKPI, ...scenarioK } : ventasKPI;
+  /* UNA SOLA REALIDAD (owner 2026-10-06): la cabecera es la del pack — en el demo se DERIVA de las mismas filas
+   * (tenants/demo.js), en una planilla la mide la ingesta (motorKpi). Ya no hay un `kpis` literal de escenario que
+   * la pise: antes «bonanza» declaraba 99.999 mientras las filas sumaban 99.887 y la tabla 100.000. */
+  const baseSource = ventasKPI;
   let base = { ...baseSource };
   if (mesIdx >= 0) {
     const m = ventasMensuales[mesIdx];
@@ -35,8 +35,7 @@ export function getVentasKPI(filtro, filtros, scenario = ESCENARIO_INICIAL) {
   }
   // Ajuste por filtros: reducir proporcional a marcas/familias seleccionadas
   if (filtros) {
-    // Usar la base de clientes del escenario activo para coherencia
-    const baseClientes = scenarioK ? applyScenarioToClientesVentas(scenario) : clientesVentas;
+    const baseClientes = clientesVentas;   // la realidad: la tabla del tenant
     const allRows = applyFiltros([...baseClientes], filtros);
     if (allRows.length < baseClientes.length) {
       const pct = allRows.reduce((s,r)=>s+r.actual,0) / baseClientes.reduce((s,r)=>s+r.actual,0);
@@ -58,8 +57,7 @@ export function getVentasKPI(filtro, filtros, scenario = ESCENARIO_INICIAL) {
  * (brecha = benchmark − margen actual). Un pack que no declara benchmark queda BYTE-IDÉNTICO: el demo y
  * empresa-2 no traen el campo, así que no se les inventa uno. */
 export function getMargenKPI(scenarioId) {
-  const k = SCENARIO_TRANSFORMS[scenarioId]?.kpis?.margen;
-  const base = k ? { ...margenKPI, ...k } : margenKPI;
+  const base = margenKPI;   // una sola realidad: el KPI del pack (en el demo, derivado de las mismas filas) — sin `kpis` de escenario que lo pise
   if (typeof base.benchmark !== "number") return base;               // sin vara declarada: nada que refrescar
   const vigente = benchmarkOf(null);
   if (!Number.isFinite(vigente) || vigente === base.benchmark) return base;

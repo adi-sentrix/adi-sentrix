@@ -9,7 +9,7 @@
       "pregunta": "Dame una lectura integrada de comercial, cobranza e inventario y dime qué priorizo",
       "cierre": "<<HECHOS>>\n@hechos_integrada\n<<FIN>>\n@prosa_integrada",
       "estado": ["verde"], "sitio": "cierre", "llamadas": ["cierre"],
-      "servido": ["Lider | $17.8M | $4.6M | $9.8M", "el que más te debe es Lider, con $9.8M pendientes", "Jumbo está al día", "3 cuentas superan 90 días de mora", "Criterio mío: yo priorizaría a Lider"],
+      "servido": ["Lider | $17.9M | $4.6M | $9.8M", "el que más te debe es Lider, con $9.8M pendientes", "Jumbo está al día", "3 cuentas superan 90 días de mora", "Criterio mío: yo priorizaría a Lider"],
       "ausente": ["{{", "{h", "}}"]
     },
     {

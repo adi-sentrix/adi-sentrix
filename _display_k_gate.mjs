@@ -64,13 +64,16 @@ H("2 · sobre $1M nada cambió: el demo, literal, EN EL MUNDO SERVIDO");
   initTenant(TENANT_DEMO);
   const R = buildResumenComercial("bonanza");
   const kv = Object.fromEntries(R.kpis.map((k) => [k.key, k.valor]));
-  ok(kv.ventas === "$99.9M" && kv.contribucion === "$25.0M" && kv.acciones === "$4.1M",
-    "los KPI del demo servido: $99.9M · $25.0M · $4.1M", JSON.stringify(kv));
+  /* CIFRAS FIJADAS DEL DEMO, RE-FIJADAS (una sola realidad, owner 2026-10-06): la realidad es la TABLA — venta $100.0M exacta (antes $99.9M, la Σ
+   * de «bonanza» con 13 porcentajes redondeados) y contribución Σ(venta oficial × margen) = $25.057K → «$25.1M» (antes «$25.0M»). No es una ley de formato. */
+  ok(kv.ventas === "$100.0M" && kv.contribucion === "$25.1M" && kv.acciones === "$4.1M",
+    "los KPI del demo servido: $100.0M · $25.1M · $4.1M", JSON.stringify(kv));
   const ov = composeModuleOverview("bonanza", "ventas");
-  ok(/Total \$100\.0M · variación \$7\.1M/.test(ov.opener || ""), "overview del demo: «Total $100.0M · variación $7.1M»");
+  /* el overview imprime un total ENTERO en M sin decimal (su formateador existente: `Number.isInteger(m) ? "$100M"`): con la venta exacta de la tabla (100.000K) ya no es «$100.0M» — formato, no cifra */
+  ok(/Total \$100M · variación \$7\.1M/.test(ov.opener || ""), "overview del demo: «Total $100M · variación $7.1M»");
   const cr = composeClientContributionRanking("bonanza");
-  ok(/aportan \$25\.03M de contribución/.test(cr.opener || "") && /Contribución \$4\.27M/.test(cr.opener || ""),
-    "ranking del demo servido: «$25.03M» y «$4.27M» — las cifras D8-reconciliadas (el atajo pre-D8 murió)");
+  ok(/aportan \$25\.06M de contribución/.test(cr.opener || "") && /Contribución \$4\.28M/.test(cr.opener || ""),
+    "ranking del demo servido: «$25.06M» y «$4.28M» — las cifras D8-reconciliadas sobre la venta de la tabla (el atajo pre-D8 murió)");
 }
 
 /* ═══ 3 · CARNADAS ════════════════════════════════════════════════════════════════════════════════════════════ */

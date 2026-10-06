@@ -16,6 +16,11 @@ onTenantChange((d) => { SCENARIO_TRANSFORMS = d.SCENARIO_TRANSFORMS; });
  * (venta total $99.9M vs $100.0M, y el KPI de inventario existía en uno y en el otro no, porque sale de
  * `SCENARIO_TRANSFORMS[id].kpis.inventario`). Todo lo medido en consola describía un negocio que la app no mostraba.
  * Un escenario no declarado no debe poder elegirse por escribir mal un string: acá está la única fuente. */
+/* ⚠️ UNA SOLA REALIDAD (owner 2026-10-06 · _ADI_DISENO_UNA_SOLA_REALIDAD.md): «bonanza» YA NO ES UN ESCENARIO — es solo el
+ * id de la RANURA por la que viaja el parámetro `scenario` (App → ChatADI → agente/oráculo → tools → motor). Ningún tenant
+ * declara `SCENARIO_TRANSFORMS` (todos `{}`): las TABLAS del tenant son la realidad vigente, y la simulación explícita es un
+ * `override` (deltas sobre la fila real). La constante se conserva (renombrarla es churn sin valor visible, decisión 4 del
+ * owner); candado anti-resurrección: `_una_sola_realidad_gate`. */
 export const ESCENARIO_INICIAL = "bonanza";
 // ⚠️ ACÁ VIVÍA `SCENARIOS` — los ids/labels de UI (Bonanza/Tensión/Crisis con colores e íconos). SE RETIRÓ CON
 // EL COLAPSO DEL EJE (C6, 2026-08-30): su único consumidor de producto era el ScenarioSelector (borrado en C1),

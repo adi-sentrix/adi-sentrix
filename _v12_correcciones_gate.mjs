@@ -1107,7 +1107,7 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     const t2 = oracionesDe(entregaDe(premisasFalsas[1]).E)[0] || "";
     ok((t2.match(/Saldo vencido = \$4\.6M/g) || []).length === 1, "«Lider está al día» (falsa): «Saldo vencido = $4.6M» aparece UNA vez", t2);
     const u18 = oracionesDe(entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "contribucion", "variacion"], eje: "canal", universo: { eje: "canal" } }], premisas: [{ id: "q1", tipo: "variacion", sujeto: "Retail", metrica: "ventas", variacion: { direccion: "sube", valor: "7.6%" }, periodo: "anterior" }] }).E)[0] || "";
-    ok((u18.match(/La verdad:/g) || []).length === 1 && /La verdad: Retail · Variación vs año anterior = \+6\.6%/.test(u18), "CONTROL NEGATIVO · una traza que AGREGA la verdad (Retail +6.6% cuando la consulta dijo 7.6%) se conserva, una sola vez", u18);
+    ok((u18.match(/La verdad:/g) || []).length === 1 && /La verdad: Retail · Variación vs año anterior = \+6\.8%/.test(u18), "CONTROL NEGATIVO · una traza que AGREGA la verdad (Retail +6.8% cuando la consulta dijo 7.6%) se conserva, una sola vez", u18);
   }
 }
 
@@ -1532,6 +1532,11 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     ok(sirve(E) && !sirve(carnada), "CARNADA · el defecto reconstruido (filas solo de 3 con «sirve 6») cae", JSON.stringify(enTabla(carnada))); }
 
   H("A21 · 46e · R18 · la foto de un eje explícito (marca) declara la cuenta que no trae la cifra pedida, con su «N de M»");
+  /* UNA SOLA REALIDAD (owner 2026-10-06, §4f ④ del diseño): este caso dependía de que Makita no tuviera año anterior (la variación de marca incompleta, 4 de 5). Con la tabla
+   * Makita trae su variación (+9,3 %) y las 5 marcas la traen — una de las conclusiones que cambia, no un defecto. La propiedad (la foto declara QUIÉN no trae la cifra pedida,
+   * con su «N de M», y nada más) se ejercita en el negocio que el caso describía, construido con un insumo explícito: el demo con Makita sin año anterior. */
+  const _DEMO_REAL = TENANT_DEMO;
+  initTenant({ ...TENANT_DEMO, marcasVentas: TENANT_DEMO.marcasVentas.map((m) => (m.nombre === "Makita" ? { ...m, anterior: null, unidadesAnt: null } : m)) });
   { const enc = (conceptos) => ({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos, eje: "marca" }], criterio: { lente: "ventas" } });
     const { E } = entregaDe(enc(["variacion", "ventas"]));
     const filas = filasCifras(E), marcas = enTabla(E);
@@ -1545,18 +1550,22 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     const carnada = conTexto(E, (t) => t.replace(/sin dato de/g, "con dato de"));
     const declara = (EE) => limitesTxt(EE).some((t) => /sin dato de variaci[oó]n/i.test(t));
     ok(declara(E) && !declara(carnada), "CARNADA · el defecto reconstruido (la tabla omite la fila y ningún límite lo dice) cae", ""); }
+  initTenant(_DEMO_REAL);   /* vuelve el negocio de fábrica (con las 5 marcas completas) para el resto del gate */
 
   H("A21 · 19 · R40 · R45 · la referencia de la consulta se declara en el EJE del universo que la pone en juego (marca · familia), no en clientes");
   { const refEn = (eje, metrica, ref, valor, unidad = "pct") => ({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: [metrica === "margen" ? "margen" : "carga", "ventas"], eje, universo: { eje, filtros: [{ metrica, op: metrica === "margen" ? ">" : ">=", ref }] } }], criterio: { referencia: { concepto: ref, valor, unidad } } });
     const dec = (E) => limitesTxt(E).filter((t) => /Con la referencia planteada en la consulta/.test(t)).join(" | ");
-    const marcasSobre = marcasMargen.filter((m) => m.margen > 26.3).map((m) => m.nombre);
-    const clientesSobre = clientesMargen.filter((c) => c.margen > 26.3).map((c) => c.nombre);
-    const M = entregaDe(refEn("marca", "margen", "benchmark", 26.3)).E, C = entregaDe(refEn("cliente", "margen", "benchmark", 26.3)).E;
-    ok(M.ok && marcasSobre.length === 2 && new RegExp(`Serían ${marcasSobre.length} marcas sobre esa referencia`).test(dec(M)) && marcasSobre.every((n) => dec(M).includes(n)), "una parte por MARCA cuenta MARCAS con la referencia de la consulta (26.3%): las que el dato deja sobre ese margen", dec(M));
+    /* UNA SOLA REALIDAD (owner 2026-10-06): el margen de marca se calibró ×0,9804 (Philips 26,6→26,1; Bosch 26,0→25,5) para cuadrar con la contribución de los clientes. La referencia de la consulta que
+     * separa a las MISMAS dos marcas (Philips y Makita) sobre las demás pasa de 26,3 % a 25,8 %: lo que el caso guarda —contar MARCAS con la referencia, nombrarlas, y no nombrar clientes— no cambia. */
+    const REF_MARCA = 25.8;
+    const marcasSobre = marcasMargen.filter((m) => m.margen > REF_MARCA).map((m) => m.nombre);
+    const clientesSobre = clientesMargen.filter((c) => c.margen > REF_MARCA).map((c) => c.nombre);
+    const M = entregaDe(refEn("marca", "margen", "benchmark", REF_MARCA)).E, C = entregaDe(refEn("cliente", "margen", "benchmark", REF_MARCA)).E;
+    ok(M.ok && marcasSobre.length === 2 && new RegExp(`Serían ${marcasSobre.length} marcas sobre esa referencia`).test(dec(M)) && marcasSobre.every((n) => dec(M).includes(n)), "una parte por MARCA cuenta MARCAS con la referencia de la consulta (25.8%): las que el dato deja sobre ese margen", dec(M));
     ok(!clientesMargen.some((c) => dec(M).includes(c.nombre)), "y no nombra ni un cliente (el eje de la parte es marca)", dec(M));
     ok(C.ok && clientesSobre.length >= 5 && new RegExp(`Serían ${clientesSobre.length} cuentas sobre esa referencia`).test(dec(C)) && clientesSobre.every((n) => dec(C).includes(n)), "CONTROL NEGATIVO · una parte por CLIENTE sigue contando cuentas con los nombres de clientes (el eje de la parte ES cliente)", dec(C));
     const F = entregaDe(refEn("familia", "carga", "nivel_carga", 4)).E;
-    ok(F.ok && /Serían 2 familias sobre esa referencia \(contra 3 con el nivel declarado de carga\)/.test(dec(F)) && !/cuentas/.test(dec(F)), "una parte por FAMILIA (nivel de carga 4%) cuenta familias: 2 contra las 3 del nivel declarado", dec(F));
+    ok(F.ok && /Serían 2 familias sobre esa referencia \(contra 4 con el nivel declarado de carga\)/.test(dec(F)) && !/cuentas/.test(dec(F)), "una parte por FAMILIA (nivel de carga 4%) cuenta familias: 2 contra las 4 del nivel declarado (antes 3: con la tabla las cuatro superan el 3,5 % — conclusión aprobada, diseño §4f ②)", dec(F));
     const carnada = conTexto(M, (t) => t.replace(/Serían 2 marcas/g, "Serían 8 cuentas").replace(/Philips, Makita/, "Tottus, Paris, Easy"));
     ok(!/Serían 2 marcas/.test(dec(carnada)) && clientesMargen.some((c) => dec(carnada).includes(c.nombre)), "CARNADA · el defecto reconstruido (clientes en una parte por marca) es lo que el predicado de arriba rechaza", dec(carnada)); }
 
@@ -1965,9 +1974,9 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     for (const base of ["bajo el benchmark", "SKU bajo el benchmark"]) { n++; const eje = /^SKU/.test(base) ? "sku" : "cliente"; const { R, E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente" }], criterio: { referencia: { concepto: "benchmark", valor: 25, unidad: "pct" } }, premisas: [{ id: "q1", tipo: "conteo", conteo: { n: 1, m: ENTS[eje].length }, de: { eje, base } }] });
       if (!(E.ok && /(?:\d+ )(?:SKU|cuentas)[^.]*esa referencia/.test((E.entrega.limites || []).map((l) => l.motivo).join(" ")) && verifica(E, R).ok)) malas.push(`base.${base}`); }
     ok(n >= 50 && malas.length === 0, `barrido · ${n} combinaciones (tipo de premisa × concepto × eje, el filtro con \`ref\` y el \`base\` de la casa): ninguna queda «no verificable» por una evidencia que el Core sabe calcular y todas pasan verificarEntrega`, JSON.stringify(malas.slice(0, 6)));
-    const { R: R26, E: E26 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["margen", "unidades"], eje: "familia" }], criterio: { lente: "riesgo" }, premisas: [{ id: "q2", tipo: "conteo", conteo: { n: 2, m: 4 }, de: { eje: "familia", filtros: [{ metrica: "carga", op: ">", ref: "nivel_carga" }] } }] });
+    const { R: R26, E: E26 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["margen", "unidades"], eje: "familia" }], criterio: { lente: "riesgo" }, premisas: [{ id: "q2", tipo: "conteo", conteo: { n: 4, m: 4 }, de: { eje: "familia", filtros: [{ metrica: "carga", op: ">", ref: "nivel_carga" }] } }] });
     const H26 = E26.entrega.procedencia.libroPremisas.porId.get("q2");
-    ok(E26.ok && H26.veredicto === "verdadera" && /2 de 4/.test(sinTablas(E26)) && verifica(E26, R26).ok, "N26 · «2 de 4» familias sobre el nivel de carga: la premisa carga la carga por familia aunque la parte pida margen y unidades", sinTablas(E26).split("\n").filter((l) => /premisa/.test(l)).join(" | "));
+    ok(E26.ok && H26.veredicto === "verdadera" && /4 de 4/.test(sinTablas(E26)) && verifica(E26, R26).ok, "N26 · «4 de 4» familias sobre el nivel de carga (antes «2 de 4»: con la tabla las cuatro superan el 3,5 %; conclusión aprobada, diseño §4f ②): la premisa carga la carga por familia aunque la parte pida margen y unidades", sinTablas(E26).split("\n").filter((l) => /premisa/.test(l)).join(" | "));
     /* el Marco declara «3.5%» sin que su cifra esté declarada: la Entrega de N26 sin su cifra impresa es rechazada (el rechazo de verificarEntrega que la 49d cierra) */
     const sinCifra = { ...E26, entrega: { ...E26.entrega, procedencia: { ...E26.entrega.procedencia, cifrasImpresas: (E26.entrega.procedencia.cifrasImpresas || []).filter((c) => !/3\.5/.test(c)) } } };
     ok(/Nivel de referencia de carga: 3\.5%/.test(E26.texto) && verifica(E26, R26).ok && !verifica(sinCifra, R26).ok, "CARNADA · el defecto reconstruido (el Marco dice «3.5%» sin que esa cifra esté declarada) cae en verificarEntrega"); }
@@ -2000,10 +2009,10 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
       }
     }
     ok(n >= 35 && malas.length === 0, `barrido · ${n} premisas de cifra (cuentas × ventas · venta a crédito · saldo pendiente): el rótulo es el del concepto pedido`, JSON.stringify(malas.slice(0, 6)));
-    const { E: E78 } = entregaDe({ partes: [{ id: "p2", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "margen"], entidades: [{ nombre: "Lider" }] }, { id: "p3", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido", "dias_vencido"], entidades: [{ nombre: "Sodimac" }] }], premisas: [{ id: "q1", tipo: "cifra", sujeto: "Lider", metrica: "ventas", valor: "$17.8M" }] });
+    const { E: E78 } = entregaDe({ partes: [{ id: "p2", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "margen"], entidades: [{ nombre: "Lider" }] }, { id: "p3", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido", "dias_vencido"], entidades: [{ nombre: "Sodimac" }] }], premisas: [{ id: "q1", tipo: "cifra", sujeto: "Lider", metrica: "ventas", valor: "$17.9M" }] });
     const l78 = (E78.entrega.respuesta || []).filter((r) => r._premisa === true).map((r) => r.texto)[0] || "";
-    ok(/es correcto — Lider: venta \$17\.8M\.$/.test(l78), "N78 · «Lider: venta $17.8M», no «venta a crédito»", l78);
-    ok(!/es correcto — Lider: venta \$17\.8M\.$/.test(l78.replace("Lider: venta $", "Lider: venta a crédito $")), "CARNADA · el defecto reconstruido («Lider: venta a crédito $17.8M» para una premisa de ventas) cae"); }
+    ok(/es correcto — Lider: venta \$17\.9M\.$/.test(l78), "N78 · «Lider: venta $17.9M», no «venta a crédito»", l78);
+    ok(!/es correcto — Lider: venta \$17\.9M\.$/.test(l78.replace("Lider: venta $", "Lider: venta a crédito $")), "CARNADA · el defecto reconstruido («Lider: venta a crédito $17.9M» para una premisa de ventas) cae"); }
 
   /* ─ (g) P74 · el corte entre Cifras y Detalle nunca parte una entidad ─ */
   H("A23 · 49g · P74 · el corte entre Cifras y Detalle nunca parte una entidad: sus filas van juntas (y un hecho cuyo valor es parte de otro número no protege su fila)");

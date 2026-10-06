@@ -233,7 +233,7 @@ H("5 · retomar con la respuesta compacta: los mismos ids, valores y revalidacio
   }
 
   // DATOS QUE CAMBIAN (otra versión de carga): las dos cifras, calculadas por ADI, viajan en `revalidacion`
-  const otra = clon(TENANT_DEMO); otra.clientesVentas.find((x) => x.nombre === "Falabella").anterior = Math.round(otra.clientesVentas.find((x) => x.nombre === "Falabella").anterior * 1.07);
+  const otra = clon(TENANT_DEMO); otra.clientesVentas.find((x) => x.nombre === "Falabella").actual = Math.round(otra.clientesVentas.find((x) => x.nombre === "Falabella").actual * 1.07);   /* una sola realidad (2026-10-06): la venta es SU actual (la tabla); antes el +7 % se aplicaba al anterior y la venta lo seguía por el crecimiento del escenario */
   const store2 = crearAlmacenEnMemoria();
   const A2 = crearAcciones({ continuidad: store2 });
   const r1 = await A2.consultar({ tenant: TENANT, encargo: { version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente" }] } });

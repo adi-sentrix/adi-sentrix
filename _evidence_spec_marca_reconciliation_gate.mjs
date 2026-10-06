@@ -122,12 +122,15 @@ for (const marca of MARCAS) {
 }
 
 // ── D3 · kpis.js (buildEntityKPIs → _marcaKPIs) ignora el escenario por completo para marca ────────────────────────
-console.log("\n── D3 · kpis.js/_marcaKPIs debería responder al escenario activo (como sí lo hace para cliente) ──");
+console.log("\n── D3 · kpis.js/_marcaKPIs: UNA SOLA REALIDAD — la marca es la TABLA, no cambia entre ranuras de escenario ──");
+/* UNA SOLA REALIDAD (owner 2026-10-06): D3 exigía que _marcaKPIs RESPONDIERA al escenario activo (que «bonanza» moviera la marca, como
+ * movía al cliente). El escenario como fuente paralela se retiró: marca y familia son las TABLAS del tenant (venta exacta, Σ = $100,0M).
+ * La propiedad se invirtió a propósito: 'actual' y 'bonanza' dan el MISMO resultado, y ese resultado es la fila de la tabla. */
 for (const marca of MARCAS) {
   const act = camino2(marca, "actual");
   const bon = camino2(marca, "bonanza");
   const igual = JSON.stringify(act) === JSON.stringify(bon);
-  ok(!igual, `${marca}: kpis.js/_marcaKPIs cambia entre escenario 'actual' y 'bonanza' (hoy: byte-igual — _marcaKPIs no recibe/usa ningún ajustador de escenario)`, { act, bon });
+  ok(igual, `${marca}: kpis.js/_marcaKPIs es IGUAL entre 'actual' y 'bonanza' (una sola realidad: la tabla)`, { act, bon });
 }
 
 // ── D4 · ventas bajo escenario activo: camino2 (estática) vs camino3 (ajustada) — deberían coincidir ──────────────

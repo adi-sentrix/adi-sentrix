@@ -275,69 +275,12 @@ export const SUPERFAMILIAS = ["Todas", "Bebidas", "Abarrotes", "Lácteos", "Cong
 export const MARCAS_ALL = ["AndesCola", "Cordillera", "LactoSur", "FrostAl", "NevadaFoods"];
 export const SUCURSALES = ["Bodega Norte", "Bodega Centro", "Bodega Sur"];
 
-// ── TRANSFORMS DE SIMULACIÓN · los que ESTA empresa declara (la UI ya no muestra escenarios — colapso del eje
-//    2026-08-30; los ids alimentan el motor de transforms, sustrato de Simulate v2 y de los gates) ─────────────
-// bonanza = identidad EXACTA por construcción (growth derivado de actual/anterior con precisión completa →
-// round(anterior·(1+g/100)) == actual). tension/crisis = transforms propios; sus kpis se DERIVAN acá mismo
-// replicando la aritmética del motor (una verdad — el fixture no declara cifras que no salgan de sus filas).
-const _growthExacto = Object.fromEntries(clientesVentas.map((c) => [c.nombre, { growth: (c.actual / c.anterior - 1) * 100, rebateDelta: 0, marginErosion: 0 }]));
-const _T_TENSION = {
-  "Supermercados del Valle": { growth:  1.0, rebateDelta: +0.8, marginErosion: -2.0 },
-  "Comercial Aconcagua":     { growth: -4.0, rebateDelta: +1.0, marginErosion: -3.0 },
-  "Distribuidora Los Ríos":  { growth:  3.0, rebateDelta: +0.6, marginErosion: -1.5 },
-  "Mayorista El Puerto":     { growth:  2.0, rebateDelta: +0.5, marginErosion: -2.5 },
-  "Minimarket Red Sur":      { growth:  6.0, rebateDelta: +0.4, marginErosion: -1.0 },
-  "Almacenes Cumbre":        { growth: -6.0, rebateDelta: +1.2, marginErosion: -3.5 },
-  "Ferias del Maule":        { growth: -2.0, rebateDelta: +0.6, marginErosion: -2.0 },
-  "Bazar Patagonia":         { growth: -8.0, rebateDelta: +0.8, marginErosion: -2.5 },
-};
-const _T_CRISIS = {
-  "Supermercados del Valle": { growth: -12.0, rebateDelta: +2.0, marginErosion: -6.0 },
-  "Comercial Aconcagua":     { growth: -16.0, rebateDelta: +2.5, marginErosion: -7.5 },
-  "Distribuidora Los Ríos":  { growth:  -7.0, rebateDelta: +1.8, marginErosion: -4.5 },
-  "Mayorista El Puerto":     { growth: -14.0, rebateDelta: +2.2, marginErosion: -6.0 },
-  "Minimarket Red Sur":      { growth:  12.0, rebateDelta: +1.5, marginErosion: -3.0 },
-  "Almacenes Cumbre":        { growth: -20.0, rebateDelta: +2.8, marginErosion: -8.0 },
-  "Ferias del Maule":        { growth: -11.0, rebateDelta: +1.6, marginErosion: -5.0 },
-  "Bazar Patagonia":         { growth: -24.0, rebateDelta: +2.4, marginErosion: -7.0 },
-};
-// réplica de la aritmética del motor (applyScenarioTo*) para derivar los kpis del transform — una verdad
-const _kpisDe = (T) => {
-  let vTot = 0, cTot = 0;
-  for (const c of clientesMargen) {
-    const cv = clientesVentas.find((x) => x.nombre === c.nombre);
-    const t = T[c.nombre];
-    const venta = t ? Math.round(cv.anterior * (1 + t.growth / 100)) : cv.actual;
-    const margen = t ? Math.max(6, +(c.margen + (t.marginErosion || 0)).toFixed(1)) : c.margen;
-    vTot += venta; cTot += Math.round(venta * (margen / 100));
-  }
-  return {
-    ventas: { totalActual: vTot, totalAnterior: _totalAnterior, totalPresupuesto: _totalPresupuesto,
-              vsAnterior: _r1((vTot / _totalAnterior - 1) * 100), vsPresupuesto: _r1((vTot / _totalPresupuesto - 1) * 100) },
-    margen: { pct: _r1(cTot / vTot * 100), pctAnt: margenKPI.pct, totalUSD: cTot,
-              gapPuntos: _r1(cTot / vTot * 100 - margenKPI.pct), benchmark: BENCHMARK },
-  };
-};
-export const SCENARIO_TRANSFORMS = {
-  bonanza: {
-    clientes: _growthExacto,
-    kpis: {
-      ventas: { totalActual: _totalActual, totalAnterior: _totalAnterior, totalPresupuesto: _totalPresupuesto,
-                vsAnterior: ventasKPI.vsAnterior, vsPresupuesto: ventasKPI.vsPresupuesto },
-      margen: { pct: margenKPI.pct, pctAnt: margenKPI.pctAnt, totalUSD: margenKPI.totalUSD, gapPuntos: margenKPI.gapPuntos, benchmark: BENCHMARK },
-      // inventario: RETIRADO (owner 2026-09-28, §7.3·31-32, diseño §0.4/R7) — ver la nota en demo.js.
-      // `desalineacionPct/USD` y `concentracionPct/TopCat` se retiran con él (sin consumidores en src/).
-    },
-  },
-  tension: {
-    clientes: _T_TENSION,
-    kpis: { ..._kpisDe(_T_TENSION) },   // inventario: RETIRADO — calculado dinámicamente, ver la nota en demo.js
-  },
-  crisis: {
-    clientes: _T_CRISIS,
-    kpis: { ..._kpisDe(_T_CRISIS) },   // inventario: RETIRADO — calculado dinámicamente, ver la nota en demo.js
-  },
-};
+/* ── UNA SOLA REALIDAD (owner 2026-10-06 · _ADI_DISENO_UNA_SOLA_REALIDAD.md) ─────────────────────────────────────────
+ * Las TABLAS de esta empresa son la realidad vigente. Antes declaraba «bonanza» (identidad exacta por construcción:
+ * growth derivado de actual/anterior) y «tensión»/«crisis» (transforms propios con sus KPI derivados): ninguno tenía un
+ * uso de producto —solo gates— y «bonanza» además rearmaba marcas y familias desde los clientes. Las simulaciones
+ * EXPLÍCITAS (override de Simulate v2) son deltas sobre la fila real y no necesitan un transform base. */
+export const SCENARIO_TRANSFORMS = {};
 
 /* ── PERFIL DE EMPRESA (F2 multiempresa · 2026-07-26) · LA VARA DE ESTA EMPRESA, distinta a propósito ────────
  * Cada llave difiere del config para que el gate PRUEBE la resolución (perfil ?? config · C.2 del usuario

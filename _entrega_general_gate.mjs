@@ -520,7 +520,7 @@ H("13b · cifra con entidad (no lectura/decision) sigue con el listado — el co
 
 /* ═══ 14 · (b) LA INICIATIVA NUNCA REPITE LO PEDIDO ═══════════════════════════════════════════════════════════
  * Caso real medido: en un encargo de 2 temas (comercial+cobranza, cartera entera) el pedido YA declara «Lider
- * concentra el 36.3% del vencido total» (razón sobre el vencido de Lider ÷ vencido total) — el candidato de
+ * concentra el 36.2% del vencido total» (razón sobre el vencido de Lider ÷ vencido total) — el candidato de
  * iniciativa `participacion-vencido` calcula EXACTAMENTE la misma razón sobre los MISMOS figs: tiene que
  * desaparecer, no duplicarse con otro rótulo. */
 H("14 · (b) la iniciativa no repite un hecho ya pedido (misma razón, mismos figs subyacentes)");
@@ -529,9 +529,9 @@ H("14 · (b) la iniciativa no repite un hecho ya pedido (misma razón, mismos fi
   const R = componerEntrega(res);
   ok(R.ok, "compone ok", R.motivo);
   if (R.ok) {
-    const ocurrencias = (R.texto.match(/Lider concentra el 36[.,]3%/g) || []).length;
-    ok(ocurrencias === 1, `★ CARNADA · «Lider concentra el 36,3%[...]» aparece UNA sola vez (pedido) — la iniciativa no lo repite (apareció ${ocurrencias} veces)`, R.texto);
-    ok(!R.entrega.respuesta.some((r) => r._iniciativa && /vencido total/i.test(r.texto) && /Lider/.test(r.texto) && /36[.,]3%/.test(r.texto)), "ninguna oración de iniciativa duplica el contenido exacto de la participación de Lider en el vencido total");
+    const ocurrencias = (R.texto.match(/Lider concentra el 36[.,]2%/g) || []).length;
+    ok(ocurrencias === 1, `★ CARNADA · «Lider concentra el 36,2%[...]» aparece UNA sola vez (pedido) — la iniciativa no lo repite (apareció ${ocurrencias} veces)`, R.texto);
+    ok(!R.entrega.respuesta.some((r) => r._iniciativa && /vencido total/i.test(r.texto) && /Lider/.test(r.texto) && /36[.,]2%/.test(r.texto)), "ninguna oración de iniciativa duplica el contenido exacto de la participación de Lider en el vencido total");
   }
 }
 
@@ -747,6 +747,13 @@ H("22 · CARNADA · el límite «sin señal de riesgo» es de negocio (sin nombr
 
 H("24 · CARNADA · §7.3·29 (SUPERVISOR, «declinar honestamente cuenta como éxito», X75) — un top «mayor» sobre un ranking parcial DECLINA la parte, pero la Entrega compone igual, con el límite declarado");
 {
+  /* UNA SOLA REALIDAD (owner 2026-10-06, §4f ④ del diseño): este caso usaba el ranking de VARIACIÓN por marca, incompleto porque Makita no tenía año anterior;
+   * con la tabla Makita ya trae su variación (+9,3 %) y el ranking por marca está COMPLETO, así que en el demo ya no declina — es una de las conclusiones que la
+   * realidad única cambia (§4f ④), no un defecto. Ningún otro ranking del demo es PARCIAL (lo ausente vale cero por cobertura). La propiedad que el caso guarda
+   * (un top «mayor» sobre un ranking PARCIAL declina la parte, la Entrega compone ok y el límite queda declarado, jamás un ganador no verificable) se
+   * ejercita con un NEGOCIO construido para eso (insumo explícito): el demo con Makita SIN año anterior, que es exactamente el mundo que el caso describía. */
+  const MUNDO_MAKITA_SIN_ANTERIOR = { ...TENANT_DEMO, marcasVentas: TENANT_DEMO.marcasVentas.map((m) => (m.nombre === "Makita" ? { ...m, anterior: null, unidadesAnt: null } : m)) };
+  initTenant(MUNDO_MAKITA_SIN_ANTERIOR);
   // comercial por marca, top variación (default «mayor»): el dato solo trae variación de 4 de 5 marcas (Makita
   // sin año anterior) — «mayor» declina igual que «menor/peor/mejor» (RAÍZ A6, diagnóstico v10): nunca se sirve
   // un ganador no verificable. Hasta acá, sin cambios. Lo que SÍ cambió (decisión 29, supervisor 2026-09-28,
@@ -779,6 +786,7 @@ H("24 · CARNADA · §7.3·29 (SUPERVISOR, «declinar honestamente cuenta como �
     ok(!(EA6.entrega.cifras.filas || []).length, "★ CARNADA · ninguna marca recibe cifra propia como sujeto de la parte declinada", JSON.stringify(EA6.entrega.cifras.filas));
     ok(!/quien m[aá]s pesa|prioridad del procedimiento/i.test(EA6.texto), "★ CARNADA · ninguna oración de prioridad nombra una marca como ganador", EA6.texto);
   }
+  initTenant(TENANT_DEMO);   /* vuelve el negocio de fábrica para el resto del gate */
 }
 
 H("25a · CARNADA · §7.3·26(a) forma MIXTA — el eje compartido cruza (2 comercial + 1 cobranza, cliente); inventario (sku) queda declarado FUERA");

@@ -13,6 +13,7 @@
  * Y los candados del owner como aserciones: una declaración incompleta (sin universo, sin período, sin el otro lado) es no-verificable;
  * una lectura no puede encubrir un hecho; lo no verificable nunca es verdadera. Los tres corpus anteriores siguen en sus gates como
  * regresión. Cero red: herramientas puras, fixtures en disco. */
+import { leerFixtureVigente, refrescarEnProfundidad } from "./scripts/una-sola-realidad/cifrasVigentes.mjs";   /* una sola realidad (2026-10-06): los corpus archivados se leen con las cifras vigentes del demo, sin tocar el archivo */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -55,7 +56,7 @@ const contextoDe = (pregunta) => {
   contextos.set(pregunta, ctx);
   return ctx;
 };
-const leer = (f) => JSON.parse(fs.readFileSync(new URL("./fixtures/" + f, import.meta.url), "utf8"));
+const leer = (f) => leerFixtureVigente(new URL("./fixtures/" + f, import.meta.url));
 const FACTUALES = new Set(["cifra", "orden", "relacion", "grupo", "conteo", "variacion", "estado"]);
 
 /* ═══ 0 · LOS CANDADOS DEL ESQUEMA ═══════════════════════════════════════════════════════════════════════════════════════════ */

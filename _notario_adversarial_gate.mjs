@@ -15,6 +15,7 @@
  * RONDA 2 (mismo día, sobre la versión que cerró la ronda 1): 91 roturas confirmadas más (`casosRonda2`: 27 verificar + 64 turno) y 16 controles
  * (`controlesRonda2`): las versiones verdaderas de las trampas cerradas y los falsos positivos que los atacantes reportaron. Una sola de las 91
  * queda marcada `verdaderaEsperada` (R2-enconjunto: verdadera por definición de la casa). */
+import { leerFixtureVigente, refrescarEnProfundidad } from "./scripts/una-sola-realidad/cifrasVigentes.mjs";   /* una sola realidad (2026-10-06): los corpus archivados se leen con las cifras vigentes del demo, sin tocar el archivo */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -71,7 +72,7 @@ export function correrVerificar(c) {
   return R.veredictos;
 }
 
-const F = JSON.parse(fs.readFileSync(new URL("./fixtures/notario-adversarial-2026-09-16.json", import.meta.url), "utf8"));
+const F = leerFixtureVigente(new URL("./fixtures/notario-adversarial-2026-09-16.json", import.meta.url));
 const RONDAS = [["A", "ronda 1", F.casos], ["A2", "ronda 2", F.casosRonda2 || []], ["A3", "ronda 3", F.casosRonda3 || []]];
 for (const [letra, ronda, casosRonda] of RONDAS) {
 H(`${letra} · las ${casosRonda.length} roturas confirmadas de la ${ronda} adversarial, replicadas: ninguna vuelve a romper`);

@@ -220,8 +220,12 @@ section("5 · el modo «al target» de siempre (el que corre en producción) que
   const TS = TOOLS.simulateCarga({ scenario: "actual", entityScope: { entities: ["Falabella", "Sodimac"] } });
   ok(TS.coverage.supported && TS.boleta.find((f) => f.label === "Recuperable · total").raw === 349997,
     `el modo target con entityScope sigue acotando al subtotal de las 2 cuentas ($349.997) — obtuvo ${JSON.stringify(TS.boleta.find((f) => f.label === "Recuperable · total").raw)}`);
-  // y en los otros dos escenarios, por si alguien tocara la aritmética del detector
-  for (const [esc, esperado] of [["tension", 1332104], ["crisis", 2259527], ["bonanza", 654953]]) {
+  /* UNA SOLA REALIDAD (owner 2026-10-06): antes este bucle fijaba el recuperable de TRES mundos (tensión $1.332.104 · crisis
+   * $2.259.527 · bonanza $654.953) «por si alguien tocara la aritmética del detector». Tensión y crisis se retiraron (ningún uso de
+   * producto) y «bonanza» era la tabla re-calculada con 13 porcentajes: hoy la ranura «bonanza» y «actual» son la MISMA realidad y
+   * dan EL MISMO recuperable que la tabla ($655.663). La aritmética del detector sigue candada por la huella de arriba y por el
+   * modo delta; lo único que se retira con nota es «otro mundo da otro total», que ya no existe. */
+  for (const [esc, esperado] of [["actual", 655663], ["bonanza", 655663]]) {
     const TE = TOOLS.simulateCarga({ scenario: esc });
     const r = TE.boleta.find((f) => f.label === "Recuperable · total");
     ok(r && r.raw === esperado, `escenario ${esc}: recuperable total sin cambio (${esperado}) — obtuvo ${JSON.stringify(r && r.raw)}`);

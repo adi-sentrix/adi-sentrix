@@ -37,21 +37,30 @@ H("[1] EL SÍNTOMA MEDIDO · la evidencia real de E1.t3 tenía dos valores");
     "…y las dos DECLARABAN el mismo escenario: el sello no podía delatar la contradicción");
 }
 
+/* UNA SOLA REALIDAD (owner 2026-10-06): este gate nació cuando «actual», «bonanza», «tensión» y «crisis» eran MUNDOS distintos y un
+ * escenario omitido caía en otro mundo en silencio. Hoy las TABLAS del tenant son la única realidad y el id de escenario es solo la
+ * ranura: ningún id de escenario cambia un número. La propiedad guardada se volvió MÁS fuerte (sin escenario, con cualquier id o con
+ * uno inventado, sale EL MISMO número — la fuga ya no puede existir), y el «otro mundo» que antes fabricaba «crisis» ahora solo existe
+ * como simulación explícita (override de Simulate v2), que este gate no ejercita. */
+const IDS = ["bonanza", "actual", "tension", "crisis"];   // ids de ranura: ninguno es un mundo
+
 H("[2] EL DATO DE ORIGEN ES UNO SOLO · el defecto no estaba en la fuente");
-for (const scn of ["bonanza", "tension", "crisis"]) {
+for (const scn of IDS) {
   const cv = applyScenarioToClientesVentas(scn).find((x) => x.nombre === "Lider");
   const cm = applyScenarioToClientesMargen(scn).find((x) => x.nombre === "Lider");
   ok(cv.actual === cm.venta, `${scn}: las dos fuentes coinciden (${cv.actual})`);
 }
 
-H("[3] LA CAUSA · sin escenario, el composer cae en otro universo EN SILENCIO");
+H("[3] LA CAUSA YA NO EXISTE · sin escenario, el composer da EL MISMO número (no hay otro universo al que caer)");
 {
   const conB = composeSpecRetrieval({ metric: "ventas", dimension: "cliente", filters: { cliente: "Lider" }, scenario: "bonanza" });
   const sinE = composeSpecRetrieval({ metric: "ventas", dimension: "cliente", filters: { cliente: "Lider" }, scenario: undefined });
   const v = (r) => (((r || {}).evidence || {}).boleta || []).find((f) => /Lider · Ventas$/.test(f.label));
   ok(!!v(conB) && !!v(sinE), "el composer responde en los dos casos");
-  ok(v(conB).raw !== v(sinE).raw,
-    `sin escenario devuelve OTRO número (${v(conB).raw} vs ${v(sinE).raw}) — por eso la fuga era invisible: no falla, miente`);
+  ok(v(conB).raw === v(sinE).raw,
+    `sin escenario devuelve el MISMO número (${v(conB).raw} vs ${v(sinE).raw}) — la realidad es una sola: la fuga no puede mentir`);
+  ok(v(conB).raw === applyScenarioToClientesVentas("bonanza").find((x) => x.nombre === "Lider").actual * 1000 && v(conB).raw === 17857000,
+    "…y ese número es la TABLA (Lider = 17.857K), no un re-cálculo de escenario");
 }
 
 H("[4] EL FIX · el escenario del turno gana sobre lo que diga el plan");
@@ -72,8 +81,8 @@ H("[4] EL FIX · el escenario del turno gana sobre lo que diga el plan");
   ok(!!q2 && q2.raw === q.raw, `un plan que pide otro escenario NO cambia el del turno (raw=${q2 && q2.raw})`);
 }
 
-H("[5] NINGUNA BOLETA CON DOS VALORES PARA LA MISMA ETIQUETA · los tres escenarios");
-for (const scn of ["bonanza", "tension", "crisis"]) {
+H("[5] NINGUNA BOLETA CON DOS VALORES PARA LA MISMA ETIQUETA · cualquier id de escenario");
+for (const scn of IDS) {
   const r = runPlan({ intent: "answer", calls: [
     { tool: "queryMetric", args: { dimension: "cliente", entity: "Lider", metric: "ventas" } },
     { tool: "marginRead", args: { dimension: "cliente", entity: "Lider" } },

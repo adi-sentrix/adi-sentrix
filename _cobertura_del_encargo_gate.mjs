@@ -24,6 +24,7 @@
  * cuando…»; y la ley `parte-del-encargo-omitida` (vetosDeRegistro) cobra la misma lista al cerebro y al ensamblador.
  *
  * Cero red: cerebro mudo, herramientas puras, fixtures en disco. */
+/* UNA SOLA REALIDAD · CIFRAS FIJADAS RE-FIJADAS (owner 2026-10-06, _ADI_DISENO_UNA_SOLA_REALIDAD.md §6.5): cifras del dato de fábrico (ahora la tabla) en las salidas del encargo de producción: Ripley −$422K→−$414K, Jumbo 1.194→1.210 unidades, Lider $17.8M→$17.9M. Quién empuja, quién cae y el orden son los mismos. */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -162,13 +163,13 @@ for (const c of CASOS) {
 }
 {
   const t = SALIDAS["producción (3 dominios)"].t;
-  ok(/Quién empuja el crecimiento/.test(t) && /Lider · \+\$2\.3M/.test(t) && /Quién cae:/.test(t) && /Ripley · -\$422K/.test(t), "producción: quién empuja el crecimiento (Lider +$2.3M) y quién cae (Ripley −$422K), contra el año anterior");
-  ok(/Unidades vendidas en el período/.test(t) && /Jumbo · 1194 unidades/.test(t), "producción: las unidades vendidas por cliente (Jumbo 1194)");
+  ok(/Quién empuja el crecimiento/.test(t) && /Lider · \+\$2\.3M/.test(t) && /Quién cae:/.test(t) && /Ripley · -\$414K/.test(t), "producción: quién empuja el crecimiento (Lider +$2.3M) y quién cae (Ripley −$414K), contra el año anterior");
+  ok(/Unidades vendidas en el período/.test(t) && /Jumbo · 1210 unidades/.test(t), "producción: las unidades vendidas por cliente (Jumbo 1210)");
   // MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): crucePorSku.js ya no dice «capital frenado» — dice «inmovilizado».
   /* MIGRACIÓN (owner 2026-09-28, §7.3·30-34, etapa 5): «inmovilizado crítico» completo — ver el comentario en
    * crucePorSku.js (familia larga con «Capital inmovilizado» en anclas.js, metrica-ajena). */
   ok(/Entre los que más venden no aparece inmovilizado crítico: lo inmovilizado crítico está en LG-DRYER8KG, BOS-SANDER, MAK-COMP-AIR/.test(t), "producción: el cruce por SKU dice dónde está lo inmovilizado — SKU, no bodegas");
-  ok(/Falabella · venta \$19\.4M · saldo \$8\.2M · vencido \$2\.5M/.test(t) && /Lider · venta \$17\.8M · saldo \$9\.8M · vencido \$4\.6M/.test(t), "producción: los principales clientes con su saldo y su vencido al lado");
+  ok(/Falabella · venta \$19\.4M · saldo \$8\.2M · vencido \$2\.5M/.test(t) && /Lider · venta \$17\.9M · saldo \$9\.8M · vencido \$4\.6M/.test(t), "producción: los principales clientes con su saldo y su vencido al lado");
   ok(/^1\. Lider — /m.test(t) && /antes que Falabella: más grave en comercial, distancia al benchmark \(8\.6 pp contra 8\.1 pp\); en cobranza, vencido \(\$4\.6M contra \$2\.5M\)/.test(t), "★ producción: la prioridad integrada abre con Lider, por señales (materialidad + severidad + urgencia), no por «coincide en dos dominios» (ver _prioridad_integrada_gate)");
   // RECONOCEDOR TOLERANTE (owner 2026-09-28, §7.3·30-32): «$14K frenados» → «$14K inmovilizados» en la prosa.
   ok(/En inventario \(clave SKU: no se compara con las cuentas\): LG-DRYER8KG primero — \$14K inmovilizados, 165d de inventario, 94d sin venta/.test(t), "…y el inventario entra aparte, con su clave y sus lentes (LG-DRYER8KG, $14K, 165d, 94d sin venta)");

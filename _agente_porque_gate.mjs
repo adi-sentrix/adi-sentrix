@@ -22,6 +22,7 @@
  *
  * OFFLINE · determinístico · CERO llamadas al modelo.
  * `node --import ./scripts/offline-guard.mjs _agente_porque_gate.mjs` */
+/* UNA SOLA REALIDAD · CIFRAS FIJADAS RE-FIJADAS (owner 2026-10-06, _ADI_DISENO_UNA_SOLA_REALIDAD.md §6.5): las unidades mensuales del demo se calibraron para cuadrar con el universo cliente (Σ 5.520, antes 5.703): febrero 360→348 y el promedio anual 475→460. La estructura del texto con método y el veredicto son los mismos. */
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -119,7 +120,7 @@ H("3 · los tres vetos — el corpus legítimo pasa, el texto de producción ard
   /* EL MISMO TEXTO CON EL MÉTODO — la regla no prohíbe redactar, exige respaldar */
   const CON_METODO = [
     "Febrero es el piso del año ($6.5M).",
-    "Fue por volumen: 360 unidades contra un promedio de 475 en el año. El margen se mantuvo en línea (25.2% contra 25.1%) y las acciones comerciales no saltaron (3.6% contra 4.1%).",
+    "Fue por volumen: 348 unidades contra un promedio de 460 en el año. El margen se mantuvo en línea (25.2% contra 25.1%) y las acciones comerciales no saltaron (3.6% contra 4.1%).",
     "Mi hipótesis es que hay estacionalidad, porque febrero también fue el más bajo el año anterior. Con este dato solo no está probado.",
     "¿Febrero suele ser un mes bajo en tu negocio, o ese año pasó algo puntual con clientes grandes, stock o campañas?",
   ].join("\n");

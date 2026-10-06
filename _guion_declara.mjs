@@ -9,6 +9,7 @@
  * como lo haría el modelo. Un guion que YA trae su bloque pasa intacto; un guion mudo también.
  *
  * NO es un camino del producto: vive fuera de `src/`, solo lo importan los gates. El modelo de producción declara solo. */
+import { leerFixtureVigente, refrescarEnProfundidad } from "./scripts/una-sola-realidad/cifrasVigentes.mjs";   /* una sola realidad (2026-10-06): los corpus archivados se leen con las cifras vigentes del demo, sin tocar el archivo */
 import fs from "node:fs";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
@@ -52,7 +53,7 @@ export const declarando = (guion, scenario = ESCENARIO_INICIAL) => {
 /** afirmacionesDelFixture(fixture, borrador) → las afirmaciones declaradas A MANO (fase 1, seis etiquetadores) para ese borrador vivo, o null */
 export function afirmacionesDelFixture(fixture, borrador) {
   try {
-    const S = JSON.parse(fs.readFileSync(new URL("./fixtures/notario-semantico-2026-09-15.json", import.meta.url), "utf8"));
+    const S = leerFixtureVigente(new URL("./fixtures/notario-semantico-2026-09-15.json", import.meta.url));
     const c = S.corpus.find((x) => x.fixture === fixture && x.borrador === borrador);
     return c ? c.afirmaciones.map((a) => Object.fromEntries(Object.entries(a).filter(([k]) => !["veredicto_esperado", "verdad", "nota", "evidencia"].includes(k)))) : null;
   } catch { return null; }
@@ -60,7 +61,7 @@ export function afirmacionesDelFixture(fixture, borrador) {
 /** falsasEsperadas(fixture, borrador) → cuántas afirmaciones de ese borrador el fixture etiqueta como falsas */
 export function falsasEsperadas(fixture, borrador) {
   try {
-    const S = JSON.parse(fs.readFileSync(new URL("./fixtures/notario-semantico-2026-09-15.json", import.meta.url), "utf8"));
+    const S = leerFixtureVigente(new URL("./fixtures/notario-semantico-2026-09-15.json", import.meta.url));
     const c = S.corpus.find((x) => x.fixture === fixture && x.borrador === borrador);
     return c ? c.afirmaciones.filter((a) => a.veredicto_esperado === "falsa").length : 0;
   } catch { return 0; }

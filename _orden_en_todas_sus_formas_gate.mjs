@@ -22,6 +22,7 @@
  *  11 · la RELACIÓN EN PALABRAS en las dos direcciones («casi la mitad» = «casi el doble» al revés);
  *  12 · los RANKINGS NUEVOS: venta y contribución por SKU, capital por bodega, y «frenado» ≠ «inmovilizado».
  * Cero red: herramientas puras, fixtures en disco. */
+/* UNA SOLA REALIDAD · CIFRAS FIJADAS RE-FIJADAS (owner 2026-10-06, _ADI_DISENO_UNA_SOLA_REALIDAD.md §6.5): las cifras de las oraciones de prueba son las del DATO DE FÁBRICA (ahora la tabla): Lider $17.8M→$17.9M, +14.9 %→+15.0 %, unidades 1.194→1.210 · 1.042→1.040 · 894→900, +12.2 %→+12.4 %. El ORDEN de cada ranking (venta, unidades, variación) es el mismo: ninguna oración cambia de veredicto. */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -121,51 +122,51 @@ pasa("Lider tiene la carga más alta.", "una sola entidad SIN universo no se juz
 arde("Jumbo lidera la cartera en contribución ($4.2M).", SUP, "«lidera» es serlo sobre el eje entero");
 pasa("Falabella lidera la contribución con $4.3M.");
 arde("Lider lidera la contribución con $3.8M.", SUP);
-arde("Lider encabeza el ranking de venta de la cartera con $17.8M.", SUP, "«encabeza el ranking de»");
+arde("Lider encabeza el ranking de venta de la cartera con $17.9M.", SUP, "«encabeza el ranking de»");
 arde("ABC es el último en ventas de la cartera ($2.5M).", SUP, "«el último» es el mínimo (Unimarc $2.3M)");
 pasa("Unimarc es el último en ventas de la cartera ($2.3M).");
 arde("Nadie aporta más contribución que Jumbo ($4.2M).", SUP, "«nadie … más que Y»: el extremo es Y");
 pasa("Nadie aporta más contribución que Falabella ($4.3M).");
 arde("Ninguna cuenta tiene más días de atraso que Lider (269).", SUP);
 arde("Jumbo genera más contribución que ningún otro cliente ($4.2M).", SUP, "«más … que ningún otro»: el sujeto sobre el eje entero");
-arde("Lider vende más que nadie ($17.8M).", SUP, "el verbo delante y «que nadie» detrás");
+arde("Lider vende más que nadie ($17.9M).", SUP, "el verbo delante y «que nadie» detrás");
 
 H("3 · LOS ORDINALES EN TODAS SUS FORMAS");
 arde("Lider es el segundo cliente en contribución ($3.8M).", SUP, "«segundo cliente en» (Jumbo es 2.º)");
 pasa("Jumbo es el segundo cliente en contribución ($4.2M).");
-arde("Lider ocupa el tercer lugar en ventas ($17.8M).", SUP, "«ocupa el tercer lugar en» (Lider es 2.º)");
+arde("Lider ocupa el tercer lugar en ventas ($17.9M).", SUP, "«ocupa el tercer lugar en» (Lider es 2.º)");
 pasa("Jumbo ocupa el tercer lugar en ventas ($17.3M).");
 arde("Sodimac ocupa el segundo lugar en vencido ($1.9M).", SUP);
 arde("Jumbo es tu cliente n.º 1 en ventas ($17.3M).", SUP, "«n.º 1 en»");
 arde("Jumbo es 2.º en ventas ($17.3M).", SUP, "«2.º en»");
-pasa("Lider es 2.º en ventas ($17.8M).");
+pasa("Lider es 2.º en ventas ($17.9M).");
 arde("Jumbo es el 2do en ventas ($17.3M).", SUP, "«2do en»");
 arde("Jumbo va primero en contribución ($4.2M).", SUP, "«va primero en» es el máximo de una métrica");
 pasa("Falabella va primero en contribución ($4.3M).");
 arde("Falabella es el primero en saldo vencido ($2.5M).", SUP);
 arde("En ventas, Jumbo está segundo ($17.3M).", SUP, "«está segundo» con la métrica DELANTE");
-pasa("En ventas, Lider está segundo ($17.8M).");
+pasa("En ventas, Lider está segundo ($17.9M).");
 arde("En ventas Jumbo es el segundo ($17.3M), detrás de Falabella.", SUP);
 arde("Jumbo es el segundo mayor cliente por venta ($17.3M).", SUP, "«segundo mayor cliente por»");
 arde("Jumbo, segundo por ventas ($17.3M), sostiene el crecimiento.", SUP, "«segundo por»");
 arde("Jumbo es el tercero por contribución ($4.2M).", SUP, "«el tercero por» (Jumbo es 2.º)");
 arde("Jumbo es la segunda venta de la cartera ($17.3M).", SUP, "el ordinal con la métrica pegada detrás");
-pasa("Lider es la segunda venta de la cartera ($17.8M).");
+pasa("Lider es la segunda venta de la cartera ($17.9M).");
 pasa("Jumbo tiene la segunda contribución más alta de la cartera ($4.2M).", "el ordinal con el sustantivo de la métrica entre medio (fp-prosa 7 lo leía como máximo absoluto)");
 arde("Lider tiene la segunda contribución más alta de la cartera ($3.8M).", SUP, "…y el ordinal falso arde");
 pasa("Falabella tiene el segundo vencido más alto ($2.5M, detrás de Lider).", "«detrás de Lider» tras un ordinal confirma el puesto, no excluye");
 pasa("Sodimac tiene la segunda carga más alta (5.4%), solo detrás de Easy (5.5%).");
 pasa("Lider es el segundo más atrasado de la cartera (269 días).", "el ordinal dentro del marcador («el segundo más atrasado»)");
 arde("Sodimac es el segundo más atrasado de la cartera (251 días).", SUP);
-pasa("Falabella y Lider: la primera vende más ($19.4M contra $17.8M), la segunda debe más vencido ($4.6M contra $2.5M).", "«la primera / la segunda» + verbo es anáfora de la lista, no un puesto");
-pasa("Lider es la segunda en venta ($17.8M, detrás de Falabella) y la tercera en contribución ($3.8M, detrás de Falabella y Jumbo).", "el «detrás de» de un paréntesis ajeno no excluye a nadie");
+pasa("Falabella y Lider: la primera vende más ($19.4M contra $17.9M), la segunda debe más vencido ($4.6M contra $2.5M).", "«la primera / la segunda» + verbo es anáfora de la lista, no un puesto");
+pasa("Lider es la segunda en venta ($17.9M, detrás de Falabella) y la tercera en contribución ($3.8M, detrás de Falabella y Jumbo).", "el «detrás de» de un paréntesis ajeno no excluye a nadie");
 pasa("Tottus y Paris, con $1.3M y $1.2M vencidos, van cuarta y quinta.", "los ordinales repartidos sobre un sujeto coordinado");
 arde("Tottus y Paris, con $1.3M y $1.2M vencidos, van quinta y cuarta.", SUP, "…y al revés arden");
 /* «primero» como orden de una métrica no es la prioridad del cierre (prioridad-integrada-cambiada, ley de la casa · fp-listas P9) */
-sinLey("Por venta, Falabella va primero ($19.4M), Lider segundo ($17.8M) y Jumbo tercero ($17.3M).", /prioridad-integrada-cambiada/, "«por venta … primero» es un ranking");
+sinLey("Por venta, Falabella va primero ($19.4M), Lider segundo ($17.9M) y Jumbo tercero ($17.3M).", /prioridad-integrada-cambiada/, "«por venta … primero» es un ranking");
 sinLey("Entre los que más venden, Falabella ($19.4M) va primero.", /prioridad-integrada-cambiada/);
 sinLey("En vencido, Lider va primero ($4.6M) y Falabella segunda ($2.5M).", /prioridad-integrada-cambiada/);
-pasa("Por venta, Falabella va primero ($19.4M), Lider segundo ($17.8M) y Jumbo tercero ($17.3M).", "…y como orden verdadero, vive");
+pasa("Por venta, Falabella va primero ($19.4M), Lider segundo ($17.9M) y Jumbo tercero ($17.3M).", "…y como orden verdadero, vive");
 
 H("4 · LOS GRUPOS TOP-k, LA PERTENENCIA, «JUNTO CON» Y EL SUBCONJUNTO RESUELTO");
 arde("Las tres cuentas con más contribución son Falabella, Jumbo y Sodimac ($4.3M, $4.2M y $1.9M).", SUP, "«las tres cuentas con más»: Lider ($3.8M) es tercero");
@@ -187,8 +188,8 @@ arde("Sodimac es una de las dos cuentas con más vencido ($1.9M).", SUP, "«una 
 pasa("Falabella es una de las dos cuentas con más vencido ($2.5M).");
 arde("Entre las tres cuentas que más venden está Sodimac ($8.2M).", SUP, "«entre las tres que más X está Y»");
 pasa("Entre las tres cuentas que más venden está Jumbo ($17.3M).");
-arde("Jumbo es el que más unidades vende, junto con Lider (1.194 y 894).", SUP, "«junto con» arma el top-2 (Falabella 1.042 es segundo)");
-pasa("Jumbo es el que más unidades vende, junto con Falabella (1.194 y 1.042).");
+arde("Jumbo es el que más unidades vende, junto con Lider (1.210 y 900).", SUP, "«junto con» arma el top-2 (Falabella 1.040 es segundo)");
+pasa("Jumbo es el que más unidades vende, junto con Falabella (1.210 y 1.040).");
 arde("Jumbo tiene el margen más bajo de los tres grandes (24.0%).", SUP, "«de los tres grandes» son los tres de mayor venta (Lider 21.5%)");
 pasa("Lider tiene el margen más bajo de los tres grandes (21.5%).");
 arde("Falabella, Lider y Jumbo empujan el crecimiento. De los tres, Jumbo tiene el margen más bajo (24.0%).", SUP, "«de los tres» resuelve a la lista de la oración anterior");
@@ -197,19 +198,19 @@ arde("Sodimac (35%, la peor recuperación) y Lider (45%) son las dos cuentas que
 pasa("Sodimac (35%, la peor recuperación) y Easy (40%) son las dos cuentas que menos recuperan.");
 
 H("5 · LOS ENCADENADOS");
-arde("Jumbo es el cliente con más unidades vendidas (1.194) y con más contribución ($4.2M).", SUP, "«y con más»");
-arde("Jumbo es el cliente con más unidades (1.194), y también con más contribución ($4.2M).", SUP, "«y también con más»");
-arde("Jumbo, además de ser el cliente con más unidades (1.194), es el de más contribución ($4.2M).", SUP, "«además de … es el de más»");
-arde("Jumbo es el cliente con más unidades (1.194) y la mayor contribución ($4.2M).", SUP, "«y la mayor»");
-arde("Jumbo es el cliente con más unidades (1.194) y, además, más contribución ($4.2M).", SUP, "«y, además, más»");
-arde("Lider es el que más vende y el que menos margen deja de la cartera ($17.8M, 21.5%).", SUP, "«el que más … y el que menos»: la venta arde (Falabella)");
+arde("Jumbo es el cliente con más unidades vendidas (1.210) y con más contribución ($4.2M).", SUP, "«y con más»");
+arde("Jumbo es el cliente con más unidades (1.210), y también con más contribución ($4.2M).", SUP, "«y también con más»");
+arde("Jumbo, además de ser el cliente con más unidades (1.210), es el de más contribución ($4.2M).", SUP, "«además de … es el de más»");
+arde("Jumbo es el cliente con más unidades (1.210) y la mayor contribución ($4.2M).", SUP, "«y la mayor»");
+arde("Jumbo es el cliente con más unidades (1.210) y, además, más contribución ($4.2M).", SUP, "«y, además, más»");
+arde("Lider es el que más vende y el que menos margen deja de la cartera ($17.9M, 21.5%).", SUP, "«el que más … y el que menos»: la venta arde (Falabella)");
 pasa("Falabella es el cliente con más contribución ($4.3M) y más venta ($19.4M).", "la cadena verdadera vive");
-pasa("Falabella lidera en venta ($19.4M) y contribución ($4.3M); Lider, en saldo pendiente ($9.8M) y vencido ($4.6M); Jumbo, en unidades (1.194).", "«lidera en X y Y»: el término pegado encadena, y la cláusula tras «;» no");
+pasa("Falabella lidera en venta ($19.4M) y contribución ($4.3M); Lider, en saldo pendiente ($9.8M) y vencido ($4.6M); Jumbo, en unidades (1.210).", "«lidera en X y Y»: el término pegado encadena, y la cláusula tras «;» no");
 pasa("Lider es la segunda cuenta con más días de atraso: 269, un día menos que Easy.", "«días DE atraso»: la «e» de una palabra no encadena");
 
 H("6 · LOS COMPARATIVOS: con las dos cifras, y sin cifras contra el ranking");
-arde("Lider vende más que Falabella ($17.8M contra $19.4M).", CMP, "el par «x contra y» contradice el «más»");
-pasa("Falabella vende más que Lider ($19.4M contra $17.8M).");
+arde("Lider vende más que Falabella ($17.9M contra $19.4M).", CMP, "el par «x contra y» contradice el «más»");
+pasa("Falabella vende más que Lider ($19.4M contra $17.9M).");
 arde("Jumbo contribuye más que Falabella ($4.2M vs $4.3M).", CMP);
 arde("La carga de Falabella (4.5%) supera a la de Sodimac (5.4%).", CMP, "la cifra pegada a cada nombre");
 arde("Easy recupera menos que Sodimac (40% contra 35%).", CMP);
@@ -219,8 +220,8 @@ arde("En margen, Falabella (22.0%) está por encima de Jumbo (24.0%).", CMP, "«
 arde("Jumbo supera a Falabella en contribución ($4.2M contra $4.3M).", CMP, "«supera a X en»");
 arde("El vencido de Sodimac ($1.9M) supera al de Falabella ($2.5M).", CMP, "«supera al de»");
 arde("Lider es más urgente que Easy en cobranza (269 días contra 270).", CMP, "el adjetivo «urgente» (días) con el par");
-arde("Lider crece menos que Jumbo (+14.9% contra +12.2%).", CMP, "sin ranking, las cifras deciden");
-arde("Jumbo vende más que Lider.", CMP, "sin cifras: contra el ranking ($17.3M < $17.8M)");
+arde("Lider crece menos que Jumbo (+15.0% contra +12.4%).", CMP, "sin ranking, las cifras deciden");
+arde("Jumbo vende más que Lider.", CMP, "sin cifras: contra el ranking ($17.3M < $17.9M)");
 pasa("Lider vende más que Jumbo.", "…y el verdadero sin cifras vive: prohibir no es responder");
 arde("Sodimac arrastra más días de atraso que Lider.", CMP);
 arde("Falabella tiene más saldo vencido que Lider.", CMP);
@@ -236,9 +237,9 @@ arde("Los grandes ceden más carga que el resto.", /comparacion-sin-cifras/, "un
 arde("Falabella tiene más markup que Lider.", /comparacion-sin-cifras/, "una métrica sin ranking sigue exigiendo cifras (contrato)");
 
 H("7 · LOS RANKINGS ANUNCIADOS Y LAS SECUENCIAS");
-arde("Por venta, el orden es Falabella, Jumbo y Lider ($19.4M, $17.3M y $17.8M) — 3 de 13.", RK, "«el orden es» con Jumbo antes que Lider");
-pasa("Por venta, el orden es Falabella, Lider y Jumbo ($19.4M, $17.8M y $17.3M) — 3 de 13.");
-arde("Ordenados por venta de mayor a menor (3 de 13): Falabella $19.4M, Jumbo $17.3M, Lider $17.8M.", RK);
+arde("Por venta, el orden es Falabella, Jumbo y Lider ($19.4M, $17.3M y $17.9M) — 3 de 13.", RK, "«el orden es» con Jumbo antes que Lider");
+pasa("Por venta, el orden es Falabella, Lider y Jumbo ($19.4M, $17.9M y $17.3M) — 3 de 13.");
+arde("Ordenados por venta de mayor a menor (3 de 13): Falabella $19.4M, Jumbo $17.3M, Lider $17.9M.", RK);
 arde("Ranking de saldo vencido (6 de 13): Lider $4.6M, Sodimac $1.9M, Falabella $2.5M, Tottus $1.3M, Paris $1.2M, Easy $1.1M.", RK);
 pasa("Ranking de saldo vencido (6 de 13): Lider $4.6M, Falabella $2.5M, Sodimac $1.9M, Tottus $1.3M, Paris $1.2M, Easy $1.1M.");
 arde("De peor a mejor recuperación (3 de 13): Lider 45%, Sodimac 35%, Easy 40%.", RK, "«de peor a mejor» con la polaridad de la métrica");
@@ -264,8 +265,8 @@ arde("La carga comercial de Falabella llega a 4.5%, la más alta de la cartera."
 arde("La carga de Falabella (4.5%) sigue siendo la más alta de la cartera.", SUP, "«sigue siendo»");
 arde("Jumbo aporta $4.2M de contribución, la cifra más alta de la cartera.", SUP, "«la cifra más alta»: el sustantivo genérico de la cifra no es objeto propio");
 arde("Falabella tiene **carga 4.5%**, la más alta de la cartera.", SUP, "la negrita no rompe la atadura");
-arde("Falabella, con 1.042 unidades, es el mayor volumen de la cartera.", SUP, "«con X unidades, es el mayor volumen»");
-pasa("Jumbo, con 1.194 unidades, es el mayor volumen de la cartera.");
+arde("Falabella, con 1.040 unidades, es el mayor volumen de la cartera.", SUP, "«con X unidades, es el mayor volumen»");
+pasa("Jumbo, con 1.210 unidades, es el mayor volumen de la cartera.");
 arde("El margen más bajo del negocio lo tiene Falabella: 22.0%.", SUP, "«lo tiene X»");
 pasa("El margen más bajo del negocio lo tiene Lider: 21.5%.");
 arde("La mayor carga comercial de la cartera es la de Falabella (4.5%).", SUP, "«es la de X»");
@@ -277,7 +278,7 @@ arde("El atraso más grande de la cartera es el de Lider (269 días).", SUP, "«
 arde("Jumbo es la mayor de la cartera en cuanto a contribución ($4.2M).", SUP, "el universo entre el marcador y la métrica («la mayor de la cartera en cuanto a»)");
 arde("Falabella ($4.3M) y Jumbo ($4.2M) concentran la contribución; Jumbo es la mayor de la cartera.", SUP, "la métrica en la cláusula anterior (antes de «;»)");
 arde("LG-DRYER8KG lleva 94 días sin venta, el período más largo del inventario.", SUP, "«el período más largo»: el sustantivo genérico y los días sin venta (MAK-COMP-AIR 112)");
-arde("Lider viene creciendo 14.9%. Falabella, menos. Aun así, es la que más vencido tiene ($2.5M).", SUP, "el sujeto elidido «es la que más» es Falabella (Lider $4.6M)");
+arde("Lider viene creciendo 15.0%. Falabella, menos. Aun así, es la que más vencido tiene ($2.5M).", SUP, "el sujeto elidido «es la que más» es Falabella (Lider $4.6M)");
 arde("El cliente que menos vende, ABC ($2.5M), está sobre el benchmark.", SUP, "«el cliente que menos» + aposición (Unimarc $2.3M)");
 
 H("9 · LOS FALSOS POSITIVOS DE ORDEN");
@@ -288,7 +289,7 @@ pasa("Después de Sodimac, la peor recuperación es la de Easy (40%).");
 pasa("Detrás de Falabella ($4.3M), el que más contribución deja es Jumbo ($4.2M).");
 pasa("Después de Falabella, el que más contribución deja es Jumbo ($4.2M).");
 arde("Después de Lider, el mayor vencido es el de Sodimac ($1.9M).", SUP, "…y con la exclusión el falso sigue ardiendo (sin Lider, Falabella $2.5M)");
-pasa("Lider es el cliente con más unidades vendidas después de Jumbo y Falabella: 894.", "la exclusión detrás del marcador (candado de la familia B: antes no se juzgaba; ahora se verifica y es verdad)");
+pasa("Lider es el cliente con más unidades vendidas después de Jumbo y Falabella: 900.", "la exclusión detrás del marcador (candado de la familia B: antes no se juzgaba; ahora se verifica y es verdad)");
 pasa("No es Falabella la de peor recuperación (recupera 57.7%): es Sodimac, con 35%.", "la negación del reclamante");
 pasa("No es Falabella, con 57.7%, la de peor recuperación: es Sodimac (35%).", "…a más de tres palabras");
 pasa("Ni Falabella ni Sodimac tienen el vencido más grande: lo tiene Lider ($4.6M).", "«ni A ni B»");
@@ -297,7 +298,7 @@ pasa("Lider no tiene la carga comercial más alta de la cartera (4.2%); Easy sí
 pasa("Lider no es, ni de cerca, el que más carga (4.2%): Easy carga 5.5%.");
 pasa("Falabella no tiene el saldo vencido más alto ($2.5M): lo tiene Lider ($4.6M).");
 pasa("El mayor vencido no es el de Falabella ($2.5M) sino el de Lider ($4.6M).", "la cópula negada no nombra al reclamante; el «sino» sí");
-pasa("Lider tiene la segunda venta más alta ($17.8M) y el tercer margen más bajo no: el más bajo (21.5%).", "la negación pospuesta («… no:»)");
+pasa("Lider tiene la segunda venta más alta ($17.9M) y el tercer margen más bajo no: el más bajo (21.5%).", "la negación pospuesta («… no:»)");
 pasa("Nada del capital frenado está en los SKU que más venden; está en LG-DRYER8KG ($14K), BOS-SANDER ($11K) y MAK-COMP-AIR ($8K).", "«nada … está en los que más venden»");
 pasa("A mi juicio, Lider es la cuenta más urgente: no por los días (Easy tiene 270), sino por el monto vencido ($4.6M, el mayor de la cartera).", "«urgente» sigue al eje declarado (el monto vencido)");
 pasa("Lider es la más urgente si miro el monto ($4.6M vencidos), Easy si miro los días (270).");

@@ -71,7 +71,8 @@ ok("la palanca scopeada ≤ la palanca de cartera (recortó al bloque)", leverSc
 console.log("\n── guard × palanca · mandatory bien calibrado (el bug del 30.1% fantasma) ──");
 const G = M.guardAgainstBoleta;
 // una narración de PALANCAS correcta que NO cita el benchmark (su lectura no lo usa) debe PASAR — antes caía al piso
-const narrPal = `Hay +$655K al año si llevás la carga al target del 3.5%: Easy (5.5%), Sodimac (5.4%), Ripley (4.8%) y Falabella (4.5%) están sobre el target. Solo Falabella devuelve +$194K. Yo arrancaría por ahí.`;
+/* cifra fijada del demo re-fijada (una sola realidad, 2026-10-06): el recuperable de la carga sobre el target es $656K sobre la tabla (antes $655K sobre «bonanza») */
+const narrPal = `Hay +$656K al año si llevás la carga al target del 3.5%: Easy (5.5%), Sodimac (5.4%), Ripley (4.8%) y Falabella (4.5%) están sobre el target. Solo Falabella devuelve +$194K. Yo arrancaría por ahí.`;
 const gPal = G(narrPal, bol(mPal));
 ok("narración de palancas SIN benchmark pasa el guard (30.1% ya no es obligatoria ahí)", gPal.ok);
 // el benchmark SIGUE siendo obligatorio donde la lectura lo cita (bajo_benchmark)

@@ -11,6 +11,7 @@
  * Cada fixture guarda su línea base: el gate se pone rojo por REGRESIÓN contra ella, y cuando `exigir` es true, también si la meta no
  * se cumple. Un rótulo del cazador que resulte falso se corrige en el fixture con su motivo — nunca se ajusta el Notario a un rótulo falso.
  * Cero red: herramientas puras, fixtures en disco. */
+import { leerFixtureVigente, refrescarEnProfundidad } from "./scripts/una-sola-realidad/cifrasVigentes.mjs";   /* una sola realidad (2026-10-06): los corpus archivados se leen con las cifras vigentes del demo, sin tocar el archivo */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -56,9 +57,17 @@ const HISTORICOS = new Map([
   ["fn-atribucion-2370", "frenado-regla-de-rotacion (§7.3·34b) — idem, contexto P2"],
   ["fp-prosa-0108", "efecto medido de la migración (§7.3·34b): «LG-DRYER8KG y MAK-COMP-AIR suman $22K liberables» — el rótulo «Medida · liberar…» que antes absolvía esta coordinación ya no calza byte a byte tras el renombre de superficie (capital_frenado → inmovilizado crítico); la raíz exacta vive en guardC.js:_totalMisattribution (comparación de canon entre la cifra dicha y el rótulo del ledger) y no se tocó — fuera del alcance de esta etapa (Notario/Entrega/encargo)"],
   ["fp-prosa-0109", "efecto medido de la migración (§7.3·34b) — idem, contexto P2"],
+  /* UNA SOLA REALIDAD (owner 2026-10-06): cuatro items más pierden su PREMISA por el dato, no por el juez. Atribuyen a Falabella «$17.8M — es la venta de Lider» y la cifra ajena
+   * tenía que ser de UNA sola cuenta; con la tabla Lider vende $17.857K («$17.9M») y ese mismo «$17.9M» es ahora también la venta del año anterior de Falabella (17.942K): la frase ya
+   * no es una atribución falsa inequívoca. No se reetiquetan ni se borran (registro histórico); ningún otro item de los dos conjuntos cambió de veredicto por este motivo (verificado
+   * contra el árbol limpio del commit 98ad5c03: solo estos cuatro). */
+  ["fn-atribucion-2097", "cifra ajena ya no es de una sola cuenta ($17.9M = Lider y Falabella·anterior) — «aquella vende $17.9M», contexto P1"],
+  ["fn-atribucion-2098", "idem, contexto P2"],
+  ["fn-atribucion-2099", "cifra ajena ya no es de una sola cuenta — «Falabella, cuya venta de $17.9M creció 8.3 %», contexto P1"],
+  ["fn-atribucion-2100", "idem, contexto P2"],
 ]);
 for (const [archivo, titulo] of FIXTURES) {
-  const A = JSON.parse(fs.readFileSync(new URL("./fixtures/" + archivo, import.meta.url), "utf8"));
+  const A = leerFixtureVigente(new URL("./fixtures/" + archivo, import.meta.url));
   const J = { P1: juezDe(A.preguntas.P1), P2: juezDe(A.preguntas.P2) };
   /* las leyes de la casa juzgan la respuesta entera, no una frase suelta: no cuentan ni como acierto ni como falso positivo */
   const LEYES = new Set(A.leyes_de_la_casa || []);

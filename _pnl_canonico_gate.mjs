@@ -4,7 +4,7 @@
  * —la ruta primaria en producción— no tenía forma de pedírsela: no existía ninguna tool de P&L en el catálogo.
  * Medido sobre el dato real, `detectPnlIntent` (la red del FLUJO GUIADO) devuelve null para «¿cuál es el resultado
  * del negocio después de gastos?», «el estado de resultados», «¿cuánta utilidad deja el negocio?» y hasta «P&L» a
- * secas — y cuando devuelve null, ChatADI le da el turno al oráculo, que contestaba la CONTRIBUCIÓN ($25.0M) como
+ * secas — y cuando devuelve null, ChatADI le da el turno al oráculo, que contestaba la CONTRIBUCIÓN ($25.0M, hoy $25.1M) como
  * si fuera el resultado ($18.5M). Son DOS NIVELES FINANCIEROS DISTINTOS de la misma cascada: la contribución es lo
  * que queda ANTES de los gastos declarados; el resultado, lo que queda DESPUÉS. Servir una por la otra es dar una
  * cifra REAL a una pregunta que nadie hizo — el peor modo de falla del producto, y el que rompe el límite 4 de
@@ -41,6 +41,7 @@ import { VIEW_MANIFEST } from "./src/adi/sentrix/viewManifest.js";
 import { VIEW_EVIDENCE_ROWS_MAX } from "./src/adi/oracle/viewContext.js";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+import { TENANT_EMPRESA2 } from "./src/data/tenants/empresa2.js";
 
 let PASS = 0, FAIL = 0;
 const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
@@ -78,10 +79,13 @@ H("[1] EL CRITERIO · «¿Cuál es el resultado del negocio después de gastos?�
   const resultado = figDe(figs, /^Resultado comercial$/i);
   const contrib = figDe(figs, /^Contribución$/i);
   const c = buildPnlCascade(SCN);
-  ok(!!resultado && resultado.value === "$18.5M",
-    `la cifra autorizada del RESULTADO es $18.5M (obtuvo ${resultado ? resultado.value : "—"})`);
-  ok(!!contrib && contrib.value === "$25.0M",
-    `la CONTRIBUCIÓN viaja en la misma boleta pero con SU nombre y SU cifra: $25.0M (obtuvo ${contrib ? contrib.value : "—"})`);
+  /* CIFRA FIJADA DEL DEMO, RE-FIJADA (una sola realidad, owner 2026-10-06): con la realidad = las tablas, la contribución de la cartera es
+   * Σ(venta oficial × margen) = $25.057K (antes $25.028K con el redondeo de «bonanza») y el resultado $18.6M (antes $18.5M). No es una ley: es la
+   * cifra del dato de fábrica; lo que se guarda (resultado ≠ contribución, cada una con su nombre) no cambia. */
+  ok(!!resultado && resultado.value === "$18.6M",
+    `la cifra autorizada del RESULTADO es $18.6M (obtuvo ${resultado ? resultado.value : "—"})`);
+  ok(!!contrib && contrib.value === "$25.1M",
+    `la CONTRIBUCIÓN viaja en la misma boleta pero con SU nombre y SU cifra: $25.1M (obtuvo ${contrib ? contrib.value : "—"})`);
   ok(!!resultado && !!contrib && resultado.value !== contrib.value,
     "y no son la misma cifra — el error que se está cerrando es contestar una por la otra");
   ok(Math.round(c.contribK - c.totalGastosK) === Math.round(c.resultadoK),
@@ -254,19 +258,30 @@ H("[6] EJES · lo que el P&L no puede abrir lo DECLINA con el motivo declarado (
 }
 
 /* ══ [7] ESCENARIOS ══════════════════════════════════════════════════════════════════════════════════════════ */
-H("[7] ESCENARIOS · la cifra se mueve con el dato y la cascada cierra en los tres");
+H("[7] OTROS NEGOCIOS · la cifra se mueve con el DATO y la cascada cierra en los tres");
 {
+  /* UNA SOLA REALIDAD (owner 2026-10-06): antes se ejercitaban los mundos bonanza/tensión/crisis. El escenario ya no mueve el dato; lo que este
+   * bloque guardaba —la tool NO es ciega al dato y la cascada cierra exacto— se prueba con tres NEGOCIOS (insumo explícito): el demo, el
+   * demo con la venta de cada cliente −10 % (un mundo adverso construido con filas, no con un escenario) y empresa2. */
+  const MUNDOS = {
+    demo: TENANT_DEMO,
+    "demo −10 % de venta": { ...TENANT_DEMO, clientesVentas: TENANT_DEMO.clientesVentas.map((c) => ({ ...c, actual: Math.round(c.actual * 0.9) })) },
+    empresa2: TENANT_EMPRESA2,
+  };
   const vistos = new Set();
-  for (const scn of ["bonanza", "tension", "crisis"]) {
+  for (const [nombre, mundo] of Object.entries(MUNDOS)) {
+    initTenant(mundo);
     sembrar();
-    const r = TOOLS.pnlRead({ scenario: scn });
+    const r = TOOLS.pnlRead({ scenario: SCN });
     const f = figDe(r.boleta, /^Resultado comercial$/i);
     vistos.add(f && f.value);
-    const c = buildPnlCascade(scn);
+    const c = buildPnlCascade(SCN);
     ok(Math.round(c.ingresoK - c.costoK - c.cargaK - c.totalGastosK) === Math.round(c.resultadoK),
-      `[${scn}] la cascada cierra exacto — resultado ${f ? f.value : "—"}`);
+      `[${nombre}] la cascada cierra exacto — resultado ${f ? f.value : "—"}`);
   }
-  ok(vistos.size === 3, `la cifra del resultado es DISTINTA en los tres escenarios (${[...vistos].join(" · ")}) — la tool no es scenario-blind`);
+  initTenant(TENANT_DEMO);
+  sembrar();
+  ok(vistos.size === 3, `la cifra del resultado es DISTINTA en los tres negocios (${[...vistos].join(" · ")}) — la tool lee el dato`);
 }
 
 /* ══ [8] COTA ════════════════════════════════════════════════════════════════════════════════════════════════ */

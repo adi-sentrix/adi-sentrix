@@ -30,11 +30,11 @@ jc: Tu margen promedio viene en 25.1% — 5.0 pp bajo el benchmark que declarast
 
 Donde más contribución dejas sin capturar — los 3 que más pesan de las 5 cuentas materiales (de 8 bajo el benchmark):
 - Falabella · deja $1.6M sin capturar · margen 22.0% · venta $19.4M
-- Lider · deja $1.5M sin capturar · margen 21.5% · venta $17.8M
+- Lider · deja $1.5M sin capturar · margen 21.5% · venta $17.9M
 - Jumbo · deja $1.1M sin capturar · margen 24.0% · venta $17.3M
 
 Entre los que caen, la contribución no capturada suma $4.9M.
-Dónde está: en carga comercial alta, $655K — la más pesada es la de Falabella ($194K).
+Dónde está: en carga comercial alta, $656K — la más pesada es la de Falabella ($194K).
 
 ¿Lo abrimos por Falabella? Es donde hay más contribución en juego.
 ```
@@ -66,11 +66,11 @@ Tu margen promedio viene en 25.1% — 5.0 pp bajo el benchmark que declaraste (3
 
 Donde más contribución dejas sin capturar — los 3 que más pesan de las 5 cuentas materiales (de 8 bajo el benchmark):
 - Falabella · deja $1.6M sin capturar · margen 22.0% · venta $19.4M
-- Lider · deja $1.5M sin capturar · margen 21.5% · venta $17.8M
+- Lider · deja $1.5M sin capturar · margen 21.5% · venta $17.9M
 - Jumbo · deja $1.1M sin capturar · margen 24.0% · venta $17.3M
 
 Entre los que caen, la contribución no capturada suma $4.9M.
-Dónde está: en carga comercial alta, $655K — la más pesada es la de Falabella ($194K).
+Dónde está: en carga comercial alta, $656K — la más pesada es la de Falabella ($194K).
 
 ¿Lo abrimos por Falabella? Es donde hay más contribución en juego.
 ```
@@ -87,7 +87,7 @@ Dónde está: en carga comercial alta, $655K — la más pesada es la de Falabel
   componente que se verifica contra una fuente que él no controla.
 - **El cierre ofrece, no ordena.** «¿Lo abrimos por Falabella? Es donde hay más contribución en juego» — la
   decisión sigue siendo del usuario, como pidió el owner cuando definió el contrato del agente.
-- **Localiza, no inventa causas.** Dice *dónde* está el exceso («carga comercial alta por $655K — la más pesada es
+- **Localiza, no inventa causas.** Dice *dónde* está el exceso («carga comercial alta por $656K — la más pesada es
   la de Falabella, $194K») porque eso lo declara el motor. No dice *por qué* Falabella cede margen: eso el dato no lo sabe,
   y la lista notarial del playbook veta cruzar esa línea.
 - **El muro no se tocó.** Si el cerebro escribe una cifra que el dato no sostiene, sigue muriendo igual. Y si

@@ -19,6 +19,7 @@
  * contrato (`prioridad-integrada-cambiada`: el cerebro la explica, no la cambia).
  *
  * Cero red: cerebro mudo, herramientas puras, fixtures en disco. */
+import { leerFixtureVigente } from "./scripts/una-sola-realidad/cifrasVigentes.mjs";   /* una sola realidad (2026-10-06): los corpus archivados se leen con las cifras vigentes del demo, sin tocar el archivo */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -40,8 +41,8 @@ const CAJA = cajaDelAgente(TOOLS);
 const MUDO = async (a) => { MUDO.llamadas.push(a); return { tipo: "texto", texto: "", stop: "end_turn" }; };
 MUDO.llamadas = [];
 initTenant(TENANT_DEMO);
-const FX = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-produccion-2026-09-14.json", import.meta.url), "utf8"));
-const VIVO = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo-2026-09-14.json", import.meta.url), "utf8"));
+const FX = leerFixtureVigente(new URL("./fixtures/encargo-produccion-2026-09-14.json", import.meta.url));
+const VIVO = leerFixtureVigente(new URL("./fixtures/encargo-vivo-2026-09-14.json", import.meta.url));
 const _pasoDe = (r, sitio) => (((r.r.agente || {}).notario || {}).pasos || []).find((p) => p.sitio === sitio) || null;
 const _detectoresDe = (r) => (((r.r.agente || {}).notario || {}).pasos || []).flatMap((p) => p.detectores || []);
 const Q = FX.pregunta;
@@ -145,7 +146,7 @@ H("5 · el estándar está escrito donde vive");
 /* ═══ 6 · LA CORRIDA EN VIVO DEL ESTÁNDAR, COMO FIXTURE: EL MODELO LO CUMPLIÓ Y LO TUMBARON DOS FALSOS POSITIVOS ══ */
 H("6 · la corrida viva (autorizada, 2 llamadas): el modelo puso a Lider primero por señales; cayó por «motor de ventas» y «casi el doble» — cerrados");
 {
-  const V2 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo2-2026-09-14.json", import.meta.url), "utf8"));
+  const V2 = leerFixtureVigente(new URL("./fixtures/encargo-vivo2-2026-09-14.json", import.meta.url));
   ok(V2.pregunta === Q && V2.borradores.length === 2 && V2.final.estado === "encargo-compuesto", "la corrida: el prompt exacto, dos borradores, y el usuario recibió el respaldo");
   const b2 = V2.borradores[1].texto;
   ok(/\*\*Lider va primero\*\*: brecha al benchmark más severa \(8\.6 pp contra 8\.1 pp de Falabella\)/.test(b2) && /Falabella solo le gana en contribución no capturada en pesos \(\$1\.6M vs \$1\.5M\)/.test(b2), "★ el modelo, por su cuenta y con la doctrina, puso a Lider primero señal por señal y dijo en qué gana Falabella");
@@ -177,7 +178,7 @@ H("6 · la corrida viva (autorizada, 2 llamadas): el modelo puso a Lider primero
 /* ═══ 7 · LA TERCERA CORRIDA VIVA: «LÍDER» CON TILDE, EL SUJETO ELIDIDO Y «LA SUPERA» ════════════════════════════ */
 H("7 · la tercera corrida viva (autorizada, 2 llamadas): la reparación cumplió los cinco puntos y cayó por tres falsos positivos — cerrados");
 {
-  const V3 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo3-2026-09-14.json", import.meta.url), "utf8"));
+  const V3 = leerFixtureVigente(new URL("./fixtures/encargo-vivo3-2026-09-14.json", import.meta.url));
   ok(V3.pregunta === Q && V3.borradores.length === 2 && V3.final.estado === "encargo-compuesto", "la corrida: el prompt exacto, dos borradores, y el usuario recibió el respaldo");
   const b3 = V3.borradores[1].texto;
   ok((b3.match(/Líder/g) || []).length >= 10 && !/\bLider\b/.test(b3), "el modelo escribió «Líder» con tilde en todas sus apariciones (el dato dice «Lider»)");
@@ -216,7 +217,7 @@ H("7 · la tercera corrida viva (autorizada, 2 llamadas): la reparación cumpli�
 /* ═══ 8 · EL SEGUNDO CASO PERMANENTE: «EL MAYOR RIESGO ECONÓMICO» — EL CIERRE INTEGRADO VA SIEMPRE ══════════════════ */
 H("8 · segundo prompt de producción: pide el mayor riesgo con sus palabras — el cierre integrado va siempre y ninguna prioridad local sobrevive como global");
 {
-  const FX2 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-produccion2-2026-09-14.json", import.meta.url), "utf8"));
+  const FX2 = leerFixtureVigente(new URL("./fixtures/encargo-produccion2-2026-09-14.json", import.meta.url));
   const Q2 = FX2.pregunta;
   ok(/mayor riesgo económico/.test(Q2) && /debería preocuparme primero/.test(Q2) && /prioritario/.test(Q2) && !/\bprioridad\b|har[ií]as primero|pondr[ií]as el foco/.test(Q2), "el prompt pide la decisión con sus palabras: «mayor riesgo», «debería preocuparme primero», «prioritario» — sin «prioridad» ni «qué harías primero»");
   const partes2 = partesDelEncargo(Q2);
@@ -248,8 +249,8 @@ H("8 · segundo prompt de producción: pide el mayor riesgo con sus palabras —
 /* ═══ 9 · LA CORRIDA VIVA DEL SEGUNDO CASO: VERDE EN UNA LLAMADA, Y EL NOTARIO VERIFICA LA MISMA PRIORIDAD ═══════ */
 H("9 · el segundo prompt en vivo (autorizado, 1 llamada): el modelo terminó en Lider por señales; modelo y respaldo comparten la conclusión");
 {
-  const V = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo2-vivo-2026-09-14.json", import.meta.url), "utf8"));
-  const FX2 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-produccion2-2026-09-14.json", import.meta.url), "utf8"));
+  const V = leerFixtureVigente(new URL("./fixtures/encargo2-vivo-2026-09-14.json", import.meta.url));
+  const FX2 = leerFixtureVigente(new URL("./fixtures/encargo-produccion2-2026-09-14.json", import.meta.url));
   const tv = V.final.texto;
   ok(V.pregunta === FX2.pregunta && V.final.estado === "verde" && V.llamadas === 1, "la corrida: el prompt exacto, verde en una llamada");
   ok(/es \*\*Lider\*\*/.test(tv) && /\*\*Lider es la prioridad integrada\*\*/.test(tv) && /Va primero que Falabella no por el monto de contribución/.test(tv), "★ el modelo abre con Lider como el mayor riesgo y lo explica por severidad y urgencia, no por el monto");
@@ -269,7 +270,7 @@ H("10 · la jerarquía del criterio: explícito manda · implícito se interpret
 {
   const { criterioDeLaPregunta, pideTesoreria, ordenPorCriterio, primerosPorCriterio, CRITERIOS } = await import("./src/adi/agente/prioridadIntegrada.js");
   const { playbookPara } = await import("./src/adi/agente/playbooks/registro.js");
-  const FX2 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-produccion2-2026-09-14.json", import.meta.url), "utf8"));
+  const FX2 = leerFixtureVigente(new URL("./fixtures/encargo-produccion2-2026-09-14.json", import.meta.url));
   /* 1 · explícito */
   const expl = [["Prioriza ventas y dime por dónde parto.", "ventas"], ["Ahora ordénamelo por cobranza.", "credito"], ["Quiero recuperar contribución: ¿qué cuenta primero?", "contribucion"], ["Prioriza riesgo.", "riesgo"], ["Con la lente de cobranza, ¿quién primero?", "credito"], ["ahora por contribución", "contribucion"], ["Prioriza margen.", "contribucion"], ["ordénamelo por crecimiento", "crecimiento"], ["quiero liberar capital: ¿qué SKU primero?", "capital"]];
   for (const [q, c] of expl) { const r = criterioDeLaPregunta(q); ok(r && r.criterio === c && r.modo === "explicito", `explícito: «${q}» → ${c}`, JSON.stringify(r)); }
@@ -372,8 +373,8 @@ H("11 · «Hazme una lectura ejecutiva de estos datos… qué debería preocupar
 /* ═══ 12 · LAS DOS PRUEBAS DEL OWNER EN VIVO (v2.31): AMBAS «PODADO» — EL CRITERIO DE ÉXITO ES LO QUE RECIBE EL USUARIO ═ */
 H("12 · las dos pruebas vivas de la v2.31 (autorizadas, 2 llamadas cada una): dos falsos positivos cerrados, los vetos legítimos se quedan, y lo servido cumple");
 {
-  const V5 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo5-2026-09-14.json", import.meta.url), "utf8"));
-  const LE = JSON.parse(fs.readFileSync(new URL("./fixtures/lectura-ejecutiva-vivo-2026-09-14.json", import.meta.url), "utf8"));
+  const V5 = leerFixtureVigente(new URL("./fixtures/encargo-vivo5-2026-09-14.json", import.meta.url));
+  const LE = leerFixtureVigente(new URL("./fixtures/lectura-ejecutiva-vivo-2026-09-14.json", import.meta.url));
   const { criterioDeLaPregunta } = await import("./src/adi/agente/prioridadIntegrada.js");
   const { guardC } = await import("./src/adi/oracle/guardC.js");
   const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
@@ -428,8 +429,8 @@ H("12 · las dos pruebas vivas de la v2.31 (autorizadas, 2 llamadas cada una): d
 /* ═══ 13 · LAS SEGUNDAS CORRIDAS (v2.31): DOS FALSOS POSITIVOS MÁS EN LA PRUEBA 1 — CERRADOS — Y LO QUE EL MURO NO VIO EN LA 2 ═ */
 H("13 · segundas corridas vivas (autorizadas, 2 llamadas cada una): la prueba 1 cayó por «recuperas $22K» y «cambia el orden» — cerrados; la prueba 2 sirvió la reparación con dos errores que el muro no vio (caso al owner)");
 {
-  const V6 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo6-2026-09-14.json", import.meta.url), "utf8"));
-  const L2 = JSON.parse(fs.readFileSync(new URL("./fixtures/lectura-ejecutiva-vivo2-2026-09-14.json", import.meta.url), "utf8"));
+  const V6 = leerFixtureVigente(new URL("./fixtures/encargo-vivo6-2026-09-14.json", import.meta.url));
+  const L2 = leerFixtureVigente(new URL("./fixtures/lectura-ejecutiva-vivo2-2026-09-14.json", import.meta.url));
   const { guardC } = await import("./src/adi/oracle/guardC.js");
   const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
   const { playbookPara, pasosDe } = await import("./src/adi/agente/playbooks/registro.js");
@@ -491,8 +492,8 @@ H("13 · segundas corridas vivas (autorizadas, 2 llamadas cada una): la prueba 1
 /* ═══ 14 · LOS DOS HUECOS DEL MURO, CERRADOS, Y LA LEY DE LA COINCIDENCIA (owner 2026-09-14) ════════════════════════ */
 H("14 · universo de grupos · ordinales y rankings · «coincide en dos dominios» no es razón: los tres, sobre las respuestas reales");
 {
-  const L2 = JSON.parse(fs.readFileSync(new URL("./fixtures/lectura-ejecutiva-vivo2-2026-09-14.json", import.meta.url), "utf8"));
-  const V6 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo6-2026-09-14.json", import.meta.url), "utf8"));
+  const L2 = leerFixtureVigente(new URL("./fixtures/lectura-ejecutiva-vivo2-2026-09-14.json", import.meta.url));
+  const V6 = leerFixtureVigente(new URL("./fixtures/encargo-vivo6-2026-09-14.json", import.meta.url));
   const { guardC } = await import("./src/adi/oracle/guardC.js");
   const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
   const { playbookPara, pasosDe } = await import("./src/adi/agente/playbooks/registro.js");
@@ -526,17 +527,17 @@ H("14 · universo de grupos · ordinales y rankings · «coincide en dos dominio
    * por coincidir con la razón entre dos montos que el texto jamás nombró. Los porcentajes de corrido de la casa (el YoY
    * del negocio, el umbral de materialidad) los publican ahora los emisores con rótulo, y el «+» del emisor no es otra cifra. */
   ok(arde("Seis cuentas pesan 68.4% de la venta.", "cifra-no-autorizada") && arde("Falabella, Lider y Jumbo pesan 68.4% de la venta.", "cifra-no-autorizada"), "★ «Seis cuentas pesan 68.4% de la venta» ARDE como cifra no autorizada: ya no hay razón entre dos montos no dichos que la salve");
-  ok(!arde("La venta viene +7.5% contra el año anterior.", "cifra-no-autorizada") && !arde("La venta crece 7.5% contra el año anterior.", "cifra-no-autorizada") && M2.rp.ledger.figs.some((f) => f.label === "Ventas vs año anterior" && f.value === "+7.5%"), "el YoY del negocio que el emisor publica con signo («Ventas vs año anterior = +7.5%») autoriza «+7.5%» y «7.5%» por la boleta, no por el catálogo");
+  ok(!arde("La venta viene +7.6% contra el año anterior.", "cifra-no-autorizada") && !arde("La venta crece 7.6% contra el año anterior.", "cifra-no-autorizada") && M2.rp.ledger.figs.some((f) => f.label === "Ventas vs año anterior" && f.value === "+7.6%"), "el YoY del negocio que el emisor publica con signo («Ventas vs año anterior = +7.6%») autoriza «+7.6%» y «7.6%» por la boleta, no por el catálogo");
   ok(!arde("Está bajo el 0.05% de tu venta: $50K — no es tu incendio de hoy.", "cifra-no-autorizada") && M2.rp.ledger.figs.some((f) => /^Umbral de materialidad · % de la venta$/.test(f.label)) && M2.rp.ledger.figs.some((f) => /^Umbral de materialidad · en dinero$/.test(f.label)), "el umbral de materialidad («bajo el 0.05% de tu venta: $50K») viaja en la boleta con rótulo, y la frase pasa por él");
   {
     /* los 12 borradores reales de la auditoría: ningún porcentaje correcto se veta ahora — todos siguen autorizados por la
      * boleta, por una cuenta mostrada o por la proyección del dato con su dueño */
     const { stripLanguageLeaks } = await import("./src/adi/llm/voiceGuard.js");
-    const AUD = JSON.parse(fs.readFileSync(new URL("./fixtures/auditoria-notario-2026-09-14.json", import.meta.url), "utf8"));
+    const AUD = leerFixtureVigente(new URL("./fixtures/auditoria-notario-2026-09-14.json", import.meta.url));
     const jueces = new Map();
     const pctVetados = [];
     for (const c of AUD.corpus) {
-      const FX = JSON.parse(fs.readFileSync(new URL("./fixtures/" + c.fixture, import.meta.url), "utf8"));
+      const FX = leerFixtureVigente(new URL("./fixtures/" + c.fixture, import.meta.url));
       if (!jueces.has(FX.pregunta)) jueces.set(FX.pregunta, muroDe(FX.pregunta));
       const texto = stripLanguageLeaks(String(FX.borradores[c.borrador - 1].texto));
       for (const x of jueces.get(FX.pregunta).muro(texto)) if (x.kind === "cifra-no-autorizada" && /%|pp\b/.test(String(x.detail))) pctVetados.push(`${c.id}·${c.sitio}: ${x.detail}`);
@@ -574,7 +575,7 @@ H("14 · universo de grupos · ordinales y rankings · «coincide en dos dominio
 /* ═══ 15 · LA TERCERA CORRIDA DE LA PRUEBA 1: LA REPARACIÓN ERA LA RESPUESTA Y CAYÓ POR CUATRO FALSOS POSITIVOS — CERRADOS ═══ */
 H("15 · tercera corrida viva de la prueba 1 (autorizada, 2 llamadas): «carga baja» adjetivo · «de eso» pegado · «frenados» es capital · «carga» a secas — cerrados; la reparación se sirve entera");
 {
-  const V7 = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo7-2026-09-14.json", import.meta.url), "utf8"));
+  const V7 = leerFixtureVigente(new URL("./fixtures/encargo-vivo7-2026-09-14.json", import.meta.url));
   const { guardC } = await import("./src/adi/oracle/guardC.js");
   const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
   const { playbookPara, pasosDe } = await import("./src/adi/agente/playbooks/registro.js");
@@ -618,7 +619,7 @@ H("15 · tercera corrida viva de la prueba 1 (autorizada, 2 llamadas): «carga b
 /* ═══ 16 · LA TERCERA CORRIDA DE LA PRUEBA 2: EL CIERRE ERA LA RESPUESTA Y CAYÓ POR DOS FALSOS POSITIVOS — CERRADOS ═════════ */
 H("16 · tercera corrida viva de la prueba 2 (autorizada, 2 llamadas): el paréntesis no cambia el sujeto · la coincidencia negada no arde · «mayor que» es comparativo · el «la» de dos oraciones atrás — cerrados; el cierre se sirve entero");
 {
-  const L3 = JSON.parse(fs.readFileSync(new URL("./fixtures/lectura-ejecutiva-vivo3-2026-09-14.json", import.meta.url), "utf8"));
+  const L3 = leerFixtureVigente(new URL("./fixtures/lectura-ejecutiva-vivo3-2026-09-14.json", import.meta.url));
   const { guardC } = await import("./src/adi/oracle/guardC.js");
   const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
   const { playbookPara, pasosDe } = await import("./src/adi/agente/playbooks/registro.js");
@@ -680,12 +681,12 @@ H("17 · la cifra de un grupo es del grupo completo: promedios, subtotales, pron
   ok(g49 && g49.n === 5 && g49.entidades.join(",") === "Falabella,Lider,Jumbo,Sodimac,Ripley" && g588 && g588.n === 5 && g44 && g44.n === 5 && g655 && g655.n === 6 && g33 && g33.n === 3 && g33.entidades.join(",") === "LG-DRYER8KG,BOS-SANDER,MAK-COMP-AIR", "★ los subtotales del diagnóstico declaran su grupo: $4.9M/$588K/$4.4M de las 5 materiales, $655K de las 6 sobre el nivel, $33K de los 3 SKU frenados", JSON.stringify([g49, g655, g33]));
   ok(!M1.rp.ledger.figs.some((f) => f.grupo && /^(?:Medida|Resto de)/.test(String(f.label))) && !M1.rp.ledger.figs.some((f) => f.grupo && f.unit === "count"), "y NO llevan grupo: la medida «liberar A y B = $22K» (colgarla de uno de los dos es correcto), «Resto (3 de 13)» (su canon también es de Lider y de Falabella) ni los conteos (un entero suelto no se lee del texto)");
   /* 2 · los 8 casos reales de la familia, detectados por verificación (y ningún veto de la familia sobre lo que la auditoría dio por correcto) */
-  const AUD = JSON.parse(fs.readFileSync(new URL("./fixtures/auditoria-notario-2026-09-14.json", import.meta.url), "utf8"));
+  const AUD = leerFixtureVigente(new URL("./fixtures/auditoria-notario-2026-09-14.json", import.meta.url));
   const ESPERADOS = { "P1·1·cierre": [], "P1·1·reparacion": [], "P1·2·cierre": ["41.4%"], "P1·2·reparacion": ["41.4%", "2 de 13 cuentas"], "P1·3·cierre": ["41.4%"], "P1·3·reparacion": ["41.4%"], "P2·1·cierre": ["41.4%", "57.3%"], "P2·1·reparacion": ["41.4%"], "P2·2·cierre": ["73.8%"], "P2·2·reparacion": ["73.8%"], "P2·3·cierre": [], "P2·3·reparacion": [] };
   const jueces = new Map();
   let familiaDetectada = 0, familiaTotal = 0;
   for (const c of AUD.corpus) {
-    const FXc = JSON.parse(fs.readFileSync(new URL("./fixtures/" + c.fixture, import.meta.url), "utf8"));
+    const FXc = leerFixtureVigente(new URL("./fixtures/" + c.fixture, import.meta.url));
     if (!jueces.has(FXc.pregunta)) jueces.set(FXc.pregunta, muroDe(FXc.pregunta));
     const texto = stripLanguageLeaks(String(FXc.borradores[c.borrador - 1].texto));
     const vetos = fam(jueces.get(FXc.pregunta), texto);
@@ -697,7 +698,7 @@ H("17 · la cifra de un grupo es del grupo completo: promedios, subtotales, pron
   ok(familiaTotal === 9 && familiaDetectada === 9, `★ los 9 errores reales de la familia (8 de grupo —los dos del 73.8% ya se veían— + 1 de conteo) se detectan: ${familiaDetectada}/${familiaTotal}`);
   /* el 41.4% de «estos clientes» en el cierre de P2·1 no está en la auditoría, pero es la misma afirmación que su reparación («su precio de
    * lista … 41.4%», registrada): «estos clientes» remite a Falabella, Jumbo y Lider */
-  const LEc = JSON.parse(fs.readFileSync(new URL("./fixtures/lectura-ejecutiva-vivo-2026-09-14.json", import.meta.url), "utf8"));
+  const LEc = leerFixtureVigente(new URL("./fixtures/lectura-ejecutiva-vivo-2026-09-14.json", import.meta.url));
   ok(fam(jueces.get(LEc.pregunta), stripLanguageLeaks(LEc.borradores[0].texto)).some((v) => /«41\.4%».*«estos clientes» remite a la última lista del párrafo, de 3 nombres \(Falabella, Jumbo, Lider\)/.test(v)), "el cierre de P2·1 también reparte el 41.4% («el precio de lista de estos clientes» → Falabella, Jumbo y Lider), igual que su reparación con «su»");
   /* 3 · las afirmaciones correctas de los 12 borradores, una por una (revisadas a mano contra la hoja de referencia) */
   const arde = (t, M = M1) => fam(M, t).length > 0;
@@ -709,13 +710,13 @@ H("17 · la cifra de un grupo es del grupo completo: promedios, subtotales, pron
   ok(cita("Falabella, Lider, Jumbo y Sodimac están bajo el benchmark. Esas cuentas tienen markup promedio 41.4%.", /«esas cuentas» remite a la última lista del párrafo, de 4 nombres/) && cita("Falabella, Lider, Jumbo y Sodimac caen; su markup promedio es 41.4%.", /«su» remite a la última lista/) && cita("Falabella, Lider, Jumbo, Sodimac, Paris y Tottus caen por carga. Esas seis cuentas pesan 73.8% de la venta.", /«esas seis cuentas» remite .* sobran: Tottus/), "el pronombre o demostrativo remite a la última lista del párrafo: «esas cuentas», «su», y «esas seis cuentas» con Tottus en vez de Ripley arden diciendo la lista");
   ok(cita("El markup de los sanos es 57.3% (Easy, La Polar, Hites).", /«57\.3%» .* 3 nombres \(Easy, La Polar, Hites\) — quedan fuera: ABC, Unimarc/) && cita("Easy, La Polar y Hites promedian 57.3% de markup.", /quedan fuera: ABC, Unimarc/) && cita("Su precio de lista está más pegado al costo (markup 41.4% contra 57.3% en Easy, La Polar y Hites).", /«57\.3%»/), "la lista después de la cifra: «57.3% (Easy, La Polar, Hites)», «Easy, La Polar y Hites promedian 57.3%» y «57.3% en Easy, La Polar y Hites» arden con ABC y Unimarc faltando");
   ok(cita("Falabella, Lider, Jumbo y Sodimac caen. El precio de lista de los sanos está más lejos del costo que el de estos cuatro (markup 57.3% contra 41.4%).", /«41\.4%».*«estos cuatro»/) && !arde("El precio de lista de los sanos está más lejos del costo que el de los que caen (markup 57.3% contra 41.4%).") && !cita("Además, el precio de lista de estos cuatro está más pegado al costo que el de los sanos (markup 41.4% contra 57.3% en Easy/La Polar/Hites/ABC/Unimarc).", /«57\.3%»/), "cada referencia ata la cifra de SU lado de la comparación: «estos cuatro» tras «que el de» ata el 41.4% que va tras «contra», nunca el 57.3%; y la lista con barras de los cinco sanos no arde");
-  ok(cita("La contribución no capturada de Falabella, Lider y Jumbo suma $4.9M.", /«\$4\.9M» es la cifra de un GRUPO de 5/) && cita("Falabella y Lider concentran $655K de carga comercial alta.", /«\$655K» es la cifra de un GRUPO de 6/) && cita("LG-DRYER8KG y BOS-SANDER suman $33K de capital frenado.", /«\$33K» es la cifra de un GRUPO de 3 .* quedan fuera: MAK-COMP-AIR/), "los subtotales también: $4.9M en tres, $655K en dos y $33K en dos SKU arden con su grupo");
+  ok(cita("La contribución no capturada de Falabella, Lider y Jumbo suma $4.9M.", /«\$4\.9M» es la cifra de un GRUPO de 5/) && cita("Falabella y Lider concentran $656K de carga comercial alta.", /«\$656K» es la cifra de un GRUPO de 6/) && cita("LG-DRYER8KG y BOS-SANDER suman $33K de capital frenado.", /«\$33K» es la cifra de un GRUPO de 3 .* quedan fuera: MAK-COMP-AIR/), "los subtotales también: $4.9M en tres, $655K en dos y $33K en dos SKU arden con su grupo");
   /* 5 · «N de M cuentas» con predicado: contra lo que la boleta permite contar */
-  ok(cita("Cayendo (2 de 13 cuentas): Ripley y La Polar.", /«2 de 13 cuentas» caen: según la boleta son 4 de 13 \(Ripley, La Polar, Unimarc, Easy\) — sin nombrar: Unimarc, Easy/) && cita("Solo 2 de 13 cuentas caen: Ripley y La Polar.", /son 4 de 13/) && cita("Caen 3 de 13 cuentas.", /son 4 de 13/), "★ «Cayendo (2 de 13 cuentas)» arde: la boleta trae la variación de las 13 con signo y caen 4 (faltan Unimarc y Easy) — también «solo 2 de 13 caen» y «caen 3 de 13»");
+  ok(cita("Cayendo (2 de 13 cuentas): Ripley y La Polar.", /«2 de 13 cuentas» caen: según la boleta son 4 de 13 \(La Polar, Ripley, Unimarc, Easy\) — sin nombrar: Unimarc, Easy/)   /* CONCLUSIÓN QUE CAMBIA, APROBADA (diseño §4f ①, owner 2026-10-06): con la tabla, quien más cede en venta es La Polar (−$417K), no Ripley (−$414K) — la multa lista las cuatro en ese orden; los mismos 4 de 13 y los mismos sin nombrar */ && cita("Solo 2 de 13 cuentas caen: Ripley y La Polar.", /son 4 de 13/) && cita("Caen 3 de 13 cuentas.", /son 4 de 13/), "★ «Cayendo (2 de 13 cuentas)» arde: la boleta trae la variación de las 13 con signo y caen 4 (faltan Unimarc y Easy) — también «solo 2 de 13 caen» y «caen 3 de 13»");
   ok(cita("Hay 7 de 13 clientes bajo el benchmark.", /son 8 de 13/) && cita("Crecen 8 de 13 cuentas.", /crecen: según la boleta son 9 de 13/) && !arde("8 de 13 clientes están bajo el benchmark.") && !arde("5 de 13 cuentas están sobre el benchmark.") && !arde("4 de 13 cuentas caen: Ripley, La Polar, Easy y Unimarc."), "bajo/sobre el benchmark y crecen se derivan del ranking de brecha y de las variaciones: el conteo correcto pasa, el otro arde");
   ok(!arde("2 de 13 cuentas caen más de 8%: Ripley y La Polar.") && !arde("6 de 13 cuentas tienen carga sobre el nivel declarado.") && !arde("6 de 13 cuentas —Falabella, Lider, Jumbo, Sodimac, Paris y Ripley— están bajo el benchmark y con carga sobre el nivel.") && !arde("Resto (3 de 13) de contribución: $1.5M.") && !arde("Los 5 SKU que más venden son también los 5 que más contribución dejan (de 13 SKU en total)."), "no se juzga lo que no se puede derivar: un predicado con umbral («caen más de 8%»), el conteo material de la propia boleta («6 sobre el nivel declarado»), dos predicados intersecados (6), un «N de M» sin predicado ni sustantivo, y el eje SKU");
   /* 6 · el respaldo (ensamblador) y lo servido en las corridas no arden por la familia */
-  const V6c = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo6-2026-09-14.json", import.meta.url), "utf8"));
+  const V6c = leerFixtureVigente(new URL("./fixtures/encargo-vivo6-2026-09-14.json", import.meta.url));
   ok(!arde(V6c.final.texto) && V6c.final.estado === "encargo-compuesto", "el respaldo compuesto («$655K — la más pesada es la de Falabella ($194K)», «6 pagan margen en acciones comerciales (Falabella · Lider)») no arde: la respuesta de la casa sigue sirviéndose entera");
 }
 

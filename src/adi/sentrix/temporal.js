@@ -152,12 +152,11 @@ export function buildGlobalEvolution() {
  *
  * DE DÓNDE SALE EL ANCLA. `getVentasKPI(null, null, scenario)` — la MISMA llamada que hace `sentrix/mesa.js` para
  * la card de ventas, y el total que el owner ya declaró como una sola verdad con la respuesta de ADI (2026-07-15).
- * Es scenario-aware (`SCENARIO_TRANSFORMS[scn].kpis.ventas`: 99.999 · 92.892 · 81.182), a diferencia de
- * `ventasKPI`, que es un literal fijo y es el que hacía que la tool contestara lo mismo en los tres escenarios.
- * NO se usa `deriveKpis` (Σ de las filas transformadas: 99.887 · 92.828 · 81.091) aunque sea el total de la cara
- * Comercial: son dos anclas separadas por el ~0,1% que el dataset arrastra entre `ventasKPI` y Σ`clientesVentas`,
- * y elegir cuál es LA venta oficial es decisión del owner. Acá se conserva la que ADI ya tenía comprometida y el
- * resto queda declarado en el manifiesto.
+ * ⚠️ UNA SOLA REALIDAD (owner 2026-10-06): hasta entonces esta llamada era «scenario-aware» (`SCENARIO_TRANSFORMS[scn].kpis.ventas`: 99.999
+ * · 92.892 · 81.182) y NO coincidía con `deriveKpis` (Σ de las filas transformadas: 99.887 · …): dos anclas separadas por el ~0,1 %. Con
+ * las TABLAS como realidad no hay transform que las separe: el KPI de cabecera del pack es la suma de las filas del cliente (en el demo se
+ * deriva de ellas) y `getVentasKPI` y `deriveKpis` dan la MISMA venta ($100.000K). La función se conserva como la puerta única de «la venta
+ * oficial del período».
  */
 export function ventaOficialDelPeriodo(scenario = ESCENARIO_INICIAL) {
   const k = getVentasKPI(null, null, scenario) || {};

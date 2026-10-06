@@ -1,12 +1,18 @@
 /* === scenarios.js ===
  * MOTOR PURO extraído de 41cc33d8 · misma entrada → misma salida · sin React.
  * Funciones copiadas verbatim; solo se agregan imports. Cero cambio de cálculo. */
-import { FEATURE_FAMILY_MARGEN_BLENDED } from "../config/features.js";
 import { benchmarkOf } from "../config/businessPolicy.js";   // la vara única: perfil del tenant → config, con el criterio C.2 encima
 import { SCENARIO_TRANSFORMS } from "../config/scenarios.js";
+import { margenKPI } from "../data/baseKpis.js";   // el margen del año anterior lo DECLARA el pack (ver deriveKpis)
 import { clientesMargen, clientesVentas, marcasMargen, marcasVentas, sfamiliasMargen, sfamiliasVentas, skuInventario } from "../data/demoData.js";
 import { kpiInventario } from "../adi/diagnosis/economicDiagnosis.js";   // R7 (owner 2026-09-28, §7.3·31-32): el indicador de inventario ya NO es un literal — lo calcula la fuente única
 
+/* UNA SOLA REALIDAD (owner 2026-10-06, _ADI_DISENO_UNA_SOLA_REALIDAD.md): las TABLAS del tenant son la realidad
+ * vigente —como una planilla real—; el «escenario» como fuente paralela de la verdad se retiró. Lo único que sobrevive
+ * es la SIMULACIÓN EXPLÍCITA: un `override` (Simulate v2) que se aplica como DELTA sobre la fila real.
+ *   · `growth` es un delta porcentual sobre la cifra REAL (`actual × (1+g)`, unidades al 70 % del ritmo); sin `growth` la
+ *     fila real queda intacta (antes: `anterior × (1+growth)`, y sin growth daba NaN).
+ *   · `rebateDelta` / `marginErosion` / `__remove__` / `__set__` ya eran deltas o filtros sobre la fila. */
 export function applyScenarioToClientesVentas(scenarioId, override) {
   const t = resolveTransform(scenarioId, override)?.clientes;
   if (!t) return clientesVentas;
@@ -15,11 +21,12 @@ export function applyScenarioToClientesVentas(scenarioId, override) {
   return clientesVentas.filter(c => !_removed.has(c.nombre)).map(c => {
     const tc = t[c.nombre];
     if (!tc) return c;
-    // Crecimiento aplicado sobre el "anterior" (estado base independiente del escenario)
-    const newActual    = Math.round(c.anterior * (1 + tc.growth / 100));
+    // growth = DELTA sobre la venta REAL (la tabla): sin growth, la realidad queda intacta (0 NaN)
+    const g            = (typeof tc.growth === "number" && Number.isFinite(tc.growth)) ? tc.growth : null;
+    const newActual    = g == null ? c.actual : Math.round(c.actual * (1 + g / 100));
     // Unidades crecen al 70% del ritmo de ventas (mix de volumen + precio)
     const unidadesAnt  = c.unidadesAnt || Math.round(c.unidades * 0.95);
-    const newUnidades  = Math.round(unidadesAnt * (1 + (tc.growth / 100) * 0.7));
+    const newUnidades  = g == null ? c.unidades : Math.round(c.unidades * (1 + (g / 100) * 0.7));
     return {
       ...c,
       actual:    newActual,
@@ -31,85 +38,22 @@ export function applyScenarioToClientesVentas(scenarioId, override) {
   }).sort((a,b) => b.actual - a.actual);
 }
 
+/* LOS EJES MARCA Y FAMILIA SON LAS TABLAS (owner 2026-10-06): se sirven tal cual están almacenadas, ORDENADAS (venta desc ·
+ * contribución desc — el orden que la rama con transform imponía y que los consumidores —Cuadro, Pareto, tools— dan por
+ * hecho: sin ordenar, una planilla real pintaba el Cuadro por marca en el orden de la TABLA). Antes, con el escenario
+ * «bonanza», marca y familia se REARMABAN sumando clientes por su marca dominante (no es partición: Makita quedaba fuera,
+ * Σ marcas $104,7M) — ese rearme era el resto de la fuente paralela y se retiró. La simulación (override) vive en el eje
+ * cliente (applyScenarioToClientesVentas/Margen) y no reescribe estos ejes: son la realidad. */
 export function applyScenarioToMarcasVentas(scenarioId) {
-  if (!SCENARIO_TRANSFORMS[scenarioId]?.clientes) return marcasVentas;
-  const clientes = applyScenarioToClientesVentas(scenarioId);
-  const byMarca = {};
-  clientes.forEach(c => {
-    if (!byMarca[c.marca]) {
-      byMarca[c.marca] = {
-        nombre:c.marca, marca:c.marca, sfamilia:c.sfamilia, canal:c.canal,
-        actual:0, anterior:0, unidades:0, unidadesAnt:0, presupuesto:0,
-        pctRebate:0, _count:0,
-      };
-    }
-    const g = byMarca[c.marca];
-    g.actual      += c.actual;
-    g.anterior    += c.anterior;
-    g.unidades    += c.unidades;
-    g.unidadesAnt += (c.unidadesAnt || c.unidades);
-    g.presupuesto += (c.presupuesto || 0);
-    g.pctRebate   += c.pctRebate;
-    g._count++;
-  });
-  return Object.values(byMarca).map(g => ({
-    ...g,
-    pctRebate: Math.round((g.pctRebate / g._count) * 10) / 10,
-  })).sort((a,b) => b.actual - a.actual);
+  return [...marcasVentas].sort((a,b) => b.actual - a.actual);
 }
 
-// applyScenarioToMarcasMargen · residual de reconciliación marca (owner 2026-08-03, _evidence_spec_marca_
-// reconciliation_gate): marcasMargen.venta y marcasVentas.actual YA son el MISMO número por construcción en el
-// dataset demo (a diferencia de clientesMargen.venta vs clientesVentas.actual, que SÍ divergían — D8, 2026-07-29) —
-// por eso, a diferencia de applyScenarioToClientesMargen, acá NO hace falta reconciliar en el escenario "actual"
-// (bypass, mismo criterio que applyScenarioToMarcasVentas de arriba). Con transform de escenario, venta se toma de
-// applyScenarioToMarcasVentas (la MISMA fuente que ya usa concentration.js para el Pareto de ventas por marca) y
-// contribución se RE-DERIVA de esa venta × el margen% reportado (misma fórmula que applyScenarioToClientesMargen:
-// margen% es la eficiencia, no se re-calcula; costo/contribución sí, para que venta×margen=contribución cierre
-// SIEMPRE, sin importar el escenario).
 export function applyScenarioToMarcasMargen(scenarioId) {
-  if (!SCENARIO_TRANSFORMS[scenarioId]?.clientes) return marcasMargen;
-  const ventasScn = applyScenarioToMarcasVentas(scenarioId);
-  const ventaByName = Object.fromEntries(ventasScn.map(v => [v.nombre, v.actual]));
-  const rebateByName = Object.fromEntries(ventasScn.map(v => [v.nombre, v.pctRebate]));
-  return marcasMargen.map(m => {
-    const newVenta = ventaByName[m.nombre] ?? m.venta;
-    const newContrib = Math.round(newVenta * (m.margen / 100));
-    return {
-      ...m,
-      venta: newVenta,
-      costo: newVenta - newContrib,
-      contribucion: newContrib,
-      pctRebate: rebateByName[m.nombre] ?? m.pctRebate,
-    };
-  }).sort((a,b) => b.contribucion - a.contribucion);
+  return [...marcasMargen].sort((a,b) => b.contribucion - a.contribucion);
 }
 
 export function applyScenarioToSfamiliasVentas(scenarioId) {
-  if (!SCENARIO_TRANSFORMS[scenarioId]?.clientes) return sfamiliasVentas;
-  const clientes = applyScenarioToClientesVentas(scenarioId);
-  const bySfam = {};
-  clientes.forEach(c => {
-    if (!bySfam[c.sfamilia]) {
-      bySfam[c.sfamilia] = {
-        nombre:c.sfamilia, sfamilia:c.sfamilia, marca:c.marca, canal:c.canal,
-        actual:0, anterior:0, unidades:0, unidadesAnt:0, presupuesto:0,
-        pctRebate:0, _count:0,
-      };
-    }
-    const g = bySfam[c.sfamilia];
-    g.actual      += c.actual;
-    g.anterior    += c.anterior;
-    g.unidades    += c.unidades;
-    g.unidadesAnt += (c.unidadesAnt || c.unidades);
-    g.presupuesto += (c.presupuesto || 0);
-    g.pctRebate   += c.pctRebate;
-    g._count++;
-  });
-  return Object.values(bySfam).map(g => ({
-    ...g,
-    pctRebate: Math.round((g.pctRebate / g._count) * 10) / 10,
-  })).sort((a,b) => b.actual - a.actual);
+  return [...sfamiliasVentas].sort((a,b) => b.actual - a.actual);
 }
 
 export function applyScenarioToClientesMargen(scenarioId, override) {
@@ -155,76 +99,13 @@ export function applyScenarioToClientesMargen(scenarioId, override) {
 }
 
 export function applyScenarioToSfamiliasMargen(scenarioId) {
-  if (!SCENARIO_TRANSFORMS[scenarioId]?.clientes) return sfamiliasMargen;
-  const cli = applyScenarioToClientesMargen(scenarioId);
-  const by = {};
-  cli.forEach(c => {
-    if (!by[c.sfamilia]) {
-      by[c.sfamilia] = {
-        nombre:c.sfamilia, tipo:"sfamilia", marca:c.marca, sfamilia:c.sfamilia,
-        venta:0, costo:0, rebates:0, contribucion:0, unidades:0,
-        pctRebate:0, margen:0, costoMedio:0, precioLista:0, benchmark:benchmarkOf(null),   // la vara del grupo sintético: por la puerta, jamás un literal (ley 2026-09-03)
-        _count:0,
-      };
-    }
-    const g = by[c.sfamilia];
-    g.venta        += c.venta;
-    g.costo        += (c.costo || 0);
-    g.rebates      += (c.rebates || 0);
-    g.contribucion += c.contribucion;
-    g.unidades     += c.unidades;
-    g.pctRebate    += c.pctRebate;
-    g.margen       += c.margen;
-    g._count++;
-  });
-  return Object.values(by).map(g => ({
-    ...g,
-    pctRebate: Math.round((g.pctRebate / g._count) * 10) / 10,
-    // MICRO-CORTE · margen blended real (contribución/venta) cuando el flag está ON.
-    // contribucion y venta ya vienen sumadas (venta-ponderadas) en g; el margen viejo
-    // promediaba sin ponderar (g.margen/_count) e inflaba → venta×margen≠contribución.
-    // Rama OFF = expresión original byte-idéntica. _count y g.margen se preservan.
-    margen: FEATURE_FAMILY_MARGEN_BLENDED
-      ? (g.venta > 0 ? Math.round((g.contribucion / g.venta) * 1000) / 10 : 0)
-      : Math.round((g.margen / g._count) * 10) / 10,
-  })).sort((a,b) => b.venta - a.venta);
+  return [...sfamiliasMargen].sort((a,b) => b.venta - a.venta);
 }
 
+/* El inventario es la foto REAL (la tabla): ya no hay mundos «tensión»/«crisis» que lo muevan. (Retirados con el escenario:
+ * las ramas por nombre y `_seededRand`.) Una simulación de inventario (`simulateCapital`) opera sobre estas filas. */
 export function applyScenarioToSkuInventario(scenarioId, override) {
-  if (!resolveTransform(scenarioId, override)) return skuInventario;
-  if (scenarioId === "bonanza") return skuInventario;
-
-  return skuInventario.map(sku => {
-    const r = _seededRand(scenarioId + sku.sku);
-    let nuevoEstado = sku.estado;
-    let nuevaDoh    = sku.doh;
-    let nuevaAlerta = sku.alerta;
-
-    if (scenarioId === "tension") {
-      if (sku.estado === "Activo" && r < 0.30) {
-        nuevoEstado = "Lento";
-        nuevaDoh    = Math.round(sku.doh * 1.6);
-        nuevaAlerta = "warn";
-      } else if (sku.estado === "Lento") {
-        nuevaDoh = Math.round(sku.doh * 1.25);
-      }
-    } else if (scenarioId === "crisis") {
-      if (sku.estado === "Activo" && r < 0.50) {
-        nuevoEstado = "Lento";
-        nuevaDoh    = Math.round(sku.doh * 2.0);
-        nuevaAlerta = "warn";
-      } else if (sku.estado === "Lento" && r < 0.40) {
-        nuevoEstado = "120d";
-        nuevaDoh    = Math.round(sku.doh * 2.5);
-        nuevaAlerta = "crit";
-      } else if (sku.estado === "60d" || sku.estado === "90d") {
-        nuevoEstado = "120d";
-        nuevaDoh    = Math.round(sku.doh * 1.4);
-        nuevaAlerta = "crit";
-      }
-    }
-    return { ...sku, estado:nuevoEstado, doh:nuevaDoh, alerta:nuevaAlerta };
-  });
+  return skuInventario;
 }
 
 export function deriveKpis(scenarioId, override) {
@@ -241,15 +122,13 @@ export function deriveKpis(scenarioId, override) {
   const pct = totalActual > 0 ? +((totalUSD / totalActual) * 100).toFixed(1) : 0;
   const benchmark = benchmarkOf(null);   // la vara: SIEMPRE por la puerta (benchmarkOf) — jamás un literal (ley de la vara única, 2026-09-03)
 
-  // pctAnt e inventario: PRESERVADOS del literal (no derivables del estado actual · v1)
-  const lit = (typeof SCENARIO_TRANSFORMS !== "undefined" && SCENARIO_TRANSFORMS[scenarioId] && SCENARIO_TRANSFORMS[scenarioId].kpis) || {};
-  const litMargen = lit.margen || {};
-  const litVentas = lit.ventas || {};
-  const pctAnt = litMargen.pctAnt != null ? litMargen.pctAnt : null;
+  /* pctAnt: el margen del AÑO ANTERIOR no es derivable de las filas (no hay costo anterior por cliente): lo DECLARA el pack
+   * como `margenKPI.pctAnt` (la planilla lo mide en motorKpi; el demo lo declara) — ya no un literal de escenario. */
+  const pctAnt = (margenKPI && margenKPI.pctAnt != null) ? margenKPI.pctAnt : null;
   const gapPuntos = pctAnt != null ? +(pct - pctAnt).toFixed(1) : null;   // gapPuntos = pct - pctAnt (NO vs benchmark)
 
   const vsAnterior = totalAnterior > 0 ? +(((totalActual / totalAnterior) - 1) * 100).toFixed(1) : null;
-  const totalPresupuesto = totalPresup > 0 ? totalPresup : (litVentas.totalPresupuesto != null ? litVentas.totalPresupuesto : null);
+  const totalPresupuesto = totalPresup > 0 ? totalPresup : null;
   const vsPresupuesto = totalPresupuesto ? +(((totalActual / totalPresupuesto) - 1) * 100).toFixed(1) : null;
 
   /* INVENTARIO · CALCULADO, ya no PRESERVADO del literal (owner 2026-09-28, §7.3·31-32 y ·34; diseño §8.2/R7).
@@ -299,14 +178,4 @@ export function resolveTransform(scenarioId, override) {
   const base = (typeof SCENARIO_TRANSFORMS !== "undefined") ? SCENARIO_TRANSFORMS[scenarioId] : undefined;
   if (!override) return base;                 // SIN simulación → el transform fijo intacto
   return mergeTransform(base, override);      // base + override (delta suma · set reemplaza)
-}
-
-export function _seededRand(seedStr) {
-  let h = 2166136261;
-  for (let i = 0; i < seedStr.length; i++) {
-    h ^= seedStr.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  // Convertir a [0,1)
-  return ((h >>> 0) % 100000) / 100000;
 }

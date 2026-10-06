@@ -26,7 +26,10 @@ import { guardC, periodosEsperados } from "./src/adi/oracle/guardC.js";
 import { buildClaims } from "./src/adi/oracle/narrationContract.js";
 import { UNIVERSOS, reconcilian, universoDe, DOMINIO_INVENTARIO, VERIFICABILIDAD_POR_EJE, ESCENARIO_BASE, ESCENARIOS_CON_TRANSFORM, ESCENARIOS_QUE_ALTERAN_TASAS, refinarPorEje, PERIODO_TXT, PERIODO_MIXTO_TXT, familiasDePeriodo } from "./src/config/contract/figureType.js";
 import { applyScenarioToClientesMargen } from "./src/engine/scenarios.js";
-import { SCENARIO_TRANSFORMS } from "./src/config/scenarios.js";
+import { SCENARIO_TRANSFORMS, ESCENARIO_INICIAL } from "./src/config/scenarios.js";
+/* UNA SOLA REALIDAD (owner 2026-10-06): «escenarios a probar» = la base «actual» + LA RANURA con la que corre la app (ESCENARIO_INICIAL)
+ * + los que declaren transforms (hoy ninguno). La app corre en la ranura: es ahí donde familia/marca deben sellarse como LITERAL. */
+const ESCENARIOS_A_PROBAR = [...new Set([ESCENARIO_BASE, ESCENARIO_INICIAL, ...ESCENARIOS_CON_TRANSFORM])];
 import { METRICS } from "./src/config/contract/metricRegistry.js";
 import { SOURCES } from "./src/config/contract/sourceManifest.js";
 import { skuInventario, clientesMargen, clientesVentas, marcasMargen, sfamiliasMargen } from "./src/data/demoData.js";
@@ -187,7 +190,7 @@ H("[2] EL SELLO · probado = literal o cálculo que reconcilia · indicado = der
   // La lista espejada de escenarios con transformación tiene que coincidir con SCENARIO_TRANSFORMS (mismo criterio
   // que DOMINIO_INVENTARIO: se replica para no romper la pureza del módulo, y se VERIFICA acá en cada corrida).
   const conTransform = Object.keys(SCENARIO_TRANSFORMS).filter((k) => SCENARIO_TRANSFORMS[k] && SCENARIO_TRANSFORMS[k].clientes).sort();
-  ok(conTransform.join(",") === [...ESCENARIOS_CON_TRANSFORM].sort().join(","),
+  ok(conTransform.length === 0 && ESCENARIOS_CON_TRANSFORM.length === 0 && ESCENARIOS_QUE_ALTERAN_TASAS.length === 0 && conTransform.join(",") === [...ESCENARIOS_CON_TRANSFORM].sort().join(","),
     `ESCENARIOS_CON_TRANSFORM espeja SCENARIO_TRANSFORMS (${conTransform.join(", ")})`,
     `contrato=${ESCENARIOS_CON_TRANSFORM.join(",")} vs motor=${conTransform.join(",")}`);
   ok(!SCENARIO_TRANSFORMS[ESCENARIO_BASE], `«${ESCENARIO_BASE}» no trae transformación: los agregados por familia son el literal`);
@@ -205,7 +208,7 @@ H("[2] EL SELLO · probado = literal o cálculo que reconcilia · indicado = der
   // dato real"). Estos tres conceptos caen bajo el `re` de las reglas de monto pero NO son el monto re-derivado:
   // se mide que el motor no los mueve en NINGÚN escenario y que, por lo tanto, no se sellan indicado.
   const lit = Object.fromEntries(clientesMargen.map((c) => [c.nombre, c]));
-  const noSeMueve = (campo) => [ESCENARIO_BASE, ...ESCENARIOS_CON_TRANSFORM].every((esc) =>
+  const noSeMueve = (campo) => ESCENARIOS_A_PROBAR.every((esc) =>
     applyScenarioToClientesMargen(esc).every((s) => {
       const l = lit[s.nombre];
       return !l || Math.abs((s[campo] || 0) - (l[campo] || 0)) <= Math.max(0.01, Math.abs(l[campo] || 0) * 0.005);
@@ -217,7 +220,7 @@ H("[2] EL SELLO · probado = literal o cálculo que reconcilia · indicado = der
     ["Peso del costo", "pct", "tasa_comercial"],
   ];
   const malos = casos.filter(([c, unidad, universo]) =>
-    [ESCENARIO_BASE, ...ESCENARIOS_CON_TRANSFORM].some((esc) => refinarPorEje(`Falabella · ${c}`, "cliente", esc, { unidad, universo })));
+    ESCENARIOS_A_PROBAR.some((esc) => refinarPorEje(`Falabella · ${c}`, "cliente", esc, { unidad, universo })));
   ok(malos.length === 0,
     "y no quedan sellados `indicado` por caer bajo el `re` del costo: siguen probados en los 4 escenarios",
     malos.map((m) => m[0]).join(", "));
@@ -240,7 +243,7 @@ H("[2] EL SELLO · probado = literal o cálculo que reconcilia · indicado = der
   };
   const malas = [];
   for (const eje of ["cliente", "marca", "familia", "sku"]) {
-    for (const esc of [ESCENARIO_BASE, ...ESCENARIOS_CON_TRANSFORM]) {
+    for (const esc of ESCENARIOS_A_PROBAR) {
       const { ledger } = run([{ tool: "contributionRead", args: { dimension: eje } }], esc);
       const claims = buildClaims(ledger.figs).filter((c) => c.entidad && /contribuci/i.test(String(c.metrica || "")));
       let dif = 0, tot = 0; const sellos = new Set();
@@ -431,7 +434,7 @@ H("[6] EL PERÍODO · el marco temporal es de la CIFRA, no de la tool que la pro
   const INVENTARIO = new Set(["inventario", "tasa_inventario", "rotacion", "dias_inventario"]);
   const malas = [];
   let contadas = 0;
-  for (const esc of [ESCENARIO_BASE, ...ESCENARIOS_CON_TRANSFORM]) for (const p of PLANES) {
+  for (const esc of ESCENARIOS_A_PROBAR) for (const p of PLANES) {
     for (const f of run(p, esc).ledger.figs) {
       if (!f.tipo || !INVENTARIO.has(f.tipo.universo)) continue;
       contadas++;

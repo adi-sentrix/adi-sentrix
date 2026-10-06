@@ -37,6 +37,11 @@ const ok = (cond, label, detalle) => {
 };
 const H = (t) => console.log(`\n${t}`);
 initTenant(TENANT_DEMO);
+/* UNA SOLA REALIDAD (owner 2026-10-06): en el demo el KPI de cabecera se DERIVA de las filas (tenants/demo.js), así que las dos sumas que este gate
+ * vigila (`getVentasKPI` y la Σ por fila de `deriveKpis`) ya NO divergen y el defecto original no puede reproducirse con el dato de fábrica — las
+ * carnadas quedarían muertas. La propiedad sigue siendo exigible donde un pack declara un KPI distinto de la suma de sus filas (una planilla real
+ * con un total declarado): por eso las carnadas y la sección 1b corren sobre un NEGOCIO con ese descuadre construido a propósito (insumo explícito). */
+const MUNDO_CON_DOS_SUMAS = { ...TENANT_DEMO, ventasKPI: { ...TENANT_DEMO.ventasKPI, totalActual: 99500, vsAnterior: 7.1, vsPresupuesto: 2.6 } };
 const canonDe = (raw, unit = "money") => {
   const p = parseFigures(unit === "money" ? `$${Math.round(raw)}` : `${raw}%`);
   return p.length ? p[0].canon : null;
@@ -69,6 +74,18 @@ H("1 · el total del negocio: ADI y la pantalla, una sola verdad");
   } else {
     ok(true, `(las dos fuentes coinciden hoy en ${dePantalla}: no hay divergencia que exigir)`);
   }
+}
+
+H("1b · y donde las dos sumas SÍ difieren (un pack con KPI declarado ≠ Σ de sus filas), ADI dice la de la pantalla");
+{
+  initTenant(MUNDO_CON_DOS_SUMAS);
+  const K = getVentasKPI(null, null, ESCENARIO_INICIAL) || {};
+  const dePantalla = canonDe(Number(K.totalActual) * 1000);
+  const deLasFilas = canonDe(Number((deriveKpis(ESCENARIO_INICIAL).ventas || {}).totalActual) * 1000);
+  ok(!!dePantalla && !!deLasFilas && dePantalla !== deLasFilas, `el mundo de prueba tiene DOS sumas distintas (pantalla ${dePantalla} · filas ${deLasFilas})`);
+  const publica = totalQueAdiPublica(ESCENARIO_INICIAL).map((f) => String(f.canon));
+  ok(publica.includes(dePantalla) && !publica.includes(deLasFilas), `★ ADI publica ${dePantalla} (la pantalla) y NO ${deLasFilas} (la Σ por fila) como total del negocio`, JSON.stringify([...new Set(publica)]));
+  initTenant(TENANT_DEMO);
 }
 
 /* ═══ 2 · LOS PORCENTAJES DE LA MISMA FAMILIA ══════════════════════════════════════════════════════════════
@@ -125,7 +142,7 @@ await carnada("las ventas vuelven a la suma interna", "src/adi/oracle/datoProyec
   [[/  const kpis = \{ \.\.\._derivados, ventas: \{ \.\.\.\(_derivados\.ventas \|\| \{\}\), \.\.\._ventasPantalla \} \};/,
     "  const kpis = _derivados;   // CARNADA: como antes, la Σ por fila"]],
   async (M) => {
-    initTenant(TENANT_DEMO);
+    initTenant(MUNDO_CON_DOS_SUMAS);
     const K = getVentasKPI(null, null, ESCENARIO_INICIAL) || {};
     const dePantalla = canonDe(Number(K.totalActual) * 1000);
     const publica = (M.cifrasDelDato(ESCENARIO_INICIAL).figs || []).filter((f) =>
@@ -140,7 +157,7 @@ await carnada("el monto unificado pero los % en la fuente vieja", "src/adi/oracl
   [[/  const kpis = \{ \.\.\._derivados, ventas: \{ \.\.\.\(_derivados\.ventas \|\| \{\}\), \.\.\._ventasPantalla \} \};/,
     "  const kpis = { ..._derivados, ventas: { ...(_derivados.ventas || {}), totalActual: _ventasPantalla.totalActual } };   // CARNADA: medio arreglo"]],
   async (M) => {
-    initTenant(TENANT_DEMO);
+    initTenant(MUNDO_CON_DOS_SUMAS);
     const K = getVentasKPI(null, null, ESCENARIO_INICIAL) || {};
     const figs = M.cifrasDelDato(ESCENARIO_INICIAL).figs || [];
     const esperado = canonDe(K.vsAnterior, "pct");
@@ -148,5 +165,6 @@ await carnada("el monto unificado pero los % en la fuente vieja", "src/adi/oracl
     return !pub.includes(esperado);   // el defecto: el monto coincide y el % no
   });
 
+initTenant(TENANT_DEMO);
 console.log(`\n── _venta_oficial_una_verdad_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

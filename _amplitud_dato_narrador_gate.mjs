@@ -20,6 +20,7 @@
  */
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+import { TENANT_EMPRESA2 } from "./src/data/tenants/empresa2.js";
 import { proyectarDatoNegocio, cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { buildNarrateSystemSegments } from "./src/adi/oracle/narratePromptC.js";
 import { ADI_PERSONA } from "./src/adi/oracle/persona.js";
@@ -34,9 +35,14 @@ const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); }
 
 console.log("── 1 · PROYECCIÓN ESTABLE + SECCIONES OBLIGATORIAS ──");
 const dato = proyectarDatoNegocio("actual");
-ok(dato === proyectarDatoNegocio("actual") && proyectarDatoNegocio("tension") === proyectarDatoNegocio("tension"),
-  "determinística por tenant+escenario (byte a byte, dos escenarios)");
-ok(proyectarDatoNegocio("tension") !== dato, "otro escenario → otro texto (el caché se rompe exactamente cuando el dato ES otro)");
+ok(dato === proyectarDatoNegocio("actual") && proyectarDatoNegocio("bonanza") === proyectarDatoNegocio("bonanza"),
+  "determinística por tenant+ranura (byte a byte, dos ranuras)");
+/* UNA SOLA REALIDAD (owner 2026-10-06): antes «otro escenario → otro texto». El escenario ya no es un mundo: el id de ranura no cambia el
+ * dato, así que la ranura da el MISMO texto (el caché sigue estable) y el texto cambia exactamente cuando el DATO es otro — otro tenant. */
+ok(proyectarDatoNegocio("tension") === dato && proyectarDatoNegocio("bonanza") === dato, "otra ranura de escenario → el MISMO texto (la realidad es una: el caché NO se rompe sin que cambie el dato)");
+initTenant(TENANT_EMPRESA2);
+ok(proyectarDatoNegocio("actual") !== dato, "otro DATO (otro tenant) → otro texto (el caché se rompe exactamente cuando el dato ES otro)");
+initTenant(TENANT_DEMO);
 ok(dato.includes("LOS DOS UNIVERSOS QUE NO RECONCILIAN:") && /PROHIBIDO cruzarlos/.test(dato),
   "sección «LOS DOS UNIVERSOS QUE NO RECONCILIAN» con su advertencia");
 ok(dato.includes("LO QUE ESTE DATO NO TIENE") && dato.includes("historial de compra cliente×SKU") && dato.includes("lead time"),

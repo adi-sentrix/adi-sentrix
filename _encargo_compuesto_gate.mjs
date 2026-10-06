@@ -18,6 +18,8 @@
  *
  * OFFLINE · determinístico · CERO llamadas.
  * `node --import ./scripts/offline-guard.mjs _encargo_compuesto_gate.mjs` */
+/* UNA SOLA REALIDAD · CIFRAS FIJADAS RE-FIJADAS (owner 2026-10-06, _ADI_DISENO_UNA_SOLA_REALIDAD.md §6.5): los corpus archivados (fixtures/gerente-borradores-*, tres-vivas-contrato-comercial) se leen con las cifras vigentes del demo (scripts/una-sola-realidad/cifrasVigentes.mjs: $655K→$656K, $99.9M→$100.0M, +7.5 %→+7.6 %…; los archivos no se tocan) y las cadenas de este gate que los referencian siguen la misma cifra. La partición medida ($588K · $4.4M), los universos y los veredictos son los mismos. */
+import { leerFixtureVigente } from "./scripts/una-sola-realidad/cifrasVigentes.mjs";   /* una sola realidad (2026-10-06): los corpus archivados se leen con las cifras vigentes del demo, sin tocar el archivo */
 import { readFileSync } from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -189,7 +191,7 @@ H("3b · ★★ el prompt de gerente con el cerebro mudo: boleta unida, clientes
  *     «reparado», el texto del modelo en pantalla, no el respaldo. */
 H("3c · ★★★ los borradores del modelo por el bucle: la multa completa, y la reparación buena se sirve");
 {
-  const FX = JSON.parse(readFileSync(new URL("./fixtures/gerente-borradores-2026-09-13.json", import.meta.url), "utf8"));
+  const FX = leerFixtureVigente(new URL("./fixtures/gerente-borradores-2026-09-13.json", import.meta.url));
   const [b1, b2] = FX.borradores.map((b) => b.texto);
   const mensajesVistos = [];
   const cerebroDe = (textos) => { let i = 0; return async ({ mensajes }) => { mensajesVistos.push(mensajes); const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
@@ -224,7 +226,7 @@ H("3c · ★★★ los borradores del modelo por el bucle: la multa completa, y 
  * resto de la cartera», y el «porque» de una elección declarada como criterio. */
 H("3d · ★★★ la corrida 3: lo real arde en el cierre, la reparación que obedece al procedimiento SE SIRVE");
 {
-  const FX = JSON.parse(readFileSync(new URL("./fixtures/gerente-borradores-2026-09-13b.json", import.meta.url), "utf8"));
+  const FX = leerFixtureVigente(new URL("./fixtures/gerente-borradores-2026-09-13b.json", import.meta.url));
   const [b1, b2] = FX.borradores.map((b) => b.texto);
   const cerebroDe = (textos) => { let i = 0; return async () => { const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
   const r = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: declarando(cerebroDe([b1, b2])) });
@@ -234,7 +236,7 @@ H("3d · ★★★ la corrida 3: lo real arde en el cierre, la reparación que o
   /* ── LAS CUATRO GARANTÍAS TRANSVERSALES (owner 2026-09-13, sobre esta misma reparación) ──────────────────────────
    * La reparación obedeció al procedimiento y aun así conservaba: «crecimiento con calidad deteriorada» / «se diluye la
    * calidad» (evolución temporal sin evidencia temporal), «no es teórico, es lo que ya se dejó de capturar» (brecha
-   * estimada narrada como pérdida realizada), «$655K — caja que se está yendo» (naturaleza cambiada) y «el markup … más
+   * estimada narrada como pérdida realizada), «$656K — caja que se está yendo» (naturaleza cambiada) y «el markup … más
    * pegado al costo que el de los sanos» sin las cifras de los dos lados. Las cuatro arden — y son leyes del producto,
    * no excepciones de este prompt. */
   ok(a.estado === "encargo-compuesto" && vetos.length >= 2 && /brecha-narrada-como-perdida|cifra-narrada-como-caja|deterioro-no-medido|markup-sin-el-otro-lado/.test(vetos.join(" ")),
@@ -247,14 +249,14 @@ H("3d · ★★★ la corrida 3: lo real arde en el cierre, la reparación que o
   const huellasFx = (() => { const A = buildRolesCartera(ESC); return A && A.hay ? A.huellas : []; })();
   const reglasB = vetosDeContrato(b2, { pregunta: FX.pregunta, sitio: "reparacion", figs: figsB }).map((v) => v.regla);
   ok(kindsB.includes("brecha-narrada-como-perdida"), "★ «no es teórico, es lo que ya se dejó de capturar» → brecha narrada como pérdida realizada", kindsB.join(","));
-  ok(kindsB.includes("cifra-narrada-como-caja"), "★ «$655K — caja que se está yendo» → la contribución no es caja", kindsB.join(","));
+  ok(kindsB.includes("cifra-narrada-como-caja"), "★ «$656K — caja que se está yendo» → la contribución no es caja", kindsB.join(","));
   ok(reglasB.includes("deterioro-no-medido"), "★ «crecimiento con calidad deteriorada» → evolución temporal sin evidencia temporal", reglasB.join(","));
   ok(reglasB.includes("markup-sin-el-otro-lado"), "★ «markup … más pegado al costo que el de los sanos» sin cifras → comparación sin sus dos lados", reglasB.join(","));
   /* la MISMA reparación con las cuatro faltas corregidas —lo que un modelo hace cuando la multa se lo nombra— SE SIRVE */
   const b2ok = b2
     .replace("Eso es crecer volumen mientras se diluye la calidad de esa venta.", "Eso es crecer en volumen con el margen bajo el benchmark.")
     .replace("Ese es el dinero en juego — no es teórico, es lo que ya se dejó de capturar.", "Es la brecha estimada contra el benchmark: lo que sumarían esas cinco cuentas si llegaran a él.")
-    .replace("$655K — caja que se está yendo en descuentos/rebates.", "$655K — contribución cedida en acciones comerciales por sobre el nivel de referencia.")
+    .replace("$656K — caja que se está yendo en descuentos/rebates.", "$656K — contribución cedida en acciones comerciales por sobre el nivel de referencia.")
     .replace(/Hay una segunda huella, más débil \(sello "indicado", no probado\): el markup de estos mismos clientes está más pegado al costo que el de los clientes sanos\. Sodimac[^]*?aparte de la carga\./, "Hay una segunda huella, más débil (sello \"indicado\", no probado): el markup promedio de los que caen es 41.4% contra 57.3% de los sanos — el precio de lista nace más pegado al costo en estas cuentas, aparte de la carga.")
     .replace("(25.1% vs 30.1%): crecimiento con calidad deteriorada.", "(25.1% vs 30.1%): el crecimiento no llega al margen.")
     .replace("4. Ese mismo grupo muestra precio de lista más pegado al costo que el resto de la cartera — señal indicada, no aún probada, de que el problema también empieza en la lista.", "4. El markup promedio de ese grupo es 41.4% contra 57.3% de los sanos — señal indicada, no aún probada, de que el problema también empieza en la lista.")
@@ -283,7 +285,7 @@ H("3d · ★★★ la corrida 3: lo real arde en el cierre, la reparación que o
  * deliberada» dictamina; «no es un problema de mix» niega sin sello). */
 H("3e · ★★★ la corrida 4: las negaciones y el rótulo no son afirmaciones — la reparación que cumple las cuatro garantías SE SIRVE");
 {
-  const FX = JSON.parse(readFileSync(new URL("./fixtures/gerente-borradores-2026-09-13c.json", import.meta.url), "utf8"));
+  const FX = leerFixtureVigente(new URL("./fixtures/gerente-borradores-2026-09-13c.json", import.meta.url));
   const [b1, b2] = FX.borradores.map((b) => b.texto);
   const cerebroDe = (textos) => { let i = 0; return async () => { const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
   /* «apunta a fuga por acciones comerciales, no a un problema de precio de lista» descarta un mecanismo INDICADO (owner
@@ -292,10 +294,10 @@ H("3e · ★★★ la corrida 4: las negaciones y el rótulo no son afirmaciones
   const a0 = r0.r.agente || {};
   ok(a0.estado === "encargo-compuesto" && _leyesDe(a0, "reparacion").includes("mecanismo-sin-sello") && /mecanismo-sin-sello: descartas como hecho el mecanismo «costo\/precio»/.test((a0.vetos || []).join(" ")), `★ la reparación que descarta el precio de lista (INDICADO) NO se sirve (${a0.estado}) — la ley sigue en el rastro con su multa`, (a0.vetos || []).join(" | ").slice(0, 300));
   const b2ok = b2.replace("apunta a fuga por acciones comerciales, no a un problema de precio de lista.", "apunta a fuga por acciones comerciales; el precio de lista queda indicado y el mix, abierto.")
-    /* y los universos (owner 2026-09-13): los $655K no son parte de los $4.9M — la parte que cabe es la carga de las 5 materiales */
-    .replace("- De eso, $655K es contribución cedida en acciones comerciales por sobre el nivel de refer", "- De eso, $588K es el efecto de la carga sobre el nivel declarado en esas cinco cuentas y el resto, $4.4M, el componente precio y costo. Aparte, la carga sobre el nivel suma $655K en las 6 cuentas que lo exceden — contribución cedida en acciones comerciales por sobre el nivel de refer");
-  ok(b2ok !== b2 && !/De eso, \$655K/.test(b2ok), "la reparación corregida deja al precio de lista con su sello y los $655K con su universo, fuera de los $4.9M");
-  ok(/reparacion · [^|]*subtotal-de-otro-universo/.test((a0.vetos || []).join(" | ")) || _detectores(a0, "reparacion").includes("subtotal-de-otro-universo"), "★ …y la reparación original también ardía por «de eso, $655K» (universo distinto — hoy detector)", _detectores(a0, "reparacion").join(","));
+    /* y los universos (owner 2026-09-13): los $656K no son parte de los $4.9M — la parte que cabe es la carga de las 5 materiales */
+    .replace("- De eso, $656K es contribución cedida en acciones comerciales por sobre el nivel de refer", "- De eso, $588K es el efecto de la carga sobre el nivel declarado en esas cinco cuentas y el resto, $4.4M, el componente precio y costo. Aparte, la carga sobre el nivel suma $656K en las 6 cuentas que lo exceden — contribución cedida en acciones comerciales por sobre el nivel de refer");
+  ok(b2ok !== b2 && !/De eso, \$656K/.test(b2ok), "la reparación corregida deja al precio de lista con su sello y los $656K con su universo, fuera de los $4.9M");
+  ok(/reparacion · [^|]*subtotal-de-otro-universo/.test((a0.vetos || []).join(" | ")) || _detectores(a0, "reparacion").includes("subtotal-de-otro-universo"), "★ …y la reparación original también ardía por «de eso, $656K» (universo distinto — hoy detector)", _detectores(a0, "reparacion").join(","));
   const r = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: declarando(cerebroDe([b1, b2ok])) });
   const a = r.r.agente || {}, vetos = a.vetos || []; let t = String(r.r.text);
   ok(vetos.length >= 1 && /^cierre · /.test(vetos[0]) && /intencion-inferida|mecanismo-sin-sello/.test(vetos[0]), `el cierre cae por lo real (dictamen de intención · mecanismo negado sin sello): ${String(vetos[0]).slice(0, 80)}…`, vetos.join(" | ").slice(0, 300));
@@ -314,7 +316,7 @@ H("3e · ★★★ la corrida 4: las negaciones y el rótulo no son afirmaciones
  * definición del $4.9M y la primera línea del directorio. Manda el conteo más cercano; «N de M» con palabras no cuenta. */
 H("3f · ★★★ la corrida 5: «de los ocho …, cinco concentran $4.9M» no es colgar la cifra de los ocho — la reparación SE SIRVE entera");
 {
-  const FX = JSON.parse(readFileSync(new URL("./fixtures/gerente-borradores-2026-09-13d.json", import.meta.url), "utf8"));
+  const FX = leerFixtureVigente(new URL("./fixtures/gerente-borradores-2026-09-13d.json", import.meta.url));
   const [b1, b2] = FX.borradores.map((b) => b.texto);
   const cerebroDe = (textos) => { let i = 0; return async () => { const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
   /* LAS TRES CUESTIONES TRANSVERSALES (owner 2026-09-13, sobre esta misma respuesta): «vendiendo más, no ganando más» sin
@@ -353,7 +355,7 @@ H("3f · ★★★ la corrida 5: «de los ocho …, cinco concentran $4.9M» no 
  * explique la mayor parte del efecto). Las dos arden; corregidas, la reparación se sirve entera. */
 H("3g · ★★★ la corrida 6: «con mejor costo relativo» y «la causa dominante» no están demostrados — corregidas, la reparación SE SIRVE entera");
 {
-  const FX = JSON.parse(readFileSync(new URL("./fixtures/gerente-borradores-2026-09-13e.json", import.meta.url), "utf8"));
+  const FX = leerFixtureVigente(new URL("./fixtures/gerente-borradores-2026-09-13e.json", import.meta.url));
   const [b1, b2] = FX.borradores.map((b) => b.texto);
   const cerebroDe = (textos) => { let i = 0; return async () => { const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
   const r0 = await answerViaAgente({ text: FX.pregunta, history: [], mem: {}, scenario: ESC, callAgente: declarando(cerebroDe([b1, b2])) });
@@ -374,13 +376,13 @@ H("3g · ★★★ la corrida 6: «con mejor costo relativo» y «la causa domin
 
 /* ═══ 3h · LAS TRES CORRIDAS VIVAS DEL CONTRATO COMERCIAL: UNIVERSOS CONSISTENTES ═══════════════════════════════════
  * (owner 2026-09-13 · fixtures/tres-vivas-contrato-comercial-2026-09-13) Ventas y Falabella salieron del modelo con una
- * reparación y se sirven tal cual. En el gerente, la reparación decía «de los $4.9M … De eso, $655K es contribución
- * cedida»: los $655K son la carga sobre el nivel en 6 cuentas (Easy, sana, incluida) — no viven dentro de los $4.9M; la
+ * reparación y se sirven tal cual. En el gerente, la reparación decía «de los $4.9M … De eso, $656K es contribución
+ * cedida»: los $656K son la carga sobre el nivel en 6 cuentas (Easy, sana, incluida) — no viven dentro de los $4.9M; la
  * parte que sí cabe es $588K. Ley: una cifra solo es parte de otra si pertenece a su universo. Corregida con la
  * partición medida («de eso, $588K es carga y el resto, $4.4M, precio y costo»), la reparación se sirve entera. */
-H("3h · ★★★ las tres corridas vivas: ventas y Falabella se sirven; el gerente arde por «de eso, $655K» y corregido con la partición medida se sirve");
+H("3h · ★★★ las tres corridas vivas: ventas y Falabella se sirven; el gerente arde por «de eso, $656K» y corregido con la partición medida se sirve");
 {
-  const FX = JSON.parse(readFileSync(new URL("./fixtures/tres-vivas-contrato-comercial-2026-09-13.json", import.meta.url), "utf8"));
+  const FX = leerFixtureVigente(new URL("./fixtures/tres-vivas-contrato-comercial-2026-09-13.json", import.meta.url));
   const cerebroDe = (textos) => { let i = 0; return async () => { const t = textos[i++]; return { tipo: "texto", texto: t || "", stop: "end_turn" }; }; };
   const [V, F, G] = FX.corridas;
   /* v2.31 (owner 2026-09-14): «En contra, tres cuentas caen: La Polar, Ripley y Easy» — en la boleta caen CUATRO (Unimarc, -3.9 %, también). Un
@@ -403,17 +405,17 @@ H("3h · ★★★ las tres corridas vivas: ventas y Falabella se sirven; el ger
   const rg0 = await answerViaAgente({ text: G.pregunta, history: [], mem: {}, scenario: ESC, callAgente: declarando(cerebroDe(G.borradores.map((b) => b.texto))) });
   const vg = rg0.r.agente.vetos || [];
   ok(rg0.r.agente.estado !== "reparado" && (/reparacion · [^|]*subtotal-de-otro-universo/.test(vg.join(" | ")) || _detectores(rg0.r.agente, "reparacion").includes("subtotal-de-otro-universo")),
-    `★★★ el gerente: la reparación con «de eso, $655K» NO se sirve (${rg0.r.agente.estado}) — universo distinto`, vg.join(" | ").slice(0, 400));
+    `★★★ el gerente: la reparación con «de eso, $656K» NO se sirve (${rg0.r.agente.estado}) — universo distinto`, vg.join(" | ").slice(0, 400));
   {
     const { vetosDeContrato } = await import("./src/adi/agente/contratoAgente.js");
     const figsG = leer(pasosDelEncargo(partesDelEncargo(G.pregunta), pasosDe(playbookPara(G.pregunta, {}), G.pregunta, {}), {}));
     const multaG = vetosDeContrato(G.borradores[1].texto, { pregunta: G.pregunta, sitio: "reparacion", figs: figsG }).filter((v) => v.regla === "subtotal-de-otro-universo").map((v) => v.multa).join(" ");
-    ok(/\$588K/.test(multaG) && /5 cuentas materiales/.test(multaG) && /6 cuentas sobre el nivel declarado/.test(multaG), "…y la multa nombra el universo real de los $655K y la cifra que sí cabe ($588K, las 5 cuentas materiales)", multaG.slice(0, 400));
+    ok(/\$588K/.test(multaG) && /5 cuentas materiales/.test(multaG) && /6 cuentas sobre el nivel declarado/.test(multaG), "…y la multa nombra el universo real de los $656K y la cifra que sí cabe ($588K, las 5 cuentas materiales)", multaG.slice(0, 400));
   }
   const g2 = G.borradores[1].texto
-    .replace("De eso, **$655K** es contribución cedida en acciones comerciales por sobre el nivel de referencia — no es caja, es margen que se negoció.",
-      "De eso, **$588K** es el efecto de la carga sobre el nivel declarado y el resto, **$4.4M**, el componente precio y costo — que el dato no separa. Aparte, la carga sobre el nivel suma $655K en las 6 cuentas que lo exceden (una de ellas sobre el benchmark); no es caja, es margen que se negoció.")
-    .replace("de los cuales $655K corresponden a acciones comerciales por sobre la referencia.", "de los cuales $588K corresponden a la carga sobre el nivel declarado y $4.4M al componente precio y costo.")
+    .replace("De eso, **$656K** es contribución cedida en acciones comerciales por sobre el nivel de referencia — no es caja, es margen que se negoció.",
+      "De eso, **$588K** es el efecto de la carga sobre el nivel declarado y el resto, **$4.4M**, el componente precio y costo — que el dato no separa. Aparte, la carga sobre el nivel suma $656K en las 6 cuentas que lo exceden (una de ellas sobre el benchmark); no es caja, es margen que se negoció.")
+    .replace("de los cuales $656K corresponden a acciones comerciales por sobre la referencia.", "de los cuales $588K corresponden a la carga sobre el nivel declarado y $4.4M al componente precio y costo.")
     /* LA CIFRA DE UN GRUPO ES DEL GRUPO COMPLETO (auditoría del Notario, owner 2026-09-14, familia C): «Falabella, Lider, Jumbo y Sodimac cargan … **y**
      * además su precio de lista está más pegado al costo … (markup promedio 41.4% …)» — el «su» remite a esos cuatro, y el 41.4% es el promedio
      * de las OCHO bajo el benchmark. La reparación viva llevaba ese error y hoy el muro lo cobra; la corrección lo dice como es: de los que caen. */
@@ -421,7 +423,7 @@ H("3h · ★★★ las tres corridas vivas: ventas y Falabella se sirven; el ger
     /* UNA SUMA SOLO VALE MOSTRADA (v2.31, owner 2026-09-14): «concentran el 86.1% de la venta» es 73.8 % (las seis que erosionan) + 12.3 % (las dos
      * de margen delgado), dos cifras de grupo que la boleta trae y cuya suma no — se muestra la cuenta y la cifra queda autorizada */
     .replace("concentran el 86.1% de la venta", "concentran el 86.1% de la venta (73.8% + 12.3%)");
-  ok(g2 !== G.borradores[1].texto && !/De eso, \*\*\$655K|de los cuales \$655K/.test(g2) && !/su precio de lista/.test(g2), "la reparación corregida usa la partición medida, deja los $655K aparte con su universo, y el markup promedio es de los que caen, no «su» (los cuatro)");
+  ok(g2 !== G.borradores[1].texto && !/De eso, \*\*\$656K|de los cuales \$656K/.test(g2) && !/su precio de lista/.test(g2), "la reparación corregida usa la partición medida, deja los $656K aparte con su universo, y el markup promedio es de los que caen, no «su» (los cuatro)");
   {
     const { guardC } = await import("./src/adi/oracle/guardC.js");
     const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
