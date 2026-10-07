@@ -59,8 +59,8 @@ function _skuKPIs(name) {
 // _evidence_spec_marca_reconciliation_gate): antes reagregaba skusMargen (Σcontrib/Σventa) — dos bugs juntos, (a)
 // ESCALA: skusMargen guarda dólares CRUDOS, marcasMargen/marcasVentas guardan MILES (mismo dígito "31600" = dos
 // magnitudes ~1000x distintas) — este panel mostraba literalmente "$31.6K" donde entityRecord/Cuadro mostraban
-// "$31.6M" para la MISMA marca; (b) FUENTE: marcasMargen/marcasVentas son insumos YA distintos de Σskus (no un
-// simple re-cálculo), así que ni el margen % coincidía. `applyScenarioToMarcasMargen` (engine/scenarios.js) trae
+// "$31.6M" para la MISMA marca; (b) FUENTE: marcasMargen/marcasVentas eran insumos distintos de Σskus, así que ni el margen %
+// coincidía (desde 2026-10-06, una sola realidad, son la suma de sus SKU: una marca tiene UNA fila y esta lectura la sigue leyendo). `applyScenarioToMarcasMargen` (engine/scenarios.js) trae
 // venta reconciliada contra marcasVentas (single source, igual que clientesVentas para cliente — D8, 2026-07-29) +
 // contribución re-derivada de esa venta × margen%, así venta×margen=contribución cierra siempre y responde al
 // escenario activo (antes byte-igual entre 'actual' y 'bonanza' — no recibía `s`). `unidades` se preserva de la

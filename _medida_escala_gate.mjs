@@ -49,11 +49,14 @@ H("[1] EL DEMO NO SE MUEVE UN BYTE · contra los valores registrados ANTES del a
 {
   initTenant(TENANT_DEMO);
   const m = medidasDe(TOOLS);
-  // los seis, tal como los publicaba el código viejo el 2026-09-01 (sonda registrada) — igualdad EXACTA, no «parecido»
+  // los seis, tal como los publicaba el código viejo el 2026-09-01 (sonda registrada) — igualdad EXACTA, no «parecido».
+  // «Medida 1pp» = 1 % de la venta del SKU (no cambió). «Medida cerrar brecha» = (benchmark 30,1 − margen) × venta × 10: el margen del SKU se calibró con el
+  // cliente (owner 2026-10-06, §2-bis: MAK-COMP-AIR 7,9→8,4 · LG-DRYER8KG 11,1→11,8 · SAM-TV55 18,5→19,5) y la brecha se recalcula con la MISMA cuenta:
+  // 21,7×1.700×10 = 368.900 · 18,3×5.600×10 = 1.024.800 · 10,6×13.300×10 = 1.409.800 (antes 377.400 · 1.064.000 · 1.542.800). El factor ×10 del arreglo de escala no se mueve.
   const ANTES = [
-    ["MAK-COMP-AIR · Medida 1pp", 17000], ["MAK-COMP-AIR · Medida cerrar brecha", 377400],
-    ["LG-DRYER8KG · Medida 1pp", 56000], ["LG-DRYER8KG · Medida cerrar brecha", 1064000],
-    ["SAM-TV55 · Medida 1pp", 133000], ["SAM-TV55 · Medida cerrar brecha", 1542800],
+    ["MAK-COMP-AIR · Medida 1pp", 17000], ["MAK-COMP-AIR · Medida cerrar brecha", 368900],
+    ["LG-DRYER8KG · Medida 1pp", 56000], ["LG-DRYER8KG · Medida cerrar brecha", 1024800],
+    ["SAM-TV55 · Medida 1pp", 133000], ["SAM-TV55 · Medida cerrar brecha", 1409800],
   ];
   for (const [label, raw] of ANTES) ok(m.get(label) === raw, `${label} = ${raw} (byte-idéntico al pre-arreglo)`, `obtuvo ${m.get(label)}`);
 }

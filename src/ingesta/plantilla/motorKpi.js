@@ -27,7 +27,7 @@
  * y lo asigna `diagnoseInventarioSku`, la misma función que usa el producto.
  *
  * ── LO QUE SIGUE BLOQUEADO ───────────────────────────────────────────────────────────────────────────────────
- * La brecha de margen de cabecera, los escenarios y el presupuesto — cada uno con su motivo y su camino para
+ * La brecha de margen de cabecera y el presupuesto — cada uno con su motivo y su camino para
  * abrirse en `BLOQUEADOS`. Ninguno se rellena con un valor plausible.
  */
 import { PARAMETROS } from "../../config/contract/plantilla.js";
@@ -60,8 +60,6 @@ export const CALCULOS = [
 
 /** Lo que el motor NO calcula, con el motivo y qué haría falta para desbloquearlo. */
 export const BLOQUEADOS = [
-  { id: "transforms de simulación", que: "los transforms de simulación", porque: "SCENARIO_TRANSFORMS es un supuesto declarado por el negocio, no un hecho que se derive de las ventas",
-    paraAbrirlo: "que el negocio los declare, o que se acuerde una forma de generarlos" },
   { id: "presupuesto", que: "venta contra presupuesto", porque: "el presupuesto es por cuenta y período, no por fila de venta: como columna se repetiría en cada fila y se contradiría solo. Quedó fuera de la v1 al colapsar la plantilla a dos hojas (decisión del owner, 2026-08-22)",
     paraAbrirlo: "agregar una tercera hoja chica (período · cuenta · presupuesto) en una v2, si alguien lo pide" },
   { id: "perfilEstrategico", que: "el perfil estratégico de cada cuenta (tier, poder de negociación, rol, sustitutos)", porque: "son juicios del negocio, no cuentas: ninguna planilla de ventas los contiene. Derivarlos del monto («el que más compra es tier 1») sería inventar una lectura estratégica con cara de dato",

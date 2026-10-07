@@ -2,8 +2,8 @@
  * El principio de concentración: pocos elementos explican la mayor parte del resultado. DATA-DRIVEN (owner):
  * muestra el % REAL del dato (62 / 73 / 81 / 90 — el que sea), NUNCA fuerza 80. El 80% es la línea de referencia
  * clásica; el "bloque" son los primeros elementos hasta cruzarla. Honesto sin bloqueos: son sumas acumuladas de
- * dato real punto-en-tiempo (no depende de histórico). Scenario-aware (lección GAP 2): cliente/marca/familia se
- * ajustan por escenario; SKU usa base (no hay ajustador · skusMargen no es scenario-adjusted). Puro · client-side. */
+ * dato real punto-en-tiempo (no depende de histórico). Una sola realidad (owner 2026-10-06): los cuatro ejes
+ * suman lo mismo (marca y familia = suma de sus SKU); el escenario es solo la ranura de una simulación explícita. Puro · client-side. */
 import { applyScenarioToClientesVentas, applyScenarioToMarcasVentas, applyScenarioToSfamiliasVentas, applyScenarioToSkuInventario, applyScenarioToClientesMargen, applyScenarioToMarcasMargen, applyScenarioToSfamiliasMargen } from "../../engine/scenarios.js";
 import { skusMargen } from "../../data/skusMargen.js";
 
@@ -88,36 +88,22 @@ export function buildConcentration(dimension = "cliente", scenario = ESCENARIO_I
   return { dimension, metric, label: meta.label, plural: meta.plural, scenario: scenario || ESCENARIO_INICIAL, bars, total, n: bars.length, blockCount, blockPct, limite: _limite(dimension, metric, scenario) };
 }
 
-/* ── EL LÍMITE QUE ESTE GRÁFICO NO PUEDE CERRAR, DECLARADO (owner 2026-08-10) ─────────────────────────────────
- * El "i" del Pareto afirmaba que cada composición «SUMA EXACTO la cifra del cuadro (una sola verdad)». En dos ejes
- * NO suma, y las dos veces por una razón del DATO, no por un error de cuenta. Declararlo es el trabajo; hacerlo
- * cerrar sería fabricar el número.
- *
- *  · EJE MARCA. Con un escenario activo, la venta por marca se RECONSTRUYE agregando clientes (es la misma función
- *    que usa el resto de la Mesa). Una marca sin ningún cliente en el dato no puede reconstruirse, así que
- *    desaparece del gráfico mientras el Cuadro la sigue mostrando con su venta base. Medido: falta una marca
- *    entera y el total difiere entre 4,8% y 5,9% según el escenario. NO se resuelve arrastrando la base al Pareto
- *    (rompería la reconciliación contra el eje cliente, que hoy cierra exacto) ni sacándola del Cuadro (borraría
- *    una marca real del universo): es una decisión de negocio del owner —si una marca sin cliente es parte del
- *    universo o no lo es, pero tiene que serlo en las dos superficies—. Hasta entonces, la pantalla lo dice.
- *  · EJE SKU. `skusMargen` está declarado SCENARIO-BLIND en el contrato (sourceManifest: scenarioLoad null): no
- *    existe transform que lo mueva. Así que este eje queda en su cifra base mientras cliente/marca/familia caen
- *    con el escenario — 23,3% de diferencia en crisis ante la misma pregunta. Inventarle un ajustador sería
- *    fabricar el dato; ADI ya declina el caso hermano (el ranking de margen por SKU fuera de bonanza).
+/* ── EL LÍMITE QUE ESTE GRÁFICO NO PUEDE CERRAR, DECLARADO (owner 2026-08-10 · reescrito 2026-10-06, una sola realidad) ──────
+ * Antes este gráfico no cerraba en dos ejes por una razón del DATO (la marca se reconstruía desde los clientes y una sin cliente
+ * desaparecía; el SKU quedaba en su cifra base mientras los demás ejes se movían). Con UNA sola realidad esas dos razones ya no
+ * existen: el cliente es la base oficial, el SKU es la otra, y marca y familia son la SUMA de sus SKU, así que los cuatro ejes suman la
+ * misma venta y la misma contribución. Lo único que todavía puede quedar sin cerrar es una marca que el Cuadro muestra y que este
+ * gráfico no tiene como fila de venta — y entonces la pantalla lo dice, no lo disimula.
  * Devuelve null cuando no hay límite que declarar: el caso feliz no arrastra texto. */
 function _limite(dimension, metric, scenario) {
   const s = scenario || ESCENARIO_INICIAL;
   if (metric === "inmovilizado") return null;   // el inventario tiene su propio ajustador y sí se mueve entero
-  if (dimension === "sku" && s !== "actual") {
-    return { tipo: "escenario_no_aplica", entidadesFuera: [],
-      texto: "El eje SKU muestra la cifra BASE: el dato de SKU no declara transforms de simulación, así que la cifra es la almacenada y su total no coincide con el de los otros ejes. No se le inventa un ajuste." };
-  }
   if (dimension === "marca") {
-    const conCliente = new Set(applyScenarioToMarcasVentas(s).map((x) => x.nombre));
-    const fuera = marcasMargen.map((m) => m.nombre).filter((n) => !conCliente.has(n));
+    const conFila = new Set(applyScenarioToMarcasVentas(s).map((x) => x.nombre));
+    const fuera = marcasMargen.map((m) => m.nombre).filter((n) => !conFila.has(n));
     if (fuera.length) {
       return { tipo: "poblacion_incompleta", entidadesFuera: fuera,
-        texto: `${fuera.length === 1 ? "Una marca no aparece" : `${fuera.length} marcas no aparecen`} en este gráfico (${fuera.join(" · ")}): con transforms de simulación aplicados, la venta por marca se reconstruye desde los clientes, y ${fuera.length === 1 ? "esa marca no tiene ninguno" : "esas marcas no tienen ninguno"} en el dato. El Cuadro sí ${fuera.length === 1 ? "la muestra" : "las muestra"}, con su cifra base, así que los dos totales no coinciden.` };
+        texto: `${fuera.length === 1 ? "Una marca no aparece" : `${fuera.length} marcas no aparecen`} en este gráfico (${fuera.join(" · ")}): ${fuera.length === 1 ? "no tiene" : "no tienen"} fila de venta en el dato. El Cuadro sí ${fuera.length === 1 ? "la muestra" : "las muestra"}, así que los dos totales no coinciden.` };
     }
   }
   return null;

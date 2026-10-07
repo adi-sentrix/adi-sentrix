@@ -74,7 +74,87 @@ cerraba; D8 (2026-07-29) hizo oficial `clientesVentas` = 100.000 y ese universo 
 `marcasVentas`/`sfamiliasVentas`/`ventasMensuales`/`ventasKPI` ×0,9679 para Σ = 5.520 (o alternativa (c′): +183 unidades repartidas en los 13 clientes
 por su venta de Materiales — no la recomiendo: toca el universo oficial); (d) `ventasMensuales.anterior` −100 en un mes. Alternativa sin tocar datos:
 dejar los Δ y que la reconciliación general los DECLARE («marca difiere en $502K, no atribuible») — honesto, pero en un demo se lee como defecto.
-Lo que NO se propone: materializar bonanza en las tablas (obligaría a inventar la partición marca↔cliente y perdería la venta exacta por SKU).
+⚠️ (b) y (c) —el escalado a mano de marca y familia— quedaron DESHECHOS por §2-bis: marca y familia ya no se escriben, se derivan de los SKU. Lo que NO se propone: materializar bonanza en las tablas (obligaría a inventar la partición marca↔cliente y perdería la venta exacta por SKU).
+
+## §2-bis · La base del demo son dos átomos: cliente y producto (decisión del owner, 2026-10-06 · segunda consolidación)
+
+**La decisión (textual en lo esencial).** En un negocio real la verdad es cada fila de venta; **cliente y producto son dos formas de sumar las mismas filas**; marca y familia son
+**grupos de productos** (el contrato ya lo decía: `entityRegistry` `ENTITIES.sku.parents`, `motorKpi` «marca y familia = suma de sus SKU»). El demo no trae filas de venta, así que su base
+son DOS tablas: `clientesVentas`/`clientesMargen` (el universo oficial, D8) y `skusMargen` (13 SKU, el universo completo de la venta: Σ venta = $100.000K y cada marca suma exacto su venta).
+**Marca y familia no se escriben: se derivan.** Donde cliente y producto discrepan, **manda el cliente**; el producto se ajusta con **un solo factor por métrica, idéntico para los 13 SKU**
+(ninguna marca ni SKU se eligió a mano), con redondeo de mayor resto para que cada suma sea exacta. Esto deshace el escalado a mano de marca y familia de §2 (b)(c).
+
+**Qué se hizo (todo en `src/data/tenants/demo.js`; los clientes, `skuInventario`, cobranza, `ventasMensuales`, los KPI y la lógica de las simulaciones no se tocaron).**
+
+| métrica (Σ) | SKU antes | cliente (manda) | factor único | SKU ahora |
+|---|---|---|---|---|
+| contribución | 23.738 | 25.057 (venta oficial × margen por cliente = `margenKPI.totalUSD`) | × 1,0556 | 25.057 |
+| acciones comerciales (rebates) | 4.130 | 4.075 (universo cliente = serie mensual) | × 0,9867 | 4.075 |
+| unidades | 674 | 5.520 | × 8,19 | 5.520 |
+| venta | 100.000 | 100.000 | — | 100.000 (sin tocar) |
+
+`costo = venta − rebates − contribución` · `margen = contribución ÷ venta` · `pctRebate = rebates ÷ venta` · `costoMedio = costo ÷ unidades` · `precioLista = venta ÷ unidades` (las definiciones de siempre).
+`benchmark` no se toca. **Marca y familia** (`marcasVentas`, `marcasMargen`, `sfamiliasVentas`, `sfamiliasMargen`) son ahora funciones de `skusMargen`: Σ venta, costo, rebates, contribución y
+unidades; margen y carga salen de esas sumas, como las calcula el motor de planillas (`motorKpi.js` `bloqueMargen`; el demo suma la contribución de los SKU en vez de recalcular
+venta × margen redondeado, para cerrar al peso). **Lo único que sigue DECLARADO por marca** es lo que ningún SKU trae —la venta y las unidades del año anterior—: Σ $92.900K · Σ 5.222
+unidades, iguales a las del universo cliente; la familia suma las de sus marcas.
+
+**Impacto medido (antes = HEAD `cd16580a`, ya calibrado ayer; ahora = esta consolidación).**
+
+| | antes | ahora |
+|---|---|---|
+| margen de marca | Samsung 23,7 · LG 23,5 · Philips 26,1 · Bosch 25,5 · **Makita 34,8 (la mejor)** | Samsung 23,4 · LG 22,8 · **Philips 28,8 (la mejor)** · Bosch 24,9 · Makita 26,1 |
+| margen de familia | Materiales 28,3 (la mejor) · Cuidado 26,1 · Electro 23,7 · Línea Blanca 23,5 | **Cuidado 28,8** · Materiales 25,3 · Electro 23,4 · Línea Blanca 22,8 |
+| contribución de marca | Samsung $7.493K · Philips 7.301 · LG 5.791 · Bosch 2.801 · Makita 1.671 | **Philips $8.066K** · Samsung 7.379 · LG 5.620 · Bosch 2.737 · Makita 1.255 |
+| carga de marca | Samsung 4,4 · LG 3,6 · Philips 3,6 · Bosch 5,4 · Makita 4,2 | Samsung 4,3 · LG 3,9 · Philips 3,5 · Bosch 5,0 · Makita 4,6 |
+| unidades de marca | Samsung 1.747 · LG 1.268 · Philips 1.892 · Bosch 436 · Makita 177 | Samsung 1.056 · LG 754 · Philips 3.088 · Bosch 466 · Makita 156 |
+| SKU | PHI-HAIR-PRO 30,0 % (bajo el benchmark 30,1) | **31,7 % (lo cruza)**; los rankings de SKU por contribución y por margen no cambian |
+
+**Conclusiones que cambian por esto** (medidas, no ajustadas; cada una con su causa): `marca-desde-sku` (Philips pasa a primera en contribución de marca y de familia; Cuidado Personal a primera en
+margen de familia; sobre el nivel de carga quedan 4 de 5 marcas y 3 de 4 familias, porque Philips pasa a 3,5 %) · `makita-deja-de-ser-mejor-margen` (ya no es la de mejor margen ni supera el benchmark:
+0 de 5 marcas lo superan) · `phi-hair-cruza-benchmark` (11 de 13 SKU bajo el benchmark, antes 12) · `unidades-de-sku-calibradas` (LG-WASH11KG y BOS-DRILL18V ya no empatan en unidades: 328 contra 327) ·
+**`unidades-de-marca-desde-sku`** (consecuencia declarada, no ajustada: las unidades de marca salen del SKU y las del año anterior siguen declaradas por marca, así que la lectura volumen/precio por
+marca y familia cambia de verdad —«empuja el volumen» pasa de LG +11,7 % a Philips +72,7 %; el precio realizado de LG sube +74,0 % y el de Samsung +67,9 % contra +3,5 % y +1,5 % antes—: cifras que
+el dato de fábrica ya no sostiene con sentido de negocio y que el owner debe mirar; **RESUELTA el 2026-10-07 con la Opción A, abajo**). El nuevo estado de las 532 está sellado por `_una_sola_realidad_gate` §5 y §8.
+
+**Notas que dejan de ser verdad y se retiran.** `concentration.js` `_limite` ya no dice que el eje SKU «muestra la cifra BASE… su total no coincide con el de los otros ejes» ni que una marca «sin cliente»
+desaparece «con transforms de simulación aplicados»: lo único que conserva es el caso estructural «una marca que el Cuadro muestra y el gráfico no tiene como fila de venta», sin lenguaje de escenarios.
+La declaración `reconcilian` del demo (`compatibilidad` y `DIVERGENCIAS`, byte-iguales) decía «unidades del mismo SKU difieren entre 4x y 35x» contra `skuInventario`: recalculada con las unidades nuevas
+(ritmo de venta de la foto × 365 contra las unidades del año) es **entre 0,5x y 4,4x**; el par sigue `divergent` por escala y período. El concordancia del «ring de marca» del manifiesto ya no afirma
+que su margen y su contribución no coinciden con `marginRead{marca}`: coinciden (Samsung 23,4 % y $7.379K). Lo que no cambia: inventario y venta siguen sin reconciliar, y los SKU siguen sin
+unidades comparables con el inventario.
+
+**Qué queda abierto (para el owner).** (1) ~~Las unidades del año anterior por marca (y por familia) siguen declaradas a mano~~ → resuelto el 2026-10-07 (Opción A, abajo). (2) `historialMargen` por marca, familia y SKU es la serie sintética
+que ya declaraba «margen plano» y no se toca: su margen y su contribución anual ya no son los de la tabla (Samsung 24,2 contra 23,4); la capability sigue bloqueando esa evolución por entidad.
+(3) `CLAUDE.md` §4 todavía dice «entre 4x y 35x» y «los dos universos que no reconcilian» sin la excepción de que cliente, SKU, marca y familia ya cuadran: no se tocó (regla del repo).
+
+### §2-bis · Decisión del owner 2026-10-07 (Opción A): las unidades del año anterior por marca son el CRECIMIENTO DECLARADO, a la escala nueva
+
+**El problema.** Al derivar las unidades de la marca desde sus SKU (Σ 5.520), las del año anterior seguían declaradas contra la tabla VIEJA de marca (Σ 5.222, otra escala: Samsung 1.703 contra 1.056 de ahora, Philips 1.788 contra 3.088…).
+La lectura volumen/precio por marca y por familia salía absurda: precio realizado Samsung +67,9 %, LG +74,0 %; volumen Philips +72,7 %, Samsung −38,0 %, LG −33,6 %.
+
+**La decisión (Opción A, aprobada).** Lo único que la tabla vieja declaraba por marca sobre las unidades del año anterior es su **crecimiento en unidades** (unidades ÷ unidadesAnt de la tabla vieja: Samsung 1.747/1.703 · Philips 1.892/1.788 · LG 1.268/1.135 · Bosch 436/434 · Makita 177/162).
+Se respeta a la escala nueva con **UNA regla para las cinco marcas**:
+
+> unidadesAnt(marca) = unidades(marca, Σ SKU) × (unidadesAnt vieja ÷ unidades vieja) × **f**, con UN factor uniforme f = 5.222 ÷ Σ crudo (≈ × 0,9986) para que Σ siga siendo la del universo cliente, y redondeo de mayor resto para que sume exacto.
+
+El par viejo (unidades, unidadesAnt) es el **único insumo declarado** (`_CRECIMIENTO_UNIDADES_DECLARADO` en `src/data/tenants/demo.js`); el factor y los resultados se CALCULAN (`_unidadesAntDeMarca`), no se escriben. La familia suma las de sus marcas. La venta del año anterior por marca (Σ $92.900K) no se toca.
+
+| marca | unidades ahora (Σ SKU) | unidadesAnt antes | **unidadesAnt ahora** | volumen antes → ahora | precio realizado antes → ahora |
+|---|---|---|---|---|---|
+| Samsung | 1.056 | 1.703 | **1.028** | −38,0 % → **+2,7 %** | +67,9 % → **+1,4 %** |
+| Philips | 3.088 | 1.788 | **2.914** | +72,7 % → **+6,0 %** | −38,0 % → **+1,1 %** |
+| LG | 754 | 1.135 | **674** | −33,6 % → **+11,9 %** | +74,0 % → **+3,3 %** |
+| Bosch | 466 | 434 | **463** | +7,4 % → **+0,6 %** | −4,9 % → **+1,5 %** |
+| Makita | 156 | 162 | **143** | −3,7 % → **+9,1 %** | +14,3 % → **+0,9 %** |
+| Σ | 5.520 | 5.222 | **5.222** | | |
+
+Familias (suman sus marcas): Electrodomésticos 1.028 (vol +2,7 · precio +1,4) · Cuidado Personal 2.914 (+6,0 · +1,1) · Línea Blanca 674 (+11,9 · +3,3) · Materiales de Construcción 606 (+2,6 · +1,7; antes +4,4 · +0,1).
+El crecimiento resultante coincide con el declarado dentro de ±0,3 pp en las cinco marcas (el redondeo a unidad entera de Makita, 143, da +9,1 % contra +9,3 % declarado). El total del negocio no cambia (volumen +5,7 %, precio realizado +1,8 %: es el universo cliente).
+
+**Qué se movió.** Solo la tabla de marca y de familia: `unidadesAnt`. Los 532 encargos v13–v40 no leen ese campo: 0 textos cambian (ni `sha` de caso ni sha256 completo), no hubo que re-sellar nada ni sumar causa nueva a `_una_sola_realidad_gate` §5.
+**Candado:** `_una_sola_realidad_gate` §8 (Σ unidadesAnt marca = familia = cliente = 5.222; la regla única reproducida con mayor resto; cada crecimiento dentro de ±0,3 pp del declarado; lectura volumen/precio creíble leída por el motor; carnadas: la tabla vieja
+—que sigue sumando 5.222 pero en otra escala—, +5 a mano en una marca, una familia que no suma sus marcas).
 
 ## §3 · Las simulaciones sobre la realidad
 

@@ -38,7 +38,7 @@ import { ESCENARIO_INICIAL } from "../../config/scenarios.js";   // colapso del 
 /* ⚠️ `skusMargen` NO SE IMPORTA ACÁ, Y ES A PROPÓSITO (owner 2026-08-08, decisión 7). El inventario y la venta
  * comercial no reconcilian en unidad, moneda ni período: `skusMargen.venta` viene en MILES ($100.0M anuales) y
  * `stockUSD` en dólares crudos ($135.000 de inventario); además las unidades vendidas que declara cada fuente
- * difieren entre 4x y 35x por SKU. Cualquier cruce produce una cifra falsa. No importarlo es el sello: lo que no
+ * difieren entre 0,5x y 4,4x por SKU. Cualquier cruce produce una cifra falsa. No importarlo es el sello: lo que no
  * entra al módulo no se puede colar a un texto. Si algún día ambas fuentes se concilian, esto se revisa acá. */
 
 const _r1 = (n) => Math.round(n * 10) / 10;
@@ -212,7 +212,7 @@ export function buildMesaCapital(scenario) {
    * `skusMargen.venta` y mostraba "vende $12.3M al año · 15d de cobertura" al lado de "$14K detenidos". Son dos
    * universos que el dataset NO reconcilia: `skusMargen.venta` viene en MILES (la escala comercial, $100.0M de
    * venta anual) y `stockUSD` en dólares crudos ($135.000 de inventario) — y peor, las unidades vendidas que
-   * declara cada fuente difieren entre 4x y 35x por SKU. Un SKU que vendiera $12.3M al año no puede tener $11K de
+   * declara cada fuente difieren entre 0,5x y 4,4x por SKU. Un SKU que vendiera $12.3M al año no puede tener $11K de
    * stock con 15 días de inventario. La cifra era falsa y estaba a la vista.
    *
    * La prioridad ahora sale de EVIDENCIA PROPIA DE CAPITAL, que es la única conmensurable consigo misma: rotación,

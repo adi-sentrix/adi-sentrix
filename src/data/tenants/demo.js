@@ -43,35 +43,7 @@ export const clientesMargen = [
   { nombre:"Unimarc",       tipo:"cliente", marca:"Philips", sfamilia:"Cuidado Personal",           venta:2200,  costo:1419,  rebates:66,  contribucion:715,  pctRebate:3.0, margen:32.5, costoMedio:9.46,  precioLista:14.67, unidades:150,  benchmark:30.1 },
 ];
 
-export const marcasVentas = [
-  { nombre:"Samsung", sfamilia:"Electrodomésticos",          marca:"Samsung", actual:31600, anterior:30350, unidades:1747, unidadesAnt:1703, pctRebate:4.4 },
-  { nombre:"Philips", sfamilia:"Cuidado Personal",           marca:"Philips", actual:28000, anterior:26140, unidades:1892, unidadesAnt:1788, pctRebate:3.6 },
-  { nombre:"LG",      sfamilia:"Línea Blanca",               marca:"LG",      actual:24600, anterior:21280, unidades:1268, unidadesAnt:1135, pctRebate:3.6 },
-  { nombre:"Bosch",   sfamilia:"Materiales de Construcción", marca:"Bosch",   actual:11000, anterior:10770, unidades:436,  unidadesAnt:434,  pctRebate:5.4 },
-  { nombre:"Makita",  sfamilia:"Materiales de Construcción", marca:"Makita",  actual:4800,  anterior:4360,  unidades:177,  unidadesAnt:162,  pctRebate:4.2 },
-];
-
-export const marcasMargen = [
-  { nombre:"Samsung", tipo:"marca", marca:"Samsung", sfamilia:"Electrodomésticos",          venta:31600, costo:22724, rebates:1383, contribucion:7493, pctRebate:4.4, margen:23.7, costoMedio:13.01, precioLista:18.09, unidades:1747, benchmark:30.1 },
-  { nombre:"LG",      tipo:"marca", marca:"LG",      sfamilia:"Línea Blanca",               venta:24600, costo:17917, rebates:892,  contribucion:5791, pctRebate:3.6, margen:23.5, costoMedio:14.13, precioLista:19.40, unidades:1268, benchmark:30.1 },
-  { nombre:"Philips", tipo:"marca", marca:"Philips", sfamilia:"Cuidado Personal",           venta:28000, costo:19689, rebates:1010, contribucion:7301, pctRebate:3.6, margen:26.1, costoMedio:10.41, precioLista:14.80, unidades:1892, benchmark:30.1 },
-  { nombre:"Bosch",   tipo:"marca", marca:"Bosch",   sfamilia:"Materiales de Construcción", venta:11000, costo:7602,  rebates:597,  contribucion:2801, pctRebate:5.4, margen:25.5, costoMedio:17.44, precioLista:25.23, unidades:436,  benchmark:30.1 },
-  { nombre:"Makita",  tipo:"marca", marca:"Makita",  sfamilia:"Materiales de Construcción", venta:4800,  costo:2927,  rebates:202,  contribucion:1671, pctRebate:4.2, margen:34.8, costoMedio:16.54, precioLista:27.12, unidades:177,  benchmark:30.1 },
-];
-
-export const sfamiliasVentas = [
-  { nombre:"Electrodomésticos",          sfamilia:"Electrodomésticos",          marca:"Samsung", actual:31600, anterior:30350, unidades:1747, unidadesAnt:1703, pctRebate:4.4 },
-  { nombre:"Cuidado Personal",           sfamilia:"Cuidado Personal",           marca:"Philips", actual:28000, anterior:26140, unidades:1892, unidadesAnt:1788, pctRebate:3.6 },
-  { nombre:"Línea Blanca",               sfamilia:"Línea Blanca",               marca:"LG",      actual:24600, anterior:21280, unidades:1268, unidadesAnt:1135, pctRebate:3.6 },
-  { nombre:"Materiales de Construcción", sfamilia:"Materiales de Construcción", marca:"Bosch",   actual:15800, anterior:15130, unidades:613,  unidadesAnt:596,  pctRebate:5.1 },
-];
-
-export const sfamiliasMargen = [
-  { nombre:"Electrodomésticos",          tipo:"sfamilia", marca:"Samsung", sfamilia:"Electrodomésticos",          venta:31600, costo:22724, rebates:1383, contribucion:7493, pctRebate:4.4, margen:23.7, costoMedio:13.01, precioLista:18.09, unidades:1747, benchmark:30.1 },
-  { nombre:"Línea Blanca",               tipo:"sfamilia", marca:"LG",      sfamilia:"Línea Blanca",               venta:24600, costo:17917, rebates:892,  contribucion:5791, pctRebate:3.6, margen:23.5, costoMedio:14.13, precioLista:19.40, unidades:1268, benchmark:30.1 },
-  { nombre:"Cuidado Personal",           tipo:"sfamilia", marca:"Philips", sfamilia:"Cuidado Personal",           venta:28000, costo:19689, rebates:1010, contribucion:7301, pctRebate:3.6, margen:26.1, costoMedio:10.41, precioLista:14.80, unidades:1892, benchmark:30.1 },
-  { nombre:"Materiales de Construcción", tipo:"sfamilia", marca:"Bosch",   sfamilia:"Materiales de Construcción", venta:15800, costo:10529, rebates:799,  contribucion:4472, pctRebate:5.1, margen:28.3, costoMedio:17.18, precioLista:25.77, unidades:613,  benchmark:30.1 },
-];
+/* marcasVentas · marcasMargen · sfamiliasVentas · sfamiliasMargen: DERIVADAS de skusMargen (más abajo) — no se escriben (owner 2026-10-06). */
 
 export const skuInventario = [
   { sku:"SAM-REF500L",  bodega:"Santiago",    marca:"Samsung", sfamilia:"Electrodomésticos",          stockUSD:18600,stockUnd:72, ventaDiaria:4.2, vendidoMes:126, rotacion:9.8, doh:17,  cobertura:18,  margenPct:22, diasSinVenta:0,  estado:"Activo", alerta:"ok",   pctInv:13.8 },
@@ -294,21 +266,88 @@ export const CLIENTES_STRATEGIC_PROFILE = {
   },
 };
 
+/* LA BASE DEL DEMO SON DOS ÁTOMOS: cliente y producto (owner 2026-10-06 · _ADI_DISENO_UNA_SOLA_REALIDAD.md §2-bis).
+ * En un negocio real la verdad es cada fila de venta; cliente y producto son dos formas de sumar las MISMAS filas, y marca y
+ * familia son grupos de productos (ENTITIES.sku.parents · motorKpi «marca y familia = suma de sus SKU»). Este demo no trae filas de
+ * venta, así que su base son dos tablas: `clientesVentas`/`clientesMargen` (el universo OFICIAL, D8) y esta, `skusMargen` (13 SKU: el
+ * universo completo de la venta, Σ venta = $100.000K y cada marca suma exacto su venta). Marca y familia NO se escriben: se DERIVAN
+ * de esta tabla (más abajo).
+ *
+ * DONDE CLIENTE Y PRODUCTO DISCREPAN, MANDA EL CLIENTE. La venta ya cuadraba ($100.000K en los dos). Los otros tres totales del
+ * producto se calibraron con UN SOLO factor por métrica, idéntico para los 13 SKU (ninguna marca ni SKU se eligió a mano), con
+ * redondeo de mayor resto para que cada suma sea exacta:
+ *   · contribución  Σ 23.738 → 25.057  (× 1,0556)  = la que sirve el motor del cliente (venta oficial × margen por cliente)
+ *   · acciones comerciales (rebates)  Σ 4.130 → 4.075  (× 0,9867)  = las del universo cliente y las de la serie mensual
+ *   · unidades  Σ 674 → 5.520  (× 8,19)  = las del universo cliente (antes la tabla de SKU era otra muestra: unidades 8 veces menores)
+ * costo = venta − rebates − contribución · margen = contribución ÷ venta · pctRebate = rebates ÷ venta · costoMedio = costo ÷ unidades ·
+ * precioLista = venta ÷ unidades (las mismas definiciones de siempre). benchmark no se toca. Candado: `_una_sola_realidad_gate`. */
 export const skusMargen = [
-  { nombre:"SAM-REF500L",  tipo:"sku", marca:"Samsung", sfamilia:"Electrodomésticos",          venta:10800, costo:7884, rebates:486, contribucion:2430, pctRebate:4.5, margen:22.5, costoMedio:183.35, precioLista:251.16, unidades:43,  benchmark:30.1 },
-  { nombre:"SAM-TV55",     tipo:"sku", marca:"Samsung", sfamilia:"Electrodomésticos",          venta:13300, costo:10241,rebates:599, contribucion:2460, pctRebate:4.5, margen:18.5, costoMedio:512.05, precioLista:665.00, unidades:20,  benchmark:30.1 },
-  { nombre:"SAM-MICRO32L", tipo:"sku", marca:"Samsung", sfamilia:"Electrodomésticos",          venta:7500,  costo:5100, rebates:300, contribucion:2100, pctRebate:4.0, margen:28.0, costoMedio:77.27,  precioLista:110.39, unidades:66,  benchmark:30.1 },
-  { nombre:"LG-WASH11KG",  tipo:"sku", marca:"LG",      sfamilia:"Línea Blanca",               venta:12400, costo:9176, rebates:372, contribucion:2852, pctRebate:3.0, margen:23.0, costoMedio:229.40, precioLista:310.00, unidades:40,  benchmark:30.1 },
-  { nombre:"LG-DRYER8KG",  tipo:"sku", marca:"LG",      sfamilia:"Línea Blanca",               venta:5600,  costo:4668, rebates:308, contribucion:624,  pctRebate:5.5, margen:11.1, costoMedio:274.59, precioLista:329.41, unidades:17,  benchmark:30.1 },
-  { nombre:"LG-AIR9000",   tipo:"sku", marca:"LG",      sfamilia:"Línea Blanca",               venta:6600,  costo:4455, rebates:297, contribucion:1848, pctRebate:4.5, margen:28.0, costoMedio:127.29, precioLista:177.14, unidades:35,  benchmark:30.1 },
-  { nombre:"PHI-SHAVER9",  tipo:"sku", marca:"Philips", sfamilia:"Cuidado Personal",           venta:12300, costo:8413, rebates:443, contribucion:3444, pctRebate:3.6, margen:28.0, costoMedio:56.84,  precioLista:83.11,  unidades:148, benchmark:30.1 },
-  { nombre:"PHI-HAIR-PRO", tipo:"sku", marca:"Philips", sfamilia:"Cuidado Personal",           venta:9300,  costo:6212, rebates:298, contribucion:2790, pctRebate:3.2, margen:30.0, costoMedio:47.42,  precioLista:67.75,  unidades:131, benchmark:30.1 },
-  { nombre:"PHI-IRON-PRO", tipo:"sku", marca:"Philips", sfamilia:"Cuidado Personal",           venta:6400,  costo:4749, rebates:243, contribucion:1408, pctRebate:3.8, margen:22.0, costoMedio:48.46,  precioLista:62.13,  unidades:98,  benchmark:30.1 },
-  { nombre:"BOS-DRILL18V", tipo:"sku", marca:"Bosch",   sfamilia:"Materiales de Construcción", venta:6800,  costo:4623, rebates:340, contribucion:1837, pctRebate:5.0, margen:27.0, costoMedio:115.58, precioLista:170.00, unidades:40,  benchmark:30.1 },
-  { nombre:"BOS-SANDER",   tipo:"sku", marca:"Bosch",   sfamilia:"Materiales de Construcción", venta:4200,  costo:3226, rebates:218, contribucion:756,  pctRebate:5.2, margen:18.0, costoMedio:189.76, precioLista:247.06, unidades:17,  benchmark:30.1 },
-  { nombre:"MAK-SAW18V",   tipo:"sku", marca:"Makita",  sfamilia:"Materiales de Construcción", venta:3100,  costo:1922, rebates:124, contribucion:1054, pctRebate:4.0, margen:34.0, costoMedio:128.13, precioLista:206.67, unidades:15,  benchmark:30.1 },
-  { nombre:"MAK-COMP-AIR", tipo:"sku", marca:"Makita",  sfamilia:"Materiales de Construcción", venta:1700,  costo:1463, rebates:102, contribucion:135,  pctRebate:6.0, margen:7.9,  costoMedio:365.75, precioLista:425.00, unidades:4,   benchmark:30.1 },
+  { nombre:"SAM-REF500L", tipo:"sku", marca:"Samsung",sfamilia:"Electrodomésticos",          venta:10800, costo:7755, rebates:480,contribucion:2565,pctRebate:4.4, margen:23.8,costoMedio:22.03, precioLista:30.68, unidades:352, benchmark:30.1 },
+  { nombre:"SAM-TV55",    tipo:"sku", marca:"Samsung",sfamilia:"Electrodomésticos",          venta:13300, costo:10112,rebates:591,contribucion:2597,pctRebate:4.4, margen:19.5,costoMedio:61.66, precioLista:81.10, unidades:164, benchmark:30.1 },
+  { nombre:"SAM-MICRO32L",tipo:"sku", marca:"Samsung",sfamilia:"Electrodomésticos",          venta:7500,  costo:4987, rebates:296,contribucion:2217,pctRebate:3.9, margen:29.6,costoMedio:9.24,  precioLista:13.89, unidades:540, benchmark:30.1 },
+  { nombre:"LG-WASH11KG", tipo:"sku", marca:"LG",     sfamilia:"Línea Blanca",               venta:12400, costo:9023, rebates:367,contribucion:3010,pctRebate:3.0, margen:24.3,costoMedio:27.51, precioLista:37.80, unidades:328, benchmark:30.1 },
+  { nombre:"LG-DRYER8KG", tipo:"sku", marca:"LG",     sfamilia:"Línea Blanca",               venta:5600,  costo:4637, rebates:304,contribucion:659, pctRebate:5.4, margen:11.8,costoMedio:33.36, precioLista:40.29, unidades:139, benchmark:30.1 },
+  { nombre:"LG-AIR9000",  tipo:"sku", marca:"LG",     sfamilia:"Línea Blanca",               venta:6600,  costo:4356, rebates:293,contribucion:1951,pctRebate:4.4, margen:29.6,costoMedio:15.18, precioLista:23.00, unidades:287, benchmark:30.1 },
+  { nombre:"PHI-SHAVER9", tipo:"sku", marca:"Philips",sfamilia:"Cuidado Personal",           venta:12300, costo:8228, rebates:437,contribucion:3635,pctRebate:3.6, margen:29.6,costoMedio:6.79,  precioLista:10.15, unidades:1212,benchmark:30.1 },
+  { nombre:"PHI-HAIR-PRO",tipo:"sku", marca:"Philips",sfamilia:"Cuidado Personal",           venta:9300,  costo:6061, rebates:294,contribucion:2945,pctRebate:3.2, margen:31.7,costoMedio:5.65,  precioLista:8.67,  unidades:1073,benchmark:30.1 },
+  { nombre:"PHI-IRON-PRO",tipo:"sku", marca:"Philips",sfamilia:"Cuidado Personal",           venta:6400,  costo:4674, rebates:240,contribucion:1486,pctRebate:3.8, margen:23.2,costoMedio:5.82,  precioLista:7.97,  unidades:803, benchmark:30.1 },
+  { nombre:"BOS-DRILL18V",tipo:"sku", marca:"Bosch",  sfamilia:"Materiales de Construcción", venta:6800,  costo:4526, rebates:335,contribucion:1939,pctRebate:4.9, margen:28.5,costoMedio:13.84, precioLista:20.80, unidades:327, benchmark:30.1 },
+  { nombre:"BOS-SANDER",  tipo:"sku", marca:"Bosch",  sfamilia:"Materiales de Construcción", venta:4200,  costo:3187, rebates:215,contribucion:798, pctRebate:5.1, margen:19.0,costoMedio:22.93, precioLista:30.22, unidades:139, benchmark:30.1 },
+  { nombre:"MAK-SAW18V",  tipo:"sku", marca:"Makita", sfamilia:"Materiales de Construcción", venta:3100,  costo:1865, rebates:122,contribucion:1113,pctRebate:3.9, margen:35.9,costoMedio:15.16, precioLista:25.20, unidades:123, benchmark:30.1 },
+  { nombre:"MAK-COMP-AIR",tipo:"sku", marca:"Makita", sfamilia:"Materiales de Construcción", venta:1700,  costo:1457, rebates:101,contribucion:142, pctRebate:5.9, margen:8.4, costoMedio:44.15, precioLista:51.52, unidades:33,  benchmark:30.1 },
 ];
+
+/* ── MARCA Y FAMILIA = GRUPOS DE PRODUCTOS, DERIVADOS (owner 2026-10-06) ──────────────────────────────────────────────────────
+ * Cada cifra ADITIVA (venta, costo, rebates, contribución, unidades) es la SUMA de sus SKU; margen = contribución ÷ venta y
+ * pctRebate = rebates ÷ venta (un decimal, como el motor de planillas — `motorKpi.js` `bloqueMargen`); costoMedio = costo ÷ unidades y
+ * precioLista = venta ÷ unidades (dos decimales). Se suma la contribución de los SKU (no se recalcula venta × margen redondeado) para que
+ * cierre al peso con el cliente. Lo ÚNICO que se declara por marca es lo que ningún SKU del año trae: la venta del AÑO ANTERIOR y el CRECIMIENTO de
+ * unidades (no hay SKU×año anterior; las unidades del año anterior salen de ese crecimiento, ver `_unidadesAntDeMarca`); la familia suma las de sus marcas. Σ año anterior = 92.900 (= el del universo cliente). */
+const _ANTERIOR_DE_MARCA = {   /* DECLARADO: la venta del año anterior por marca (no es derivable de las filas: el dato de fábrica no trae SKU del año anterior) */
+  Samsung: { anterior: 30350 }, Philips: { anterior: 26140 }, LG: { anterior: 21280 }, Bosch: { anterior: 10770 }, Makita: { anterior: 4360 },
+};
+/* UNIDADES DEL AÑO ANTERIOR POR MARCA = EL CRECIMIENTO DECLARADO, A LA ESCALA NUEVA (owner 2026-10-07, Opción A de §2-bis).
+ * Al derivar las unidades de la marca desde sus SKU (Σ 5.520), las del año anterior declaradas contra la tabla VIEJA de marca (Σ 5.222, otra
+ * escala: Samsung 1.747 → 1.056, Philips 1.892 → 3.088…) producían lecturas absurdas (precio Samsung +67,9 %, volumen Philips +72,7 %).
+ * Lo ÚNICO que esa tabla vieja declaraba por marca es su CRECIMIENTO en unidades (unidades ÷ unidadesAnt de la tabla vieja: Samsung +2,6 % ·
+ * Philips +5,8 % · LG +11,7 % · Bosch +0,5 % · Makita +9,3 %): ese par viejo es el ÚNICO insumo declarado.
+ * UNA regla para las cinco marcas:  unidadesAnt = unidades(Σ SKU) × (unidadesAnt vieja ÷ unidades vieja) × f,  con UN factor uniforme
+ * f = Σ unidadesAnt del universo cliente (5.222) ÷ Σ crudo (≈ × 0,9986) para que la suma siga siendo la del cliente, y redondeo de mayor
+ * resto para que sume EXACTO. Nada se elige a mano por marca y el factor se CALCULA acá (no se escribe). La familia suma sus marcas. */
+const _CRECIMIENTO_UNIDADES_DECLARADO = {   /* DECLARADO: el par viejo (unidades, unidadesAnt) de cada marca, de la tabla anterior a §2-bis */
+  Samsung: { unidades: 1747, unidadesAnt: 1703 }, Philips: { unidades: 1892, unidadesAnt: 1788 }, LG: { unidades: 1268, unidadesAnt: 1135 },
+  Bosch: { unidades: 436, unidadesAnt: 434 }, Makita: { unidades: 177, unidadesAnt: 162 },
+};
+const _unidadesAntDeMarca = (() => {
+  const nombres = Object.keys(_CRECIMIENTO_UNIDADES_DECLARADO);
+  const objetivo = clientesVentas.reduce((a, c) => a + c.unidadesAnt, 0);   /* Σ unidadesAnt del universo cliente = 5.222 */
+  const crudo = nombres.map((m) => skusMargen.filter((s) => s.marca === m).reduce((a, s) => a + s.unidades, 0) * _CRECIMIENTO_UNIDADES_DECLARADO[m].unidadesAnt / _CRECIMIENTO_UNIDADES_DECLARADO[m].unidades);
+  const f = objetivo / crudo.reduce((a, b) => a + b, 0), escalado = crudo.map((c) => c * f), piso = escalado.map(Math.floor);
+  const resto = objetivo - piso.reduce((a, b) => a + b, 0);
+  escalado.map((c, i) => [c - piso[i], i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]).slice(0, resto).forEach(([, i]) => piso[i]++);
+  return Object.fromEntries(nombres.map((m, i) => [m, piso[i]]));
+})();
+const _rd1 = (n) => Math.round(n * 10) / 10, _rd2 = (n) => Math.round(n * 100) / 100;
+const _agrupar = (campo) => {
+  const grupos = new Map();
+  for (const s of skusMargen) { if (!grupos.has(s[campo])) grupos.set(s[campo], []); grupos.get(s[campo]).push(s); }
+  return [...grupos.entries()].map(([nombre, filas]) => {
+    const suma = (k) => filas.reduce((a, f) => a + f[k], 0);
+    const venta = suma("venta"), costo = suma("costo"), rebates = suma("rebates"), contribucion = suma("contribucion"), unidades = suma("unidades");
+    const marcas = [...new Set(filas.map((f) => f.marca))];
+    const ant = marcas.reduce((a, m) => ({ anterior: a.anterior + _ANTERIOR_DE_MARCA[m].anterior, unidadesAnt: a.unidadesAnt + _unidadesAntDeMarca[m] }), { anterior: 0, unidadesAnt: 0 });
+    const dominante = filas.reduce((m, f) => { m[f.marca] = (m[f.marca] || 0) + f.venta; return m; }, {});
+    return { nombre, filas, venta, costo, rebates, contribucion, unidades, ...ant, marca: Object.entries(dominante).sort((a, b) => b[1] - a[1])[0][0], sfamilia: filas[0].sfamilia,
+      pctRebate: _rd1(rebates / venta * 100), margen: _rd1(contribucion / venta * 100), costoMedio: _rd2(costo / unidades), precioLista: _rd2(venta / unidades) };
+  });
+};
+const _margenDe = (g, tipo) => g.map((x) => ({ nombre: x.nombre, tipo, marca: tipo === "marca" ? x.nombre : x.marca, sfamilia: tipo === "marca" ? x.sfamilia : x.nombre, venta: x.venta, costo: x.costo, rebates: x.rebates, contribucion: x.contribucion, pctRebate: x.pctRebate, margen: x.margen, costoMedio: x.costoMedio, precioLista: x.precioLista, unidades: x.unidades, benchmark: x.filas[0].benchmark }));
+const _ventasDe = (g, tipo) => [...g].sort((a, b) => b.venta - a.venta).map((x) => ({ nombre: x.nombre, sfamilia: tipo === "marca" ? x.sfamilia : x.nombre, marca: tipo === "marca" ? x.nombre : x.marca, actual: x.venta, anterior: x.anterior, unidades: x.unidades, unidadesAnt: x.unidadesAnt, pctRebate: x.pctRebate }));
+const _MARCAS = _agrupar("marca"), _FAMILIAS = _agrupar("sfamilia");
+export const marcasVentas = _ventasDe(_MARCAS, "marca");
+export const marcasMargen = _margenDe(_MARCAS, "marca");
+export const sfamiliasVentas = _ventasDe(_FAMILIAS, "sfamilia");
+export const sfamiliasMargen = _margenDe(_FAMILIAS, "sfamilia");
 
 /* LOS KPI DE CABECERA SE DERIVAN DE LAS FILAS (owner 2026-10-06, una sola realidad): como en una planilla real, la venta, el
  * año anterior, el presupuesto y las unidades son la SUMA del universo cliente (la venta OFICIAL, D8), y la contribución es
@@ -549,13 +588,13 @@ export const TENANT_DEMO = {
   // Declarada explícita desde 2026-08-30: un pack de planilla declara «raw»; el que no declara cae a «K».
   escalaComercial: "K",
   /* LA COMPATIBILIDAD ENTRE UNIVERSOS, DECLARADA POR EL PACK (owner 2026-09-14): este dato de fábrica ES el caso
-   * divergente — venta en miles contra stock en dólares crudos, y las unidades del mismo SKU difieren 4x–35x entre
+   * divergente — venta en miles contra stock en dólares crudos, y las unidades del mismo SKU difieren 0,5x–4,4x entre
    * skusMargen y skuInventario. Se declara a mano, con la misma verdad que `DIVERGENCIAS` (figureType.js), para
    * que el demo no cambie de conducta un byte y quede dicho POR QUÉ. Un pack de planilla declara la suya desde la
    * ingesta (motorKpi.js), medida sobre sus filas. */
   compatibilidad: {
     "inventario|venta_comercial": { escala: "distinta", valorizacion: "informada", unidades: "distintas", periodo: "distinto", estado: "divergent",
-      razon: "la venta comercial se almacena en MILES y el inventario en dólares CRUDOS (×1000 de diferencia de escala); además las unidades del mismo SKU difieren entre 4x y 35x entre skusMargen y skuInventario. Ninguna operación cruzada entre venta e inventario (cobertura, días, ratio, participación) cierra sobre este dato" },
+      razon: "la venta comercial se almacena en MILES y el inventario en dólares CRUDOS (×1000 de diferencia de escala); además las unidades del mismo SKU difieren entre 0,5x y 4,4x entre skusMargen y skuInventario. Ninguna operación cruzada entre venta e inventario (cobertura, días, ratio, participación) cierra sobre este dato" },
     "precio_unitario|venta_comercial": { escala: "distinta", periodo: "igual", estado: "divergent",
       razon: "precioLista y costoMedio son $ por UNIDAD, crudos; la venta viene en miles — unidades × precio no cierra contra la venta declarada" },
     "inventario|resultado_pnl": { escala: "distinta", periodo: "distinto", estado: "divergent",

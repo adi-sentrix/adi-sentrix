@@ -201,7 +201,7 @@ export const UNIVERSOS = {
 export const DIVERGENCIAS = [
   {
     entre: ["venta_comercial", "inventario"],
-    razon: "la venta comercial se almacena en MILES y el inventario en dólares CRUDOS (×1000 de diferencia de escala); además las unidades del mismo SKU difieren entre 4x y 35x entre skusMargen y skuInventario. Ninguna operación cruzada entre venta e inventario (cobertura, días, ratio, participación) cierra sobre este dato",
+    razon: "la venta comercial se almacena en MILES y el inventario en dólares CRUDOS (×1000 de diferencia de escala); además las unidades del mismo SKU difieren entre 0,5x y 4,4x entre skusMargen y skuInventario. Ninguna operación cruzada entre venta e inventario (cobertura, días, ratio, participación) cierra sobre este dato",
   },
   {
     entre: ["venta_comercial", "precio_unitario"],
@@ -252,7 +252,7 @@ export const COMPARABLES = [
  * interpretación, no fingir que son el mismo tipo de medida.»
  *
  * LO MEDIDO ANTES: `DIVERGENCIAS` (arriba) es la verdad del dato de fábrica —venta en miles contra stock en dólares
- * crudos, unidades que difieren 4x–35x— y el muro la aplicaba a TODO pack. En un pack de planilla las dos puntas
+ * crudos, unidades que difieren 0,5x–4,4x— y el muro la aplicaba a TODO pack. En un pack de planilla las dos puntas
  * van en moneda cruda, el stock se valoriza con el costo de Ventas y los días salen de las unidades de Ventas: la
  * frase «ELE-CAB25 vende $14K frente a $28K en stock» se bloqueaba «porque la venta va en miles», razón falsa para
  * ese archivo. Es el mismo movimiento que ya hizo la escala comercial (`factorComercialDe`): un campo DECLARADO que

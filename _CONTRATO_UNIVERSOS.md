@@ -39,7 +39,7 @@ Todo lo que el contrato **no** declara divergente. En particular, y esto es lo q
 
 | Par prohibido | Por qué |
 |---|---|
-| venta_comercial ↔ inventario | la venta va en miles y el stock en dólares crudos (×1000), y las unidades del mismo SKU difieren 4x–35x |
+| venta_comercial ↔ inventario | la venta va en miles y el stock en dólares crudos (×1000), y las unidades del mismo SKU difieren 0,5x–4,4x |
 | venta_comercial ↔ precio_unitario | unidades × precio no cierra contra la venta declarada |
 | resultado_pnl ↔ inventario | el P&L es del año cerrado; el inventario es la foto de hoy |
 | precio_unitario ↔ inventario | el mismo SKU no trae la misma cantidad en los dos mundos |

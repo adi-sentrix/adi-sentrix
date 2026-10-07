@@ -130,7 +130,7 @@ console.log("\n── Hallazgo 4 · figFor() ya no diverge de kpis.js/ADI para S
   const margenFigs = figs.filter((f) => /· Margen$/.test(f.label));
   ok(margenFigs.length === 1, `exactamente 1 fig 'Margen' en boleta para LG-AIR9000 (antes: 2 conflictivas) — obtuvo ${margenFigs.length}`, margenFigs);
   const found = figFor(figs, "LG-AIR9000", "Margen");
-  ok(!!found && found.value === "28%", `figFor(figs,'LG-AIR9000','Margen') === '28%' (coincide con kpis.js/_skuKPIs y con lo que ADI narra — antes devolvía '22%')`, found);
+  ok(!!found && found.value === "29.6%", `figFor(figs,'LG-AIR9000','Margen') === '29.6%' (coincide con kpis.js/_skuKPIs y con lo que ADI narra — antes devolvía '22%'; 28% hasta la calibración del SKU con el cliente, owner 2026-10-06)`, found);
 }
 
 // ── Hallazgo 5 · scope.dimension usaba el arg PRE-corrección del plan, no el eje REAL post-autocorrección ────────

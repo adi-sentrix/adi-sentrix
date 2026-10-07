@@ -139,7 +139,6 @@ export function mapaDelDato(scenario = ESCENARIO_INICIAL) {
       limites.push("bodega: SOLO inventario (capital · rotación · días) — sin venta ni margen comercial, y sin cruce cliente×bodega (los universos no reconcilian)");
     }
   }
-  if (!Object.keys(d.SCENARIO_TRANSFORMS || {}).length) limites.push("sin transforms de simulación declarados");
   const sello = getSelloDeCarga();
   if (sello && (sello.conAlarmas || (Array.isArray(sello.tipos) && sello.tipos.length))) {
     limites.push(`sello de carga vigente${Array.isArray(sello.tipos) && sello.tipos.length ? ` (${[...sello.tipos].sort().join(", ")})` : ""} — nómbralo cuando la respuesta use una lectura afectada`);

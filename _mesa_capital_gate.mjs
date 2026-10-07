@@ -131,7 +131,7 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   /* ── (8) DECISIÓN 7 · NI UNA CIFRA DE VENTA COMERCIAL EN CAPITAL ───────────────────────────────────────────
    * Es la más importante. El inventario y la venta comercial no reconcilian en unidad, moneda ni período:
    * `skusMargen.venta` viene en MILES y `stockUSD` en dólares crudos, y las unidades declaradas difieren hasta
-   * 35x por SKU. Antes la lista de reposición mostraba "vende $12.3M al año" junto a "$14K detenidos" — dos
+   * 4,4x por SKU (el ratio medido entre ritmo de venta de la foto × 365 y las unidades del año). Antes la lista de reposición mostraba "vende $12.3M al año" junto a "$14K detenidos" — dos
    * universos incompatibles en la misma pantalla. El sello tiene DOS mitades, y las dos importan:
    *   a) el módulo no importa `skusMargen` (lo que no entra no se cuela);
    *   b) ninguna cifra de ese universo aparece en un texto de la cara. */

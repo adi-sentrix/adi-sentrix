@@ -752,10 +752,10 @@ H("A13 · Y11 · la verdad propia nombra la condición que la entidad NO cumple:
   const rot = RK.sku.rotacion.filas.find((f) => f.entidad === "PHI-IRON-PRO").valor;
   const mvIron = RK.sku.margen_venta.filas.find((f) => f.entidad === "PHI-IRON-PRO").valor;
   const t = _premisasDe(mk(["PHI-IRON-PRO"]).E)[0] || "";
-  ok(mvIron < benchmarkOf() && /PHI-IRON-PRO: rotación 2\.4x/.test(t) && rot === 2.4 && !/margen de venta/.test(t), "PHI-IRON-PRO (margen 22 % < benchmark: cumple la base) dice su ROTACIÓN 2.4x (rota bien: lo que falla), nunca «margen de venta 22 %»", t);
+  ok(mvIron < benchmarkOf() && /PHI-IRON-PRO: rotación 2\.4x/.test(t) && rot === 2.4 && !/margen de venta/.test(t), "PHI-IRON-PRO (margen 23,2 % < benchmark: cumple la base) dice su ROTACIÓN 2.4x (rota bien: lo que falla), nunca «margen de venta 23,2 %»", t);
   const mvSaw = RK.sku.margen_venta.filas.find((f) => f.entidad === "MAK-SAW18V").valor;
   const t2 = _premisasDe(mk(["MAK-SAW18V"]).E)[0] || "";
-  ok(mvSaw > benchmarkOf() && /MAK-SAW18V: margen de venta 34%/.test(t2), "CONTROL · MAK-SAW18V (margen 34 % > benchmark) SÍ falla la base: dice su margen de venta", t2);
+  ok(mvSaw > benchmarkOf() && /MAK-SAW18V: margen de venta 35\.9%/.test(t2), "CONTROL · MAK-SAW18V (margen 35,9 % > benchmark) SÍ falla la base: dice su margen de venta", t2);
 }
 
 H("A13 · Y14 · el filtro que la entidad NO pasa decide, y la referencia de cada condición viaja en la frase de su miembro");
@@ -1974,9 +1974,9 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     for (const base of ["bajo el benchmark", "SKU bajo el benchmark"]) { n++; const eje = /^SKU/.test(base) ? "sku" : "cliente"; const { R, E } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente" }], criterio: { referencia: { concepto: "benchmark", valor: 25, unidad: "pct" } }, premisas: [{ id: "q1", tipo: "conteo", conteo: { n: 1, m: ENTS[eje].length }, de: { eje, base } }] });
       if (!(E.ok && /(?:\d+ )(?:SKU|cuentas)[^.]*esa referencia/.test((E.entrega.limites || []).map((l) => l.motivo).join(" ")) && verifica(E, R).ok)) malas.push(`base.${base}`); }
     ok(n >= 50 && malas.length === 0, `barrido · ${n} combinaciones (tipo de premisa × concepto × eje, el filtro con \`ref\` y el \`base\` de la casa): ninguna queda «no verificable» por una evidencia que el Core sabe calcular y todas pasan verificarEntrega`, JSON.stringify(malas.slice(0, 6)));
-    const { R: R26, E: E26 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["margen", "unidades"], eje: "familia" }], criterio: { lente: "riesgo" }, premisas: [{ id: "q2", tipo: "conteo", conteo: { n: 4, m: 4 }, de: { eje: "familia", filtros: [{ metrica: "carga", op: ">", ref: "nivel_carga" }] } }] });
+    const { R: R26, E: E26 } = entregaDe({ partes: [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["margen", "unidades"], eje: "familia" }], criterio: { lente: "riesgo" }, premisas: [{ id: "q2", tipo: "conteo", conteo: { n: 3, m: 4 }, de: { eje: "familia", filtros: [{ metrica: "carga", op: ">", ref: "nivel_carga" }] } }] });
     const H26 = E26.entrega.procedencia.libroPremisas.porId.get("q2");
-    ok(E26.ok && H26.veredicto === "verdadera" && /4 de 4/.test(sinTablas(E26)) && verifica(E26, R26).ok, "N26 · «4 de 4» familias sobre el nivel de carga (antes «2 de 4»: con la tabla las cuatro superan el 3,5 %; conclusión aprobada, diseño §4f ②): la premisa carga la carga por familia aunque la parte pida margen y unidades", sinTablas(E26).split("\n").filter((l) => /premisa/.test(l)).join(" | "));
+    ok(E26.ok && H26.veredicto === "verdadera" && /3 de 4/.test(sinTablas(E26)) && verifica(E26, R26).ok, "N26 · «3 de 4» familias sobre el nivel de carga (antes «4 de 4» con la tabla escrita a mano y «2 de 4» con «bonanza»: con la familia = suma de sus SKU, Cuidado Personal carga 3,5 % y no supera el nivel 3,5 %; conclusión por marca-desde-sku, diseño §2-bis): la premisa carga la carga por familia aunque la parte pida margen y unidades", sinTablas(E26).split("\n").filter((l) => /premisa/.test(l)).join(" | "));
     /* el Marco declara «3.5%» sin que su cifra esté declarada: la Entrega de N26 sin su cifra impresa es rechazada (el rechazo de verificarEntrega que la 49d cierra) */
     const sinCifra = { ...E26, entrega: { ...E26.entrega, procedencia: { ...E26.entrega.procedencia, cifrasImpresas: (E26.entrega.procedencia.cifrasImpresas || []).filter((c) => !/3\.5/.test(c)) } } };
     ok(/Nivel de referencia de carga: 3\.5%/.test(E26.texto) && verifica(E26, R26).ok && !verifica(sinCifra, R26).ok, "CARNADA · el defecto reconstruido (el Marco dice «3.5%» sin que esa cifra esté declarada) cae en verificarEntrega"); }

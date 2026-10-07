@@ -231,9 +231,9 @@ const _L = (linea, prosa = "Lider vendió $17.8M en el año.", extra = {}) => ju
 const QSIM = { question: "Reduce 2 puntos porcentuales las acciones comerciales de esos clientes.", supuestoPendiente: ["2pp"] };
 /* ⚠️ ACTUALIZADO (2026-08-15): desde que el dueño se INFIERE con evidencia inequívoca, una cuenta sobre
  * agregados del negocio ya no muere — se le infiere «total», que es lo que el owner pidió. Para probar que SIN
- * evidencia sigue muriendo hay que darle insumos que no señalen a nadie: «4%» figura en la carpeta como valor de
- * TRES entidades distintas, así que no es evidencia de ninguna. */
-const dSinD = _detalle(`El ajuste combinado sería de 8%.\n\n${MARCA_CALCULO}\nid=c1 · op=sumar · inputs=4%; 4% · formula=4% + 4% · resultado=8% · unidad=pct`);
+ * evidencia sigue muriendo hay que darle insumos que no señalen a nadie: «4.4%» figura en la carpeta como la carga
+ * de TRES SKU distintos (SAM-REF500L, SAM-TV55 y LG-AIR9000: marca y familia salen de los SKU, owner 2026-10-06), así que no es evidencia de ninguna. */
+const dSinD = _detalle(`El ajuste combinado sería de 8.8%.\n\n${MARCA_CALCULO}\nid=c1 · op=sumar · inputs=4.4%; 4.4% · formula=4.4% + 4.4% · resultado=8.8% · unidad=pct`);
 ok(/campo «dueño»/.test(dSinD), `sin dueño Y sin evidencia para inferirlo, la cuenta no autoriza nada (${dSinD.slice(0, 90)}…)`);
 ok(/dueno=total/.test(dSinD), "…y la multa dice cómo arreglarlo: la entidad, o «total» si es del conjunto");
 const dInv = _detalle(`El negocio subiría a $104.0M.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money · dueno=Acme Corp`);
@@ -300,8 +300,9 @@ ok(juzgar(`El margen de Falabella llegaría a 24.0% y quedaría a 6.1pp del benc
   const figs = cifrasDelDato("actual").figs || [];
   const tot = figs.find((f) => (f.duenos || []).includes("negocio") && /^\$\d+\.\d+M$/.test(String(f.value)));
   const base = parseFloat(String(tot.value).replace(/[^\d.]/g, ""));
-  const proy = `$${(base * 1.04).toFixed(1)}M`;
-  ok(juzgar(`Las ventas del negocio subirían a ${proy}.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=${tot.value}; 4% · formula=${tot.value} + 4% · resultado=${proy} · unidad=money`, { question: "proyecta +4%", supuestoPendiente: ["4%"] }).ok,
+  /* el supuesto es 7%: «4%» es ahora la carga EXACTA de una cuenta (Paris) y un insumo con dueño propio ya no es agregado (con marca = suma de SKU dejó de repetirse en tres entidades) */
+  const proy = `$${(base * 1.07).toFixed(1)}M`;
+  ok(juzgar(`Las ventas del negocio subirían a ${proy}.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=${tot.value}; 7% · formula=${tot.value} + 7% · resultado=${proy} · unidad=money`, { question: "proyecta +7%", supuestoPendiente: ["7%"] }).ok,
     `sin «dueno» pero con TODOS los insumos agregados (${tot.value}): el resultado es del conjunto`);
 }
 console.log("\n── 12b · LOS CONTROLES NEGATIVOS · inferir no es adivinar ──");

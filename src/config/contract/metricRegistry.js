@@ -118,9 +118,9 @@ export const METRICS = {
    * declinaba «no está declarada para el eje» sobre un campo presente en todas las filas. Es dato primario del
    * archivo (una fila de Ventas trae sus unidades): sello PROBADO. El precio realizado (venta ÷ unidades) NO es
    * ticket ni lista de precios — lo dice el composer de la descomposición volumen/precio, no esta métrica.
-   * ⚠️ En el dato de fábrica las unidades por SKU viven en otra escala que las de cliente (674 contra 5.520 en
-   * total): es la divergencia modelada de siempre entre skusMargen y el resto (CLAUDE.md §4), no un defecto de la
-   * métrica; en un pack de planilla los cuatro ejes suman lo mismo porque salen de las mismas filas. */
+   * Los cuatro ejes suman lo MISMO (owner 2026-10-06, una sola realidad): en una planilla porque salen de las mismas filas; en el
+   * dato de fábrica porque cliente y producto son la base (Σ 5.520 en los dos) y marca y familia son la suma de sus SKU. La
+   * divergencia que queda es la de inventario (otra fuente, otra escala), no la de estos ejes. */
   unidades: {
     label: "Unidades vendidas", unit: "count", polarity: "higherIsBetter", formula: null,   // dato primario
     axes: ["cliente", "sku", "marca", "familia"],

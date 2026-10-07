@@ -507,7 +507,7 @@ function _oracionCampo(entity, { label, token, value, periodo }) {
 // guardC bloquea el cruce. Una segunda opinión sobre qué reconcilia con qué es exactamente cómo se llega a que el
 // motor afirme lo que el muro prohíbe.
 // LA FRASE SE COMPONE DE LAS PROPIEDADES DECLARADAS, NO DEL `razon` DEL CONTRATO. Ese texto está escrito para
-// quien lee el contrato y trae CIFRAS ("×1000 de diferencia", "entre 4x y 35x") que este turno no tiene
+// quien lee el contrato y trae CIFRAS ("×1000 de diferencia", "entre 0,5x y 4,4x") que este turno no tiene
 // autorizadas — el guard lo bloqueó, con razón, la primera vez que se intentó pegarlo tal cual. Acá se dicen las
 // MISMAS diferencias sin un solo número: escala, marco temporal y unidad salen de `UNIVERSOS[x]`, así que la
 // afirmación sigue siendo del contrato y no hay ninguna cifra que autorizar.

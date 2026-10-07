@@ -414,7 +414,7 @@ pregunta(11, "Dame la tabla completa de Falabella", "responde",
 
 /* ══ 12 · «¿Los que más venden son los que tienen capital detenido?» ═════════════════════════════════════════
  * EL DEFECTO: la comparación en $ NO es posible (venta en miles ↔ inventario en dólares crudos, y las unidades del
- * mismo SKU difieren entre 4x y 35x). En UNIDADES sí. La respuesta correcta cruza unidades y no cruza dinero. */
+ * mismo SKU difieren entre 0,5x y 4,4x). En UNIDADES sí. La respuesta correcta cruza unidades y no cruza dinero. */
 pregunta(12, "¿Los que más venden son los que tienen capital detenido?", "responde",
   [{ tool: "tensionRead", args: { dimension: "sku", metricA: "unidades", metricB: "stockUSD" } }],
   ({ figs, results, guard }) => {

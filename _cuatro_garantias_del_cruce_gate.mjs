@@ -33,6 +33,7 @@
  *
  * Cero red: cerebro mudo, herramientas puras, fixtures en disco. */
 import fs from "node:fs";
+import { leerFixtureVigente } from "./scripts/una-sola-realidad/cifrasVigentes.mjs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
@@ -53,7 +54,7 @@ const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); }
 const H = (t) => console.log(`\n${t}`);
 const CAJA = cajaDelAgente(TOOLS);
 const MUDO = async () => ({ tipo: "texto", texto: "", stop: "end_turn" });
-const FX = JSON.parse(fs.readFileSync(new URL("./fixtures/cruce-vivo-2026-09-14.json", import.meta.url), "utf8"));
+const FX = leerFixtureVigente(new URL("./fixtures/cruce-vivo-2026-09-14.json", import.meta.url));   /* una sola realidad (2026-10-06): el corpus archivado se lee con las cifras vigentes */
 const [Q1, Q2, Q3] = FX.corridas;
 initTenant(TENANT_DEMO);
 

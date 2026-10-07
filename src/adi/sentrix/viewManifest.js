@@ -491,8 +491,8 @@ export const VIEW_MANIFEST = {
    * EL LÍMITE QUE COMPARTEN TODAS, y por eso se dice una vez acá y se nombra en cada una: el capital de esta cara y
    * la venta de la cara Comercial NO RECONCILIAN. Están declarados como universos divergentes en
    * `config/contract/figureType.js` (DIVERGENCIAS: `inventario` ↔ `venta_comercial`) con razón verificable: la
-   * venta se almacena en MILES y el stock en dólares CRUDOS (×1000), y las unidades del mismo SKU difieren entre 4x
-   * y 35x entre `skusMargen` y `skuInventario`. Por eso `mesaCapital.js` no importa `skusMargen`: ninguna cifra de
+   * venta se almacena en MILES y el stock en dólares CRUDOS (×1000), y las unidades del mismo SKU difieren entre 0,5x
+   * y 4,4x entre `skusMargen` y `skuInventario`. Por eso `mesaCapital.js` no importa `skusMargen`: ninguna cifra de
    * esta cara se puede dividir por la venta, expresar como % de ella ni convertir en días de cobertura comercial.
    * Que las cifras de acá SÍ reconcilien con su tool no levanta ese límite — son dos preguntas distintas. */
   "capital/otro/vista": {
@@ -503,7 +503,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "inventoryStatus", args: {} }],
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["veredicto"],
-      razon: "el contexto ambiente de la cara no autoriza ninguna cifra: el veredicto es texto y el cruce builder↔ledger no produce un solo par comparable. Además, ninguna cifra de esta cara reconcilia con la venta comercial (universos `inventario` ↔ `venta_comercial`, divergencia declarada en config/contract/figureType.js: miles vs dólares crudos y unidades que difieren entre 4x y 35x por SKU)" },
+      razon: "el contexto ambiente de la cara no autoriza ninguna cifra: el veredicto es texto y el cruce builder↔ledger no produce un solo par comparable. Además, ninguna cifra de esta cara reconcilia con la venta comercial (universos `inventario` ↔ `venta_comercial`, divergencia declarada en config/contract/figureType.js: miles vs dólares crudos y unidades que difieren entre 0,5x y 4,4x por SKU)" },
     _provisional: true,
   },
   /* ⚠️ ACÁ VIVÍAN "capital/01/veredicto" y "capital/01/mapa". Se fueron el 2026-08-27 con las piezas que
@@ -806,7 +806,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "gridTable", args: { dimension: "sku" } }],
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["enJuego", "lectura", "accion", "capital", "rotacion"],
-      razon: "el margen por SKU concuerda con `gridTable{sku}`. Lo que la evidencia declarada NO entrega es el resto de la fila: «En juego $», la microlectura y la Acción son la capa del asesor (detectores del diagnose), y las columnas Capital y Rotación vienen del INVENTARIO, un universo que no reconcilia con la venta del mismo SKU (`inventario` ↔ `venta_comercial` en config/contract/figureType.js: miles vs dólares crudos y unidades que difieren entre 4x y 35x). En esta pestaña «En juego $» es capital inmovilizado: $33.2K sobre la base real — no margen" },
+      razon: "el margen por SKU concuerda con `gridTable{sku}`. Lo que la evidencia declarada NO entrega es el resto de la fila: «En juego $», la microlectura y la Acción son la capa del asesor (detectores del diagnose), y las columnas Capital y Rotación vienen del INVENTARIO, un universo que no reconcilia con la venta del mismo SKU (`inventario` ↔ `venta_comercial` en config/contract/figureType.js: miles vs dólares crudos y unidades que difieren entre 0,5x y 4,4x). En esta pestaña «En juego $» es capital inmovilizado: $33.2K sobre la base real — no margen" },
   },
   "comercial/otro/cuadro-mando-marca": {
     vista: "comercial", seccion: "otro", tipo: "tabla", label: "El Cuadro de mando · marcas",
@@ -876,7 +876,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "marginRead", args: { dimension: "marca" } }],
     sinTool: null,
     concordancia: { estado: "divergent", campos: ["contribucion", "margen", "rows[role='avg']"], toolsQueNoReconcilian: ["marginRead"],
-      razon: "esta pieza NO lee la marca: la RECONSTRUYE sumando los SKU de `skusMargen` y ponderando su carga por venta, mientras `marginRead{marca}` (y el Cuadro de mando de la misma pantalla) leen la fila declarada de `marcasMargen`. Son dos agregaciones distintas del mismo concepto y no coinciden: en la marca líder el ring afirma 22,1% de margen y $6.99M de contribución donde la fila declarada dice 24,2% y $7.64M. Encima arrastra el mismo desalineamiento de escala que el ring de SKU: el contrato declara esa contribución en miles y la pieza la pinta como dólares crudos" },
+      razon: "esta pieza NO lee la marca: la RECONSTRUYE sumando los SKU de `skusMargen` y ponderando su carga por venta, mientras `marginRead{marca}` (y el Cuadro de mando de la misma pantalla) leen la fila declarada de `marcasMargen`. Desde la realidad única (owner 2026-10-06) la fila de `marcasMargen` es la SUMA de esos mismos SKU, así que el margen y la contribución de la marca coinciden con los de `marginRead{marca}` (en la marca líder, 23,4% y $7.379K en las dos puntas). Lo que sigue sin cerrar es la ESCALA, que arrastra el mismo desalineamiento que el ring de SKU: el contrato declara esa contribución en miles y la pieza la pinta como dólares crudos, y la fila «Promedio marcas» es un promedio simple entre marcas que ninguna tool entrega" },
   },
   "capital/otro/control-ring-bodega": {
     vista: "capital", seccion: "otro", tipo: "tabla", label: "El Control · el ring de una bodega",

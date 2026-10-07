@@ -52,7 +52,10 @@ function escribirComo(c, pubNuevo, escalaOk) {
   const x = pubNuevo * escalaOk;
   if (c.numero != null) return Number.isInteger(c.numero) ? Math.round(x) : +x.toFixed(Math.max(2, (String(c.numero).split(".")[1] || "").length));
   const absX = Math.abs(x) / c.mult;
-  let t = absX.toFixed(c.dec);
+  /* UN PORCENTAJE SE ESCRIBE CON LA PRECISION DE LO PUBLICADO (segunda pasada, marca desde SKU): el verificador compara un % a la precision con que esta impreso («58%» NO es 57.7%),
+   * asi que una premisa «34%» que era verdadera porque el dato valia 34.0 pasa a «35.9%» —no a «36%», que seria una premisa nueva y falsa— cuando el dato vale 35.9. */
+  const decNecesarios = c.pct === "%" && Math.abs(absX - Math.round(absX)) > 1e-6 ? 1 : 0;
+  let t = absX.toFixed(Math.max(c.dec, decNecesarios));
   if (c.coma) t = t.replace(".", ",");
   return `${c.signoTxt || (x < 0 ? "-" : "")}${c.prefijo}${t}${c.escala}${c.pct}${c.cola}`.replace(/^\s+/, "");
 }
@@ -80,7 +83,7 @@ for (const caso of F.casos) {
 console.log(`premisas de cifra refrescadas: ${cambios.length} · sin tocar: ${JSON.stringify(sinTocar)}`);
 for (const c of cambios.slice(0, 400)) console.log(`  ${c.id}.${c.p} · ${c.sujeto} · ${c.metrica}: ${JSON.stringify(c.de)} → ${JSON.stringify(c.a)}`);
 if (ESCRIBIR) {
-  F.nota = String(F.nota || "").replace(/\s*\[Una sola realidad[^\]]*\]/, "") + ` [Una sola realidad (owner 2026-10-06): las ${cambios.length} premisas de cifra que eran verdaderas con el dato de entonces y ya no lo son se refrescaron con scripts/una-sola-realidad/refrescar-premisas.mjs; nada más del encargo se tocó y el sha de cada caso se re-selló sobre el texto vigente.]`;
+  F.nota = String(F.nota || "") + ` [Pasada de refresco (owner 2026-10-06): ${cambios.length} premisas de cifra que eran verdaderas con el dato de entonces y ya no lo son se refrescaron con scripts/una-sola-realidad/refrescar-premisas.mjs; nada más del encargo se tocó y el sha de cada caso se re-selló sobre el texto vigente.]`;
   fs.writeFileSync(FIX, JSON.stringify(F), "utf8");
   console.log("✓ escrito", FIX);
 }

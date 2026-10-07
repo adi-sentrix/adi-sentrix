@@ -50,9 +50,21 @@ export const MAPA_DE_CIFRAS = [
   ["es la marca que más vende: $33.2M", "es la marca que más vende: $31.6M", "Samsung · venta de la tabla"],
   ["$33.2M", "$31.6M", "Samsung · venta de la tabla (= Electrodomésticos)"], ["$37.3M", "$35.6M", "LG + Bosch · venta de la tabla (24,6 + 11,0)"],
   ["Samsung vende $33.2M, menos que LG y Bosch juntos ($37.3M entre las dos)", "Samsung vende $31.6M, menos que LG y Bosch juntos ($35.6M entre las dos)", "Samsung · LG + Bosch de la tabla (24,6 + 11,0)"],
-  ["Bosch carga 5.5%", "Bosch carga 5.4%", "Bosch · carga de la tabla"],
-  ["Bosch margina 26% y carga 5.5%", "Bosch margina 25.5% y carga 5.4%", "Bosch · margen y carga de la tabla"],
-  ["Philips deja $7.8M de contribución con 3.5% de carga", "Philips deja $7.3M de contribución con 3.6% de carga", "Philips · contribución y carga de la tabla"],
+  /* marca desde SKU (§2-bis, 2026-10-06): Bosch carga 5,0 % y margina 24,9 %; Philips deja $8,1M con 3,5 % de carga. Las dos épocas del corpus (98ad: 5,5 · cd16580a: 5,4) van al mismo destino. */
+  ["Bosch carga 5.5%", "Bosch carga 5%", "Bosch · carga de la marca = suma de sus SKU"], ["Bosch carga 5.4%", "Bosch carga 5%", "Bosch · carga de la marca = suma de sus SKU"],
+  ["Bosch margina 26% y carga 5.5%", "Bosch margina 24.9% y carga 5%", "Bosch · margen y carga de la marca = suma de sus SKU"], ["Bosch margina 25.5% y carga 5.4%", "Bosch margina 24.9% y carga 5%", "Bosch · margen y carga de la marca = suma de sus SKU"],
+  ["Philips deja $7.8M de contribución con 3.5% de carga", "Philips deja $8.1M de contribución con 3.5% de carga", "Philips · contribución y carga de la marca = suma de sus SKU"], ["Philips deja $7.3M de contribución con 3.6% de carga", "Philips deja $8.1M de contribución con 3.5% de carga", "Philips · contribución y carga de la marca = suma de sus SKU"],
+  /* frases relacionales de SKU (la contribución del SKU se calibró con el cliente): el corpus las escribe con la cifra de cada lado */
+  ["PHI-SHAVER9 es el SKU que más contribución deja: $3.4M", "PHI-SHAVER9 es el SKU que más contribución deja: $3.6M", "PHI-SHAVER9 · contribución"],
+  ["($3.4M contra $2.5M) vendiendo menos", "($3.6M contra $2.6M) vendiendo menos", "PHI-SHAVER9 contra SAM-TV55 · contribución"],
+  ["LG-WASH11KG vende $12.4M y deja $2.9M", "LG-WASH11KG vende $12.4M y deja $3.0M", "LG-WASH11KG · contribución"],
+  ["van de $3.4M a $2.4M", "van de $3.6M a $2.6M", "los cinco SKU de mayor contribución · de PHI-SHAVER9 a SAM-REF500L"],
+  ["que más contribución deja de toda la cartera ($3.4M)", "que más contribución deja de toda la cartera ($3.6M)", "PHI-SHAVER9 · contribución"],
+  ["contribución bastante menor ($1.4M)", "contribución bastante menor ($1.5M)", "PHI-IRON-PRO · contribución"],
+  ["contribución fuerte ($2.4M y $2.9M)", "contribución fuerte ($2.6M y $3.0M)", "SAM-REF500L y LG-WASH11KG · contribución"],
+  ["deja $3.4M de contribución, la más alta", "deja $3.6M de contribución, la más alta", "PHI-SHAVER9 · contribución"],
+  ["lideran contribución ($3.4M y $2.8M)", "lideran contribución ($3.6M y $2.9M)", "PHI-SHAVER9 y PHI-HAIR-PRO · contribución"],
+  ["lidera contribución ($3.4M)", "lidera contribución ($3.6M)", "PHI-SHAVER9 · contribución"],
   ["$540K", "$541K", "Sodimac · contribución no capturada"], ["$240K", "$241K", "Ripley · contribución no capturada"],
   /* la brecha al benchmark de las MARCAS (30,1 − margen de la tabla): el margen de marca se calibró ×0,9804 para cuadrar con la contribución de los clientes
    * (Samsung 24,2→23,7 · LG 24,0→23,5 · Philips 26,6→26,1 · Bosch 26,0→25,5). Solo con su frase pegada (un «5,9» a secas no se toca). */
@@ -61,6 +73,14 @@ export const MAPA_DE_CIFRAS = [
   ["brecha 3.5 puntos", "brecha 4.0 puntos", "Philips · brecha al benchmark"],
   ["brecha 4.1 puntos", "brecha 4.6 puntos", "Bosch · brecha al benchmark"],
 ];
+
+/* ── SEGUNDA CONSOLIDACIÓN (owner 2026-10-06, §2-bis «la base son dos átomos»): el SKU se calibró con el cliente (contribución × 1,0556) y marca y familia pasaron a ser la suma de sus SKU.
+ * Se refrescan SOLO las frases completas «SKU + su contribución» de los corpus archivados (la contribución de un SKU solo puede ser una cifra de $M: su venta es otra escala). Lo que cambia de CONTENIDO
+ * —quién es la marca de mejor margen, cuántas superan el nivel de carga— NO se mapea: es la conclusión nueva y la declaran `_una_sola_realidad_gate` §5 y §8. Un margen de SKU («28%») tampoco: es a la
+ * vez el margen de venta (cambió) y el de inventario (no cambió) y solo la frase completa lo desambigua. */
+const _SKU_CONTRIBUCION = [["PHI-SHAVER9", "$3.4M", "$3.6M"], ["LG-WASH11KG", "$2.9M", "$3.0M"], ["PHI-HAIR-PRO", "$2.8M", "$2.9M"], ["SAM-TV55", "$2.5M", "$2.6M"], ["SAM-REF500L", "$2.4M", "$2.6M"], ["SAM-MICRO32L", "$2.1M", "$2.2M"], ["BOS-DRILL18V", "$1.8M", "$1.9M"], ["PHI-IRON-PRO", "$1.4M", "$1.5M"]];
+const _FORMAS_DE_CONTRIBUCION = [" ", " (", " (contribución ", ": contribución ", " con ", " deja ", " tiene ", " · Contribución = "];
+for (const [sku, de, a] of _SKU_CONTRIBUCION) for (const f of _FORMAS_DE_CONTRIBUCION) MAPA_DE_CIFRAS.push([`${sku}${f}${de}`, `${sku}${f}${a}`, `${sku} · contribución del SKU calibrada con el cliente`]);
 
 /* los NÚMEROS CRUDOS (campo `raw` de una cifra de boleta archivada, en dólares): solo los de las variaciones y la venta de las cuentas que se movieron, exactos */
 /* LAS CIFRAS SIN SIGNO QUE SON DE MÁS DE UNA CUENTA (o de una cuenta y de otra cosa): se refrescan SOLO si la cuenta que las posee aparece en la misma cadena (la más cercana: antes
@@ -103,12 +123,22 @@ export function refrescarCifras(texto, sujeto = null) {
   }
   return t;
 }
+/* LA DECLARACIÓN DE UNA CIFRA DE SKU: {sujeto:"PHI-SHAVER9", metrica:"Contribución", valor:"$3,4M", texto:"PHI-SHAVER9 $3,4M"} — el `texto` lleva la frase completa y la refresca el mapa; el `valor` suelto no tiene al SKU pegado, así que
+ * se refresca por su `sujeto` y su `metrica` (la misma tabla, el mismo «de antes → de ahora»; sin sujeto de SKU y métrica de contribución no se toca). */
+function _valorDeContribucionDeSku(orig, o) {
+  if (!orig || typeof orig.sujeto !== "string" || !/contribuci[oó]n/i.test(String(orig.metrica || "")) || typeof o.valor !== "string") return o;
+  const fila = _SKU_CONTRIBUCION.find(([sku]) => sku === orig.sujeto);
+  if (!fila) return o;
+  const coma = /,/.test(o.valor), punto = (s) => s.replace(",", ".");
+  if (punto(o.valor) === fila[1]) o.valor = coma ? fila[2].replace(".", ",") : fila[2];
+  return o;
+}
 /** Recorre un valor JSON y refresca todas sus cadenas, y los campos `raw` numéricos de la tabla RAW_DE_CIFRAS (ningún otro número se toca). */
 export function refrescarEnProfundidad(v, clave = null, sujeto = null) {
   if (typeof v === "string") return refrescarCifras(v, sujeto);
   if (typeof v === "number") return clave === "raw" && RAW_DE_CIFRAS.has(v) ? RAW_DE_CIFRAS.get(v) : v;
   if (Array.isArray(v)) return v.map((x) => refrescarEnProfundidad(x, clave, sujeto));
-  if (v && typeof v === "object") { const s = typeof v.sujeto === "string" ? v.sujeto : sujeto; const o = {}; for (const [k, x] of Object.entries(v)) o[k] = refrescarEnProfundidad(x, k, s); return o; }
+  if (v && typeof v === "object") { const s = typeof v.sujeto === "string" ? v.sujeto : sujeto; const o = {}; for (const [k, x] of Object.entries(v)) o[k] = refrescarEnProfundidad(x, k, s); return _valorDeContribucionDeSku(v, o); }
   return v;
 }
 /** Lee un corpus archivado (ruta o URL) con las cifras vigentes. El archivo no se modifica. */

@@ -297,9 +297,20 @@ Derivadas que se rompen seguido:
 
 Saber esto evita inventar. Todo verificado.
 
+**UNA SOLA REALIDAD (owner 2026-10-06/07 · `_ADI_DISENO_UNA_SOLA_REALIDAD.md`).** Ya NO hay escenarios
+(bonanza/tensión/crisis): `SCENARIO_TRANSFORMS = {}` en todo tenant; las TABLAS del tenant son la realidad vigente y
+una simulación es un delta explícito sobre ellas, nunca otra realidad. En el demo la verdad base son **dos átomos:
+clientes** (`clientesVentas`/`clientesMargen`, universo oficial D8) **y productos** (`skusMargen`, los 13 SKU = toda la
+venta). **Marca y familia NO se escriben: se derivan Σ SKU**; mes y cabecera salen del universo cliente. Donde
+cliente y SKU difieren, **manda cliente** y el SKU se calibra con UN factor uniforme por métrica. Venta, contribución,
+acciones y unidades **cuadran en todos los ejes comerciales**; lo único declarado por marca es el año anterior
+(venta y crecimiento de unidades). Candado: `_una_sola_realidad_gate`. Un número escrito a mano en un eje derivado,
+o un descuadre entre ejes comerciales, es un defecto — no «otro universo».
+
 **Los dos universos que NO reconcilian — EN EL DATO DE FÁBRICA.** `skusMargen` (venta comercial) y `skuInventario`
 no son el mismo negocio medido dos veces: la venta viene en **miles** ($100.0M anuales), `stockUSD` en **dólares
-crudos** ($135.000 totales), y las unidades declaradas difieren **entre 4x y 35x** por SKU.
+crudos** ($135.000 totales), y las unidades del año contra el ritmo de venta de la foto difieren **entre 0,5x y
+4,4x** por SKU.
 `src/adi/sentrix/mesaCapital.js` **NO importa `skusMargen`**, y ese es el sello: lo que no entra al módulo no
 se cuela a un texto. **Una cifra que haga cerrar esos dos universos es una alarma, no un logro.**
 ⚠️ **Esa divergencia la declara el PACK, no el contrato** (owner 2026-09-14): el demo la declara a mano en su
@@ -352,8 +363,8 @@ que las barre (`_registro_gate`). Se dice **capital**, **benchmark**. También: 
 - **"Declina honestamente" cuenta como éxito**, no como falla. Un límite declarado vale más que un verde
   apretado.
 - **Impedir el consumo técnicamente, no por instrucción.** Una regla escrita no frena un gasto; un cerrojo sí.
-- **Al abrir o delegar a otro chat, pasarle el ESTADO del producto** (qué está desplegado, qué es legado, qué
-  escenario está activo), no solo el diseño y las restricciones.
+- **Al abrir o delegar a otro chat, pasarle el ESTADO del producto** (qué está desplegado, qué es legado, y que
+  ya no hay escenarios: una sola realidad, §4), no solo el diseño y las restricciones.
 - **No crear un contrato ni una memoria paralela.** Se extiende lo que hay.
 - **Anotar lo que se pierde por el camino** y recordárselo al owner cuando pregunte por pendientes.
 - **Preferir el desacuerdo antes de ejecutar**, no después.

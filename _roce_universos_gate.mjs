@@ -57,13 +57,13 @@ ok(V("BOS-SANDER tiene margen 15.0% y capital $11K frenado.") === "etiqueta-ambi
   `«margen 15.0%» de un SKU, sin decir de qué universo, muere (${V("BOS-SANDER tiene margen 15.0% y capital $11K frenado.")})`);
 ok(J("BOS-SANDER tiene margen de inventario 15.0% y capital $11K frenado.").ok, "…y con el nombre completo pasa");
 ok(J("El margen de Falabella es 22.0%.").ok, "el margen de un CLIENTE no es ambiguo (no tiene margen de inventario): pasa");
-ok(J("BOS-SANDER tiene margen de venta 18.0%.").ok, "el margen de VENTA de un SKU, nombrado completo, pasa");
+ok(J("BOS-SANDER tiene margen de venta 19%.").ok, "el margen de VENTA de un SKU, nombrado completo, pasa");
 /* ── LAS DOS EXCEPCIONES DE LA CALIBRACIÓN (2026-08-15, sobre los borradores guardados) ────────────────────────
  * Los dos textos son VERBATIM del corpus y los dos eran correctos: el muro los vetaba por exigir la etiqueta en
  * CADA mención, no por ambigüedad real. */
-ok(J("MAK-COMP-AIR generó $1.7M en ventas con $135K de contribución y 7.9% de margen — el margen de venta más bajo de toda la cartera.").ok,
-  "basta con que la cláusula lo nombre UNA vez: «7.9% de margen — el margen de venta más bajo» ya dijo de cuál habla");
-ok(J("MAK-COMP-AIR rota 0.8x con margen de inventario 8.0% en la foto de hoy, y en la venta comercial del año cerrado tiene el margen más bajo de los 13 SKU (7.9%).").ok,
+ok(J("MAK-COMP-AIR generó $1.7M en ventas con $142K de contribución y 8.4% de margen — el margen de venta más bajo de toda la cartera.").ok,
+  "basta con que la cláusula lo nombre UNA vez: «8.4% de margen — el margen de venta más bajo» ya dijo de cuál habla");
+ok(J("MAK-COMP-AIR rota 0.8x con margen de inventario 8.0% en la foto de hoy, y en la venta comercial del año cerrado tiene el margen más bajo de los 13 SKU (8.4%).").ok,
   "…y la frase que declara el universo en palabras («en la venta comercial del año cerrado») tampoco necesita repetir la etiqueta");
 // EL CONTROL: sin ninguna de las dos cosas, el veto sigue
 ok(V("BOS-SANDER tiene margen 15.0% y capital $11K.") === "etiqueta-ambigua",
@@ -81,7 +81,7 @@ ok(J("**1. Margen: SAM-TV55 es la prioridad de correccion.**\n- Margen de carter
   "un TÍTULO con «Margen» y un SKU no se pega a la viñeta de abajo: el 25.1% es de la cartera y está en otro renglón");
 ok(V("| SKU | Rotación | Margen | Estado |\n| BOS-SANDER | 1.6x | 15.0% | 90d |") === "etiqueta-ambigua",
   "…y la TABLA sigue muriendo entera: su encabezado es lo que etiqueta la fila (el caso real del examen 2)");
-ok(V("**Resumen — margen e inventario**\nSAM-TV55 tiene un margen de 18.5%.") === "etiqueta-ambigua",
+ok(V("**Resumen — margen e inventario**\nSAM-TV55 tiene un margen de 19.5%.") === "etiqueta-ambigua",
   "y un «margen» a secas CON cifra sobre un SKU sigue muriendo aunque venga bajo un título: la excepción es del título, no del SKU");
 
 console.log("\n── 3 · RANKING SIN COLA ──");

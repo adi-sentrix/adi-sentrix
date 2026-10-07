@@ -62,9 +62,9 @@ const GRUPO = /cifra-de-grupo-mal-repartida/, CONTEO = /conteo-de-lista-falso/, 
 const INVENTO = /cifra-no-autorizada|cifra-de-dato-sin-dueno|cifra-de-boleta-sin-dueno|entidad-mal-atribuida|metrica-mal-atribuida/;
 
 H("1 · LA LOTERÍA DE LOS DUEÑOS DICHOS: dos cifras se suman solo con la misma métrica y los dueños dichos, o con la cuenta mostrada");
-arde("Lider y Falabella concentran $7.4M del vencido.", CIFRA, "P1", "4.6 + 2.5 = 7.1: la suma inventada no se autoriza por nombrar a los dueños");
+arde("Lider y Falabella concentran $7.2M del vencido.", CIFRA, "P1", "4.6 + 2.5 = 7.1: la suma inventada no se autoriza por nombrar a los dueños (la suma inventada es una cifra que NO existe en la carpeta: $7.4M pasó a ser la contribución de Samsung al derivar la marca de sus SKU)");
 pasa("Lider, Sodimac y Easy concentran $7.6M del vencido.", "P1", "4.6 + 1.9 + 1.1 = 7.6: la suma de la MISMA métrica con los tres dueños dichos");
-arde("Falabella ($1.6M) y Lider ($1.5M) dejan $3.3M sin capturar.", CIFRA, "P1", "los operandos a la vista suman 3.1, no 3.3");
+arde("Falabella ($1.6M) y Lider ($1.5M) dejan $4.1M sin capturar.", CIFRA, "P1", "los operandos a la vista suman 3.1, no 4.1 (y $4.1M no existe en la carpeta: los $3.x ya son cifras de otras entidades)");
 pasa("Falabella y Lider suman $3.1M sin capturar ($1.6M + $1.5M).", "P1", "la suma MOSTRADA que cierra");
 arde("Lider creció $2.3M y Jumbo $1.9M: $4.5M entre los dos.", INVENTO, "P1", "2.3 + 1.9 = 4.2 — antes lo absolvía (vencido − YoY de Lider) + (contribución − YoY de Jumbo), la lotería con otro nombre");
 arde("El vencido de Lider es el 45.7% del total.", CIFRA, "P1", "4.6 / 12.6 = 36.5 %; 45.7 era 37.2 (markup) + 8.6 (brecha): «Brecha al benchmark» no es una referencia");

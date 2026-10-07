@@ -100,8 +100,8 @@ arde("Lider tiene 269 días de inventario.", /metrica-mal-atribuida/, "P1", "269
 arde("Sodimac ya cobró $5.3M.", /metrica-mal-atribuida/, "P1", "$5.3M es el saldo pendiente («cobró» tras vocal acentuada)");
 arde("Lider inmoviliza $4.6M.", /metrica-mal-atribuida/, "P1", "vencido narrado como capital");
 arde("Falabella deja $2.5M de contribución.", /metrica-mal-atribuida/, "P1", "cifra + DUEÑO + significado: para Falabella $2.5M es vencido, no la contribución de SAM-TV55");
-pasa("SAM-TV55 deja $2.5M de contribución.", "P1", "…y para SAM-TV55 sí lo es");
-arde("PHI-SHAVER9 vende $3.4M.", /metrica-mal-atribuida/, "P1", "el 9 del nombre no es un conteo que tome la mención");
+pasa("SAM-TV55 deja $2.6M de contribución.", "P1", "…y para SAM-TV55 sí lo es");
+arde("PHI-SHAVER9 vende $3.6M.", /metrica-mal-atribuida/, "P1", "el 9 del nombre no es un conteo que tome la mención");
 arde("El capital en inventario del negocio es $33K.", /metrica-mal-atribuida/, "P1", "el calificador «frenado» del rótulo tiene que decirse");
 pasa("Lo que sí está medido es el capital detenido, $33K.", "P1", "«detenido» es el frenado en la prosa de la casa (el corpus de aceptación)");
 pasa("Valparaíso concentra el 75.0% del capital frenado.", "P1", "«% del capital frenado» es una participación, y la larga se lleva a la corta");
@@ -165,7 +165,7 @@ pasa("Falabella mueve 1.040 unidades.", "P1", "«unidades» a secas describe a l
 pasa("PHI-SHAVER9 tiene 140 unidades en stock.", "P1");
 pasa("Jumbo es el cliente con más unidades vendidas (1.210).", "P1");
 /* la estructura que faltaba */
-pasa("Los cinco SKU que más contribuyen —PHI-SHAVER9 ($3.4M), LG-WASH11KG ($2.9M), PHI-HAIR-PRO ($2.8M), SAM-TV55 ($2.5M) y SAM-REF500L ($2.4M)—: ninguno tiene capital frenado.", "P2", "un paréntesis dentro de un inciso: el sujeto de $3.4M es PHI-SHAVER9 (la proyección sabe su contribución)");
+pasa("Los cinco SKU que más contribuyen —PHI-SHAVER9 ($3.6M), LG-WASH11KG ($3.0M), PHI-HAIR-PRO ($2.9M), SAM-TV55 ($2.6M) y SAM-REF500L ($2.6M)—: ninguno tiene capital frenado.", "P2", "un paréntesis dentro de un inciso: el sujeto de $3.6M es PHI-SHAVER9 (la proyección sabe su contribución)");
 arde("Easy contribuye $3.4M.", /metrica-mal-atribuida|cifra-de-boleta-sin-dueno/, "P1", "$3.4M de Easy es su venta");
 noArde("Sodimac merece mención aparte: no es de las más grandes ($8.2M de venta, cuarta de la cartera), pero tiene la peor recuperación (35%), 251 días de atraso, $1.9M vencidos y la segunda carga más alta (5.4%, solo detrás de Easy).", /cifra-de-boleta-sin-dueno|metrica-mal-atribuida/, "P1", "«la segunda carga más alta» no es un ordinal anafórico: el sujeto sigue siendo Sodimac (el superlativo del ordinal lo juzga otra familia)");
 pasa("El resto de las cuentas con vencido está en 8 días de atraso.", "P1", "«el resto» sin lista a la vista no es anáfora de nadie");
@@ -199,7 +199,7 @@ pasa("Lider deja $3.8M, mientras Jumbo deja $4.2M. La razón está en el margen:
 pasa("LG-DRYER8KG concentra el 41% del capital frenado y está en Valparaíso, junto con BOS-SANDER (75% del frenado total en esa bodega).", "P1", "«en esa bodega» remite a Valparaíso, no a BOS-SANDER (reparación real de la prueba 1)");
 arde("LG-DRYER8KG concentra el 41% del capital frenado y está en Antofagasta, junto con BOS-SANDER (75% del frenado total en esa bodega).", /cifra-de-boleta-sin-dueno/, "P1", "…y con la bodega equivocada, arde");
 pasa("Los SKU frenados son MAK-COMP-AIR, LG-DRYER8KG y BOS-SANDER: son los que el dato marca en estado 90d o 120d.", "P1", "«90d o 120d» es una alternativa entre dos valores, no un par repartido (roce de universos)");
-noArde("PHI-SHAVER9 es el mejor caso — lidera contribución ($3.4M) con capital bajo ($11K) y cobertura muy corta (15 días), igual que PHI-HAIR-PRO (contribución $2.8M, capital $6K, 19 días): ambos sostienen margen sin pedir capital.", /cifra-de-boleta-sin-dueno|metrica-mal-atribuida/, "P1", "el paréntesis pegado a la comparada es SU ficha entera (borrador real del cruce; el cruce de universos es de la casa)");
+noArde("PHI-SHAVER9 es el mejor caso — lidera contribución ($3.6M) con capital bajo ($11K) y cobertura muy corta (15 días), igual que PHI-HAIR-PRO (contribución $2.9M, capital $6K, 19 días): ambos sostienen margen sin pedir capital.", /cifra-de-boleta-sin-dueno|metrica-mal-atribuida/, "P1", "el paréntesis pegado a la comparada es SU ficha entera (borrador real del cruce; el cruce de universos es de la casa)");
 pasa("Sodimac es la de peor recuperación entre las seis con vencido (35%), seguida de Easy (40%) y Lider (45%).", "P1", "«recuperación» con un % es la cobranza");
 arde("Sodimac tiene 35% de margen.", /metrica-mal-atribuida/, "P1", "…y el 35% narrado como margen arde");
 pasa("Ocho clientes están bajo el benchmark de 30.1%; de ellos, cinco tienen más de 4 pp de brecha.", "P1", "una cota en puntos no cita a nadie");

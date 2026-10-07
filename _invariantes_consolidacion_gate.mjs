@@ -92,6 +92,7 @@ const espacio = especificacionesDeCeldas(base, { semilla: SEMILLA_COBERTURA });
 const cobertura = generarCobertura(base, { semilla: SEMILLA_COBERTURA, minimo: 1, espacio });
 {
   /* el generador general NO se movió: las secuencias que usan la F1, la F2 y la F3 (y el sub-azar de la F3) son byte-idénticas a las de antes de la cobertura */
+  /* SEGUNDA CONSOLIDACIÓN (owner 2026-10-06, §2-bis: marca y familia = suma de sus SKU): los sellos COMPLETOS se re-fijan una vez más contra el dato vigente (cambian solo los `valor` numéricos que los generadores toman del dato: contribución, margen y unidades de SKU/marca); los sellos de ESTRUCTURA (enmascarados) son los mismos, medidos: 55607c81… y 24e0aacc….
   /* UNA SOLA REALIDAD (owner 2026-10-06): los generadores arman sus filtros y premisas numéricas CON el dato del demo (el «valor» de un filtro de ventas, de una premisa de cifra), y el dato
    * de fábrica ahora es la tabla: 6 de los 400 encargos y 23 de los 1.223 de las celdas cambian el ÚLTIMO dígito de un `valor` (781→782 · 3836→3839 · 33158→31600…). La garantía que
    * este candado dio siempre —que nadie movió la SECUENCIA del azar— se conserva intacta y se vuelve demostrable: el sello de la estructura ENMASCARA los `valor` numéricos y es el MISMO de
@@ -99,13 +100,13 @@ const cobertura = generarCobertura(base, { semilla: SEMILLA_COBERTURA, minimo: 1
   const _mascara = (x) => createHash("sha256").update(JSON.stringify(x, (k, v) => (k === "valor" && typeof v === "number" ? "#" : v))).digest("hex");
   const g400 = (await generarEncargos(base, { semilla: SEMILLA_GATE, n: N_MUESTRA })).casos;
   ok(_mascara(g400) === "55607c81fdb9fd5c8d2dd5b42043feedb186790b1d5ca37d774381d81396aeff", "★ el generador general NO se movió: la ESTRUCTURA de los 400 encargos (sin los valores numéricos del dato) es byte-idéntica a la de antes de este corte");
-  ok(createHash("sha256").update(JSON.stringify(g400)).digest("hex") === "ebf3e0453d32874e15a923d0905d07b9e83f19733eb1599fac6f799fd0f08761", "el sub-azar de cobertura tiene su propia semilla derivada: la secuencia del generador general (400 encargos de la semilla del gate) es byte-idéntica a la de antes");
+  ok(createHash("sha256").update(JSON.stringify(g400)).digest("hex") === "7969f3db37e348105093f3b78eb6eaee1e5287938ea212fb04b121dbe0a279ad", "el sub-azar de cobertura tiene su propia semilla derivada: la secuencia del generador general (400 encargos de la semilla del gate) es byte-idéntica a la de antes");
   const otra = generarCobertura(base, { semilla: SEMILLA_COBERTURA, minimo: 1, espacio });
   ok(JSON.stringify(otra.casos) === JSON.stringify(cobertura.casos), "el sub-azar de cobertura es determinístico (misma semilla, mismos encargos)");
   /* §7.3·54(a): los CONTEOS DE CADENA van AL FINAL del sub-azar con su propia semilla derivada (`<semilla>:cobertura:conteos`): la secuencia de las celdas (los primeros 1223 encargos) es byte-idéntica a la de antes */
   const delasCeldas = cobertura.casos.filter((c) => !/:(?:conteos|prioridad|orden-nombrado|crecimiento|eslabones):/.test(c.id)), conteosDeCadena = cobertura.casos.filter((c) => /:conteos:/.test(c.id));   /* §7.3·55: la prioridad por parte (`:prioridad:`) va después de los conteos, con su propia semilla derivada · §7.3·57: la lente «crecimiento» (`:crecimiento:`) y los eslabones de bodega, no_estados y unión (`:eslabones:`) van al final de todo */
   ok(delasCeldas.length === 1223 && _mascara(delasCeldas) === "24e0aacc875198e13017c48b693b5a9653629f34a8e32a299f1d88032094a167", "★ las celdas: la ESTRUCTURA de los 1223 encargos (sin los valores numéricos del dato) es byte-idéntica a la de antes de este corte (una sola realidad)");
-  ok(delasCeldas.length === 1223 && createHash("sha256").update(JSON.stringify(delasCeldas)).digest("hex") === "d97de5b5c6a1df97dae15a9d54065f45ac6dff0351fe6b2f0891027bf07aca4e" && cobertura.casos.slice(0, 1223).every((c, i) => c === delasCeldas[i]), "los conteos de cadena (semilla derivada «:cobertura:conteos») no movieron la secuencia del sub-azar de las celdas: sus 1223 encargos son byte-idénticos a los de antes y van primero");
+  ok(delasCeldas.length === 1223 && createHash("sha256").update(JSON.stringify(delasCeldas)).digest("hex") === "5d8c1af2a596dc928d0c80473e5d518f7d9932674d3290e2ffab0489e23adad5" && cobertura.casos.slice(0, 1223).every((c, i) => c === delasCeldas[i]), "los conteos de cadena (semilla derivada «:cobertura:conteos») no movieron la secuencia del sub-azar de las celdas: sus 1223 encargos son byte-idénticos a los de antes y van primero");
   ok(conteosDeCadena.length >= 60 && VARIANTES_DE_CONTEO.every((x) => conteosDeCadena.some((c) => c.celda === `CONTEO:${x}`)), `el sub-azar produce ${conteosDeCadena.length} conteos de cadena en las cuatro variantes (el M igual al final · el de un eslabón · fuera de la cadena · un n falso)`);
   ok(cobertura.estadistica.conteos && cobertura.estadistica.conteos.cadenas.filtros >= 30 && cobertura.estadistica.conteos.cadenas.estados >= 3 && cobertura.estadistica.conteos.cadenas.ambos >= 8, `…con cadenas de varios filtros (${cobertura.estadistica.conteos && cobertura.estadistica.conteos.cadenas.filtros}), de varios estados (${cobertura.estadistica.conteos && cobertura.estadistica.conteos.cadenas.estados}) y de filtros con estados (${cobertura.estadistica.conteos && cobertura.estadistica.conteos.cadenas.ambos})`);
   { const otraC = generarConteosDeCadena(base, { semilla: SEMILLA_COBERTURA, n: 64 }), otraD = generarConteosDeCadena(base, { semilla: SEMILLA_COBERTURA + "-b", n: 64 });
@@ -485,8 +486,8 @@ H("4e · carnadas de la F5 (toda oración servida pasó su verificador), de la f
   if (y03.ok) {
     const I = y03.entrega.procedencia.libro.indice;
     const { libroDeHechos } = await import("./src/adi/notario/hechos.js");
-    const H = libroDeHechos([{ id: "z1", tipo: "cifra", sujeto: "MAK-SAW18V", metrica: "margen", valor: "34%" }, { id: "z2", tipo: "cifra", sujeto: "MAK-SAW18V", metrica: "margen", valor: "20%" }], { indice: I }).hechos;
-    ok(H[0].ok && H[0].veredicto === "verdadera" && !(H[1].ok && H[1].veredicto === "verdadera"), "el Notario verifica el margen de un SKU como cifra de una entidad (34% sí, 20% no)");
+    const H = libroDeHechos([{ id: "z1", tipo: "cifra", sujeto: "MAK-SAW18V", metrica: "margen", valor: "35.9%" }, { id: "z2", tipo: "cifra", sujeto: "MAK-SAW18V", metrica: "margen", valor: "20%" }], { indice: I }).hechos;
+    ok(H[0].ok && H[0].veredicto === "verdadera" && !(H[1].ok && H[1].veredicto === "verdadera"), "el Notario verifica el margen de un SKU como cifra de una entidad (35.9% sí, 20% no)");
   } else ok(false, "existe v19:Y03 en los catálogos");
   /* F4 · el tema de la fila es el del dominio de su cifra */
   const q14 = caso("v24:Q14");
@@ -582,15 +583,15 @@ H("4g · carnadas de la PARTE B (segunda vuelta): el rótulo en la premisa (R1) 
   const PREM = "Sobre la premisa planteada en la consulta";
   ok(!!F6, "el marco carga la familia F6 (la frase de una premisa)");
   if (F6) {
-    /* R1 · el rótulo en la premisa: «Samsung: margen 23.7%» (con su rótulo) es la base; sin rótulo o con el de otro concepto, rojo */
-    const r1 = comp("R1", v({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen"], eje: "marca" }], premisas: [{ id: "q1", tipo: "cifra", sujeto: "Samsung", metrica: "margen", valor: "23.7%" }] }));
+    /* R1 · el rótulo en la premisa: «Samsung: margen 23.4%» (con su rótulo) es la base; sin rótulo o con el de otro concepto, rojo */
+    const r1 = comp("R1", v({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen"], eje: "marca" }], premisas: [{ id: "q1", tipo: "cifra", sujeto: "Samsung", metrica: "margen", valor: "23.4%" }] }));
     const iq1 = r1.ok ? r1.entrega.respuesta.findIndex((r) => r._premisa && r.hechos[0] === "q1") : -1;
-    ok(r1.ok && iq1 >= 0 && /es correcto — Samsung: margen 23\.7%\.$/.test(r1.entrega.respuesta[iq1].texto) && revisarEntrega(r1, [F6]).length === 0, "R1 · base: «Samsung: margen 23.7%» lleva el rótulo de su concepto y el control no marca nada");
+    ok(r1.ok && iq1 >= 0 && /es correcto — Samsung: margen 23\.4%\.$/.test(r1.entrega.respuesta[iq1].texto) && revisarEntrega(r1, [F6]).length === 0, "R1 · base: «Samsung: margen 23.4%» lleva el rótulo de su concepto y el control no marca nada");
     if (iq1 >= 0) {
       const con = (txt) => conRespuesta(r1, (r, k) => (k === iq1 ? { ...r, texto: `${PREM}: es correcto — ${txt}.` } : r));
-      ok(regla(revisarEntrega(con("Samsung (23.7%)"), [F6]), "premisa-cifra-sin-rotulo"), "la cifra de la premisa impresa sin rótulo («Samsung (23.7%)») → premisa-cifra-sin-rotulo");
-      ok(regla(revisarEntrega(con("Samsung: margen de inventario 23.7%"), [F6]), "premisa-rotulo-de-otro-concepto"), "la cifra del margen rotulada «margen de inventario» (el rótulo de otro concepto) → premisa-rotulo-de-otro-concepto");
-      ok(revisarEntrega(con("Samsung: margen 23.7%"), [F6]).length === 0, "la misma frase con el rótulo propio no marca nada");
+      ok(regla(revisarEntrega(con("Samsung (23.4%)"), [F6]), "premisa-cifra-sin-rotulo"), "la cifra de la premisa impresa sin rótulo («Samsung (23.4%)») → premisa-cifra-sin-rotulo");
+      ok(regla(revisarEntrega(con("Samsung: margen de inventario 23.4%"), [F6]), "premisa-rotulo-de-otro-concepto"), "la cifra del margen rotulada «margen de inventario» (el rótulo de otro concepto) → premisa-rotulo-de-otro-concepto");
+      ok(revisarEntrega(con("Samsung: margen 23.4%"), [F6]).length === 0, "la misma frase con el rótulo propio no marca nada");
     }
     /* R1 · la lista de un orden: «MAK-SAW18V (34%) · PHI-HAIR-PRO (30%)…» sin decir que es el margen (el margen y el margen de inventario coinciden en 34) */
     const r1b = comp("R1b", v({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen"], eje: "sku" }], premisas: [{ id: "q1", tipo: "orden", sujeto: "MAK-SAW18V", metrica: "margen", orden: { forma: "max" }, universo: { eje: "sku" } }] }));
@@ -658,7 +659,7 @@ H("4h · la PIEZA cumple las seis reglas de la parte B (las Entregas reales, sin
   const real = (id, enc) => entregaDe(base, { origen: "gate", id, encargo: enc });
   const limpio = (e) => e.ok && revisarEntrega(e, familias).length === 0;
   const J21 = real("B21", v({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen"], eje: "sku" }], premisas: [{ id: "q1", tipo: "orden", sujeto: "MAK-SAW18V", metrica: "margen", orden: { forma: "max" }, universo: { eje: "sku" } }] }));
-  ok(limpio(J21) && /es correcto — margen: MAK-SAW18V \(34%\) · PHI-HAIR-PRO \(30%\)/.test(J21.texto), "R1 · J21: la lista de la premisa de orden dice «margen: MAK-SAW18V (34%) · …» (el rótulo de su concepto)");
+  ok(limpio(J21) && /es correcto — margen: MAK-SAW18V \(35\.9%\) · PHI-HAIR-PRO \(31\.7%\)/.test(J21.texto), "R1 · J21: la lista de la premisa de orden dice «margen: MAK-SAW18V (35.9%) · …» (el rótulo de su concepto)");
   const K57 = real("B57", v({ partes: [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["margen"], eje: "marca" }], premisas: [{ id: "q1", tipo: "orden", sujeto: "LG", metrica: "variacion", orden: { forma: "max" }, universo: { eje: "marca" } }] }));
   ok(limpio(K57) && /no se pudo verificar con este dato: ranking-parcial: sin dato de variación vs año anterior para Makita/.test(K57.texto) && !/es correcto — .*LG \(\+15\.6%\)/.test(K57.texto), "R2 · K57: «LG tiene la mayor variación» es no verificable y dice «sin dato de variación vs año anterior para Makita» (antes: verdadera)");
   const J12 = real("B12", v({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["abonado", "venta_credito"] }], criterio: { lente: "credito" } }));

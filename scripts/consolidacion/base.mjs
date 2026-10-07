@@ -30,7 +30,7 @@ export async function cargarBase(raiz = RAIZ_POR_DEFECTO, { dataset = null } = {
     const out = new Map();
     const m = esquema.metricaCoreDe(clave);
     /* EXCEPCIÓN DECLARADA (CLAUDE.md §4, «los dos universos que NO reconcilian»): las unidades por SKU tienen DOS fuentes en el dato de fábrica —skusMargen.unidades (el registro de métricas) y la venta del mes del inventario (la fila completa del SKU, que
-     * el Marco declara «unidades vendidas en el período: … el mes que cubre el dato de inventario»)— que difieren entre 4x y 35x. Ninguna es «la» verdad de un cero: el control no las contrasta. Queda como pendiente de producto (el rótulo «Unidades vendidas» nombra dos campos). */
+     * el Marco declara «unidades vendidas en el período: … el mes que cubre el dato de inventario»)— que difieren entre 0,5x y 4,4x. Ninguna es «la» verdad de un cero: el control no las contrasta. Queda como pendiente de producto (el rótulo «Unidades vendidas» nombra dos campos). */
     if (m && esquema.productorDe(clave, eje) && !(clave === "unidades" && eje === "sku")) {
       let r = null; try { r = specRetrieval.composeSpecRetrieval({ metric: m, dimension: eje, scenario: scenarios.ESCENARIO_INICIAL }); } catch { r = null; }
       for (const row of (r && r.evidence && r.evidence.rows) || []) if (row && Number.isFinite(row.value)) out.set(_norm(row.name), row.value);

@@ -39,7 +39,7 @@ const CASES = [
   ["¿Qué clientes tienen margen negativo?", "focus:bajo_benchmark(neg)", [/Ninguno tiene margen negativo/i, /Lider/, /No te invento/i]],
   ["¿Qué SKU tienen margen negativo?", "focus:bajo_benchmark(neg)", [/Ninguno tiene margen negativo/i, /MAK-COMP-AIR/]],
   ["¿Qué familias concentran SKU de margen negativo?", "focus:bajo_benchmark(neg)", [/Ninguno tiene margen negativo/i]],
-  ["¿Qué productos están bajo margen mínimo?", "focus:bajo_benchmark", [/bajo el margen m[ií]nimo/i, /12 de 13/]],
+  ["¿Qué productos están bajo margen mínimo?", "focus:bajo_benchmark", [/bajo el margen m[ií]nimo/i, /11 de 13/]],
   ["¿Qué clientes están bajo margen mínimo?", "focus:bajo_benchmark", [/bajo el margen m[ií]nimo/i, /8 de 13/]],
   ["¿Qué porcentaje de la venta está bajo margen mínimo?", "focus:bajo_benchmark(pct)", [/de la venta.*bajo el margen m[ií]nimo/i, /%/]],
   ["¿Qué SKU explican la mayor caída de margen?", "gap:caida", [/No te puedo medir la CA[IÍ]DA/i, /No lo invento/i, /Lo m[aá]s cercano/i]],

@@ -2487,7 +2487,7 @@ function _causaSobredimensionada(narration, claims) {
 // almacenada en MILES) y $13K su stock (skuInventario.stockUSD, en dólares CRUDOS). El muro numérico no tenía nada
 // que objetar —canon `money:$13.3M` y `money:$13K`, ambos en el ledger— y la oración pasaba con ok=true. La mentira
 // no está en ningún número: está en la RELACIÓN, porque los dos números viven en universos separados por ×1000 de
-// escala (y por unidades del mismo SKU que difieren 4x–35x entre las dos fuentes). Dividir uno por otro no da
+// escala (y por unidades del mismo SKU que difieren 0,5x–4,4x entre las dos fuentes). Dividir uno por otro no da
 // cobertura: da basura, y esa basura sonaba a insight.
 //
 // QUÉ HACE. Cada cifra del ledger declara su `tipo.universo` (boleta.js + config/contract/figureType.js) y el

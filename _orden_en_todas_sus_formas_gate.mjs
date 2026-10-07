@@ -332,7 +332,7 @@ arde("Lider supera el benchmark con 21.5%.", REF);
 arde("Falabella cumple el benchmark (22%).", REF);
 arde("Falabella margina 22%. Está sobre el benchmark.", REF, "la oración sin nadie nombrado habla de la anterior");
 pasa("Easy margina 32%. Está sobre el benchmark.");
-pasa("Falabella solo la supera en contribución no capturada ($1.6M contra $1.5M).", "el pronombre de objeto: dos cuentas, no la referencia");
+pasa("Falabella solo la supera en contribución no capturada ($1.6M contra $1.5M de Lider).", "el pronombre de objeto: dos cuentas, no la referencia (con marca = suma de SKU, $1.5M pasó a ser también la contribución de PHI-IRON-PRO: la cifra de la cuenta aludida por el pronombre se nombra con su dueño, como lo pide el muro)");
 
 H("11 · LA RELACIÓN EN PALABRAS, EN LAS DOS DIRECCIONES");
 pasa("Falabella debe casi la mitad que Lider ($2.5M contra $4.6M).", "«casi la mitad» es «casi el doble» al revés (fp-comparaciones 8)");
@@ -344,8 +344,8 @@ arde("En Lider más de la mitad del saldo pendiente ya está vencido ($4.6M de $
 H("12 · LOS RANKINGS NUEVOS: SKU por venta y contribución, bodega por capital, frenado ≠ inmovilizado");
 arde("LG-WASH11KG es el SKU de mayor venta ($12.4M).", SUP, "SAM-TV55 $13.3M");
 pasa("SAM-TV55 es el SKU de mayor venta ($13.3M).");
-arde("SAM-TV55 es el SKU con más contribución ($2.5M).", SUP, "PHI-SHAVER9 $3.4M");
-pasa("PHI-SHAVER9 es el SKU con más contribución ($3.4M).");
+arde("SAM-TV55 es el SKU con más contribución ($2.6M).", SUP, "PHI-SHAVER9 $3.6M");
+pasa("PHI-SHAVER9 es el SKU con más contribución ($3.6M).");
 arde("Valparaíso es la bodega con más capital ($39K).", SUP, "Santiago $64K");
 pasa("Santiago es la bodega con más capital ($64K).");
 pasa("Valparaíso es la bodega con más capital frenado ($25K).");

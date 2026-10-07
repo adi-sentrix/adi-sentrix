@@ -79,7 +79,7 @@ compatibilidad: {
   los días: en la plantilla, capital = stock × costo unitario de Ventas y días = stock ÷ unidades de Ventas →
   `escala: misma · valorizacion: costo del período · unidades: misma fuente · estado: comparable`.
 - **El demo la declara a mano** en su tenant, con la verdad que hoy vive en `DIVERGENCIAS`: miles contra crudos y
-  unidades que difieren 4x–35x → `divergent`. El demo no cambia de conducta.
+  unidades que difieren 0,5x–4,4x → `divergent`. El demo no cambia de conducta.
 - **Un pack sin la llave** (guardado antes de esto) cae al contrato de siempre: `divergent`. Nunca se adivina por la
   pinta del dato.
 

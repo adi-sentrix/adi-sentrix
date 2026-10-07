@@ -51,6 +51,13 @@ const FIXTURES = [["adversarial-notario-2026-09-14.json", "EL CONJUNTO ADVERSARI
  * (8e96bd5e, limpio, ANTES de esta migración): ningún otro item del conjunto (ni de la ronda fuera de muestra)
  * cambió de veredicto. No se reetiquetan ni se borran: quedan como registro histórico, reportados aparte. */
 const HISTORICOS = new Map([
+  /* MARCA Y FAMILIA = LA SUMA DE SUS SKU (owner 2026-10-06, §2-bis): la contribución del SKU se calibró con el cliente (× 1,0556) y su veredicto cambió por el dato, no por el juez. Verificado contra el árbol limpio
+   * del commit cd16580a: solo estos cinco items de las dos fixtures (los demás cambios de veredicto de esta consolidación son mejoras o se re-mapean con `cifrasVigentes`). Se registran, no se reetiquetan ni se borran. */
+  ["fp-comparaciones-1511", "premisa perdida por el dato (marca desde SKU): «LG-AIR9000 y BOS-DRILL18V empatan en contribución: $1.8M cada uno» — con la contribución calibrada ya no empatan ($1.951K y $1.939K: $2.0M y $1.9M); el veto es correcto"],
+  ["fp-comparaciones-1512", "idem, contexto P2"],
+  ["fn-atribucion-2177", "premisa perdida por el dato (marca desde SKU): «$1.6M es de Falabella» — «Resto de Contribución (3 de 13)» suma $1.599K y es ahora también $1.6M en la boleta del turno: la cifra deja de ser de una sola cuenta"],
+  ["oos-fp-lecturas-0097", "coincidencia de redondeo (marca desde SKU): «$1.5M» es ahora a la vez la contribución no capturada de Lider y la contribución de PHI-IRON-PRO ($1.486K) en la boleta del turno; la frase es verdadera y el muro la lee ambigua"],
+  ["oos-fp-lecturas-0189", "coincidencia de redondeo (marca desde SKU): «$3.6M» (Tottus, Paris y Easy) es ahora también la contribución de PHI-SHAVER9 ($3.635K) en la boleta del turno; la frase es verdadera y el muro la lee ambigua"],
   ["fn-atribucion-2013", "frenado-regla-de-rotacion (§7.3·34b) — «el capital frenado total» pinzaba capital_frenado (subtotal $25K Valparaíso vs total $33K)"],
   ["fn-atribucion-2014", "frenado-regla-de-rotacion (§7.3·34b) — idem, contexto P2"],
   ["fn-atribucion-2369", "frenado-regla-de-rotacion (§7.3·34b) — «el capital frenado del negocio» pinzaba capital_frenado (bodega→negocio)"],

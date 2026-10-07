@@ -1861,10 +1861,10 @@ function _ventasByCanal(scenario) {
   return Object.values(g);
 }
 function _ventasRows(dim, scenario) {
-  /* Una marca sin clientes (en el demo, Makita) NO se completa desde la fuente estática bajo un escenario
-   * (supervisor, 2026-09-27, diagnóstico v7): mezclaría una cifra BASE con cifras de escenario en un mismo ranking,
-   * es decir, dos universos juntos. La pantalla ya declara esa población incompleta (`sentrix/concentration.js:_limite`,
-   * «poblacion_incompleta»), y un extremo sobre el eje entero queda `universo-incompleto` (§7.3·13). */
+  /* Una marca que la fuente no trae como fila de venta NO se completa desde otra fuente estática (supervisor, 2026-09-27,
+   * diagnóstico v7): mezclaría dos universos en un mismo ranking. La pantalla declara esa población incompleta
+   * (`sentrix/concentration.js:_limite`, «poblacion_incompleta»), y un extremo sobre el eje entero queda `universo-incompleto`
+   * (§7.3·13). Desde la realidad única (owner 2026-10-06) el demo ya no tiene ese caso: Makita es una fila de venta como las demás. */
   if (dim === "marca") return applyScenarioToMarcasVentas(scenario) || _mVentas;
   if (dim === "familia") return applyScenarioToSfamiliasVentas(scenario) || _fVentas;
   if (dim === "canal") return _ventasByCanal(scenario);

@@ -5349,9 +5349,10 @@ function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
           <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, marginRight:6, display:"inline-block" }}/>
           <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{titulo}</span>
           {/* el límite lo DECLARA el módulo (concentration.js `_limite`), no este componente: acá solo se concatena.
-              Antes la frase afirmaba «SUMA EXACTO … (una sola verdad)» en todos los ejes, y en dos no suma —marca
-              (una marca sin cliente no entra al gráfico y sí al Cuadro) y SKU (dato sin ajuste por escenario)—.
-              Una limitación se declara en pantalla; afirmar el cierre donde no cierra es el defecto, no el texto. */}
+              Antes la frase afirmaba «SUMA EXACTO … (una sola verdad)» en todos los ejes, y en dos no sumaba (marca y SKU);
+              desde la realidad única (owner 2026-10-06) los cuatro ejes suman lo mismo —marca y familia son la suma de sus SKU— y
+              el límite solo aparece si una marca del Cuadro no tiene fila de venta. Una limitación se declara en pantalla;
+              afirmar el cierre donde no cierra es el defecto, no el texto. */}
           <InfoDot def={"El Pareto es un reflejo de la tabla: el eje es el del cuadro y el filtro elige la métrica (venta o contribución). Sin selección ves el 80/20 del negocio. Seleccionando: una marca o familia se compone por sus SKU; un cliente, por sus familias o sus SKU (eliges la vista); un SKU, por los clientes que lo compran — y cada composición suma la cifra del cuadro. El punto ámbar marca el corte real. El botón de ADI explica exactamente lo que el gráfico está mostrando." + (con && con.limite ? ` · ${con.limite.texto}` : "")} align="left"/>
         </span>
         <span style={{ display:"flex", alignItems:"center", gap:8 }}>

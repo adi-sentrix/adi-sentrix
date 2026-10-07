@@ -26,6 +26,7 @@
  * Cero red: cerebro mudo, herramientas puras, fixtures en disco. */
 /* UNA SOLA REALIDAD · CIFRAS FIJADAS RE-FIJADAS (owner 2026-10-06, _ADI_DISENO_UNA_SOLA_REALIDAD.md §6.5): cifras del dato de fábrico (ahora la tabla) en las salidas del encargo de producción: Ripley −$422K→−$414K, Jumbo 1.194→1.210 unidades, Lider $17.8M→$17.9M. Quién empuja, quién cae y el orden son los mismos. */
 import fs from "node:fs";
+import { leerFixtureVigente } from "./scripts/una-sola-realidad/cifrasVigentes.mjs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
@@ -49,7 +50,7 @@ const CAJA = cajaDelAgente(TOOLS);
 const MUDO = async (a) => { MUDO.llamadas.push(a); return { tipo: "texto", texto: "", stop: "end_turn" }; };
 MUDO.llamadas = [];
 initTenant(TENANT_DEMO);
-const FX = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-produccion-2026-09-14.json", import.meta.url), "utf8"));
+const FX = leerFixtureVigente(new URL("./fixtures/encargo-produccion-2026-09-14.json", import.meta.url));   /* una sola realidad (2026-10-06): el corpus archivado se lee con las cifras vigentes */
 
 /* ── LOS CASOS: el prompt de producción, tal cual, y sus equivalentes de dos y tres dominios ─────────────────────── */
 /* ⚠️ PROFUNDIDAD, NO COBERTURA, DECIDE LA FORMA (owner 2026-09-24, decisión aprobada — coordinador, textual: «la
@@ -237,7 +238,7 @@ H("5 · degradación segura: la parte sin evidencia se declara en una línea y e
 /* ═══ 6 · EL CAMINO DEL MODELO, DE PUNTA A PUNTA, CON LOS BORRADORES VIVOS COMO CEREBRO ═══════════════════════════ */
 H("6 · la corrida en vivo (autorizada, 2 llamadas) como fixture: el modelo cubrió todo; lo que lo tumbó y lo que se cerró");
 {
-  const V = JSON.parse(fs.readFileSync(new URL("./fixtures/encargo-vivo-2026-09-14.json", import.meta.url), "utf8"));
+  const V = leerFixtureVigente(new URL("./fixtures/encargo-vivo-2026-09-14.json", import.meta.url));
   const q = V.pregunta;
   ok(q === FX.pregunta && V.borradores.length === 2 && V.final.estado === "encargo-compuesto", "la corrida: el prompt exacto, dos borradores del modelo, y el usuario recibió el ensamblador (completo)");
   const partes = partesDelEncargo(q);

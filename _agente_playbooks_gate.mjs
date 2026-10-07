@@ -151,10 +151,10 @@ H("1b · lectura por eje: un playbook, cinco ejes, la herramienta que sirve cada
     `★ canal → responde con el eje canal REAL del dato (${rc.r.agente.estado})`, rc.r.text.slice(0, 90));
   const rm = await T("qué marca deja más margen");
   ok(rm.r.agente.estado === "playbook" && /margen por marca, de mayor a menor:/i.test(rm.r.text) && rm.r.text.indexOf("Makita") < rm.r.text.indexOf("LG"),
-    "★ marca → ordenada de mayor a menor (Makita 34.8% antes que LG 23.5%) — el motor solo pone `raw` en las destacadas", rm.r.text.slice(0, 100));
+    "★ marca → ordenada de mayor a menor (Makita 26.1% antes que LG 22.8%) — el motor solo pone `raw` en las destacadas", rm.r.text.slice(0, 100));
   ok(/benchmark de margen es 30\.1%/i.test(rm.r.text), "…y declara el benchmark, para que «deja más» tenga vara");
   const rf = await T("margen por familia");
-  ok(rf.r.agente.estado === "playbook" && /Cuidado Personal: 26\.1%/.test(rf.r.text), `★ familia → responde (${rf.r.agente.estado})`);
+  ok(rf.r.agente.estado === "playbook" && /Cuidado Personal: 28\.8%/.test(rf.r.text), `★ familia → responde (${rf.r.agente.estado})`);
   const rb = await T("capital por bodega");
   ok(rb.r.agente.estado === "playbook" && /Santiago: \$64K/.test(rb.r.text) && !/Ventas|venta/i.test(rb.r.text),
     "★ bodega → capital por bodega, SIN mezclar con venta (los dos universos)", rb.r.text.slice(0, 90));
@@ -404,12 +404,12 @@ H("1f · los 4 de asesoría: QUÉ · DÓNDE · QUÉ HACER PRIMERO, con la materi
   ok(/La Polar · -\$417K/.test(rc2.r.text) && /Los que más suben: Lider \+\$2\.3M/.test(rc2.r.text),
     "…y localiza igual: los que caen (materiales) y los que más suben, cada uno con su cifra");
   const rd2 = await T("dónde tengo oportunidad de precio");
-  ok(rd2.r.agente.estado === "playbook" && /12 SKU venden por debajo/.test(rd2.r.text) && /MAK-COMP-AIR · margen de venta 7\.9%/.test(rd2.r.text),
+  ok(rd2.r.agente.estado === "playbook" && /11 SKU venden por debajo/.test(rd2.r.text) && /MAK-COMP-AIR · margen de venta 8\.4%/.test(rd2.r.text),
     `★ D · los peores por margen DE VENTA (el muro exige decir cuál margen) (${rd2.r.agente.estado})`, rd2.r.text.slice(0, 120));
   /* la boleta ya no pierde una fig por repetir la cifra (Notario semántico, fase 2): el panel trae el margen de los 12 y el corte se dice
    * completo; si volviera a traer menos, el composer lo declara («publica el margen de N de los M») — se exige una de las dos verdades */
-  ok(/de los 12 bajo el benchmark\)/.test(rd2.r.text) || /esta lectura publica el margen de \d+ de los 12/.test(rd2.r.text),
-    "★ D · el CORTE declarado contra lo publicado: los 12 de 12 (o «publica N de los 12» si faltaran) — se dice, no se finge completitud", rd2.r.text.slice(0, 160));
+  ok(/de los 11 bajo el benchmark\)/.test(rd2.r.text) || /esta lectura publica el margen de \d+ de los 11/.test(rd2.r.text),
+    "★ D · el CORTE declarado contra lo publicado: los 11 de 11 (o «publica N de los 11» si faltaran) — se dice, no se finge completitud", rd2.r.text.slice(0, 160));
   // (ancla común de TODAS las variantes del cierre — la oferta varía por semilla desde 2026-09-03)
   ok(/no está en esta lectura: no lo afirmo/.test(rd2.r.text) && /antes de tocar ningún precio/i.test(rd2.r.text),
     "…y no culpa al precio sin driver: ofrece abrir la estructura");
@@ -1437,7 +1437,7 @@ H("6 · CARNADA · cada garantía, probada ROJA con el defecto adentro");
       "…y en bonanza las 5 marcas del eje traen `raw` finito en su «· Margen» (Makita incluida)",
       JSON.stringify(figsMargen.map((f) => ({ label: f.label, raw: f.raw }))));
     const makita = figsMargen.find((f) => f.label.startsWith("Makita"));
-    ok(!!makita && makita.raw === 34.8, "…y Makita trae raw=34.8, no solo el texto «34.8%»", makita);
+    ok(!!makita && makita.raw === 26.1, "…y Makita trae raw=26.1, no solo el texto «26.1%»", makita);
   }
 
   // (D) `_FUERA` vaciado: una simulación que nombra un eje queda secuestrada por la lectura
