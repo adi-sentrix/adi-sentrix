@@ -6,6 +6,7 @@
 
 import { kpiInventario } from "../../adi/diagnosis/economicDiagnosis.js";   // R7 (owner 2026-09-28, §7.3·31-32): invKPI ya no es un literal — lo calcula la fuente única
 import { POLICY_CONFIG } from "../../config/businessPolicy.js";
+import { unidadesAntDeMarca, derivarMarcasYFamilias, derivarKPIs } from "./derivarEjes.js";   // una sola realidad (owner 2026-10-06/07): marca, familia y KPI se DERIVAN de los átomos (cliente y SKU); la misma derivación la usa la empresa no-demo de la medición
 
 /* PRESUPUESTO UNA VERDAD (coherencia total · owner 2026-07-15): Σ presupuesto por cliente = 97,000 = el
  * totalPresupuesto global (baseKpis/ventasMensuales) — antes sumaba 92,350 y la Mesa contaba OTRO cumplimiento
@@ -303,7 +304,7 @@ export const skusMargen = [
  * precioLista = venta ÷ unidades (dos decimales). Se suma la contribución de los SKU (no se recalcula venta × margen redondeado) para que
  * cierre al peso con el cliente. Lo ÚNICO que se declara por marca es lo que ningún SKU del año trae: la venta del AÑO ANTERIOR y el CRECIMIENTO de
  * unidades (no hay SKU×año anterior; las unidades del año anterior salen de ese crecimiento, ver `_unidadesAntDeMarca`); la familia suma las de sus marcas. Σ año anterior = 92.900 (= el del universo cliente). */
-const _ANTERIOR_DE_MARCA = {   /* DECLARADO: la venta del año anterior por marca (no es derivable de las filas: el dato de fábrica no trae SKU del año anterior) */
+export const ANTERIOR_DE_MARCA_DECLARADO = {   /* DECLARADO: la venta del año anterior por marca (no es derivable de las filas: el dato de fábrica no trae SKU del año anterior) */
   Samsung: { anterior: 30350 }, Philips: { anterior: 26140 }, LG: { anterior: 21280 }, Bosch: { anterior: 10770 }, Makita: { anterior: 4360 },
 };
 /* UNIDADES DEL AÑO ANTERIOR POR MARCA = EL CRECIMIENTO DECLARADO, A LA ESCALA NUEVA (owner 2026-10-07, Opción A de §2-bis).
@@ -314,62 +315,26 @@ const _ANTERIOR_DE_MARCA = {   /* DECLARADO: la venta del año anterior por marc
  * UNA regla para las cinco marcas:  unidadesAnt = unidades(Σ SKU) × (unidadesAnt vieja ÷ unidades vieja) × f,  con UN factor uniforme
  * f = Σ unidadesAnt del universo cliente (5.222) ÷ Σ crudo (≈ × 0,9986) para que la suma siga siendo la del cliente, y redondeo de mayor
  * resto para que sume EXACTO. Nada se elige a mano por marca y el factor se CALCULA acá (no se escribe). La familia suma sus marcas. */
-const _CRECIMIENTO_UNIDADES_DECLARADO = {   /* DECLARADO: el par viejo (unidades, unidadesAnt) de cada marca, de la tabla anterior a §2-bis */
+export const CRECIMIENTO_UNIDADES_DECLARADO = {   /* DECLARADO: el par viejo (unidades, unidadesAnt) de cada marca, de la tabla anterior a §2-bis */
   Samsung: { unidades: 1747, unidadesAnt: 1703 }, Philips: { unidades: 1892, unidadesAnt: 1788 }, LG: { unidades: 1268, unidadesAnt: 1135 },
   Bosch: { unidades: 436, unidadesAnt: 434 }, Makita: { unidades: 177, unidadesAnt: 162 },
 };
-const _unidadesAntDeMarca = (() => {
-  const nombres = Object.keys(_CRECIMIENTO_UNIDADES_DECLARADO);
-  const objetivo = clientesVentas.reduce((a, c) => a + c.unidadesAnt, 0);   /* Σ unidadesAnt del universo cliente = 5.222 */
-  const crudo = nombres.map((m) => skusMargen.filter((s) => s.marca === m).reduce((a, s) => a + s.unidades, 0) * _CRECIMIENTO_UNIDADES_DECLARADO[m].unidadesAnt / _CRECIMIENTO_UNIDADES_DECLARADO[m].unidades);
-  const f = objetivo / crudo.reduce((a, b) => a + b, 0), escalado = crudo.map((c) => c * f), piso = escalado.map(Math.floor);
-  const resto = objetivo - piso.reduce((a, b) => a + b, 0);
-  escalado.map((c, i) => [c - piso[i], i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]).slice(0, resto).forEach(([, i]) => piso[i]++);
-  return Object.fromEntries(nombres.map((m, i) => [m, piso[i]]));
-})();
-const _rd1 = (n) => Math.round(n * 10) / 10, _rd2 = (n) => Math.round(n * 100) / 100;
-const _agrupar = (campo) => {
-  const grupos = new Map();
-  for (const s of skusMargen) { if (!grupos.has(s[campo])) grupos.set(s[campo], []); grupos.get(s[campo]).push(s); }
-  return [...grupos.entries()].map(([nombre, filas]) => {
-    const suma = (k) => filas.reduce((a, f) => a + f[k], 0);
-    const venta = suma("venta"), costo = suma("costo"), rebates = suma("rebates"), contribucion = suma("contribucion"), unidades = suma("unidades");
-    const marcas = [...new Set(filas.map((f) => f.marca))];
-    const ant = marcas.reduce((a, m) => ({ anterior: a.anterior + _ANTERIOR_DE_MARCA[m].anterior, unidadesAnt: a.unidadesAnt + _unidadesAntDeMarca[m] }), { anterior: 0, unidadesAnt: 0 });
-    const dominante = filas.reduce((m, f) => { m[f.marca] = (m[f.marca] || 0) + f.venta; return m; }, {});
-    return { nombre, filas, venta, costo, rebates, contribucion, unidades, ...ant, marca: Object.entries(dominante).sort((a, b) => b[1] - a[1])[0][0], sfamilia: filas[0].sfamilia,
-      pctRebate: _rd1(rebates / venta * 100), margen: _rd1(contribucion / venta * 100), costoMedio: _rd2(costo / unidades), precioLista: _rd2(venta / unidades) };
-  });
-};
-const _margenDe = (g, tipo) => g.map((x) => ({ nombre: x.nombre, tipo, marca: tipo === "marca" ? x.nombre : x.marca, sfamilia: tipo === "marca" ? x.sfamilia : x.nombre, venta: x.venta, costo: x.costo, rebates: x.rebates, contribucion: x.contribucion, pctRebate: x.pctRebate, margen: x.margen, costoMedio: x.costoMedio, precioLista: x.precioLista, unidades: x.unidades, benchmark: x.filas[0].benchmark }));
-const _ventasDe = (g, tipo) => [...g].sort((a, b) => b.venta - a.venta).map((x) => ({ nombre: x.nombre, sfamilia: tipo === "marca" ? x.sfamilia : x.nombre, marca: tipo === "marca" ? x.nombre : x.marca, actual: x.venta, anterior: x.anterior, unidades: x.unidades, unidadesAnt: x.unidadesAnt, pctRebate: x.pctRebate }));
-const _MARCAS = _agrupar("marca"), _FAMILIAS = _agrupar("sfamilia");
-export const marcasVentas = _ventasDe(_MARCAS, "marca");
-export const marcasMargen = _margenDe(_MARCAS, "marca");
-export const sfamiliasVentas = _ventasDe(_FAMILIAS, "sfamilia");
-export const sfamiliasMargen = _margenDe(_FAMILIAS, "sfamilia");
+const _unidadesAntDeMarca = unidadesAntDeMarca({ skusMargen, objetivo: clientesVentas.reduce((a, c) => a + c.unidadesAnt, 0), crecimiento: CRECIMIENTO_UNIDADES_DECLARADO });   /* objetivo = Σ unidadesAnt del universo cliente = 5.222 · la regla vive en `derivarEjes.js`, la misma que usa la empresa no-demo de la medición */
+const _EJES = derivarMarcasYFamilias({ skusMargen, anteriorDeMarca: ANTERIOR_DE_MARCA_DECLARADO, unidadesAntMarca: _unidadesAntDeMarca });
+export const marcasVentas = _EJES.marcasVentas;
+export const marcasMargen = _EJES.marcasMargen;
+export const sfamiliasVentas = _EJES.sfamiliasVentas;
+export const sfamiliasMargen = _EJES.sfamiliasMargen;
 
 /* LOS KPI DE CABECERA SE DERIVAN DE LAS FILAS (owner 2026-10-06, una sola realidad): como en una planilla real, la venta, el
  * año anterior, el presupuesto y las unidades son la SUMA del universo cliente (la venta OFICIAL, D8), y la contribución es
  * venta oficial × margen % por cliente — la misma cuenta que hace el motor (applyScenarioToClientesMargen). Antes eran
  * literales ($100.000K / 25,6 % / $25.559K) que no coincidían con ninguna suma de filas. Lo único que NO se deriva es el
  * margen del AÑO ANTERIOR (no hay costo anterior por cliente): el demo lo DECLARA, como la planilla lo mide en motorKpi. */
-const _r1 = (n) => Math.round(n * 10) / 10;
-const _sumCV = (k) => clientesVentas.reduce((s, c) => s + (c[k] || 0), 0);
-const _ventaOficial = Object.fromEntries(clientesVentas.map((c) => [c.nombre, c.actual]));
-const _contribCartera = clientesMargen.reduce((s, c) => s + Math.round((_ventaOficial[c.nombre] ?? c.venta) * c.margen / 100), 0);
-export const ventasKPI = {
-  totalActual: _sumCV("actual"), totalAnterior: _sumCV("anterior"), totalPresupuesto: _sumCV("presupuesto"),
-  vsAnterior: _r1((_sumCV("actual") / _sumCV("anterior") - 1) * 100),
-  vsPresupuesto: _r1((_sumCV("actual") / _sumCV("presupuesto") - 1) * 100),
-  unidades: _sumCV("unidades"), ticketProm: _r1(_sumCV("actual") / _sumCV("unidades")),
-};
-
 const _MARGEN_ANTERIOR_DECLARADO = 23.8;   // el margen del año anterior: lo declara el negocio (no es derivable de las filas)
-export const margenKPI = {
-  pct: _r1(_contribCartera / _sumCV("actual") * 100), pctAnt: _MARGEN_ANTERIOR_DECLARADO, totalUSD: _contribCartera,
-  gapPuntos: _r1(_r1(_contribCartera / _sumCV("actual") * 100) - _MARGEN_ANTERIOR_DECLARADO),
-};
+const _KPI = derivarKPIs({ clientesVentas, clientesMargen, margenAnterior: _MARGEN_ANTERIOR_DECLARADO });   // la regla vive en `derivarEjes.js` (la misma de la empresa no-demo)
+export const ventasKPI = _KPI.ventasKPI;
+export const margenKPI = _KPI.margenKPI;
 
 /* invKPI · CALCULADO más abajo (después de PERFIL, R7: owner 2026-09-28, §7.3·31-32, diseño §8.2) — ya no es un
  * literal escrito a mano. Se declara ahí porque necesita `PERFIL` (el umbral de ESTA empresa) ya definido. */

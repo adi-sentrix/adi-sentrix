@@ -11,7 +11,8 @@
  * `CLIENTES_STRATEGIC_PROFILE`, de `flujoComercial.clientes` y de `SCENARIO_TRANSFORMS`) y con los agregados
  * recalculados para que el pack siga siendo coherente consigo mismo (la suma de las cuentas = el total de la
  * cabecera): una empresa incoherente haría fallar a ADI por una razón que no es la que se mide. */
-import { TENANT_DEMO } from "../../src/data/tenants/demo.js";
+import { TENANT_DEMO, ANTERIOR_DE_MARCA_DECLARADO, CRECIMIENTO_UNIDADES_DECLARADO } from "../../src/data/tenants/demo.js";
+import { objetivosDelCliente, calibrarSkus, calibrarMensual, derivarMarcasYFamilias, derivarKPIs, unidadesAntDeMarca, mayorResto } from "../../src/data/tenants/derivarEjes.js";
 import { crearAzar } from "../doble-supabase-continuidad.mjs";
 
 export const EMPRESA_NO_DEMO = Object.freeze({ id: "rioclaro", nombre: "Distribuidora Río Claro" });
@@ -107,7 +108,7 @@ export function packRenombrado({ semilla = 20261005, factor = 1.8, version = 1, 
   const { pares, clientes } = mapaDeRenombre(demo);
   const azar = crearAzar(semilla);
 
-  // ── 1 · cifras por cuenta: factor general × desvío propio de cada cuenta (sobre TODAS las tablas de esa cuenta)
+  // ── 1 · LOS ÁTOMOS: cifras por cuenta = factor general × desvío propio de cada cuenta (sobre TODAS las tablas de esa cuenta)
   const porCliente = {};
   for (const c of clientes) porCliente[c] = factor * (1 + (azar() - 0.5) * 0.24);
   if (version === 2) {
@@ -131,19 +132,23 @@ export function packRenombrado({ semilla = 20261005, factor = 1.8, version = 1, 
     for (const k of Object.keys(d.clientesAlias || {})) if (d.clientesAlias[k] === salio) delete d.clientesAlias[k];
     d.clientesAmbiguos = (d.clientesAmbiguos || []).filter((k) => k !== _norm(salio) && k !== salio.toLowerCase());
   }
+  // las unidades de una cuenta son UNA en sus dos tablas (clientesMargen se escaló con la misma regla, pero la cuenta manda en la de ventas)
+  const unidadesDe = Object.fromEntries(d.clientesVentas.map((c) => [c.nombre, c.unidades]));
+  for (const c of d.clientesMargen) c.unidades = unidadesDe[c.nombre];
 
-  // ── 3 · los agregados vuelven a cerrar con las cuentas (una sola verdad por eje)
-  const Tact = d.clientesVentas.reduce((s, c) => s + c.actual, 0);
-  const Tant = d.clientesVentas.reduce((s, c) => s + c.anterior, 0);
-  const Tpres = d.clientesVentas.reduce((s, c) => s + c.presupuesto, 0);
-  const Tund = d.clientesVentas.reduce((s, c) => s + c.unidades, 0);
-  const rAct = Tact / totales0.act, rAnt = Tant / totales0.ant;
-  for (const tabla of ["marcasVentas", "sfamiliasVentas"]) for (const f of d[tabla]) { _escalarFila(f, rAct, ["actual", "unidades"]); _escalarFila(f, rAnt, ["anterior", "unidadesAnt"]); }
-  for (const tabla of ["marcasMargen", "sfamiliasMargen", "skusMargen"]) for (const f of d[tabla]) _escalarFila(f, rAct, ["venta", "costo", "rebates", "contribucion", "unidades"]);
-  for (const f of d.ventasMensuales) { _escalarFila(f, rAct, ["actual", "presupuesto", "unidades", "costo", "acciones"]); _escalarFila(f, rAnt, ["anterior"]); }
+  // ── 3 · UNA SOLA REALIDAD (owner 2026-10-06/07, CLAUDE.md §4): lo que se escaló son los ÁTOMOS (cuentas); el resto se DERIVA con la MISMA regla del demo
+  //        (`src/data/tenants/derivarEjes.js`): el SKU se calibra a los totales del cliente con UN factor por métrica (mayor resto), marca y familia = Σ SKU,
+  //        la serie mensual se calibra a los mismos totales y los KPI de cabecera son la suma de las cuentas. Nada se escala fila a fila con redondeo propio.
+  const o = objetivosDelCliente(d.clientesVentas, d.clientesMargen);
+  d.skusMargen = calibrarSkus(d.skusMargen, o);
+  const marcasDecl = Object.keys(ANTERIOR_DE_MARCA_DECLARADO), anteriorEscalado = mayorResto(marcasDecl.map((m) => ANTERIOR_DE_MARCA_DECLARADO[m].anterior), o.anterior).out;
+  const anteriorDeMarca = Object.fromEntries(marcasDecl.map((m, i) => [m, { anterior: anteriorEscalado[i] }]));   // lo DECLARADO por marca, a la escala de la empresa (UN factor uniforme, mayor resto)
+  const unidadesAntMarca = unidadesAntDeMarca({ skusMargen: d.skusMargen, objetivo: o.unidadesAnt, crecimiento: CRECIMIENTO_UNIDADES_DECLARADO });   // el crecimiento declarado no tiene escala: se conserva
+  Object.assign(d, derivarMarcasYFamilias({ skusMargen: d.skusMargen, anteriorDeMarca, unidadesAntMarca }));
+  d.ventasMensuales = calibrarMensual(d.ventasMensuales, o);
+  const Tact = o.venta, Tant = o.anterior, rAct = Tact / totales0.act, rAnt = Tant / totales0.ant;
   for (const k of Object.keys(d.historialMargen)) if (!clientes.includes(k)) for (const fila of d.historialMargen[k]) { _escalarFila(fila, rAct, ["venta", "contribucion", "rebates"]); _escalarFila(fila, rAnt, ["ventaAnt", "contribucionAnt"]); }
-  d.ventasKPI = { totalActual: Tact, totalAnterior: Tant, totalPresupuesto: Tpres, vsAnterior: _r1((Tact / Tant - 1) * 100), vsPresupuesto: _r1((Tact / Tpres - 1) * 100), unidades: Tund, ticketProm: _r1(Tact / Tund) };
-  d.margenKPI = { ...d.margenKPI, totalUSD: _r0(d.margenKPI.pct / 100 * Tact) };
+  Object.assign(d, derivarKPIs({ clientesVentas: d.clientesVentas, clientesMargen: d.clientesMargen, margenAnterior: d.margenKPI.pctAnt }));
 
   // ── 4 · inventario: otra escala (una foto distinta), ratios intactos
   const fInv = factor * (version === 2 ? 1.06 : 1);

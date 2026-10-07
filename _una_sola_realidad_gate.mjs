@@ -18,6 +18,9 @@
  *        fuente de qué se simula). El mapa del dato del agente, `ausentes` de la ingesta, BLOQUEADOS, `noCalcula` del catálogo y el acta de ingesta —en el demo y en una planilla— no pueden decir que faltan «transforms» o que
  *        «las simulaciones» están ausentes/bloqueadas. Tampoco hay una línea nueva que diga lo contrario: lo que se puede simular lo dice el catálogo, no un segundo texto.
  *        Y (owner 2026-10-07, Opción A): las unidades del año anterior por marca = el CRECIMIENTO DECLARADO (par viejo unidades/unidadesAnt) a la escala nueva × UN factor (≈ × 0,9986) hasta 5.222, mayor resto; la familia suma sus marcas.
+ *   §9 · LA SEGUNDA EMPRESA DE LA MEDICIÓN (Río Claro, v1 y v2) OBEDECE LA MISMA REGLA, POR CONSTRUCCIÓN (owner 2026-10-07): se escalan solo los ÁTOMOS (cuentas) y el resto se deriva con `src/data/tenants/derivarEjes.js`, la MISMA
+ *        función que usa el demo: venta · contribución (venta oficial × margen por cliente, lo que SIRVE el motor) · acciones · unidades · año anterior · presupuesto · unidades del año anterior son EXACTAMENTE iguales en cliente · marca ·
+ *        familia · SKU · mes · KPI, sin tolerancia (antes del arreglo la venta difería en 1-76 y las unidades en 10-40; en la medición un descuadre así contaría como error de ADI por una razón que no se mide). Con su carnada: el escalado fila a fila de antes.
  * CERO red · CERO LLM. `node --import ./scripts/offline-guard.mjs _una_sola_realidad_gate.mjs` */
 import fs from "node:fs";
 import path from "node:path";
@@ -46,6 +49,8 @@ import { BLOQUEADOS } from "./src/ingesta/plantilla/motorKpi.js";
 import { mapaDelDato } from "./src/adi/agente/mapaDelDato.js";
 import { construirCatalogo } from "./src/adi/capacidad/catalogo.js";
 import { catalogoAgente } from "./src/adi/agente/catalogoAgente.js";
+import { objetivosDelCliente, calibrarSkus, calibrarMensual, derivarKPIs } from "./src/data/tenants/derivarEjes.js";
+import { crearAzar } from "./scripts/doble-supabase-continuidad.mjs";
 
 let PASS = 0, FAIL = 0;
 const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ " + m + (extra ? "\n      " + String(extra).slice(0, 600) : "")); } };
@@ -413,6 +418,86 @@ H("§8 · carnadas (en memoria): marca escrita a mano, un SKU fuera del factor, 
   ok(factorUniforme(Tc).mal.some((x) => /LG-WASH11KG\.contribucion/.test(x)) && cuadre(Tc).some((x) => /^contribución/.test(x)), "CARNADA «+3 de contribución elegidos a mano en un SKU» → deja de ser el factor único y deja de cuadrar con el cliente, ROJO");
   ok(sinLiteral("export const marcasMargen = [ { nombre:\"Samsung\" } ];").length === 1 && sinLiteral("export const sfamiliasVentas = [\n  { nombre:\"X\" } ];").length === 1, "CARNADA «una tabla de marca o de familia escrita como literal» → ROJO");
   ok(sinLiteral("export const marcasMargen = _margenDe(_MARCAS, \"marca\");\n// export const marcasVentas = [ comentario ]").length === 0, "…y la derivación (y la historia en un comentario) NO se confunde con el defecto (el control)");
+}
+
+/* ═══ §9 · LA SEGUNDA EMPRESA DE LA MEDICIÓN (Río Claro v1 y v2) OBEDECE LA MISMA REGLA, POR CONSTRUCCIÓN (owner 2026-10-07) ═════════════════════════════════════════════
+ * Río Claro es el demo renombrado con cifras propias (`scripts/medicion-anfitrion/empresa-no-demo.mjs`). Antes escalaba CADA fila de CADA tabla por su cuenta con redondeo propio y los ejes dejaban de cuadrar (venta 176.248 / 176.247 / 176.249;
+ * contribución 44.238 servida contra 44.162; unidades 9.688 contra 9.729): en la medición con anfitrión «0 errores de ADI» es regla de cierre, y un descuadre del dato no es un error de ADI. Ahora escala los ÁTOMOS y DERIVA el resto. */
+H("§9 · Río Claro v1 y v2: venta · contribución · acciones · unidades · año anterior · presupuesto EXACTAMENTE iguales en cliente · marca · familia · SKU · mes · KPI (misma derivación que el demo)");
+const { packRenombrado: _packRC, CAMBIOS_V2: _CAMBIOS_V2 } = await import(pathToFileURL(path.resolve("./scripts/medicion-anfitrion/empresa-no-demo.mjs")).href);
+/* cuadreEstricto(d) → lo que NO cuadra, SIN tolerancia alguna. La contribución y las acciones del cliente son las que SIRVE el motor (applyScenarioToClientesMargen, sobre la venta oficial): se leen con `d` activo en el tenantStore. */
+function cuadreEstricto(d) {
+  const mal = [];
+  initTenant(d);
+  const eq = (nombre, vals) => { const u = [...new Set(vals.map(([, v]) => v))]; if (u.length > 1) mal.push(`${nombre}: ${vals.map(([k, v]) => `${k}=${v}`).join(" · ")}`); };
+  const sv = ENG.applyScenarioToClientesMargen(S), K = ENG.deriveKpis(S);
+  eq("venta", [["cliente", sum(d.clientesVentas, "actual")], ["clienteServido", sum(sv, "venta")], ["marca", sum(d.marcasVentas, "actual")], ["marcaMargen", sum(d.marcasMargen, "venta")], ["familia", sum(d.sfamiliasVentas, "actual")], ["familiaMargen", sum(d.sfamiliasMargen, "venta")], ["sku", sum(d.skusMargen, "venta")], ["mes", sum(d.ventasMensuales, "actual")], ["KPI", d.ventasKPI.totalActual], ["deriveKpis", K.ventas.totalActual]]);
+  eq("contribución", [["cliente servido (venta oficial × margen)", sum(sv, "contribucion")], ["marca", sum(d.marcasMargen, "contribucion")], ["familia", sum(d.sfamiliasMargen, "contribucion")], ["sku", sum(d.skusMargen, "contribucion")], ["mes (venta − costo − acciones)", sum(d.ventasMensuales, "actual") - sum(d.ventasMensuales, "costo") - sum(d.ventasMensuales, "acciones")], ["margenKPI", d.margenKPI.totalUSD], ["deriveKpis", K.margen.totalUSD]]);
+  eq("acciones", [["cliente servido", sum(sv, "rebates")], ["marca", sum(d.marcasMargen, "rebates")], ["familia", sum(d.sfamiliasMargen, "rebates")], ["sku", sum(d.skusMargen, "rebates")], ["mes", sum(d.ventasMensuales, "acciones")]]);
+  eq("unidades", [["clienteVentas", sum(d.clientesVentas, "unidades")], ["clienteMargen", sum(d.clientesMargen, "unidades")], ["marcaVentas", sum(d.marcasVentas, "unidades")], ["marcaMargen", sum(d.marcasMargen, "unidades")], ["familiaVentas", sum(d.sfamiliasVentas, "unidades")], ["familiaMargen", sum(d.sfamiliasMargen, "unidades")], ["sku", sum(d.skusMargen, "unidades")], ["mes", sum(d.ventasMensuales, "unidades")], ["KPI", d.ventasKPI.unidades]]);
+  eq("unidades año anterior", [["cliente", sum(d.clientesVentas, "unidadesAnt")], ["marca", sum(d.marcasVentas, "unidadesAnt")], ["familia", sum(d.sfamiliasVentas, "unidadesAnt")]]);
+  eq("año anterior", [["cliente", sum(d.clientesVentas, "anterior")], ["marca", sum(d.marcasVentas, "anterior")], ["familia", sum(d.sfamiliasVentas, "anterior")], ["mes", sum(d.ventasMensuales, "anterior")], ["KPI", d.ventasKPI.totalAnterior], ["deriveKpis", K.ventas.totalAnterior]]);
+  eq("presupuesto", [["cliente", sum(d.clientesVentas, "presupuesto")], ["mes", sum(d.ventasMensuales, "presupuesto")], ["KPI", d.ventasKPI.totalPresupuesto]]);
+  for (const [a, b, n] of [[d.marcasVentas, d.marcasMargen, "marca"], [d.sfamiliasVentas, d.sfamiliasMargen, "familia"]]) for (const x of a) { const y = b.find((z) => z.nombre === x.nombre); if (!y || x.unidades !== y.unidades || x.pctRebate !== y.pctRebate) mal.push(`${n} ${x.nombre}: sus dos tablas no coinciden`); }
+  mal.push(...derivadas(d));   /* marca y familia = la SUMA de sus SKU en toda métrica aditiva (la misma regla del demo) */
+  return mal;
+}
+/* packPorFila(version) → la FORMA VIEJA del generador (la carnada): escala cada fila de cada tabla por su cuenta, con redondeo propio, y recalcula la cabecera con la razón de la venta. Es lo que se arregló. */
+function packPorFila(version) {
+  const d = JSON.parse(JSON.stringify(TENANT_DEMO)), azar = crearAzar(20261005), nombres = d.clientesVentas.map((c) => c.nombre), r0 = (n) => Math.round(n);
+  const f = {}; for (const n of nombres) f[n] = 1.8 * (1 + (azar() - 0.5) * 0.24);
+  if (version === 2) { _CAMBIOS_V2.suben.forEach(({ idx, factor }) => { f[nombres[idx]] *= factor; }); _CAMBIOS_V2.bajan.forEach(({ idx, factor }) => { f[nombres[idx]] *= factor; }); }
+  const esc = (fila, k, cs) => { for (const c of cs) if (typeof fila[c] === "number") fila[c] = r0(fila[c] * k); };
+  const act0 = sum(d.clientesVentas, "actual"), ant0 = sum(d.clientesVentas, "anterior");
+  for (const c of d.clientesVentas) esc(c, f[c.nombre], ["actual", "anterior", "presupuesto", "unidades", "unidadesAnt"]);
+  for (const c of d.clientesMargen) esc(c, f[c.nombre], ["venta", "costo", "rebates", "contribucion", "unidades"]);
+  if (version === 2) { const sale = nombres[_CAMBIOS_V2.sale]; d.clientesVentas = d.clientesVentas.filter((c) => c.nombre !== sale); d.clientesMargen = d.clientesMargen.filter((c) => c.nombre !== sale); }
+  const Tact = sum(d.clientesVentas, "actual"), Tant = sum(d.clientesVentas, "anterior"), rAct = Tact / act0, rAnt = Tant / ant0;
+  for (const t of ["marcasVentas", "sfamiliasVentas"]) for (const x of d[t]) { esc(x, rAct, ["actual", "unidades"]); esc(x, rAnt, ["anterior", "unidadesAnt"]); }
+  for (const t of ["marcasMargen", "sfamiliasMargen", "skusMargen"]) for (const x of d[t]) esc(x, rAct, ["venta", "costo", "rebates", "contribucion", "unidades"]);
+  for (const x of d.ventasMensuales) { esc(x, rAct, ["actual", "presupuesto", "unidades", "costo", "acciones"]); esc(x, rAnt, ["anterior"]); }
+  const Tund = sum(d.clientesVentas, "unidades");
+  d.ventasKPI = { ...d.ventasKPI, totalActual: Tact, totalAnterior: Tant, totalPresupuesto: sum(d.clientesVentas, "presupuesto"), unidades: Tund };
+  d.margenKPI = { ...d.margenKPI, totalUSD: r0(d.margenKPI.pct / 100 * Tact) };
+  return d;
+}
+{
+  const RC = { 1: _packRC({ version: 1 }), 2: _packRC({ version: 2 }) };
+  for (const v of [1, 2]) {
+    const mal = cuadreEstricto(RC[v]);
+    ok(mal.length === 0, `★ Río Claro v${v}: venta · contribución (servida) · acciones · unidades · año anterior · presupuesto · unidades del año anterior son EXACTAMENTE iguales en cliente · marca · familia · SKU · mes · KPI, sin tolerancia (${RC[v].clientesVentas.length} cuentas, venta $${sum(RC[v].clientesVentas, "actual")}K)`, mal.join("\n      "));
+    const d = RC[v], o = objetivosDelCliente(d.clientesVentas, d.clientesMargen);
+    ok(d.margenKPI.totalUSD === o.contribucion && d.ventasKPI.totalActual === o.venta && d.ventasKPI.unidades === o.unidades && d.margenKPI.pctAnt === TENANT_DEMO.margenKPI.pctAnt, `Río Claro v${v}: la cabecera es la SUMA de las cuentas (venta oficial × margen por cliente, como el demo) y el margen del año anterior sigue DECLARADO`);
+    ok(d.skusMargen.every((s) => s.costo === s.venta - s.rebates - s.contribucion && s.margen === r1(s.contribucion / s.venta * 100) && s.pctRebate === r1(s.rebates / s.venta * 100)), `Río Claro v${v}: cada SKU cumple costo = venta − acciones − contribución, margen y carga salen de sus sumas`);
+    const crec = (m) => { const g = d.marcasVentas.find((x) => x.nombre === m); return g ? (g.unidades / g.unidadesAnt - 1) * 100 : NaN; };
+    ok(["Norvik", "Teravolt", "Alsen", "Brimar", "Kestrel"].every((m) => Math.abs(crec(m)) <= 15) && d.marcasVentas.length === 5, `Río Claro v${v}: el crecimiento de unidades por marca es el declarado (creíble: ninguna marca fuera de ±15 %), no un artefacto de escala`);
+  }
+  ok(JSON.stringify(RC[1]) === JSON.stringify(_packRC({ version: 1 })) && JSON.stringify(RC[2]) === JSON.stringify(_packRC({ version: 2 })), "Río Claro sigue siendo determinista (mismos parámetros, mismo pack)");
+  ok(RC[2].clientesVentas.length === 12 && sum(RC[2].clientesVentas, "actual") !== sum(RC[1].clientesVentas, "actual") && RC[2].flujoComercial.fechaCorte === _CAMBIOS_V2.corteCobranza, "…y los cambios de la v2 siguen aplicando (una cuenta fuera del ranking, otras cifras, otro corte de cobranza) ANTES de derivar");
+  /* LA MISMA FUNCIÓN QUE EL DEMO: aplicada al demo es la identidad (el demo ya es lo que esas funciones derivan de sus átomos) */
+  const od = objetivosDelCliente(T.clientesVentas, T.clientesMargen);
+  ok(JSON.stringify(calibrarSkus(T.skusMargen, od)) === JSON.stringify(T.skusMargen), "★ calibrarSkus aplicada al SKU del demo con los totales del cliente es la IDENTIDAD (el factor es 1: el demo ya está calibrado por la misma regla)");
+  ok(JSON.stringify(calibrarMensual(T.ventasMensuales, od)) === JSON.stringify(T.ventasMensuales), "★ calibrarMensual aplicada a la serie mensual del demo es la IDENTIDAD (la serie ya cierra con el universo cliente)");
+  const kd = derivarKPIs({ clientesVentas: T.clientesVentas, clientesMargen: T.clientesMargen, margenAnterior: T.margenKPI.pctAnt });
+  ok(JSON.stringify(kd.ventasKPI) === JSON.stringify(T.ventasKPI) && JSON.stringify(kd.margenKPI) === JSON.stringify(T.margenKPI), "★ derivarKPIs reproduce el ventasKPI y el margenKPI del demo (una sola función para las dos empresas)");
+  const fuente = fs.readFileSync("./scripts/medicion-anfitrion/empresa-no-demo.mjs", "utf8");
+  ok(/derivarEjes\.js/.test(fuente) && /calibrarSkus\(/.test(fuente) && /derivarMarcasYFamilias\(/.test(fuente) && /derivarKPIs\(/.test(fuente) && /calibrarMensual\(/.test(fuente), "el generador de Río Claro importa y usa la derivación compartida (no la reescribe)");
+  /* CARNADAS: el defecto de antes (escalar cada fila con redondeo propio) y descuadres sueltos ponen el candado en ROJO */
+  for (const v of [1, 2]) {
+    const mal = cuadreEstricto(packPorFila(v));
+    ok(mal.some((x) => /^venta/.test(x)) && mal.some((x) => /^unidades/.test(x)) && mal.some((x) => /^contribución/.test(x)), `CARNADA «Río Claro v${v} escalado fila a fila como antes» → venta, unidades y contribución se ponen ROJO (${mal.length} descuadres)`, mal.join("\n      "));
+  }
+  const rc = JSON.parse(JSON.stringify(RC[1]));
+  rc.skusMargen[0].venta += 1; rc.skusMargen[0].costo += 1;
+  ok(cuadreEstricto(rc).some((x) => /^venta/.test(x)), "CARNADA «una unidad de venta de más en un SKU de Río Claro» → ROJO");
+  const rm = JSON.parse(JSON.stringify(RC[2])); rm.ventasMensuales[5].unidades += 1;
+  ok(cuadreEstricto(rm).some((x) => /^unidades/.test(x)), "CARNADA «una unidad de más en un mes de Río Claro v2» → ROJO");
+  const rk = JSON.parse(JSON.stringify(RC[1])); rk.margenKPI.totalUSD = 44238;
+  ok(cuadreEstricto(rk).some((x) => /^contribución/.test(x)), "CARNADA «el KPI de margen de Río Claro con la contribución de antes ($44.238K contra $44.172K servidos)» → ROJO");
+  const ra = JSON.parse(JSON.stringify(RC[1])); ra.marcasVentas[0].unidadesAnt += 3;
+  ok(cuadreEstricto(ra).some((x) => /^unidades año anterior/.test(x)), "CARNADA «3 unidades del año anterior de más en una marca de Río Claro» → ROJO");
+  ok(cuadreEstricto(RC[1]).length === 0 && cuadreEstricto(RC[2]).length === 0, "…y la tabla vigente de Río Claro (v1 y v2) pasa todos los candados (el control)");
+  initTenant(TENANT_DEMO);   /* el resto del gate (y el siguiente módulo en el mismo proceso) vuelve a la realidad del demo */
 }
 
 console.log(`\n── _una_sola_realidad_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
