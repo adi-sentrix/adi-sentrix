@@ -3361,6 +3361,13 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
     for (const cid of _callIdsDePartes([p.id])) { const r = rp.results[Number(cid.slice(1))]; const f = r && r.facts; if (f && f.lens === "cobranza" && Array.isArray(f.clientes)) for (const c of f.clientes) if (c && c.nombre) nombres.add(c.nombre); }
     return nombres.size ? nombres : null;
   };
+  /* ensayo 4 (owner 2026-10-07): lo que la mesa dice de SU foto, de los mismos hechos de la herramienta — cuántas cuentas tiene la foto en total (las que lista + `masFilas`, las que la mesa tiene y no lista) y por qué cifra se ordena (con plazo declarado, por saldo vencido; sin plazo, por saldo pendiente: `mesaFlujo.js`). null si la herramienta no lo dijo: nunca se supone. */
+  const _datosDeLaFoto = (p) => {
+    if (p.tema !== "cobranza") return null;
+    let total = null, sinPlazo = null;
+    for (const cid of _callIdsDePartes([p.id])) { const r = rp.results[Number(cid.slice(1))]; const f = r && r.facts; if (f && f.lens === "cobranza" && Array.isArray(f.clientes) && Number.isInteger(f.masFilas)) { total = Math.max(total || 0, f.clientes.length + f.masFilas); sinPlazo = !!f.sinPlazo; } }
+    return total ? { total, ordenPor: sinPlazo ? "saldo pendiente" : "saldo vencido" } : null;
+  };
 
   const consultaDeFrenado = _consultaDeFrenado(resolucion);   // etapa 6: el umbral que planteó quien consulta (o null)
   const { I, ejesDelTenant } = _indiceDelTenant(figs, scenario, consultaDeFrenado);
@@ -3409,20 +3416,25 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
   /* EL TOTAL DEL LISTADO (owner 2026-10-05, ensayo 2 — «un top-N que no declara su cola miente por omisión»; el anfitrión dijo «la venta total ronda $195M» sobre 13 cifras entregadas que suman $176.0M).
    * Cuando la Entrega sirve un LISTADO COMPLETO —sin `top`, sin universo acotado, TODAS las cuentas del eje— de una métrica ADITIVA (dinero o unidades), el libro declara UNA suma por métrica: la SUMA EXACTA de las
    * filas servidas (los mismos hechos de la tabla, nunca el total del Core ni otra fuente: reconciliada por construcción). NO se imprime: el texto de la Entrega no cambia (se registra en `entrega.cifras.totales`,
-   * que no es parte de la tabla); viaja en el libro de la conversación (`E<n>.h<k>`) y en la respuesta compacta. Una métrica no aditiva (margen, %, días, razones), un listado parcial (top-N, foto, universo acotado)
-   * o una cuenta sin cifra: ahí no corresponde y no se declara. Opcional como la tentación precalculada: si no verifica, no tumba la Entrega (ningún texto lo cita). */
+   * que no es parte de la tabla); viaja en el libro de la conversación (`E<n>.h<k>`) y en la respuesta compacta. Una métrica no aditiva (margen, %, días, razones), un listado parcial (top-N, la foto de la mesa cuando no lista todo el eje, universo acotado, un subconjunto nombrado)
+   * o una cuenta sin cifra: ahí no corresponde y no se declara. Ensayo 4 (owner 2026-10-07): viaja con TODO listado completo, sea cual sea su cierre (cifra · lectura · decision) y se haya pedido por el eje, como la foto de un eje entero o NOMBRANDO a todas sus entidades. Opcional como la tentación precalculada: si no verifica, no tumba la Entrega (ningún texto lo cita). */
   const declararTotalDelListado = (plan) => {
     const u = plan && plan.universoDecl;
-    if (!plan || plan.kind !== "grupo" || plan.esFoto || !u || u.top || u.base || u.estados || u.no_estados || u.filtros || u.bodega || u.union || (u.excluir && u.excluir.length)) return [];
+    if (!plan || plan.kind !== "grupo" || !u || u.top || u.base || u.estados || u.no_estados || u.filtros || u.bodega || u.union || (u.excluir && u.excluir.length)) return [];
     const miembrosDelEje = ejesDelTenant && Array.isArray(ejesDelTenant[plan.eje]) ? ejesDelTenant[plan.eje].length : 0;
-    if (plan.orden.length < 2 || plan.orden.length !== miembrosDelEje) return [];
+    if (plan.orden.length < 2 || plan.orden.length !== miembrosDelEje) return [];   /* ensayo 4: una FOTO que lista TODO el eje también es un listado completo — decide el tamaño de lo servido contra el del eje, no el nombre del camino */
+    return _totalesDeFilas(plan.orden.map((e) => _mapaDe(plan.porEntidad, e)));
+  };
+  /* ensayo 4 (owner 2026-10-07): el total viaja con CADA listado completo, sea cual sea el cierre (cifra · lectura · decision) y se haya pedido por el eje o NOMBRANDO a todas sus entidades.
+   * `filas` = un Map clave → id por cada entidad servida. */
+  function _totalesDeFilas(filas) {
     const claves = [];
-    for (const e of plan.orden) for (const k of _mapaDe(plan.porEntidad, e).keys()) if (!claves.includes(k)) claves.push(k);
+    for (const mp of filas) for (const k of mp.keys()) if (!claves.includes(k)) claves.push(k);
     const out = [];
     for (const clave of claves) {
       const m = metricaPorClave(clave);
       if (!m || m.referencia || m.negocio || (m.unidad !== "money" && m.unidad !== "count")) continue;
-      const ids = plan.orden.map((e) => _mapaDe(plan.porEntidad, e).get(clave));
+      const ids = filas.map((mp) => mp.get(clave));
       if (ids.some((x) => x == null)) continue;                                  // una cuenta sin cifra: la suma no sería la de lo servido
       const figsDeLasFilas = ids.map((id) => { const h = hechos.find((x) => x.id === id); return h && h.tipo === "ref" ? figs.find((f) => f && f.id === h.de) : null; });
       if (figsDeLasFilas.some((f) => !f || f.crudo === false || !Number.isFinite(f.raw))) continue;   // la cifra de la proyección o sin valor exacto: no hay suma exacta
@@ -3432,6 +3444,16 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
       out.push({ id, clave, n: ids.length });
     }
     return out;
+  }
+  /* el listado pedido NOMBRANDO a las entidades (`kind:"entidad"`): es completo solo si lo nombrado ES todo el eje (mismo eje, ni una de más ni una de menos); un subconjunto nombrado nunca lleva total */
+  const declararTotalDeNombradas = (plan, eje) => {
+    if (!plan || plan.kind !== "entidad" || !Array.isArray(plan.filasPorEntidad) || plan.filasPorEntidad.length < 2) return [];
+    const miembros = ejesDelTenant && Array.isArray(ejesDelTenant[eje]) ? ejesDelTenant[eje] : [];
+    const nombradas = plan.filasPorEntidad.map((x) => normalizar(x.entidad));
+    if (!miembros.length || nombradas.length !== miembros.length || new Set(nombradas).size !== nombradas.length) return [];
+    const delEje = new Set(miembros.map((m) => normalizar(m)));
+    if (!nombradas.every((n) => delEje.has(n))) return [];
+    return _totalesDeFilas(plan.filasPorEntidad.map((x) => new Map((x.filas || []).filter((f) => f.clave && f.id != null).map((f) => [f.clave, f.id]))));
   };
 
   // ── FASE 1 · declarar (por parte, según cierre) — nunca leer `preguntaOriginal` ──
@@ -3622,6 +3644,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         /* v23 (R18): el eje explícito es la foto del productor (sujeto distinto del tema): declara la cifra pedida que a alguna cuenta le falta, como en cliente y sku*/
         _declararCifraFaltanteDeFoto(p, planG, p.eje);
         _declararLenteDelGrupo(planG.lenteGrupo, ref, planG.porEntidad);   /* v23 */
+        { const _tt = declararTotalDelListado(planG); if (_tt.length) planG.totalesDelListado = _tt; }   /* ensayo 4: el total viaja con CADA listado completo, también el de una lectura/decision por un eje explícito */
         planes.push(planG);
         partesYaAgrupadas.add(p.id);
         huboFallback = true;
@@ -3639,9 +3662,10 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         const figB0F = planF.orden.length > 1 ? _mapaDe(planF.porEntidad, planF.orden[1]).get(planF.claveOrden) : null;
         for (const e of planF.orden) for (const [clave, fig] of _mapaDe(planF.porEntidad, e)) _mapaDe(planF.porEntidad, e).set(clave, ref(fig));
         if (figA0F && figB0F) planF.idDiffOrden = declararDerivadaOpcional(figA0F, _mapaDe(planF.porEntidad, planF.orden[0]).get(planF.claveOrden), figB0F, _mapaDe(planF.porEntidad, planF.orden[1]).get(planF.claveOrden));
-        planF.esFoto = true; planF.idUniverso = p.id;
+        planF.esFoto = true; planF.idUniverso = p.id; planF.fotoDatos = _datosDeLaFoto(p);
         /* v22 (S31): un concepto que la parte DECLARA y que la lectura del turno no publicó para alguna cuenta de la foto no se omite en silencio: se declara qué cuentas quedan sin esa cifra (nunca se rellena con otra). */
         _declararCifraFaltanteDeFoto(p, planF, sujetoDeTema(p.tema));
+        { const _tt = declararTotalDelListado(planF); if (_tt.length) planF.totalesDelListado = _tt; }   /* ensayo 4: una foto que lista TODO el eje es un listado completo y lleva su total; la que lista menos (la mesa de cobranza de 8) no */
         planes.push(planF);
         huboFoto = true;
       }
@@ -3746,6 +3770,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
       if (p.entidades && p.entidades.length) {
         const sinCifra = [];
         const plan = _planCifraEntidad(p, figsDeP, ref, I, declararDerivadaOpcional, sinCifra, resolucion.criterio);
+        if (plan) { const _tt = declararTotalDeNombradas(plan, (plan.filasPorEntidad[0] && plan.filasPorEntidad[0].eje) || sujetoDeTema(p.tema)); if (_tt.length) plan.totalesDelListado = _tt; }   /* ensayo 4: nombrar a TODAS las entidades del eje es pedir el listado completo: lleva su total */
         if (plan) planes.push(plan);
         /* §7.3·49(b): una `decision` con entidades NOMBRADAS decide entre ellas. Además de la conclusión de cada una, la Entrega da la prioridad del grupo de las pedidas —por la lente que el usuario pidió (si aplica a su dominio) o, sin lente, por la de ADI, nombrada—: el mismo plan de prioridad que sirve una decisión sin entidades, pero sobre las figs de ESTAS entidades (nunca sobre la cartera). Una lente que no las ordena se declara (47a · 47d), como en cualquier grupo */
         if (plan && p.cierre === "decision" && plan.filasPorEntidad && plan.filasPorEntidad.length >= 2) {
@@ -4099,6 +4124,12 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
   for (const plan of planes) {
     if (plan.kind === "entidad") {
       plan._servido = true;
+      /* ensayo 4: el total del listado completo pedido NOMBRANDO a todas las entidades del eje (`declararTotalDeNombradas`): igual que el del listado por eje, no se imprime; queda en `entrega.cifras.totales` para el libro y la respuesta compacta */
+      if (plan.totalesDelListado && plan.totalesDelListado.length) {
+        const _ejeN = (plan.filasPorEntidad[0] && plan.filasPorEntidad[0].eje) || sujetoDeTema(plan.tema);
+        const _totN = plan.totalesDelListado.map((t) => ({ hecho: t.id, entidad: `Total del listado completo (${conteoDeEje(_ejeN, t.n).texto})`, eje: _ejeN, metrica: rotuloDeLaCasa({ clave: t.clave }).rotulo, valor: renderDe(libro, t.id), procedencia: "derivado", tema: plan.tema }));
+        entrega.cifras.totales = [...(entrega.cifras.totales || []), ..._totN];
+      }
       // (a) CORRECCIÓN DEL SUPERVISOR (2026-09-25) — «una lectura/decision sobre una entidad abre con la
       // CONCLUSIÓN del procedimiento, no con un volcado». Cifras SIEMPRE recibe la lista completa (una fila por
       // fig, deduplicada por clave); la Respuesta abre con la conclusión (`_construirConclusionEntidad`,
@@ -4201,6 +4232,19 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
       const _declaraEmpF = !!(_empF && _nombresEmpF.length > 1 && plan.universoDecl.top && totalEje != null);
       /* v21 (§7.3·44c): la foto de un productor con lista propia (la mesa de cobranza) que NO es todo el eje declara su cola: «la foto de cobranza (8 de 13 cuentas)», nunca un listado que parezca la cartera entera */
       const _fotoConCola = !!(plan.esFoto && totalEje != null && plan.orden.length < totalEje);
+      /* ensayo 4 (owner 2026-10-07 · el anfitrión leyó «la foto de cobranza (8 de 12 cuentas)» como «la foto trae 8 de las 12 cuentas… no sé si faltan datos»: ADI no decía QUÉ eran el 8 y el 12). La cola dice, de cada caso, lo que es verdad —sin insinuar que falta un dato—:
+       *  · la foto tiene N cuentas (lo dice la herramienta: las que lista + las que tiene y no lista) y esta lista MUESTRA k de ellas: «se muestran 8 de las 12 cuentas de la foto de cobranza» (las otras existen en la foto; se piden por nombre o con un listado propio);
+       *  · la foto trae EXACTAMENTE las k que se listan y el eje tiene más: esas son todas las que figuran en la foto, las demás no figuran en ella;
+       *  · la herramienta no dijo cuántas tiene la foto: el denominador es el del eje, como siempre (nunca se inventa el de la foto). */
+      const _colaDeLaFoto = (() => {
+        if (!_fotoConCola) return { texto: "", total: null };
+        const dom = _DOM_NOMBRE[plan.tema] || plan.tema, k = plan.orden.length, fd = plan.fotoDatos || null;
+        if (fd && fd.total <= k) return { texto: `se muestran las ${conteoDeEje(plan.eje, k).texto} que trae la foto de ${dom} (de ${conteoDeEje(plan.eje, totalEje).texto}); las demás no figuran en ella`, total: null };
+        const N = fd ? fd.total : totalEje;
+        return { texto: `se muestran ${k} de las ${conteoDeEje(plan.eje, N).texto} de la foto de ${dom}`, total: N };
+      })();
+      /* el orden de la mesa NO es el de la cifra que se muestra: se dice por cuál se ordena (la herramienta lo sabe: con plazo declarado, por saldo vencido; sin plazo, por saldo pendiente) */
+      const _ordenDeLaMesaTxt = plan.ordenDeLaMesa ? (plan.fotoDatos ? `en el orden de la mesa (de mayor a menor ${plan.fotoDatos.ordenPor}), con` : "en el orden de la mesa, con") : "ordenado por";
       /* §7.3·39(c) · 46(f) (parte B, b): el empate del filo cuya cifra es 0 dice el cero en palabras de negocio junto a su cifra («no tienen días sin venta (0 días)»), la misma forma de la premisa de pertenencia; las cantidades solo (dinero, días, unidades) */
       const _unidadEmp = plan.claveOrden ? unidadDeClave(plan.claveOrden) : null;
       const _ceroEmpF = _declaraEmpF && _empF.valor === 0 && esCero(0, _unidadEmp)
@@ -4208,8 +4252,8 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         : "";
       const prefijo = plan.universoDecl.top && totalEje != null
         ? `El top ${plan.universoDecl.top.k} de ${totalEje} ${plan.eje}${_declaraEmpF ? `, que sirve ${plan.orden.length} por el empate del filo (${_listaDeNombres(_nombresEmpF)} empatan en el puesto ${_empF.puesto}${_ceroEmpF})` : ""}`
-        : _fotoConCola ? `Por ${plan.eje}, la foto de ${_DOM_NOMBRE[plan.tema] || plan.tema} (${plan.orden.length} de ${conteoDeEje(plan.eje, totalEje).texto})` : `Por ${plan.eje}`;
-      if (_fotoConCola) { cifrasImpresas.push(String(plan.orden.length)); cifrasImpresas.push(String(totalEje)); }
+        : _fotoConCola ? `Por ${plan.eje}, ${_colaDeLaFoto.texto}` : `Por ${plan.eje}`;
+      if (_fotoConCola) { cifrasImpresas.push(String(plan.orden.length)); cifrasImpresas.push(String(totalEje)); if (_colaDeLaFoto.total != null) cifrasImpresas.push(String(_colaDeLaFoto.total)); }
       if (plan.universoDecl.top && totalEje != null) { cifrasImpresas.push(String(totalEje)); cifrasImpresas.push(String(plan.universoDecl.top.k)); if (_declaraEmpF) { cifrasImpresas.push(String(plan.orden.length)); cifrasImpresas.push(String(_empF.puesto)); } }
       /* §7.3·43(b) (v19, Y02): un orden servido con EMPATE declara el puesto compartido y quiénes lo comparten (`plan.empates`, calculado sobre el crudo al armar el plan). Va en la MISMA oración del orden: no agrega una oración
        * con hechos propios (que la protección cruzada de `tamano.js` leería como cifras a servir y movería filas de lugar); las cifras de los empatados ya viajan en esta oración y en la tabla. */
@@ -4220,7 +4264,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         ? ` Empate en el orden servido: ${_empatesPorDecir.map((g) => { cifrasImpresas.push(String(g.n)); return `puesto ${g.n} compartido por ${_listaDe(g.entidades)}`; }).join("; ")}.`
         : "";
       /* v21 (T100, §7.3·43b/44a): la oración que DECLARA un empate —el del filo («sirve 6 por el empate…») o el del orden servido («puesto 4 compartido por…»)— es un negativo obligatorio como una premisa: el tope de tamaño no la retira (`prioridad: 0`); antes, en un encargo de tres partes, iba al Detalle y el orden servido quedaba con el empate sin decir. La FOTO (sin universo propio) conserva la prioridad de siempre: el empate de sus ceros no desplaza a las lecturas por dominio */
-      entrega.respuesta.push({ texto: `${prefijo}, ${plan.ordenDeLaMesa ? "en el orden de la mesa, con" : "ordenado por"} ${_labelDeClave(plan.claveOrden) || plan.claveOrden}: ${cabeza}.${empateTxt}`, hechos: idsCabeza, _entidadesCitadas: { tema: _NOMBRE_DE_TEMA(plan.tema), nombres: plan.orden.slice(0, _nCabeza) }, ...((_declaraEmpF || (empateTxt && !plan.esFoto) || _fotoConCola) ? { prioridad: 0 } : {}) });   /* v24 (Q13, §7.3·45a): la cola de la foto («8 de 13 cuentas») se declara también en «breve»: el tope de tamaño no la retira */
+      entrega.respuesta.push({ texto: `${prefijo}, ${_ordenDeLaMesaTxt} ${_labelDeClave(plan.claveOrden) || plan.claveOrden}: ${cabeza}.${empateTxt}`, hechos: idsCabeza, _entidadesCitadas: { tema: _NOMBRE_DE_TEMA(plan.tema), nombres: plan.orden.slice(0, _nCabeza) }, ...((_declaraEmpF || (empateTxt && !plan.esFoto) || _fotoConCola) ? { prioridad: 0 } : {}) });   /* v24 (Q13, §7.3·45a): la cola de la foto («8 de 13 cuentas») se declara también en «breve»: el tope de tamaño no la retira */
       // §7.3·17 (supervisor 2026-09-27, diagnóstico v8) — una `decision` sobre un universo propio calcula la
       // prioridad del procedimiento DENTRO de ese universo (nunca fuera, nunca con la lente de negocio del
       // dominio entero): el MISMO texto que ya usa el plan `grupoUniverso` unas líneas más abajo, aplicado acá

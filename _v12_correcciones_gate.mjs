@@ -1143,8 +1143,8 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     const sanas = mesa.filas.slice(0, 8).filter((f) => !(f.vencidoK > 0)).map((f) => f.nombre);
     const celdas = [...((E.entrega.cifras && E.entrega.cifras.filas) || []), ...((E.entrega.detalle && E.entrega.detalle.filas) || [])].filter((f) => sanas.includes(f.valores["Entidad / grupo"]) && /vencido/i.test(f.valores["Métrica"] || ""));
     ok(sanas.length >= 1 && sanas.every((n) => celdas.some((f) => f.valores["Entidad / grupo"] === n && f.valores["Valor"] === "$0")), "la cuenta sana de la foto dice «Saldo vencido $0» (ausente ES cero), no queda sin cifra de lo pedido", JSON.stringify(sanas));
-    const L = lineas(E), iFoto = L.findIndex((t) => new RegExp(`la foto de cobranza \\(${fotoCob.length} de ${nCli} cuentas\\)`).test(t)), iPrio = L.findIndex((t) => /^(Quien más pesa en el conjunto|Prioridad del procedimiento)/.test(t));
-    ok(iFoto >= 0 && iPrio >= 0 && iPrio < iFoto, "la foto declara su cola («la foto de cobranza (8 de 13 cuentas)») y va DESPUÉS de la prioridad del procedimiento", JSON.stringify(L.slice(0, 8)));
+    const L = lineas(E), iFoto = L.findIndex((t) => new RegExp(`se muestran ${fotoCob.length} de las ${nCli} cuentas de la foto de cobranza`).test(t)), iPrio = L.findIndex((t) => /^(Quien más pesa en el conjunto|Prioridad del procedimiento)/.test(t));
+    ok(iFoto >= 0 && iPrio >= 0 && iPrio < iFoto, "la foto declara su cola («se muestran 8 de las 13 cuentas de la foto de cobranza») y va DESPUÉS de la prioridad del procedimiento", JSON.stringify(L.slice(0, 8)));
     ok(iFoto >= 0 && L[iFoto].includes(`ordenado por Saldo vencido: ${fotoCob[0]} (`), "la foto se ordena de MAYOR a menor (43f): abre la cuenta con más vencido de la mesa", L[iFoto]); }
   { const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido", "recuperado"] }], criterio: { lente: "credito" }, profundidad: "breve" });
     ok(E.ok && mismoConjunto(universoDe(E, "p1"), fotoCob) && fotoCob.every((n) => filasServidas(E).has(n)), "una `decision` BREVE sirve la misma foto (lo recortado por tamaño queda en el Detalle con los mismos ids)", JSON.stringify(universoDe(E, "p1")));
@@ -1706,9 +1706,44 @@ H("A15 · U34 · una definición aceptada por el validador que `defineConcept` n
     ok(E.ok && !/enchmark de margen/.test(E.texto || "") && !/año cerrado/.test(E.texto || ""), "el Marco de «definición comercial + cifra de inventario» no cita el benchmark de margen ni el período del año cerrado", String(E.texto).split("\n").find((l) => /^\*\*Marco/.test(l)) || "");
     const com = { id: "p2", tema: "comercial", cierre: "cifra", conceptos: ["margen"], eje: "sku", entidades: [{ nombre: "SAM-TV55", eje: "sku" }] };
     ok(/enchmark de margen: 30\.1%/.test(entregaDe(enc(com)).E.texto || ""), "CONTROL NEGATIVO · con una cifra comercial (no una definición) el Marco SÍ cita el benchmark con que se juzga el margen (43e)", ""); }
-  H("A22 · 45a · Q13 · la foto de cobranza en «breve» declara su cola («8 de 13 cuentas»): el tope de tamaño no la retira");
+  H("A22 · 45a · Q13 · la foto de cobranza en «breve» declara su cola («se muestran 8 de las 13 cuentas»): el tope de tamaño no la retira");
   { const enc = (profundidad) => ({ partes: [{ id: "p1", tema: "cobranza", cierre: "lectura", conceptos: ["abonado", "recuperado"] }], profundidad });
-    for (const prof of ["breve", "completa"]) { const { E } = entregaDe(enc(prof)); ok(E.ok && /la foto de cobranza \(8 de 13 cuentas\)/.test(sinTablas(E)), `la Entrega en «${prof}» declara «la foto de cobranza (8 de 13 cuentas)»`, sinTablas(E).split("\n").filter((l) => /foto de cobranza/.test(l)).join(" | ")); } }
+    for (const prof of ["breve", "completa"]) { const { E } = entregaDe(enc(prof)); ok(E.ok && /se muestran 8 de las 13 cuentas de la foto de cobranza/.test(sinTablas(E)), `la Entrega en «${prof}» declara «se muestran 8 de las 13 cuentas de la foto de cobranza»`, sinTablas(E).split("\n").filter((l) => /foto de cobranza/.test(l)).join(" | ")); } }
+
+  /* ENSAYO 4 (owner 2026-10-07) · C03 s1 t2: ADI escribía «la foto de cobranza (8 de 12 cuentas)» —las 8 filas que lista de una foto que tiene las 12— y el anfitrión concluyó «la foto trae 8 de las 12 cuentas… no sé si faltan datos».
+   * La cola dice QUÉ es cada número («se muestran 8 de las 12 cuentas de la foto de cobranza») según lo que la herramienta de la mesa dice de su foto, y el orden de la mesa dice por cuál cifra se ordena (la lista no va ordenada por la
+   * cifra que muestra). La ley de la v21 queda: una lista parcial no parece la cartera entera. */
+  H("A25 · ensayo 4 · C03 · la cola de la foto dice qué es cada número (se MUESTRAN k de las N cuentas de la foto) y el orden de la mesa dice por cuál cifra se ordena");
+  { const mesa = buildMesaFlujo(ESCENARIO_INICIAL), fotoCob = mesa.filas.slice(0, 8).map((f) => f.nombre);
+    const sinParen = (t) => !/foto de cobranza \(\d+ de/.test(t);
+    const foto = (ds, extra = {}) => { initTenant(ds); const { E } = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "lectura", conceptos: ["saldo_pendiente", "saldo_vencido"] }], ...extra }); initTenant(TENANT_DEMO); return E; };
+    const lineaFoto = (E) => E.entrega.respuesta.map((r) => r.texto || "").find((t) => /foto de cobranza/.test(t) && /^Por cliente/.test(t)) || "";
+    /* (1) la foto tiene N cuentas y la lista muestra 8: «se muestran 8 de las N cuentas de la foto de cobranza» */
+    const E1 = foto(TENANT_DEMO), L1 = lineaFoto(E1);
+    ok(E1.ok && L1.startsWith(`Por cliente, se muestran ${fotoCob.length} de las ${mesa.filas.length} cuentas de la foto de cobranza, `) && sinParen(E1.texto), "★ la cola dice «se muestran 8 de las N cuentas de la foto de cobranza» (N = las cuentas de la foto que la herramienta de la mesa declara), no el «(8 de 13 cuentas)» ambiguo", L1);
+    ok(!/no sé si|faltan datos|no figuran|no aparecen/.test(L1), "…y no insinúa que falta un dato", L1);
+    /* (2) el orden de la mesa NO es el de la cifra mostrada: se dice por cuál va (oráculo: la mesa se ordena por saldo vencido, de mayor a menor) */
+    const vencidosMesa = mesa.filas.slice(0, 8).map((f) => f.vencidoK);
+    ok(vencidosMesa.every((x, i) => i === 0 || vencidosMesa[i - 1] >= x), "oráculo · la mesa de cobranza va de mayor a menor saldo vencido");
+    ok(/, en el orden de la mesa \(de mayor a menor saldo vencido\), con Saldo pendiente: /.test(L1) || /, ordenado por Saldo pendiente: /.test(L1) || /, ordenado por Saldo vencido: /.test(L1), "★ la línea nombra el orden: «en el orden de la mesa (de mayor a menor saldo vencido), con Saldo pendiente: …» o «ordenado por …» cuando la lista sí va por esa cifra", L1);
+    const E1b = entregaDe({ partes: [{ id: "p1", tema: "cobranza", cierre: "lectura", conceptos: ["abonado", "recuperado"] }] }).E, L1b = lineaFoto(E1b);
+    ok(/en el orden de la mesa \(de mayor a menor saldo vencido\), con Abonado: /.test(L1b), "★ con una cifra que NO ordena la mesa (Abonado), la línea dice que el orden es el de la mesa, por saldo vencido: no se lee como «ordenado por Abonado»", L1b);
+    const cabezaAbonado = (L1b.match(/Abonado: (.*)\.$/) || [])[1] || "";
+    const montos = (cabezaAbonado.match(/\$([\d.]+)M/g) || []).map((m) => Number(m.replace(/[^\d.]/g, "")));
+    ok(montos.length >= 2 && montos.some((x, i) => i > 0 && montos[i - 1] < x), "(control) en ese caso los montos mostrados NO van ordenados por esa cifra: sin el aviso del orden se leerían como un ranking de abonado", L1b);
+    /* (3) el caso de C03: la mesa tiene 12 de las 13 cuentas del eje → «8 de las 12» (el denominador es el de la FOTO, no el del eje) */
+    const ds12 = JSON.parse(JSON.stringify(TENANT_DEMO)); const fuera = ds12.clientesVentas[ds12.clientesVentas.length - 1].nombre; delete ds12.flujoComercial.clientes[fuera];
+    initTenant(ds12); const mesa12 = buildMesaFlujo(ESCENARIO_INICIAL).filas.length; initTenant(TENANT_DEMO);
+    const E3 = foto(ds12), L3 = lineaFoto(E3);
+    ok(mesa12 === 12 && L3.startsWith("Por cliente, se muestran 8 de las 12 cuentas de la foto de cobranza, "), "★ C03: la foto tiene 12 cuentas (el eje, 13): «se muestran 8 de las 12 cuentas de la foto de cobranza» — el denominador es el de la foto", L3);
+    /* (4) la foto trae SOLO las k cuentas que lista y el eje tiene más: son todas las de la foto; las demás no figuran en ella */
+    const ds6 = JSON.parse(JSON.stringify(TENANT_DEMO)); for (const c of ds6.clientesVentas.slice(6)) delete ds6.flujoComercial.clientes[c.nombre];
+    initTenant(ds6); const mesa6 = buildMesaFlujo(ESCENARIO_INICIAL).filas.length; initTenant(TENANT_DEMO);
+    const E4 = foto(ds6), L4 = lineaFoto(E4);
+    ok(mesa6 === 6 && E4.ok && L4.startsWith("Por cliente, se muestran las 6 cuentas que trae la foto de cobranza (de 13 cuentas); las demás no figuran en ella, "), "la foto con SOLO 6 cuentas dentro de un eje de 13: «se muestran las 6 cuentas que trae la foto de cobranza (de 13 cuentas); las demás no figuran en ella» (no insinúa que falten datos de la foto)", L4);
+    /* CARNADA · el texto de antes («la foto de cobranza (8 de 13 cuentas)») pone en rojo la regla: es exactamente la frase que indujo al anfitrión */
+    ok(!sinParen("Por cliente, la foto de cobranza (8 de 12 cuentas), en el orden de la mesa, con Saldo pendiente: Mayorista El Roble ($13.3M)."), "★ CARNADA «la foto de cobranza (8 de 12 cuentas)»: la regla la ve (rojo)");
+  }
 
   /* ─ (ii) LA LENTE × EL DOMINIO ─ */
   H("A22 · 46d + 47 · Q44 · Q45 · Q70 · el «riesgo integrado» PEDIDO sobre un grupo se declara (es el criterio entre dominios); «ventas» ordena un grupo de cuentas que trae su venta; «crecimiento» se declara; nada cambia de criterio en silencio");

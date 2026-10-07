@@ -12,7 +12,9 @@
  *   5 · falla cerrado: si GUARDAR falla → `memoria:"no_disponible"` y el libro sin la derivación; el id no se consume;
  *   6 · estático: `derivar.js` y la rama `derivar` de `acciones.js` no importan nada de `entrega/` ni `encargo/`, ni llaman `conTenantActivo`;
  *   7 · la puerta: `tools/list` con 5, REST `derivar`, OpenAPI con 5 rutas; la cabecera de uso de cuatro reglas;
- *   8 · el libro de 16 KB con el caso más grande del demo (se MIDE y se informa: las derivaciones compiten con las Entregas por esos 16 KB).
+ *   8 · el libro de 16 KB con el caso más grande del demo (se MIDE y se informa: las derivaciones compiten con las Entregas por esos 16 KB);
+ *  11 · ENSAYO 4 (owner 2026-10-07): un `D<k>` es operando (de `sobre`, `base` y la cifra de un conteo) con su linaje; la participación suma VARIOS numeradores; cada rechazo nuevo con su pedido; `retomar` revalida en
+ *       cascada (y un libro adulterado con un ciclo no cuelga); la herramienta lo dice sin crecer.
  * CERO llamadas a un LLM · CERO red. Solo por `npm run gates:offline` o `node --import ./scripts/offline-guard.mjs _derivar_gate.mjs`. */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
@@ -218,7 +220,9 @@ for (const { etiqueta, T } of EMPRESAS) {
     await noDeriva(h, T, "una participación sin base", { operacion: "participacion", sobre: [v0[0]] }, "faltan_operandos");
     await noDeriva(h, T, "una diferencia de tres cifras", { operacion: "diferencia", sobre: v0.slice(0, 3) }, "demasiados_operandos");
     await noDeriva(h, T, "41 operandos", { operacion: "suma", sobre: Array.from({ length: 41 }, (_, i) => `E1.h${i + 1}`) }, "demasiados_operandos");
-    for (const [n, id] of [["un id de apoyo (E1.e5)", "E1.e5"], ["un id de derivación (D1)", "D1"], ["un universo (E1.u1)", "E1.u1"], ["un número", 42]]) await noDeriva(h, T, n, { operacion: "suma", sobre: [v0[0], id] }, "id_invalido");
+    for (const [n, id] of [["un id de apoyo (E1.e5)", "E1.e5"], ["un id de derivación mal escrito (D1x)", "D1x"], ["un universo (E1.u1)", "E1.u1"], ["un número", 42]]) await noDeriva(h, T, n, { operacion: "suma", sobre: [v0[0], id] }, "id_invalido");
+    /* ensayo 4: una derivación SÍ es un operando válido; una que la conversación todavía no tiene, no existe (antes: id_invalido para cualquier «D<k>») */
+    await noDeriva(h, T, "una derivación que la conversación no tiene (D77)", { operacion: "suma", sobre: [v0[0], "D77"] }, "id_inexistente");
     await noDeriva(h, T, "una Entrega que no existe", { operacion: "suma", sobre: [v0[0], "E9.h1"] }, "id_inexistente");
     await noDeriva(h, T, "una cifra que no existe", { operacion: "suma", sobre: [v0[0], "E1.h99"] }, "id_inexistente");
     await noDeriva(h, T, "el mismo id dos veces", { operacion: "suma", sobre: [v0[0], v0[0]] }, "operando_repetido");
@@ -346,7 +350,7 @@ for (const { etiqueta, T } of EMPRESAS) {
     const nombreOp = v[0].entidad;
     const ds2 = clon(T.dataset);
     const filaV = (ds2.clientesVentas || []).find((x) => x.nombre === nombreOp);
-    if (filaV && filaV.anterior != null) filaV.anterior *= 0.5;
+    if (filaV && filaV.actual != null) filaV.actual *= 0.5;   /* la venta VIGENTE (`clientesVentas.actual`): con la realidad única el cambio de `anterior` ya no mueve la venta, y esta prueba se saltaba el «cambio» sin avisar */
     const T2 = { ...T, dataset: ds2, version: 2 };
     const oAntes = crudosDelCore(T, E([PARTE(["ventas"], "comercial")]));
     const oHoy = crudosDelCore(T2, E([PARTE(["ventas"], "comercial")]));
@@ -469,6 +473,166 @@ H("10 · el tope de 16 KB del libro con el caso más grande del demo");
   const hh = await hilo(T, [...PASOS_COMERCIAL.slice(0, 1), ...PASOS_SALDOS, ["margen2", ["margen"], "comercial"]]);
   const Lh = await hh.store.leerLibro(T.id, hh.conv);
   console.log(`   · INFORME: un hilo de TRES Entregas completas (ventas 13 · saldos 13×2 · márgenes 13) pesa ${tamanoBytes(Lh)} B y recorta ${Lh.entregas.filter((e) => e.recortada).map((e) => `E${e.n}`).join(", ") || "nada"} (sin este contrato: 12.151 B y también recortaba E1)`);
+}
+
+
+/* ═══ 11 · ENCADENAR DERIVACIONES Y AGRUPAR NUMERADORES (ensayo 4 · owner 2026-10-07) ═══════════════════════════════════════════════════════════════════════════════
+ * Los casos reales del ensayo 4 (transcritos A01 s1 t2 y t4 · C01 s1 t5 · C02 s1 t2): el anfitrión pidió `participacion` con un `D<k>` como base o como numerador (rechazado: `id_invalido`) y quiso «los 3 primeros sobre el total»
+ * (un solo numerador permitido), así que calculó él. Ahora: un operando puede ser una derivación anterior (con su LINAJE: las cifras entregadas de las que sale), y una participación suma varios numeradores. Fail-closed intacto. */
+H("11 · encadenar derivaciones (D sobre D) y participación de varios numeradores");
+for (const { etiqueta, T } of EMPRESAS) {
+  H(`── ${etiqueta} (encadenar y agrupar) ───────────────────────────────────────────────────────────────────────────────────────────────────`);
+  const h = await hilo(T, PASOS_COMERCIAL);
+  const hs = await hilo(T, PASOS_SALDOS);
+  const oVentas = crudosDelCore(T, E([PARTE(["ventas"], "comercial")]));
+  const ventas = delMetrica(h.ventas, "Venta"), totalVentas = totalDe(h.ventas, "Venta"), margenes = delMetrica(h.margen, "Margen");
+  const vencidos = delMetrica(hs.saldos, "Saldo vencido"), pendientes = delMetrica(hs.saldos, "Saldo pendiente");
+  const libroDe = () => h.store.leerLibro(T.id, h.conv);
+  const crudo = (x) => rawDe(oVentas, "ventas", x.entidad);
+  const suma = (xs) => xs.reduce((a, x) => a + crudo(x), 0);
+  const lib0 = await libroDe();
+  const crudoTotal = lib0.entregas[0].hechos.find((x) => x.id === totalVentas.id).rv.raw;
+  const tres = ventas.slice(0, 3), otras3 = ventas.slice(3, 6);
+  const ids = (xs) => xs.map((x) => x.id);
+
+  H(`11a · «los 3 primeros sobre el total» es UN hecho de ADI: participación con tres numeradores (${etiqueta})`);
+  const espParticipacion = (100 * suma(tres)) / crudoTotal;
+  const rm = await derivar(h, { operacion: "participacion", sobre: ids(tres), base: totalVentas.id }, T);
+  ok(rm.ok === true && rm.hecho.operacion === "participacion" && rm.hecho.valor === formatoDeLaCasa(espParticipacion, "pct") && rm.operandos.length === 3 && rm.base && rm.base.id === totalVentas.id, `★ participación de 3 numeradores sobre el total del listado: ${formatoDeLaCasa(espParticipacion, "pct")} (100·Σ/total, con los crudos), con sus tres operandos y su base`, jj(rm).slice(0, 500));
+  ok(rm.hecho.entidad === tres.map((x) => x.entidad).join(" + ") && /participación de 3 cifras entregadas sobre/.test(rm.hecho.metrica) && rm.hecho.metrica.includes(totalVentas.valor), "la entidad nombra a los tres y la métrica dice que son tres cifras sobre qué base (valor + base)", jj(rm.hecho));
+  const enLibro = (await libroDe()).derivaciones.find((d) => d.id === rm.hecho.id);
+  ok(enLibro.resultado.unidad === "pct" && Math.abs(enLibro.resultado.raw - espParticipacion) < 1e-9 && !("linaje" in enLibro), "guardada en puntos, con el crudo exacto; sin linaje (es de cifras entregadas, no encadenada)");
+  const rmRev = await derivar(h, { operacion: "participacion", sobre: ids(tres).reverse(), base: totalVentas.id }, T);
+  ok(rmRev.ok && rmRev.repetida === true && rmRev.hecho.id === rm.hecho.id, "★ idempotente y sin depender del orden de los numeradores (repetida:true, el mismo D)");
+  const r1 = await derivar(h, { operacion: "participacion", sobre: [tres[0].id], base: totalVentas.id }, T);
+  ok(r1.ok && r1.hecho.valor === formatoDeLaCasa((100 * crudo(tres[0])) / crudoTotal, "pct") && !/participación de/.test(r1.hecho.metrica), "(control) con UN numerador la participación es la de siempre, con su rótulo de siempre", jj(r1.hecho));
+  const rAll = await derivar(h, { operacion: "participacion", sobre: ids(ventas), base: totalVentas.id }, T);
+  ok(rAll.ok && rAll.hecho.valor === formatoDeLaCasa(100, "pct"), "las 13 sobre su total son el 100 % (la suma de los numeradores puede IGUALAR a la base)", jj(rAll.hecho));
+
+  H(`11b · una derivación es operando de otra: D sobre D, con linaje (${etiqueta})`);
+  const dS = await derivar(h, { operacion: "suma", sobre: ids(tres) }, T);
+  const dP = await derivar(h, { operacion: "participacion", sobre: [dS.hecho.id], base: totalVentas.id }, T);
+  ok(dP.ok === true && dP.hecho.valor === rm.hecho.valor && dP.hecho.valor === formatoDeLaCasa(espParticipacion, "pct"), `★ la participación de la SUMA (${dS.hecho.id}, como numerador) sobre el total es la MISMA cifra que la de los tres numeradores (${rm.hecho.valor})`, jj(dP).slice(0, 500));
+  ok(dP.operandos.length === 1 && dP.operandos[0].id === dS.hecho.id && dP.operandos[0].procedencia === "derivado" && jj(dP.operandos[0].derivaDe) === jj(ids(tres)) && dP.operandos[0].valor === dS.hecho.valor, "el operando D viaja con su valor y de qué cifras sale (procedencia «derivado», derivaDe)", jj(dP.operandos));
+  ok(jj(dP.hecho.linaje.slice().sort()) === jj([...ids(tres), totalVentas.id].sort()), "★ el hecho trae su LINAJE completo: las cifras entregadas de las que sale (operandos y base)", jj(dP.hecho.linaje));
+  const dP2 = await derivar(h, { operacion: "participacion", sobre: [dS.hecho.id], base: totalVentas.id }, T);
+  ok(dP2.ok && dP2.repetida === true && dP2.hecho.id === dP.hecho.id, "idempotente también con operandos D");
+  const dS2 = await derivar(h, { operacion: "suma", sobre: ids(otras3) }, T);
+  const dDif = await derivar(h, { operacion: "diferencia", sobre: [dS.hecho.id, dS2.hecho.id] }, T);
+  ok(dDif.ok && dDif.hecho.valor === formatoDeLaCasa(suma(tres) - suma(otras3), "money") && jj(dDif.hecho.linaje.slice().sort()) === jj([...ids(tres), ...ids(otras3)].sort()), `★ la diferencia de DOS derivaciones (${dDif.hecho && dDif.hecho.valor}) usa los crudos de las seis cifras y trae el linaje de las seis`, jj(dDif).slice(0, 500));
+  const dSuma6 = await derivar(h, { operacion: "suma", sobre: [dS.hecho.id, dS2.hecho.id] }, T);
+  ok(dSuma6.ok && dSuma6.hecho.valor === formatoDeLaCasa(suma([...tres, ...otras3]), "money"), "la suma de dos sumas disjuntas es la suma de las seis", jj(dSuma6.hecho));
+  const dShare = await derivar(h, { operacion: "participacion", sobre: [dS.hecho.id], base: dSuma6.hecho.id }, T);
+  ok(dShare.ok && dShare.hecho.valor === formatoDeLaCasa((100 * suma(tres)) / suma([...tres, ...otras3]), "pct"), "una derivación también es BASE de una participación (los 3 primeros sobre los 6)", jj(dShare.hecho));
+  const dResto = await derivar(h, { operacion: "diferencia", sobre: [totalVentas.id, tres[0].id] }, T);
+  const dRestoP = await derivar(h, { operacion: "participacion", sobre: [dResto.hecho.id], base: totalVentas.id }, T);
+  ok(dRestoP.ok && dRestoP.hecho.valor === formatoDeLaCasa((100 * (crudoTotal - crudo(tres[0]))) / crudoTotal, "pct"), "★ el total del listado SÍ es la base de una participación (y una derivación que sale de él, su numerador): operando_es_total solo rige en sumas y conteos", jj(dRestoP).slice(0, 300));
+  const dRestoDif = await derivar(h, { operacion: "diferencia", sobre: [dS.hecho.id, tres[0].id] }, T);
+  ok(dRestoDif.ok && dRestoDif.hecho.valor === formatoDeLaCasa(suma(tres) - crudo(tres[0]), "money"), "una diferencia admite una derivación y una de sus propias cifras (el resto del grupo)", jj(dRestoDif.hecho));
+  /* ningún D se refiere a un id posterior: sin ciclos por construcción */
+  const L1 = await libroDe();
+  const k = (id) => Number(String(id).slice(1));
+  ok(L1.derivaciones.every((d) => [...d.sobre, ...(d.base ? [d.base] : []), ...(d.condicion && typeof d.condicion.valor === "string" ? [d.condicion.valor] : [])].filter((x) => /^D\d+$/.test(x)).every((x) => k(x) < k(d.id))), "★ cada derivación solo se refiere a derivaciones ANTERIORES (un ciclo es imposible por construcción)");
+  const pedidoAutorreferido = await derivar(h, { operacion: "suma", sobre: [`D${(L1.nDerivaciones || 0) + 1}`, tres[0].id] }, T);
+  ok(pedidoAutorreferido.ok === false && pedidoAutorreferido.motivo === "id_inexistente", "…y pedir una derivación que todavía no existe (el id que se asignaría ahora) se rechaza: id_inexistente", jj(pedidoAutorreferido).slice(0, 300));
+
+  H(`11c · cada rechazo del encadenado y de los varios numeradores, con su pedido (${etiqueta})`);
+  await noDeriva(h, T, "una derivación que no existe (D99)", { operacion: "suma", sobre: [dS.hecho.id, "D99"] }, "id_inexistente");
+  await noDeriva(h, T, "«D» mal escrito (D1x)", { operacion: "suma", sobre: [dS.hecho.id, "D1x"] }, "id_invalido");
+  await noDeriva(h, T, "una derivación y una de sus propias cifras en una suma (se contaría dos veces)", { operacion: "suma", sobre: [dS.hecho.id, tres[1].id] }, "operando_repetido");
+  await noDeriva(h, T, "dos derivaciones que comparten una cifra en una suma", { operacion: "suma", sobre: [dS.hecho.id, (await derivar(h, { operacion: "suma", sobre: [tres[2].id, otras3[0].id] }, T)).hecho.id] }, "operando_repetido");
+  await noDeriva(h, T, "una derivación y el total del listado en una suma", { operacion: "suma", sobre: [dS.hecho.id, totalVentas.id] }, "operando_es_total");
+  await noDeriva(h, T, "una derivación que SALE del total (el resto) en una suma", { operacion: "suma", sobre: [dResto.hecho.id, ventas[1].id] }, "operando_es_total");
+  await noDeriva(h, T, "el total del listado entre los varios numeradores", { operacion: "participacion", sobre: [ventas[0].id, totalVentas.id], base: ventas[1].id }, "operando_es_total");
+  await noDeriva(h, T, "el mismo numerador dos veces", { operacion: "participacion", sobre: [ventas[0].id, ventas[0].id], base: totalVentas.id }, "operando_repetido");
+  await noDeriva(h, T, "un numerador y una derivación que ya lo contiene", { operacion: "participacion", sobre: [dS.hecho.id, tres[1].id], base: totalVentas.id }, "operando_repetido");
+  await noDeriva(h, T, "numeradores que suman MÁS que la base", { operacion: "participacion", sobre: ids(ventas.slice(0, 5)), base: ventas[5].id }, "numerador_mayor_que_base");
+  await noDeriva(hs, T, "numeradores de varias métricas (vencido y pendiente)", { operacion: "participacion", sobre: [vencidos[0].id, pendientes[1].id], base: pendientes[2].id }, "metricas_distintas");
+  await noDeriva(h, T, "varios numeradores que son porcentajes (no aditivos)", { operacion: "participacion", sobre: ids(margenes.slice(0, 2)), base: margenes[2].id }, "metrica_no_aditiva");
+  await noDeriva(h, T, "varios numeradores contra una base de otra unidad", { operacion: "participacion", sobre: ids(tres), base: margenes[0].id }, "unidades_distintas");
+  await noDeriva(h, T, "un solo numerador mayor que la base (como siempre)", { operacion: "participacion", sobre: [ventas[0].id], base: ventas[1].id }, "numerador_mayor_que_base");
+  const dCuenta = await derivar(h, { operacion: "conteo", sobre: ids(ventas), condicion: { op: ">", valor: 0 } }, T);
+  await noDeriva(h, T, "un conteo como numerador (5 de 13 no es una cantidad que se divida)", { operacion: "participacion", sobre: [dCuenta.hecho.id], base: totalVentas.id }, "derivacion_no_encadenable");
+  await noDeriva(h, T, "un conteo dentro de una suma", { operacion: "suma", sobre: [dCuenta.hecho.id, dS.hecho.id] }, "derivacion_no_encadenable");
+  const ctaMix = vencidos[0].entidad;
+  const dMix = await derivar(hs, { operacion: "diferencia", sobre: [pendientes.find((x) => x.entidad === ctaMix).id, vencidos[0].id] }, T);
+  await noDeriva(hs, T, "una derivación de dos métricas distintas (sin métrica única) dentro de una suma", { operacion: "suma", sobre: [dMix.hecho.id, pendientes[1].id] }, "metricas_distintas");
+  /* money vs number ≠ 0 y el resto de lo de siempre siguen */
+  await noDeriva(h, T, "(de siempre) conteo de dinero contra una cantidad suelta", { operacion: "conteo", sobre: ids(tres), condicion: { op: ">", valor: 5 } }, "condicion_invalida");
+  const cDer = await derivar(h, { operacion: "conteo", sobre: [dS.hecho.id, dS2.hecho.id], condicion: { op: ">", valor: dSuma6.hecho.id } }, T);
+  ok(cDer.ok && cDer.hecho.valor === "0 de 2", "un conteo puede comparar derivaciones contra otra derivación (ninguna de las dos sumas supera a la de las seis)", jj(cDer.hecho));
+  /* otro período / moneda / carga a través del linaje: dos Entregas de la misma métrica, una derivación de cada una */
+  for (const [motivo, f] of [["otro_periodo", (L) => { L.entregas[1].periodo = { texto: "otro", rango: "otro" }; }], ["otra_moneda", (L) => { L.entregas[1].moneda = "USD"; }], ["otra_carga", (L) => { L.entregas[1].versionId = 77; }]]) {
+    const s2 = crearAlmacenEnMemoria(); const A2 = crearAcciones({ continuidad: s2 });
+    conTenant(T);
+    const c1 = await A2.consultar({ tenant: T, encargo: E([PARTE(["ventas"])]) }); const conv2 = c1.continuidad.conversacionId;
+    await A2.consultar({ tenant: T, encargo: E([PARTE(["ventas"])], conv2) });
+    const dA = await A2.derivar({ tenant: T, conversacionId: conv2, operacion: "suma", sobre: ["E1.h1", "E1.h2"] });
+    const dB = await A2.derivar({ tenant: T, conversacionId: conv2, operacion: "suma", sobre: ["E2.h3", "E2.h4"] });
+    const L = clon(await s2.leerLibro(T.id, conv2)); f(L); await s2.guardarLibro(T.id, L);
+    const x = await A2.derivar({ tenant: T, conversacionId: conv2, operacion: "suma", sobre: [dA.hecho.id, dB.hecho.id] });
+    ok(x.ok === false && x.motivo === motivo, `★ dos derivaciones cuyo LINAJE es de Entregas con ${motivo.replace("_", " ")}: «${motivo}»`, jj(x).slice(0, 300));
+  }
+
+  H(`11d · retomar revalida en CASCADA: si cambia una cifra, cambian la D y la D que sale de ella (${etiqueta})`);
+  {
+    const hr = await hilo(T, PASOS_COMERCIAL);
+    const v = delMetrica(hr.ventas, "Venta");
+    const dA = await derivar(hr, { operacion: "suma", sobre: ids(v.slice(0, 3)) }, T);
+    const dB = await derivar(hr, { operacion: "diferencia", sobre: [dA.hecho.id, v[3].id] }, T);
+    const dE = await derivar(hr, { operacion: "suma", sobre: ids(v.slice(0, 4)) }, T);
+    const dC = await derivar(hr, { operacion: "participacion", sobre: [dA.hecho.id], base: dE.hecho.id }, T);
+    ok(dA.ok && dB.ok && dC.ok, "(armado) D sobre cifras, D sobre D y una participación D ÷ D", jj([dA.hecho, dB.hecho, dC.hecho || dC]).slice(0, 400));
+    const r0 = await hr.A.retomar({ tenant: T, conversacionId: hr.conv });
+    const est = (r, id) => r.hechos.find((x) => x.id === id);
+    ok([dA, dB, dC].every((d) => est(r0, d.hecho.id).estadoReverificacion === "igual"), "★ con el MISMO dato: las tres (incluidas las encadenadas) son «igual»", jj([dA, dB, dC].map((d) => est(r0, d.hecho.id).estadoReverificacion)));
+    /* la venta de un operando cambia */
+    const nombreOp = v[0].entidad;
+    const ds2 = clon(T.dataset);
+    const filaV = (ds2.clientesVentas || []).find((x) => x.nombre === nombreOp);
+    if (filaV && filaV.actual != null) filaV.actual *= 0.5;   /* la venta VIGENTE del cliente (`clientesVentas.actual`, la única fuente): con la realidad única la venta ya no sale de `anterior` */
+    const T2 = { ...T, dataset: ds2, version: 2 };
+    const oHoy = crudosDelCore(T2, E([PARTE(["ventas"], "comercial")]));
+    const cambio = rawDe(oHoy, "ventas", nombreOp) !== rawDe(oVentas, "ventas", nombreOp);
+    conTenant(T2);
+    const r2 = await hr.A.retomar({ tenant: T2, conversacionId: hr.conv });
+    if (cambio) {
+      const hoy = (x) => rawDe(oHoy, "ventas", x.entidad);
+      const sumaHoy = v.slice(0, 3).reduce((a, x) => a + hoy(x), 0);
+      const eA = est(r2, dA.hecho.id), eB = est(r2, dB.hecho.id);
+      ok(eA.estadoReverificacion === "cambio" && eA.revalidacion.actual.raw === sumaHoy, "la D de abajo cambia (se recalcula con los crudos de hoy)", jj(eA).slice(0, 400));
+      ok(eB.estadoReverificacion === "cambio" && eB.revalidacion.actual.valor === formatoDeLaCasa(sumaHoy - hoy(v[3]), "money") && eB.revalidacion.anterior.valor === dB.hecho.valor, `★ la D que sale de ella CAMBIA en cascada: ${dB.hecho.valor} → ${formatoDeLaCasa(sumaHoy - hoy(v[3]), "money")} (anterior, actual y diferencia los calcula ADI)`, jj(eB).slice(0, 500));
+      ok(eB.revalidacion.diferencia && Math.abs(eB.revalidacion.diferencia.valor - ((sumaHoy - hoy(v[3])) - (v.slice(0, 3).reduce((a, x) => a + crudo(x), 0) - crudo(v[3])))) < 1e-6, "la diferencia de la cascada = actual − anterior");
+      ok(!/\bD\d/.test(r2.lineaContinuidad || ""), "la línea de continuidad no nombra derivaciones (nombra la cifra que cambió)");
+    } else console.log("   · (el cambio de la venta no mueve la cifra en este dato: se omite el «cambio» en cascada)");
+    /* el operando de abajo ya no existe → toda la cadena deja de afirmarse vigente */
+    const ds3 = clon(T.dataset);
+    for (const kk of ["clientesVentas", "clientesMargen"]) if (Array.isArray(ds3[kk])) ds3[kk] = ds3[kk].filter((x) => x.nombre !== nombreOp);
+    if (ds3.flujoComercial && ds3.flujoComercial.clientes) delete ds3.flujoComercial.clientes[nombreOp];
+    const T3 = { ...T, dataset: ds3, version: 3 }; conTenant(T3);
+    const r3 = await hr.A.retomar({ tenant: T3, conversacionId: hr.conv });
+    ok([dA, dB, dC].every((d) => est(r3, d.hecho.id).estadoReverificacion === "no_se_revalida" && est(r3, d.hecho.id).valorNuevo === undefined && est(r3, d.hecho.id).revalidacion.actual === undefined), "★ si una cifra de la base de la cadena ya no se puede revalidar, TODA la cadena queda «no_se_revalida» (falla cerrado, sin valor nuevo)", jj([dA, dB, dC].map((d) => est(r3, d.hecho.id).estadoReverificacion)));
+    conTenant(T);
+    /* un libro adulterado con un ciclo (D1 ↔ D2) no cuelga la revalidación ni afirma nada */
+    const sc = crearAlmacenEnMemoria(); const Ac = crearAcciones({ continuidad: sc });
+    const cc = await Ac.consultar({ tenant: T, encargo: E([PARTE(["ventas"])]) }); const convC = cc.continuidad.conversacionId;
+    await Ac.derivar({ tenant: T, conversacionId: convC, operacion: "suma", sobre: ["E1.h1", "E1.h2"] });
+    await Ac.derivar({ tenant: T, conversacionId: convC, operacion: "diferencia", sobre: ["E1.h3", "E1.h4"] });
+    const Lc = clon(await sc.leerLibro(T.id, convC));
+    Lc.derivaciones[0].sobre = ["D2", "E1.h2"]; Lc.derivaciones[1].sobre = ["D1", "E1.h4"];
+    await sc.guardarLibro(T.id, Lc);
+    const rc = await Ac.retomar({ tenant: T, conversacionId: convC });
+    ok(["D1", "D2"].every((id) => { const x = rc.hechos.find((y) => y.id === id); return x && x.estadoReverificacion !== "igual" && x.estadoReverificacion !== "cambio"; }), "★ un libro adulterado con un CICLO (D1 ↔ D2) termina y no afirma nada vigente", jj(rc.hechos.filter((x) => /^D/.test(x.id)).map((x) => [x.id, x.estadoReverificacion])));
+  }
+}
+
+H("11e · lo que ve el anfitrión: el esquema de la herramienta lo dice, corto");
+{
+  const tool = MCP_TOOLS.find((t) => t.name === "derivar");
+  ok(/derivaciones que ADI ya le devolvió \(D<k>\)/.test(tool.description) && /encadenar/.test(tool.description) && /use consultar\.$/.test(tool.description), "★ la descripción dice que acepta D<k> y que se encadenan, y sigue terminando en «use consultar.»", tool.description);
+  ok(/D<k>/.test(tool.inputSchema.properties.sobre.description) && /varias de la misma métrica/.test(tool.inputSchema.properties.sobre.description) && /una o varias cifras sobre una base/.test(tool.inputSchema.properties.operacion.description), "el esquema de «sobre» y de «operacion» dicen los dos permisos nuevos (D<k> y varios numeradores)");
+  ok(MOTIVOS_DE_DERIVACION.includes("derivacion_no_encadenable") && MOTIVOS_DE_DERIVACION.length === new Set(MOTIVOS_DE_DERIVACION).size, "el motivo nuevo está en la lista cerrada (sin repetidos)");
+  ok(JSON.stringify(tool).length < 2400, `la herramienta sigue corta (${JSON.stringify(tool).length} B): dice lo nuevo sin crecer`);
 }
 
 H("CERO RED");

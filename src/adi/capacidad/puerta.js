@@ -222,13 +222,13 @@ export const MCP_TOOLS = [
   },
   {
     name: "derivar",
-    description: "Calcula, verifica y devuelve como hecho nuevo —con identificador y procedencia «derivado»— una cifra que sale de cifras que ADI YA entregó en esta conversación: suma, diferencia, participación o conteo. Úsela SIEMPRE que necesite un total, subtotal, diferencia, porcentaje o conteo que no esté entre lo entregado: nunca lo calcule usted. Solo acepta identificadores de cifras de esta conversación (E<n>.h<k>); lo que no se puede derivar con exactitud se rechaza diciendo por qué. Para una cifra no entregada (otra cuenta, métrica o período) use consultar.",
+    description: "Calcula, verifica y devuelve como hecho nuevo —con identificador y procedencia «derivado»— una cifra que sale de cifras que ADI YA entregó en esta conversación: suma, diferencia, participación o conteo. Úsela SIEMPRE que necesite un total, subtotal, diferencia, porcentaje o conteo que no esté entre lo entregado: nunca lo calcule usted. Solo acepta identificadores de cifras de esta conversación (E<n>.h<k>) y de derivaciones que ADI ya le devolvió (D<k>), que se pueden encadenar; lo que no se puede derivar con exactitud se rechaza diciendo por qué. Para una cifra no entregada (otra cuenta, métrica o período) use consultar.",
     inputSchema: {
       type: "object",
       properties: {
         conversacionId: { type: "string", description: "La conversación con ADI en la que se entregaron las cifras." },
-        operacion: { type: "string", enum: [...OPERACIONES], description: "suma (2 o más cifras de la misma métrica) · diferencia (exactamente 2: la primera menos la segunda) · participacion (una cifra sobre una base) · conteo (cuántas cifras cumplen una condición)." },
-        sobre: { type: "array", items: { type: "string" }, description: "Los identificadores de las cifras entregadas (E<n>.h<k>) sobre las que se calcula. En una participación, el numerador (uno solo)." },
+        operacion: { type: "string", enum: [...OPERACIONES], description: "suma (2 o más cifras de la misma métrica) · diferencia (exactamente 2: la primera menos la segunda) · participacion (una o varias cifras sobre una base) · conteo (cuántas cifras cumplen una condición)." },
+        sobre: { type: "array", items: { type: "string" }, description: "Los identificadores (E<n>.h<k> o D<k>) sobre los que se calcula. En una participación, el numerador: una cifra, o varias de la misma métrica que se suman (por ejemplo, los tres primeros)." },
         base: { type: ["string", "null"], description: "Solo participacion: el identificador de la cifra que es la base (por ejemplo, el total de un listado)." },
         condicion: {
           type: ["object", "null"],

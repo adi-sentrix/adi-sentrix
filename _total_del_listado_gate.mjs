@@ -11,6 +11,8 @@
  *   3 · NO hay total donde no corresponde: un top-5 (cola) · un listado de márgenes (%) · días de inventario · un universo acotado (`base`) · una foto de lectura. Con dos métricas, solo la aditiva.
  *   4 · la Entrega sigue pasando el Notario: `verificacion.ok` y el libro de hechos sin errores, el hecho declarado verdadero; y la regla no obliga nada al Notario (no se tocó).
  *   5 · CARNADAS: un total que no es la suma · con el id corrido · sobre una métrica no aditiva · en un top-N · impreso en el texto · sin universo — cada defecto pone en rojo la batería.
+ *   6 · ENSAYO 4 (owner 2026-10-07): el total viaja con CADA listado completo, sea cual sea el cierre (cifra · lectura · decision), por un eje (cliente · marca · familia), con la foto que lista el eje entero o NOMBRANDO a todas sus
+ *       entidades; y con ningún listado parcial (top-N, la foto de la mesa de 8, un subconjunto nombrado, un nombre repetido).
  * CERO llamadas a un LLM · CERO red. Solo por `npm run gates:offline` o `node --import ./scripts/offline-guard.mjs _total_del_listado_gate.mjs`. */
 import fs from "node:fs";
 import crypto from "node:crypto";
@@ -203,6 +205,64 @@ H("★ carnadas · una respuesta con UN defecto pone en rojo la batería");
   const conTotalFalso = clon(top5.c); conTotalFalso.entrega.cifras.push({ id: `E1.h${top5.c.entrega.cifras.length + 1}`, metrica: "Venta · total del listado completo (5 cuentas)", valor: "$124.0M", procedencia: "derivado" });
   const hayTotal = (c) => c.entrega.cifras.some((f) => /total del listado/.test(f.metrica || ""));
   ok(hayTotal(conTotalFalso) && !hayTotal(top5.c) && !top5.r.entrega.json.cifras.totales,"★ CARNADA «total en un top-N»: el top real no lo trae y el agregado a mano se ve (la sección 3 la pone en rojo)");
+}
+
+
+/* ═══ 6 · EL TOTAL VIAJA CON TODO LISTADO COMPLETO, SEA CUAL SEA EL CIERRE (ensayo 4 · owner 2026-10-07) ═══════════════════════════════════════════════════════════════
+ * Lo que mostró el ensayo 4 (transcritos C02 s1 t1-t2 · ensayo 3 B03 s1 t2): con el cierre «lectura» o «decision» —o pidiendo el listado NOMBRANDO a todas las entidades— un listado completo (13 clientes, 5 marcas) viajaba SIN
+ * total: el anfitrión sumaba por su cuenta o no podía dar participaciones. Ahora el total viaja con cada listado que ES el eje entero, por cualquier camino; el listado parcial (top-N, la foto de la mesa de 8, un subconjunto nombrado)
+ * sigue sin total. */
+H("6 · el total viaja con CADA listado completo (cifra · lectura · decision · por eje · foto del eje entero · nombrando a todos) y con ninguno parcial");
+{
+  const conLibro = async (x) => ({ r: x.r, c: x.c, libro: await x.store.leerLibro(T.id, x.r.continuidad.conversacionId) });
+  const total = async (nombre, partes, esperaMetricas, universo) => {
+    const x = await consultar(partes);
+    ok(x.r.ok === true, `${nombre}: la Entrega se sirve (control)`, JSON.stringify(x.r.noResuelto));
+    const vs = bateria(await conLibro(x), esperaMetricas);
+    ok(vs.length === 0, `★ ${nombre}: el total del listado completo viaja (${esperaMetricas.join(" + ")}), con la suma exacta de las filas servidas, su id y su universo`, vs.join(" || "));
+    const t = x.c.entrega.cifras.find((f) => /total del listado completo/.test(f.metrica || ""));
+    if (universo) ok(t && t.metrica.endsWith(`(${universo})`), `${nombre}: el universo del total es «${universo}»`, t && t.metrica);
+    return x;
+  };
+  const sin = async (nombre, partes) => {
+    const x = await consultar(partes);
+    ok(x.r.ok === true, `${nombre}: la Entrega se sirve (control)`, JSON.stringify(x.r.noResuelto));
+    ok(!(x.r.entrega.json.cifras.totales || []).length && !x.c.entrega.cifras.some((f) => /total del listado/.test(f.metrica || "")), `★ ${nombre}: NO trae total (el listado es parcial)`);
+    return x;
+  };
+  const nombresDeClientes = base.c.entrega.cifras.filter((x) => x.entidad && x.metrica === "Venta").map((x) => x.entidad);
+  ok(nombresDeClientes.length === 13, "(control) los 13 clientes de Río Claro, por nombre");
+  const marcas = (await consultar([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "marca" }])).c.entrega.cifras.filter((x) => x.entidad && x.metrica === "Venta").map((x) => x.entidad);
+  ok(marcas.length === 5, "(control) las 5 marcas");
+  const nom = (xs) => xs.map((nombre) => ({ nombre }));
+
+  /* los cierres: el mismo listado completo con «cifra» (de siempre), «lectura» y «decision» */
+  await total("cifra · 13 clientes", [PARTE_VENTAS], ["Venta"], "13 cuentas");
+  await total("lectura · 13 clientes (ensayo 3, B03 s1 t2)", [{ ...PARTE_VENTAS, cierre: "lectura" }], ["Venta"], "13 cuentas");
+  await total("decision · 13 clientes (ensayo 4, C02 s1 t1)", [{ ...PARTE_VENTAS, cierre: "decision" }], ["Venta"], "13 cuentas");
+  await total("lectura · 5 marcas (ensayo 4, C02 s1 t2)", [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["ventas"], eje: "marca" }], ["Venta"], "5 marcas");
+  await total("decision · 5 marcas", [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["ventas"], eje: "marca" }], ["Venta"], "5 marcas");
+  await total("lectura · 4 familias", [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["ventas"], eje: "familia" }], ["Venta"], null);
+  await total("lectura · dos métricas de dinero a la vez (ventas y contribución)", [{ ...PARTE_VENTAS, cierre: "lectura", conceptos: ["ventas", "contribucion"] }], ["Venta", "Contribución"], "13 cuentas");
+  const lm = await consultar([{ ...PARTE_VENTAS, cierre: "lectura", conceptos: ["ventas", "margen"] }]);
+  const tm = lm.c.entrega.cifras.filter((f) => /total del listado/.test(f.metrica || ""));
+  ok(tm.length === 1 && /^Venta ·/.test(tm[0].metrica), "★ lectura con ventas y margen: el total es solo el de la venta (el margen no se suma)", JSON.stringify(tm));
+
+  /* el listado pedido NOMBRANDO a todas las entidades del eje */
+  await total("cifra · los 13 clientes nombrados uno por uno", [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], entidades: nom(nombresDeClientes) }], ["Venta"], "13 cuentas");
+  await total("lectura · los 13 clientes nombrados", [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["ventas"], entidades: nom(nombresDeClientes) }], ["Venta"], "13 cuentas");
+  await total("decision · los 13 clientes nombrados", [{ id: "p1", tema: "comercial", cierre: "decision", conceptos: ["ventas"], entidades: nom(nombresDeClientes) }], ["Venta"], "13 cuentas");
+  await total("cifra · las 5 marcas nombradas", [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "marca", entidades: marcas.map((nombre) => ({ nombre, eje: "marca" })) }], ["Venta"], "5 marcas");
+
+  /* donde el listado es PARCIAL no hay total: nunca un «total» de un subconjunto */
+  await sin("cifra · 12 de los 13 clientes nombrados", [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], entidades: nom(nombresDeClientes.slice(0, 12)) }]);
+  await sin("lectura · 5 de los 13 clientes nombrados", [{ id: "p1", tema: "comercial", cierre: "lectura", conceptos: ["ventas"], entidades: nom(nombresDeClientes.slice(0, 5)) }]);
+  await sin("cifra · un cliente repetido hasta sumar 13 nombres", [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], entidades: nom([...nombresDeClientes.slice(0, 12), nombresDeClientes[0]]) }]);
+  await sin("lectura · top 5 de ventas", [{ ...PARTE_VENTAS, cierre: "lectura", universo: { eje: "cliente", top: { metrica: "ventas", k: 5 } } }]);
+  await sin("decision · top 3 de ventas", [{ ...PARTE_VENTAS, cierre: "decision", universo: { eje: "cliente", top: { metrica: "ventas", k: 3 } } }]);
+  /* la FOTO de cobranza: la mesa publica 8 de las cuentas — parcial, sin total; una foto que lista el eje ENTERO (comercial) sí lo lleva (arriba: «decision · 13 clientes») */
+  await sin("lectura de cobranza (la foto de la mesa: 8 cuentas)", [{ id: "p1", tema: "cobranza", cierre: "lectura", conceptos: ["saldo_vencido", "saldo_pendiente"] }]);
+  await sin("decision de cobranza (la foto de la mesa: 8 cuentas)", [{ id: "p1", tema: "cobranza", cierre: "decision", conceptos: ["saldo_vencido"] }]);
 }
 
 H("CERO RED");

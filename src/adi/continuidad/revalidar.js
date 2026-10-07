@@ -277,14 +277,28 @@ export function resumirRevalidacion(revalidaciones) {
  *  (su Entrega no se revalidó) vuelve `sin_reverificar`: nunca se adivina un veredicto. */
 export function reverificadorDe(resultadosPorEntrega) {
   const mapa = resultadosPorEntrega instanceof Map ? resultadosPorEntrega : new Map();
+  /* LAS DERIVACIONES ENCADENADAS (ensayo 4, owner 2026-10-07): una `D` sobre otra `D` se revalida en CASCADA — primero la de abajo, después la de arriba con el resultado de aquella; si una cifra entregada cambia, cambian todas las que
+   * salen de ella. Se resuelve una sola vez por derivación (memo) y `visitando` corta cualquier ciclo de un libro adulterado (por construcción no existe: una `D` solo se refiere a ids anteriores): lo que no se puede cerrar queda `sin_reverificar`. */
+  const memoD = new Map();
+  let porIdDeCifras = null;
+  const revalidarD = (id, libro, versionIdActual, visitando) => {
+    if (memoD.has(id)) return memoD.get(id);
+    const d = libro && Array.isArray(libro.derivaciones) ? libro.derivaciones.find((x) => x && x.id === id) : null;
+    if (!d || visitando.has(id)) return null;
+    if (!porIdDeCifras) { porIdDeCifras = new Map(); for (const r of mapa.values()) for (const [k, v] of (r && r.hechos instanceof Map ? r.hechos : [])) porIdDeCifras.set(k, v); }
+    visitando.add(id);
+    const porId = new Map(porIdDeCifras);
+    for (const oid of _idsDeLaDerivacion(d)) if (oid.length > 1 && oid[0] === "D" && Number.isInteger(Number(oid.slice(1)))) { const rr = revalidarD(oid, libro, versionIdActual, visitando); if (rr) porId.set(oid, rr); }
+    visitando.delete(id);
+    const r = revalidarDerivacion(d, porId, { versionIdActual });
+    memoD.set(id, r);
+    return r;
+  };
   return (h, ctx) => {
     const id = String((h && h.id) || "");   // el id del libro (`E<n>.h<k>`): el `n` dice a qué re-corrida mirar
     if (id.length > 1 && id[0] === "D" && Number.isInteger(Number(id.slice(1)))) {   /* una DERIVACIÓN: se revalida por sus operandos (cifras de las Entregas), nunca re-corriendo nada */
       const libro = ctx && ctx.libro;
-      const d = libro && Array.isArray(libro.derivaciones) ? libro.derivaciones.find((x) => x && x.id === id) : null;
-      const porId = new Map();
-      for (const r of mapa.values()) for (const [k, v] of (r && r.hechos instanceof Map ? r.hechos : [])) porId.set(k, v);
-      const r = d ? revalidarDerivacion(d, porId, { versionIdActual: ctx && ctx.versionIdActual != null ? ctx.versionIdActual : null }) : null;
+      const r = revalidarD(id, libro, ctx && ctx.versionIdActual != null ? ctx.versionIdActual : null, new Set());
       if (!r) return { estado: "sin_reverificar", revalidacion: { estado: "sin_reverificar", motivo: MOTIVO.sinRecorrida, anterior: _anteriorDe(h || {}) } };
       return { estado: r.estado, ...(r.actual ? { valorNuevo: r.actual.valor } : {}), revalidacion: r };
     }

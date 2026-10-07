@@ -806,7 +806,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
 
   /* 5 · derivar({ tenant, conversacionId, operacion, sobre, base?, condicion? }) → un HECHO NUEVO (`D<k>`, procedencia «derivado») calculado por ADI sobre cifras que ya entregó en esta conversación (Contrato del Anfitrión, owner 2026-10-05:
    * «si necesita una cifra, total, porcentaje, conteo o diferencia que ADI no le entregó, debe volver a ADI en vez de calcularlo»). Suma · diferencia · participación · conteo, con aritmética exacta sobre los crudos del libro
-   * (`derivar.js`, puro). NO toca el Core: no pasa por `validarEncargo` ni `componerEntrega` ni entra a `conTenantActivo` — opera sobre el libro de la conversación.
+   * (`derivar.js`, puro; desde el ensayo 4 un operando puede ser un `D<k>` anterior —con su linaje— y una participación suma varios numeradores, `_ADI_DISENO_CONTRATO_ANFITRION.md` §10). NO toca el Core: no pasa por `validarEncargo` ni `componerEntrega` ni entra a `conTenantActivo` — opera sobre el libro de la conversación.
    *
    * ORDEN (D2): 1 · LEER el libro (base) → 2 · calcular (puro, sin Core) → 3 · ESCRIBIR el libro (base), todo serializado por conversación (el mismo candado que `consultar`). A diferencia de `consultar`, que entrega la Entrega
    * verdadera aunque no pueda guardar, acá el id ES el producto: si GUARDAR falla, la acción FALLA CERRADA (`memoria:"no_disponible"`) — un `D1` que no quedó guardado se reasignaría al siguiente pedido. IDEMPOTENTE: el mismo pedido

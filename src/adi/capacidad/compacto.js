@@ -50,8 +50,8 @@ const _conUnidad = (p) => /[$%]|\d(?:M|K|x|d|pp)$|\s(?:días?|pp)$/.test(p);
 const _hojas = (x, out = []) => { if (typeof x === "string") out.push(x); else if (Array.isArray(x)) x.forEach((y) => _hojas(y, out)); else if (x && typeof x === "object") Object.values(x).forEach((y) => _hojas(y, out)); return out; };
 const _valoresDe = (txt) => (typeof txt === "string" ? (txt.match(_RX_VALOR) || []).map((x) => x.trim().replace(/[.,]+$/, "")).filter((x) => _conDigito(x) && _conUnidad(x)) : []);
 
-function _apoyoDe(texto, filas, libros, n) {
-  const enFilas = new Set();
+function _apoyoDe(texto, filas, libros, n, yViajan = []) {
+  const enFilas = new Set(yViajan);   /* lo que ya viaja con su propio id en `cifras` (el total del listado) no se repite como apoyo */
   for (const f of filas) for (const id of (Array.isArray(f && f.hechos) ? f.hechos : [])) enFilas.add(id);
   const out = [];
   const vistos = new Set();
@@ -107,7 +107,9 @@ function _compactarEntrega(entrega, turno) {
   if (!j) return { texto };
   const filas = (j.cifras && Array.isArray(j.cifras.filas)) ? j.cifras.filas : [];
   const prov = j.procedencia || {};
-  const apoyo = _apoyoDe(String(texto || ""), filas, [{ libro: prov.libro }, { libro: prov.libroPremisas, premisa: true }, { libro: prov.libroIniciativa }], turno);
+  /* ensayo 4: el total del listado viaja en `cifras` con su id `E<n>.h<k>`; el hecho del libro del que sale (la suma, con todos sus sumandos escritos) no se repite además como «apoyo»: pesaba ~250 B por total y el total ya viaja en `lectura`/`decision` también */
+  const totalesQueViajan = (j.cifras && Array.isArray(j.cifras.totales) ? j.cifras.totales : []).map((t) => t && t.hecho).filter(Boolean);
+  const apoyo = _apoyoDe(String(texto || ""), filas, [{ libro: prov.libro }, { libro: prov.libroPremisas, premisa: true }, { libro: prov.libroIniciativa }], turno, totalesQueViajan);
   const m = j.marco || {};
   /* `definiciones` y `referencia`: los criterios con que se calculó (piso, techo, benchmark) cada uno con SU origen («declarado por la empresa» · «criterio general de ADI») — lo que la persona preguntará: «¿con qué criterio?» */
   const marco = _soloConValor({ empresa: m.empresa, periodo: m.periodo, universo: m.universo, moneda: m.moneda, definiciones: _noVacio(m.definiciones) ? m.definiciones : null, referencia: m.referenciaDeclarada && m.referenciaDeclarada.texto ? m.referenciaDeclarada.texto : null, perfil: _perfilBreve(m.perfil) });

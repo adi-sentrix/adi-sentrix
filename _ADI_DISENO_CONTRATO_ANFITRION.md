@@ -95,7 +95,7 @@ Todo rechazo es `{ ok:false, motivo: <código>, detalle: <una frase de negocio>,
 | regla | código |
 |---|---|
 | falta `conversacionId` / no existe / de otra empresa (`libro.empresaId !== tenantId`, como `retomar`) — **otra empresa: jamás**, además el almacén ya aísla por tenant | `falta_conversacion` · `conversacion_inexistente` · `otra_empresa` |
-| id que no es `E<n>.h<k>` o `E<n>.h<k>.<j>` (un id de `apoyo` `E1.e5`, un `D`, un universo `E1.u1`) — v1 deriva SOLO sobre cifras de la tabla | `id_invalido` |
+| id que no es `E<n>.h<k>` o `E<n>.h<k>.<j>` (un id de `apoyo` `E1.e5`, un universo `E1.u1`) — v1 deriva SOLO sobre cifras de la tabla; **desde el ensayo 4 (§10) también acepta `D<k>`** | `id_invalido` |
 | id de esta conversación que no existe · su Entrega está `recortada` | `id_inexistente` · `entrega_recortada` |
 | sin `rv.raw` finito o sin `rv.clave` (Entrega anterior al bloque 4, cifra de proyección) | `operando_sin_valor_exacto` |
 | `rv.titular ≠ medido`, `deSupuesto`, procedencia `supuesto_usuario`/`propuesta` (se admiten `medido`, `derivado` y `estimacion_referencia`: una brecha también se suma) | `operando_no_medido` |
@@ -268,3 +268,35 @@ gates:offline` o `node --import ./scripts/offline-guard.mjs <gate>`.
   cuando dos ejes del mismo total no cuadran, para cualquier métrica aditiva y cualquier par de ejes; el arreglo de raíz del dato sigue en el
   Core. Diseño propio: `_ADI_DISENO_RECONCILIACION_EJES.md`.
 - Texto de la regla: sin «con su identificador» (§1).
+
+## §10 · Encadenar derivaciones y participar con varios numeradores (owner 2026-10-07, ensayo 4)
+
+**Qué pasó.** En el ensayo 4 el anfitrión pidió `participacion` con un `D<k>` de base o de numerador (A01 s1 t2 y t4, C01 s1 t5, C02 s1 t2) y recibió `id_invalido`; y quiso «los 3 primeros sobre el total» como UN hecho, pero la participación
+admitía un solo numerador. En los dos casos calculó él (H-correcta, pero fuera del contrato). Decisión del owner: ADI lo hace, con las mismas garantías. **Cambia `derivar`; no cambia el Core, ni la cabecera, ni ninguna Entrega.**
+
+**1 · Un `D<k>` es operando válido** (de `sobre`, de `base` y de la cifra de comparación de un `conteo`). Resuelve a su valor exacto guardado Y a su **linaje**: las cifras entregadas `E<n>.h<k>` de las que sale, a través de todas las
+cadenas. Las reglas de §2.3 se aplican **sobre el linaje**, no sobre el resultado a secas: período · moneda · carga de datos (a través de las Entregas de sus cifras), unidad, métrica y dueño. En una suma, un conteo o el grupo de numeradores:
+una cifra no puede estar dos veces, ni directa ni dentro de una derivación (`operando_repetido`: `D1 = a+b` y `a` juntos contarían `a` dos veces), y nada que salga del **total de un listado** entra (`operando_es_total`: la derivación
+`total − a` lo lleva en su linaje). En una diferencia o en una participación sí se mezclan libremente (`D1 − a` es «el resto del grupo»; `(total − a) ÷ total` es una participación válida). Un `conteo` no se encadena
+(`derivacion_no_encadenable`: «5 de 12» no es una cantidad que se sume ni se divida; se deriva sobre las cifras que cuenta). Un `D` que la conversación no tiene, o que el libro ya recortó, es `id_inexistente`. Una derivación de dos
+métricas distintas (pendiente − vencido) no tiene métrica única: dentro de una suma o un conteo es `metricas_distintas`.
+
+**Sin ciclos, por construcción.** Una derivación solo puede referirse a ids que YA existen cuando se guarda, y los `D<k>` solo crecen: nunca hay un `D` que dependa de uno posterior. Pedir el id que se asignaría ahora es `id_inexistente`.
+La derivación encadenada guarda su `linaje` (campo nuevo y aditivo; solo las encadenadas) para no depender de que las intermedias sigan en el libro (que recorta las más viejas) y la respuesta lo devuelve en `hecho.linaje`; cada operando
+`D` viaja con `procedencia:"derivado"` y `derivaDe` (los ids con que se armó). Idempotencia, falla cerrada al guardar y orden D2: sin cambios.
+
+**2 · La participación admite varios numeradores.** `{ operacion:"participacion", sobre:[E1.h1,E1.h2,E1.h3], base:"E1.h14" }` = «los 3 primeros sobre el total» como UN hecho de ADI (100·Σ/base sobre los crudos). Los numeradores son un grupo que
+se SUMA: misma métrica, aditiva (dinero o unidades; un % no se agrupa: `metrica_no_aditiva`), distintos y sin solaparse, sin el total del listado entre ellos; el grupo y la base siguen la regla de siempre (misma métrica, o dos métricas de
+la misma cuenta; misma unidad, período, moneda y carga); y **Σ numeradores ≤ base** (puede igualarla: 100 %) o `numerador_mayor_que_base`. Con UN numerador todo es idéntico a antes (mismo rótulo, mismo id, misma llave de idempotencia). Con varios
+la métrica dice «participación de 3 cifras entregadas sobre …» y la entidad nombra a los tres.
+
+**3 · `operando_es_total` NO rige para la base de una participación** (verificado antes de cambiar nada: ya era así — solo vale en suma y conteo; el gate lo prueba). El total del listado es justo la base natural; un numerador único puede además salir de él en su linaje (`(total − a) ÷ total`).
+
+**4 · `retomar` revalida en cascada.** `reverificadorDe` resuelve una vez cada derivación (memo) y primero las de abajo: una `D` sobre otra `D` es `igual` si lo es toda su base; `cambio` si alguna cifra de abajo cambió (recalculada con
+los crudos de hoy, anterior/actual/diferencia las calcula ADI); `no_se_revalida` si algo de abajo no se pudo revalidar, o si el libro está adulterado con un ciclo (`visitando`). La aritmética de revalidación es la misma función que la de derivar, y
+ahora también devuelve `null` —`no_se_revalida`— si con los crudos de hoy los numeradores superan la base (una participación de más del 100 % no es una cifra).
+⚠️ **Límite conocido (no se tocó):** el total del listado no se revalida aparte (`deListado`: lo revalidan sus filas), así que una derivación que lo usa de base queda `no_se_revalida` en `retomar` aunque no haya cambiado nada. Es falla
+cerrada (no afirma nada falso), pero deja sin revalidar la participación sobre el total; revalidarla recalculando el total desde sus filas es un trabajo aparte, a decisión del owner.
+
+**Lo que ve el anfitrión** (`puerta.js`): la descripción de `derivar` y de `sobre` dicen, en una frase cada una, que acepta `D<k>` (encadenables) y que una participación puede llevar varias cifras de la misma métrica como numerador.
+Tamaño de la herramienta: ~1.9 KB (el gate fija un tope de 2.4 KB). Candado: `_derivar_gate` §11 (encadenado · varios numeradores · cada rechazo · cascada de `retomar` · ciclo adulterado · esquema).
