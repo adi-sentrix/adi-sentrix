@@ -20,6 +20,8 @@ import { metricaPorClave, esReferencia } from "../notario/lexico.js";
 import { validarHecho, validarUniverso } from "../notario/hechos.js";
 import { ausenciasDe } from "../../config/contract/ausencias.js";
 import { assumptionValid } from "../../config/contract/assumptionRegistry.js";
+import { ES_COMERCIAL, resolverAlcance } from "../../engine/simulacionSupuestos.js";
+import { simularSupuestos } from "./simulacion.js";   // lo que depende del DATO (un crecimiento en dinero que equivale a más de la mitad de la venta, un costo que quedaría negativo, el modelo de costo sin declarar) también se rechaza ACÁ, con la razón que la herramienta daría   // ensayo 9: todo supuesto comercial corre en UN modelo y se combina por alcance (o se rechaza con la razón)
 import { serieRealDe } from "../sentrix/capability.js";
 import { CRITERIOS } from "../agente/prioridadIntegrada.js";   // SOLO el dato `CRITERIOS` (§3); nunca `criterioDeLaPregunta`
 import { conjuntoConocido } from "../notario/conjuntosDeLaCasa.js";   // §7.3·11: el catálogo ESTÁTICO de conjuntos de la casa (nombre → eje) — carga · benchmark · estado, nunca una lista a mano acá
@@ -117,10 +119,9 @@ function _alternativasSinProductor(metricasDelTema, ejeEfectivo, ejesDelConcepto
  * leída de `simulateGeneral`/`simulateCarga`/`simulateCapital`/`simulateCosto` (toolContracts.js/specRetrieval.js). */
 function _productorDeSupuesto(tipo, tema, eje) {
   if (tema === "comercial") {
-    if ((tipo === "growth" || tipo === "price") && ["cliente", "sku", "marca", "familia"].includes(eje)) return "simulateGeneral";
-    if (tipo === "margin" && ["sku", "cliente", "marca", "familia"].includes(eje)) return "simulateCosto";
-    if (tipo === "carga" && eje === "cliente") return "simulateCarga";     // tipo NUEVO §7.1 (aditivo)
-    if (tipo === "costo" && ["sku", "cliente", "marca", "familia"].includes(eje)) return "simulateCosto";   // tipo NUEVO §7.1
+    /* ENSAYO 9 (owner 2026-10-09): los cinco tipos comerciales (precio · volumen · costo · carga · margen) corren en UN modelo (`engine/simulacionSupuestos.js`, herramienta `simularSupuestos`) sobre el negocio o sobre una entidad de
+     * cualquier eje que publique venta, costo y contribución. Antes cada tipo tenía su propio productor y alcances (la carga solo en cuentas, el costo y el margen sin el negocio): «costo +10 % sobre el negocio» volvía `supuesto_sin_productor`. */
+    if (ES_COMERCIAL(tipo) && ["negocio", "cliente", "sku", "marca", "familia"].includes(eje)) return "simularSupuestos";
     // RETIRADO (owner 2026-09-26, CORTE 3d — «custom es jerga del sistema», error MATERIAL de la Entrega:
     // «Simulación — supuesto: custom -1%…» no dice de qué es el -1%). Ya NO se acepta «custom» en cliente/sku/
     // marca/familia como si fuera «carga»/«costo»: el tipo NUEVO §7.1 existe justo para esto — un supuesto
@@ -263,7 +264,7 @@ function _resolverSupuestosRaiz(supuestos, partes) {
       porId.set(s.id, { ok: false }); continue;
     }
     resueltos.push({ id: s.id, tipo: s.tipo, valor: s.valor, unidad: s.unidad, alcance: s.alcance, origen: s.origen || "supuesto", productor });
-    porId.set(s.id, { ok: true, productor });
+    porId.set(s.id, { ok: true, productor, sup: { id: s.id, tipo: s.tipo, valor: s.valor, unidad: s.unidad, alcance: s.alcance, productor } });
   }
   return { resueltos, noResuelto, porId };
 }
@@ -545,6 +546,27 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
   if (cierre === "simulacion" && supuestosValidosN === 0) {
     noResuelto.push(nuevoNoResuelto({ parte: id, campo: "cierre", valor: supuestosCitados, motivo: "cierre_incompleto", detalle: "ningún supuesto citado tiene productor" }));
   }
+  /* ENSAYO 9 (owner 2026-10-09): los supuestos comerciales de UNA parte se aplican JUNTOS. Si no se pueden combinar sin inventar algo (ejes distintos sin cruce entre ellos, dos del mismo tipo sobre la misma entidad, un supuesto que no toca a ninguna entidad pedida, un
+   * valor fuera de rango), la parte NO corre —ni con "los que sí"—: un resultado que calla un supuesto responde otra pregunta. La razón viaja en `noResuelto` y enseña. */
+  let combinacionInvalida = false;
+  if (cierre === "simulacion" && supuestosValidosN > 0) {
+    const citadosOk = supuestosCitados.map((sid) => supuestosPorId.get(sid)).filter((x) => x && x.ok && x.sup && ES_COMERCIAL(x.sup.tipo)).map((x) => x.sup);
+    if (citadosOk.length) {
+      const al = resolverAlcance({ supuestos: citadosOk, entidades: entidadesResueltas, pideTotal: parteCruda.universo === "negocio", canon: resolveCanonical, nombresDe: axisEntityNames });
+      if (!al.ok) {
+        combinacionInvalida = true;
+        for (const pr of al.problemas) noResuelto.push(nuevoNoResuelto({ parte: id, campo: "supuesto", valor: pr.ids.length === 1 ? pr.ids[0] : pr.ids, motivo: "supuesto_mal_formado", detalle: pr.detalle }));
+      } else {
+        /* la combinación es posible; ¿lo es sobre el DATO de esta empresa? la herramienta es la que sabe (rango del crecimiento en dinero contra la venta, costo negativo, modelo de costo): se le pregunta y su razón es la del rechazo — nunca una parte que «no produjo cifras» sin decir por qué */
+        let corrida = null;
+        try { corrida = simularSupuestos({ supuestos: citadosOk, entidades: entidadesResueltas, pideTotal: parteCruda.universo === "negocio" }); } catch { corrida = null; }
+        if (corrida && corrida.coverage && corrida.coverage.supported === false) {
+          combinacionInvalida = true;
+          noResuelto.push(nuevoNoResuelto({ parte: id, campo: "supuesto", valor: citadosOk.length === 1 ? citadosOk[0].id : citadosOk.map((s) => s.id), motivo: "supuesto_mal_formado", detalle: corrida.coverage.reason }));
+        }
+      }
+    }
+  }
 
   /* ── cifra sin concepto ni universo.top (§1.1) ──
    * R-CIFRA-SIN-CONCEPTO-CAMPO-CIERRE (diagnóstico v6, §3.3): el campo que FALTA es «concepto» (mismo principio
@@ -590,7 +612,7 @@ function _validarParte(parteCruda, idx, supuestosPorId, I) {
   } else if (cierre === "comparacion") {
     estado = (cardinalidadOk && !ejesMezclados && entidadesResueltas.length === 2) ? (parcialForzado ? "parcial" : "resuelta") : "no_resuelta";   /* §1.2: parcial = elementos válidos e inválidos en un campo-lista */
   } else if (cierre === "simulacion") {
-    if (supuestosValidosN === 0 || entidadEsencialFalla) estado = "no_resuelta";
+    if (supuestosValidosN === 0 || entidadEsencialFalla || combinacionInvalida) estado = "no_resuelta";
     else estado = parcialForzado ? "parcial" : "resuelta";
   } else if (cierre === "cifra") {
     if (entidadEsencialFalla || conceptoEsencialFalla || cifraSinNada || universoEsencialFalla) estado = "no_resuelta";

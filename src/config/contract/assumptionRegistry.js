@@ -23,8 +23,8 @@ export const ASSUMPTIONS = {
    * así que el Encargo no podía tipar el supuesto y el validador dependía de LEER `Supuesto.cita` — justo lo que
    * la ley `adi-no-desviarse-deterministico` prohíbe. Ninguno de los cinco tipos existentes cambia: es una entrada
    * más por tipo, igual que el resto de este registro. */
-  carga:     { label: "Cambio de carga comercial", perturbs: "carga", units: ["pp"],  sign: "any" },   // puntos porcentuales · productor: simulateCarga (comercial · cliente)
-  costo:     { label: "Cambio de costo",           perturbs: "costo", units: ["pct"], sign: "any" },   // % sobre el costo · productor: simulateCosto (comercial · sku/cliente/marca/familia)
+  carga:     { label: "Cambio de carga comercial", perturbs: "carga", units: ["pp"],  sign: "any" },   // puntos porcentuales · productor: simularSupuestos (comercial · negocio y cada eje)
+  costo:     { label: "Cambio de costo",           perturbs: "costo", units: ["pct"], sign: "any" },   // % sobre el costo de los productos (sin acciones comerciales) · productor: simularSupuestos (comercial · negocio y cada eje)
 };
 
 // helper: ¿es válida la FORMA del supuesto? → {ok} o {ok:false, reason, offer}. null = sin supuesto (scenario "actual").

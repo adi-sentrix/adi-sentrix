@@ -225,21 +225,21 @@ export const MCP_TOOLS = [
   },
   {
     name: "derivar",
-    description: "Calcula, verifica y devuelve como hecho nuevo —con identificador y procedencia «derivado»— una cifra que sale de cifras que ADI YA entregó en esta conversación: suma, diferencia (también la de una misma cifra entre dos cargas o períodos), participación, razón o conteo. Úsela SIEMPRE que necesite un total, subtotal, diferencia, porcentaje, múltiplo o conteo que no esté entre lo entregado: nunca lo calcule usted. Acepta cifras de esta conversación (E<n>.h<k>), de apoyo (E<n>.e<k>, como el benchmark) y derivaciones que ADI ya le devolvió (D<k>), que se pueden encadenar; lo que no se puede derivar con exactitud se rechaza diciendo por qué. Lo que el usuario fijó en la conversación («ninguna bodega con más de un tercio») va en «criterio». Para una cifra no entregada use consultar.",
+    description: "Calcula, verifica y devuelve como hecho nuevo —con identificador y procedencia «derivado»— una cifra que sale de cifras que ADI YA entregó en esta conversación: suma, diferencia (también de una misma cifra entre dos cargas o períodos), participación, razón o conteo. Úsela SIEMPRE que necesite un total, subtotal, diferencia, porcentaje, múltiplo o conteo que no esté entre lo entregado: nunca lo calcule usted. Acepta cifras de esta conversación (E<n>.h<k>), de apoyo (E<n>.e<k>, como el benchmark) y derivaciones que ADI ya le devolvió (D<k>), que se pueden encadenar; lo que no se puede derivar con exactitud se rechaza con su razón. Una cifra simulada se deriva con otras de su simulación; contra lo medido, solo con diferencia o razón. Lo que el usuario fijó («ninguna bodega con más de un tercio») va en «criterio». Para una cifra no entregada use consultar.",
     inputSchema: {
       type: "object",
       properties: {
-        conversacionId: { type: "string", description: "La conversación con ADI en la que se entregaron las cifras." },
-        operacion: { type: "string", enum: [...OPERACIONES], description: "suma · diferencia (2 cifras: la primera menos la segunda) · participacion (una o varias cifras sobre una base) · razon (una cifra respecto de otra: «N veces») · conteo (cuántas cifras cumplen una condición)." },
-        sobre: { type: "array", items: { type: "string" }, description: "Identificadores (E<n>.h<k>, E<n>.e<k>, D<k>) o 'criterio'. En una participación, el numerador (una cifra, o varias de la misma métrica que se suman); en una razón, la cifra que se compara." },
-        base: { type: ["string", "null"], description: "Solo participacion y razon: la base (p. ej. el total de un listado) o aquella respecto de la cual se compara." },
+        conversacionId: { type: "string", description: "La conversación en la que se entregaron las cifras." },
+        operacion: { type: "string", enum: [...OPERACIONES], description: "suma · diferencia (la primera menos la segunda) · participacion (una o varias cifras sobre una base) · razon (una cifra respecto de otra: «N veces») · conteo (cuántas cifras cumplen una condición)." },
+        sobre: { type: "array", items: { type: "string" }, description: "Identificadores (E<n>.h<k>, E<n>.e<k>, D<k>) o 'criterio'. En participación, el numerador (una cifra, o varias de la misma métrica); en razón, la cifra que se compara." },
+        base: { type: ["string", "null"], description: "Solo participacion y razon: la base (p. ej. el total del listado) o aquello con lo que se compara." },
         condicion: {
           type: ["object", "null"],
           description: "Solo conteo: 'valor' es un número, el id de otra cifra o 'criterio'; con dinero, un número solo puede ser 0.",
           properties: { op: { type: "string", enum: [...OPERADORES] }, valor: {} },
           required: ["op", "valor"],
         },
-        criterio: { type: ["object", "null"], description: "Lo que el USUARIO fijó (no es de ADI); se cita como 'criterio' en diferencia, razon o conteo.", properties: { valor: { type: "number" }, unidad: { type: "string", enum: [...UNIDADES_DE_CRITERIO] }, texto: { type: "string" } }, required: ["valor", "unidad", "texto"] },
+        criterio: { type: ["object", "null"], description: "Lo que el USUARIO fijó (no es de ADI); se cita como 'criterio'.", properties: { valor: { type: "number" }, unidad: { type: "string", enum: [...UNIDADES_DE_CRITERIO] }, texto: { type: "string" } }, required: ["valor", "unidad", "texto"] },
       },
       required: ["conversacionId", "operacion", "sobre"],
       additionalProperties: false,

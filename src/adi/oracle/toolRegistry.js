@@ -51,6 +51,7 @@ import { METRICS } from "../../config/contract/metricRegistry.js";              
 // data-driven y su canon de alcance. `pnlRead` (abajo) los ENVUELVE — no reimplementa ni una suma.
 import { composePnl, buildPnlCascade, pnlDefined, pnlDisponibilidad, pnlEjesDisponibles, pnlEntidadCanon } from "../pnl.js";
 import { simboloMoneda } from "../../config/moneda.js";
+import { baseDeFila, simularFila } from "../../engine/simulacionSupuestos.js";   // ensayo 9: el modelo aritmético ÚNICO de la simulación (la contribución es venta − costo − ACCIONES COMERCIALES: en marca, familia y producto el costo no las incluye)
 import { formatoDeLaCasa } from "../notario/hechos.js";   // §7.3·39(a): un % se escribe con el formato de la casa en toda superficie — ninguna tool arma el suyo
 import { CRUDO_MONEY } from "./ledger.js";   // el símbolo con el que se cuelga el crudo del $ formateado (ver la nota en _fmtMoneyFacts)
 
@@ -970,8 +971,10 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
   const costModel = costModelOf();
   if (costModel && costModel.tipo === "variable_total" && typeof raw.costo === "number") {
     // costo escala SOLO con volumen (variable_total) — el precio no mueve el costo unitario ni las unidades.
-    const costoActual = raw.costo, costoNuevo = costoActual * factorVolumen;
-    const contribActual = ventaActual - costoActual, contribNueva = ventaNueva - costoNuevo;
+    /* ENSAYO 9 (owner 2026-10-09): la contribución NO es venta − costo en todo eje (en marca, familia y producto el costo no incluye las acciones comerciales: Samsung salía con 27.7 % de margen donde el dato dice 23.4 %). El modelo único lo resuelve por la identidad de la propia fila. */
+    const _b = baseDeFila(raw), _s = _b ? simularFila(_b, { price: precioVar.pct, g: volumenVar.pct }) : null;
+    const costoActual = _b ? _b.C : raw.costo, costoNuevo = _s && _s.ok ? _s.C1 : raw.costo * factorVolumen;
+    const contribActual = _b ? _b.K : ventaActual - costoActual, contribNueva = _s && _s.ok ? _s.K1 : ventaNueva - costoNuevo;
     const margenActual = ventaActual ? +((contribActual / ventaActual) * 100).toFixed(1) : null;
     const margenNuevo = ventaNueva ? +((contribNueva / ventaNueva) * 100).toFixed(1) : null;
     facts.costModelAutorizado = true;
@@ -982,7 +985,7 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
       fig(`${entity} · Costo actual`, _moneyK(costoActual), { unit: "money", raw: costoActual * _fxT(), source: "actual", context: _ctx }),
       fig(`${entity} · Costo supuesto`, _moneyK(costoNuevo), { unit: "money", raw: costoNuevo * _fxT(), source: "computed", formula: `costo × (1${volumenVar.pct >= 0 ? "+" : ""}${_pVtxt})`, context: _ctx }),
       fig(`${entity} · Contribución actual`, _moneyK(contribActual), { unit: "money", raw: contribActual * _fxT(), source: "actual", context: _ctx }),
-      fig(`${entity} · Contribución supuesta`, _moneyK(contribNueva), { unit: "money", raw: contribNueva * _fxT(), mandatory: true, source: "computed", formula: "venta supuesta − costo supuesto", context: _ctx }),
+      fig(`${entity} · Contribución supuesta`, _moneyK(contribNueva), { unit: "money", raw: contribNueva * _fxT(), mandatory: true, source: "computed", formula: "venta supuesta − costo supuesto − acciones comerciales supuestas (en el eje cuenta el costo ya las incluye)", context: _ctx }),
       fig(`${entity} · Margen actual`, `${margenActual}%`, { unit: "pct", raw: margenActual, source: "actual", context: _ctx }),
       fig(`${entity} · Margen supuesto`, `${margenNuevo}%`, { unit: "pct", raw: margenNuevo, mandatory: true, source: "computed", formula: "contribución supuesta / venta supuesta × 100", context: _ctx }),
     );

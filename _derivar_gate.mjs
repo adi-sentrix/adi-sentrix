@@ -261,7 +261,8 @@ for (const { etiqueta, T } of EMPRESAS) {
     };
     const hechoDe = (L, id) => L.entregas.flatMap((e) => e.hechos || []).find((x) => x.id === id);
     await alterado("una cifra sin valor exacto", "operando_sin_valor_exacto", (L) => { delete hechoDe(L, v0[0]).rv; }, { operacion: "suma", sobre: v0.slice(0, 2) });
-    await alterado("una cifra de un supuesto", "operando_no_medido", (L) => { hechoDe(L, v0[0]).rv.deSupuesto = true; }, { operacion: "suma", sobre: v0.slice(0, 2) });
+    /* ENSAYO 9 (owner 2026-10-09): una cifra que sale de una simulación SE DERIVA (sección 15); lo que sigue rechazado es MEZCLARLA con una medición en una suma, una participación o un conteo */
+    await alterado("una cifra de un supuesto sumada con una medida", "mezcla_de_realidades", (L) => { hechoDe(L, v0[0]).rv.deSupuesto = true; }, { operacion: "suma", sobre: v0.slice(0, 2) });
     await alterado("un dato declarado", "operando_no_medido", (L) => { hechoDe(L, v0[0]).rv.titular = "declarado"; }, { operacion: "suma", sobre: v0.slice(0, 2) });
     await alterado("una propuesta", "operando_no_medido", (L) => { hechoDe(L, v0[0]).rv.procedencia = "propuesta"; }, { operacion: "suma", sobre: v0.slice(0, 2) });
     await alterado("una Entrega recortada", "entrega_recortada", (L) => { const e = L.entregas[0]; L.entregas[0] = { n: e.n, turno: e.turno, versionId: e.versionId, temas: e.temas, recortada: true }; }, { operacion: "suma", sobre: v0.slice(0, 2) });
@@ -1278,6 +1279,108 @@ for (const { etiqueta, T } of EMPRESAS) {
     const rU = await A.derivar({ tenant: T, conversacionId: conv, operacion: "diferencia", sobre: [filasDias[0].id, "criterio"], criterio: { valor: 15, unidad: "pct", texto: "x" } });
     ok(rU.ok === false && rU.motivo === "unidades_distintas", "un criterio en otra unidad que los días se rechaza (los porcentajes no se restan a los días)");
   }
+}
+
+/* ═══ 15 · ENSAYO 9 (owner 2026-10-09): LAS CIFRAS DE UNA SIMULACIÓN SE DERIVAN, CON SU PROCEDENCIA «RESULTADO DE UN SUPUESTO» ═══════════════════════════════════════════════
+ * B02 2.4 y C03 1.6: el anfitrión tuvo que sumar a mano el total simulado y restar a mano la contribución porque derivar rechazaba toda cifra de un supuesto (`operando_no_medido`). Ahora una cifra simulada se deriva —
+ * la suma de lo simulado, la participación dentro de la simulación, la diferencia o la razón contra lo actual— y el hecho que sale dice que NO es una medición: `deSupuesto`, «resultado de un supuesto», el supuesto en palabras y,
+ * en una comparación, cuál lado es el supuesto. Lo simulado y lo medido no se mezclan en una suma, una participación ni un conteo (`mezcla_de_realidades`), y cifras de DOS simulaciones no se derivan juntas (`supuestos_distintos`).
+ * `retomar` trata la derivación como a la cifra simulada de la que sale: `no_se_revalida`, con la razón. */
+for (const { etiqueta, T } of EMPRESAS) {
+  H(`15 · ensayo 9 (${etiqueta}): derivar sobre cifras de una simulación`);
+  conTenant(T);
+  const [m1, m2] = axisEntityNames("marca");
+  const store = crearAlmacenEnMemoria(); const A = crearAcciones({ continuidad: store });
+  const S = (id, tipo, valor, nombre) => ({ id, tipo, valor, unidad: "pct", alcance: { eje: "marca", nombre } });
+  const SIM1 = { version: "encargo/v1", supuestos: [S("s1", "price", 5, m1), S("s2", "costo", 10, m1)], partes: [{ id: "p1", tema: "comercial", cierre: "simulacion", eje: "marca", entidades: [{ nombre: m1, eje: "marca" }, { nombre: m2, eje: "marca" }], supuestos: ["s1", "s2"] }] };
+  const r1 = await A.consultar({ tenant: T, encargo: SIM1 });
+  const conv = r1.continuidad.conversacionId;
+  const c1 = compactarParaAnfitrion("consultar", r1);
+  const id = (e, met) => (todas(c1).find((x) => x.entidad === e && x.metrica === met) || {}).id;
+  const lib = await store.leerLibro(T.id, conv);
+  const raw = (idc) => lib.entregas[0].hechos.find((x) => x.id === idc).rv.raw;
+  const D = (pedido) => A.derivar({ tenant: T, conversacionId: conv, ...pedido });
+  ok(r1.ok === true && ["Venta supuesta", "Contribución supuesta", "Venta actual", "Contribución actual"].every((m) => id(m1, m) && id(m2, m)), `la simulación (precio y costo sobre ${m1}; ${m2} intacta) entrega venta y contribución, supuestas y actuales, con id`);
+  ok(lib.entregas[0].hechos.filter((x) => x.rv && x.rv.deSupuesto === true).every((x) => x.rv.supuesto === "s1+s2"), "el libro guarda de QUÉ supuestos sale cada cifra simulada (rv.supuesto: «s1+s2»)");
+
+  /* a · la SUMA de lo simulado: la venta simulada de las dos marcas */
+  const ra = await D({ operacion: "suma", sobre: [id(m1, "Venta supuesta"), id(m2, "Venta supuesta")] });
+  const sumaEsperada = raw(id(m1, "Venta supuesta")) + raw(id(m2, "Venta supuesta"));
+  ok(ra.ok === true && ra.hecho.valor === formatoDeLaCasa(sumaEsperada, "money") && ra.hecho.procedencia === "derivado" && ra.hecho.deSupuesto === true && ra.hecho.origen === "resultado de un supuesto", "★ la suma de la venta simulada de dos marcas: valor exacto, procedencia «derivado», deSupuesto y «resultado de un supuesto»", jj(ra).slice(0, 500));
+  ok(ra.hecho.descripcion === `Venta simulada: suma de ${m1} y ${m2}, bajo el supuesto s1: el precio sube 5% en ${m1}; s2: el costo sube 10% en ${m1}` && /^Venta simulada · suma de 2 cifras entregadas$/.test(ra.hecho.metrica), "★ la descripción lo dice: «Venta simulada: suma de …, bajo el supuesto s1: …» (cada supuesto UNA vez, con su alcance)", ra.hecho.descripcion);
+  ok(ra.operandos.every((o) => o.deSupuesto === true && o.origen === "resultado de un supuesto"), "cada operando simulado viaja marcado como resultado de un supuesto");
+
+  /* b · la DIFERENCIA simulado − actual: la contribución que ADI sí entrega (C03 1.6) */
+  const rb = await D({ operacion: "diferencia", sobre: [id(m1, "Contribución supuesta"), id(m1, "Contribución actual")] });
+  ok(rb.ok === true && rb.hecho.valor === formatoDeLaCasa(raw(id(m1, "Contribución supuesta")) - raw(id(m1, "Contribución actual")), "money") && rb.hecho.deSupuesto === true, "★ la diferencia contribución simulada − actual es UN hecho de ADI (antes: `operando_no_medido` y el host la restaba a mano)", jj(rb).slice(0, 400));
+  ok(rb.hecho.descripcion === `Contribución: ${m1} (simulada) menos ${m1} (actual), bajo el supuesto s1: el precio sube 5% en ${m1}; s2: el costo sube 10% en ${m1}` && /lo simulado menos lo actual/.test(rb.hecho.metrica), "★ en una comparación la descripción dice CUÁL LADO es el supuesto: «(simulada)» y «(actual)»", rb.hecho.descripcion);
+  ok(rb.operandos[0].deSupuesto === true && rb.operandos[1].deSupuesto !== true, "el operando simulado va marcado y el actual, no");
+  const rb2 = await D({ operacion: "diferencia", sobre: [id(m1, "Contribución actual"), id(m1, "Contribución supuesta")] });
+  ok(rb2.ok === true && /\(actual\) menos .* \(simulada\)/.test(rb2.hecho.descripcion) && /lo actual menos lo simulado/.test(rb2.hecho.metrica), "   y al revés (actual − simulada) también, con cada lado rotulado");
+  /* c · la RAZÓN simulado / actual */
+  const rc = await D({ operacion: "razon", sobre: [id(m1, "Venta supuesta")], base: id(m1, "Venta actual") });
+  ok(rc.ok === true && rc.hecho.deSupuesto === true && /cuántas veces es .* \(simulada\) respecto de .* \(actual\)/.test(rc.hecho.descripcion), "★ la razón simulado / actual: «cuántas veces es X (simulada) respecto de X (actual)»", rc.hecho.descripcion);
+  /* d · la PARTICIPACIÓN dentro de la simulación (los dos lados simulados) */
+  const sumaSim = await D({ operacion: "suma", sobre: [id(m1, "Venta supuesta"), id(m2, "Venta supuesta")] });
+  const rd = await D({ operacion: "participacion", sobre: [id(m1, "Venta supuesta")], base: sumaSim.hecho.id });
+  ok(rd.ok === true && rd.hecho.deSupuesto === true && /^Venta simulada: participación de/.test(rd.hecho.descripcion), "★ la participación de lo simulado sobre el total simulado (los dos lados son la simulación)", jj(rd).slice(0, 400));
+  /* e · encadenar: la diferencia de dos marcas, la suma de los dos efectos de la MISMA simulación */
+  const rd1 = await D({ operacion: "diferencia", sobre: [id(m2, "Contribución supuesta"), id(m2, "Contribución actual")] });
+  const re = await D({ operacion: "suma", sobre: [rb.hecho.id, rd1.hecho.id] });
+  ok(re.ok === true && re.hecho.deSupuesto === true && re.hecho.valor === formatoDeLaCasa((raw(id(m1, "Contribución supuesta")) - raw(id(m1, "Contribución actual"))) + (raw(id(m2, "Contribución supuesta")) - raw(id(m2, "Contribución actual"))), "money"), "★ los efectos de una simulación se encadenan (D sobre D conserva el linaje simulado)", jj(re).slice(0, 400));
+  /* f · el conteo de cifras simuladas contra una condición */
+  const rf = await D({ operacion: "conteo", sobre: [id(m1, "Contribución supuesta"), id(m2, "Contribución supuesta")], condicion: { op: ">", valor: 0 } });
+  ok(rf.ok === true && rf.hecho.valor === "2 de 2" && rf.hecho.deSupuesto === true, "el conteo de cifras simuladas contra una condición numérica", jj(rf).slice(0, 300));
+
+  /* g · LO QUE NO SE MEZCLA */
+  const mezcla = async (nombre, pedido) => { const r = await D(pedido); ok(r.ok === false && r.motivo === "mezcla_de_realidades" && /simulaci[oó]n/.test(r.detalle) && /diferencia/.test(r.detalle) && Array.isArray(r.uso), `★ ${nombre}: «mezcla_de_realidades» (dos realidades no se mezclan), con la salida: diferencia o razón`, jj(r).slice(0, 300)); };
+  await mezcla("sumar lo simulado con lo medido", { operacion: "suma", sobre: [id(m1, "Venta supuesta"), id(m2, "Venta actual")] });
+  await mezcla("una participación con numerador simulado y base medida", { operacion: "participacion", sobre: [id(m2, "Venta supuesta")], base: id(m1, "Venta actual") });
+  await mezcla("contar juntas una cifra simulada y una medida", { operacion: "conteo", sobre: [id(m1, "Venta supuesta"), id(m2, "Venta actual")], condicion: { op: ">", valor: 0 } });
+  await mezcla("sumar un efecto de la simulación (D) con una medición", { operacion: "suma", sobre: [rb.hecho.id, id(m2, "Contribución actual")] });
+  const rm = await D({ operacion: "suma", sobre: [id(m1, "Venta actual"), id(m2, "Venta actual")] });
+  ok(rm.ok === true && rm.hecho.deSupuesto !== true && rm.hecho.origen === undefined && !/simulad/.test(rm.hecho.descripcion), "(control) dos cifras MEDIDAS de la misma Entrega se suman como siempre: sin marca de supuesto, sin «simulada»");
+  /* h · DOS simulaciones distintas no se derivan juntas */
+  const r2 = await A.consultar({ tenant: T, encargo: { version: "encargo/v1", conversacionId: conv, supuestos: [S("s1", "growth", 3, m2)], partes: [{ id: "p1", tema: "comercial", cierre: "simulacion", eje: "marca", entidades: [{ nombre: m2, eje: "marca" }], supuestos: ["s1"] }] } });
+  const c2 = compactarParaAnfitrion("consultar", r2);
+  const id2 = (e, met) => (todas(c2).find((x) => x.entidad === e && x.metrica === met) || {}).id;
+  for (const op of ["suma", "diferencia"]) { const r = await D({ operacion: op, sobre: [id(m2, "Venta supuesta"), id2(m2, "Venta supuesta")] }); ok(r.ok === false && r.motivo === "supuestos_distintos" && /E1 y E2/.test(r.detalle), `★ ${op} de cifras de DOS simulaciones (E1 y E2): «supuestos_distintos»`, jj(r).slice(0, 300)); }
+  const rcx = await D({ operacion: "diferencia", sobre: [id2(m2, "Venta supuesta"), id2(m2, "Venta actual")] });
+  ok(rcx.ok === true && rcx.hecho.descripcion.endsWith(`bajo el supuesto s1: el volumen sube 3% en ${m2}`), "   cada simulación se deriva contra lo actual con SU supuesto (la segunda dice «s1: el volumen sube 3%», no el de la primera)", rcx.hecho.descripcion);
+  /* i · lo declarado, lo propuesto y las premisas siguen rechazados */
+  const L1 = clon(await store.leerLibro(T.id, conv)); const s2 = crearAlmacenEnMemoria(); L1.entregas[0].hechos.find((x) => x.id === id(m1, "Venta supuesta")).rv.titular = "declarado"; await s2.guardarLibro(T.id, L1);
+  const rdd = await crearAcciones({ continuidad: s2 }).derivar({ tenant: T, conversacionId: conv, operacion: "suma", sobre: [id(m1, "Venta supuesta"), id(m2, "Venta supuesta")] });
+  ok(rdd.ok === false && rdd.motivo === "operando_no_medido", "un dato DECLARADO (aunque esté en una simulación) sigue sin derivarse: «operando_no_medido»");
+
+  /* i2 · el VALOR de cada supuesto que el usuario planteó viaja con id como cifra de apoyo, rotulado «supuesto del usuario» (nunca «medido»), y NO se deriva: no es una medición */
+  const apoyoSup = (c1.entrega.apoyo || []).filter((a) => /propuest[oa]/.test(a.hecho || ""));
+  ok(apoyoSup.length >= 2 && apoyoSup.every((a) => a.procedencia === "supuesto_usuario"), "★ el valor de cada supuesto (precio 5 %, costo 10 %) viaja con id y procedencia «supuesto_usuario», no «medido» (antes: «medido»)", jj(c1.entrega.apoyo).slice(0, 400));
+  const rap = await D({ operacion: "diferencia", sobre: [apoyoSup[0].id, apoyoSup[1].id] });
+  ok(rap.ok === false && rap.motivo === "operando_no_medido", "★ y no se deriva sobre él (restar «precio 5 %» de «costo 10 %» no es una cifra del negocio): «operando_no_medido»", jj(rap).slice(0, 300));
+
+  /* j · retomar: la derivación sobre cifras simuladas se trata como la cifra simulada de la que sale */
+  const rt = await A.retomar({ tenant: T, conversacionId: conv });
+  const dD = (rt.hechos || []).filter((h) => /^D\d+$/.test(h.id));
+  ok(dD.length >= 5 && dD.filter((h) => (h.sobre || []).some((s) => [id(m1, "Venta supuesta"), id(m2, "Venta supuesta"), id(m1, "Contribución supuesta"), id(m2, "Contribución supuesta")].includes(s) || /^D/.test(s))).every((h) => h.estadoReverificacion === "no_se_revalida" && /resultado de un supuesto/.test(h.revalidacion.motivo)), "★ retomar: toda derivación sobre cifras simuladas es «no_se_revalida» con SU razón (un supuesto es de quien lo planteó), no el genérico «un operando no se pudo revalidar»", jj(dD.map((h) => [h.id, h.estadoReverificacion])));
+  const medidas = (rt.hechos || []).filter((h) => /^D\d+$/.test(h.id) && h.id === rm.hecho.id);
+  ok(medidas.length === 1 && ["igual", "cambio"].includes(medidas[0].estadoReverificacion), "(control) la derivación sobre cifras MEDIDAS se revalida como siempre (igual si los datos no cambiaron)", jj(medidas.map((h) => [h.id, h.estadoReverificacion])));
+  /* k · el libro: lo nuevo cabe, y la forma guardada no pierde de qué supuestos sale cada cifra */
+  const libroFinal = await store.leerLibro(T.id, conv);
+  ok(tamanoBytes(libroFinal) <= LIBRO_TOPE_BYTES, "el libro con la simulación, dos Entregas y las derivaciones sigue dentro de los 16 KB");
+  ok(jj(expandirLibro(comprimirLibro(libroFinal))) === jj(libroFinal) && libroFinal.entregas[0].hechos.some((x) => x.rv && x.rv.supuesto === "s1+s2"), "★ la forma guardada es sin pérdida con las cifras simuladas (rv.supuesto «s1+s2»)");
+  /* l · el benchmark que acompaña a una simulación de carga es una REFERENCIA, no un resultado del supuesto: no se rotula «simulada» y se compara con lo simulado */
+  const r3 = await A.consultar({ tenant: T, encargo: { version: "encargo/v1", conversacionId: conv, supuestos: [{ id: "s1", tipo: "carga", valor: -1, unidad: "pp", alcance: { eje: "marca", nombre: m1 } }], partes: [{ id: "p1", tema: "comercial", cierre: "simulacion", eje: "marca", entidades: [{ nombre: m1, eje: "marca" }], supuestos: ["s1"] }] } });
+  const c3 = compactarParaAnfitrion("consultar", r3);
+  const bm3 = c3.entrega.cifras.find((x) => /^Benchmark/.test(x.metrica || "")), ms3 = c3.entrega.cifras.find((x) => x.entidad === m1 && x.metrica === "Margen supuesto");
+  const rbm = bm3 && ms3 ? await D({ operacion: "diferencia", sobre: [ms3.id, bm3.id] }) : null;
+  ok(rbm && rbm.ok === true && rbm.hecho.deSupuesto === true && /\(simulada\) menos .* \(referencia\)/.test(rbm.hecho.descripcion) && rbm.operandos[1].deSupuesto !== true, "★ el margen simulado contra el benchmark: el lado simulado dice «(simulada)» y la referencia dice «(referencia)» (el benchmark no es un resultado del supuesto)", jj(rbm).slice(0, 400));
+}
+H("15b · ensayo 9: la herramienta lo dice, corto");
+{
+  const tool = MCP_TOOLS.find((t) => t.name === "derivar");
+  ok(/simulaci[oó]n/.test(tool.description) && /diferencia o razón/.test(tool.description) && /use consultar\.$/.test(tool.description), "★ la descripción dice que una cifra simulada se deriva con otras de su simulación y contra lo medido solo con diferencia o razón, y sigue terminando en «use consultar.»", tool.description);
+  ok(JSON.stringify(tool).length < 2400, `la herramienta sigue dentro de su presupuesto de 2 400 B (${JSON.stringify(tool).length} B): lo nuevo entró recortando palabras, no subiendo el tope`);
+  ok(MOTIVOS_DE_DERIVACION.includes("mezcla_de_realidades") && MOTIVOS_DE_DERIVACION.includes("supuestos_distintos") && MOTIVOS_DE_DERIVACION.length === new Set(MOTIVOS_DE_DERIVACION).size, "los dos motivos nuevos están en la lista cerrada (sin repetidos)");
 }
 
 H("13 · estático y esquema");

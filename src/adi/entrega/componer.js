@@ -60,6 +60,7 @@ import { prioridadDeParte, alOrdenServido, valoresDeProyeccion, prioridadCruzada
 // `metricaPorClave` es la MISMA fuente que ya usa `validar.js` para juzgar conceptos — acá se usa para el otro
 // sentido: clave → `nombre` (el rótulo humano, "Venta"/"Margen"/…) que las figs YA traen ("Entidad · Venta"), la
 // MISMA convención que las 4 rutas fijas ya explotan a mano (`figVenta`, `figMargen`, …) — nunca una segunda tabla.
+import { fraseDeSupuesto as fraseDeSupuestoBase } from "../capacidad/supuestoTexto.js";
 import { lecturasDe, REGISTRO_LECTURAS, consultaDeFrenado as _consultaDeFrenado, estadosDeUniverso as _estadosDeUniverso, frenadoSinUmbral as _frenadoSinUmbral } from "../encargo/lecturasDe.js";
 import { ceroPorCobertura, metricaPorClave, claveDeMetrica, claveExactaDeMetrica, dominioDeClave, unidadDeClave, conteoDeEje, conPreposicion, sintagmaDe, esCero, dichoElCero, diasEnPalabras } from "../notario/lexico.js";
 import { objetivoPorMeta } from "../llm/voiceGuard.js";   // v21 (T12): el nombre del concepto que la Entrega imprime como título de su definición va en la voz de la casa («meta» → «objetivo»)
@@ -2939,22 +2940,27 @@ function _planComparacion(parte, figs, ref, declararDerivada, I = null) {
  * nombrable (`custom` no migrado) ya NO llega acá (`validar.js:_resolverSupuestosRaiz` lo declina antes,
  * `supuesto_mal_formado`); el `null` de abajo es defensivo, para un caso legado que no pasó por esa validación. */
 /* FAMILIA 4: los conceptos que el léxico conoce (carga · costo · margen) se dicen con SU rótulo en minúscula (`rotulos.js`); «precio» y «volumen» no son conceptos del léxico y se dicen como siempre */
-const _CONCEPTO_DE_SUPUESTO = { carga: `la ${rotuloEnOracion({ clave: "carga" })}`, costo: `el ${rotuloEnOracion({ clave: "costo" })}`, price: "el precio", growth: "el volumen", margin: `el ${rotuloEnOracion({ clave: "margen" })}` };
 function _fraseDeSupuesto(s) {
   if (!s) return null;
-  // «liberar el capital inmovilizado» (simulateCapital) es una acción SIN parámetro numérico — no hay «−1%» que
-  // nombrar en prosa (el problema que motivó este corte), así que `tipo:"custom"` acá nunca fue jerga: se queda
-  // como estaba (validar.js no lo retiró, ver su comentario en `_productorDeSupuesto`).
+  // «liberar el capital inmovilizado» (simulateCapital) es una acción SIN parámetro numérico — no hay «−1%» que nombrar en prosa (el problema que motivó este corte), así que `tipo:"custom"` acá nunca fue jerga: se queda como estaba.
   if (s.productor === "simulateCapital") return "liberar el capital inmovilizado";
-  const concepto = _CONCEPTO_DE_SUPUESTO[s.tipo];
-  if (!concepto || !Number.isFinite(s.valor)) return null;
-  const magnitud = Math.abs(s.valor);
-  // §7.3·38(c) (diagnóstico v14): un monto se dice con el formato de la casa («$500K»), nunca con la clave interna de su unidad («500000 money»)
-  const unidadTxt = s.unidad === "pp" ? (magnitud === 1 ? "1 punto" : `${magnitud} puntos`) : s.unidad === "pct" ? `${magnitud}%` : s.unidad === "money" ? formatoDeLaCasa(magnitud, "money") : `${magnitud} ${s.unidad}`;
-  const verbo = s.valor > 0 ? "sube" : s.valor < 0 ? "baja" : "se mueve";
-  return `${concepto} ${verbo} ${unidadTxt}`;
+  return fraseDeSupuestoBase(s);   /* la frase de un supuesto vive en `capacidad/supuestoTexto.js` (ensayo 9: la dice igual `derivar`) */
 }
 const _capitaliza = (s) => { const t = String(s || ""); return t ? t.charAt(0).toUpperCase() + t.slice(1) : t; };
+/* las reglas con que la simulación combinó los supuestos, solo las de los tipos presentes: lo que cada uno mueve y lo que NO mueve (el costo de los productos es el que no incluye las acciones comerciales) */
+function _reglasDeLaSimulacion(supuestos) {
+  const tipos = new Set((supuestos || []).map((s) => s.tipo));
+  const r = [];
+  if (tipos.has("price")) r.push("el precio mueve la venta, no las unidades ni el costo ni las acciones comerciales en pesos");
+  if (tipos.has("growth")) r.push("el volumen mueve la venta, el costo y las acciones comerciales en la misma proporción (la carga comercial como % de la venta no cambia)");
+  if (tipos.has("costo")) r.push("el costo que se mueve es el de los productos, sin las acciones comerciales (la cifra de costo de una cuenta ya las incluye, por eso su cambio puede ser menor que el pedido)");
+  if (tipos.has("carga")) r.push("la carga comercial mueve las acciones comerciales en puntos de la venta y no baja de cero");
+  if (tipos.has("margin")) r.push("el margen cambia en puntos con la venta igual y el costo absorbe el cambio");
+  return r.length ? `Los supuestos se aplican juntos sobre el dato real: ${r.join("; ")}. Ninguna cifra fuera de lo supuesto cambia.` : null;
+}
+/* varias frases de supuesto en una oración: «el precio sube 5%, el costo sube 10% y la carga comercial baja 1 punto» */
+const _unirFrases = (fs) => (fs.length <= 1 ? (fs[0] || "") : `${fs.slice(0, -1).join(", ")} y ${fs[fs.length - 1]}`);
+const _esValorDeSupuesto = (s) => (s.unidad === "money" ? formatoDeLaCasa(Math.abs(s.valor), "money") : `${Math.abs(s.valor)}${s.unidad === "pct" && s.tipo !== "margin" ? "%" : s.unidad === "pp" || s.tipo === "margin" ? " puntos" : ` ${s.unidad}`}`);
 
 /* ── PLAN «simulacion» (`simulate*` ya resuelto por `lecturasDe`/`validar.js`) — CADA hecho de la simulación
  * lleva su DUEÑO (owner 2026-09-26, error MATERIAL hallado en D27: 96 filas de clientes que la parte NUNCA pidió,
@@ -2970,16 +2976,23 @@ const _capitaliza = (s) => { const t = String(s || ""); return t ? t.charAt(0).t
  *
  * El SUPUESTO no es una fig: es el dato del encargo que el usuario ya declaró (`Supuesto`, procedencia
  * `supuesto_usuario`) — la casa no lo verifica contra la boleta, solo lo cita con su dueño y su concepto. */
-function _planSimulacion(parte, figs, supuesto, ref, declararDerivada, I) {
-  if (!figs.length || !supuesto) return null;
-  const fraseSupuesto = _fraseDeSupuesto(supuesto);
-  if (!fraseSupuesto) return { kind: "simulacion", tema: parte.tema, parteId: parte.id, sinConcepto: true, supuesto };
+function _planSimulacion(parte, figs, supuestos, ref, declararDerivada, I, factsSim = null) {
+  const lista = Array.isArray(supuestos) ? supuestos.filter(Boolean) : (supuestos ? [supuestos] : []);
+  if (!figs.length || !lista.length) return null;
+  const supuesto = lista[0];
+  const frases = lista.map(_fraseDeSupuesto);
+  if (frases.some((x) => !x)) return { kind: "simulacion", tema: parte.tema, parteId: parte.id, sinConcepto: true, supuesto };
+  const fraseSupuesto = _unirFrases(frases);
+  /* ENSAYO 9 (owner 2026-10-09): una parte puede traer VARIOS supuestos y cada entidad recibe los suyos (`facts.entidades[].supuestos`, lo que la herramienta aplicó): el encabezado de cada bloque dice los de ESA entidad. */
+  const idsPorEntidad = new Map(((factsSim && Array.isArray(factsSim.entidades)) ? factsSim.entidades : []).map((e) => [e.entidad, Array.isArray(e.supuestos) ? e.supuestos : []]));
+  const fraseDe = (ids) => { const ss = lista.filter((s) => ids.includes(s.id)); return ss.length ? _unirFrases(ss.map(_fraseDeSupuesto)) : "ningún supuesto lo toca: no cambia"; };
 
   // el universo pedido: PRIMERO la Resolucion (`parte.entidades`, ask 3 — «el plan se arma solo con las entidades
   // y el universo de la Resolucion»); si la parte no trae entidades explícitas, el alcance del propio supuesto.
   const nombresDeParte = (parte.entidades || []).map((e) => e.nombre).filter(Boolean);
-  const nombrePedido = supuesto.alcance && supuesto.alcance !== "negocio" ? supuesto.alcance.nombre : null;
-  const entidadesPermitidas = nombresDeParte.length ? new Set(nombresDeParte) : (nombrePedido ? new Set([nombrePedido]) : null);
+  const nombresPedidos = lista.filter((s) => s.alcance && s.alcance !== "negocio").map((s) => s.alcance.nombre);
+  const entidadesPermitidas = nombresDeParte.length ? new Set(nombresDeParte) : (nombresPedidos.length ? new Set(nombresPedidos) : (factsSim && factsSim.conTotal ? new Set() : null));
+  if (entidadesPermitidas && factsSim && factsSim.conTotal) entidadesPermitidas.add("Negocio");
 
   const bloquesPorEntidad = new Map();
   const negocio = { base: [], resultado: [] };
@@ -2988,7 +3001,8 @@ function _planSimulacion(parte, figs, supuesto, ref, declararDerivada, I) {
     const label = _lab(f);
     const partesLabel = String(label || "").split(/\s+·\s+/);
     let entidad = null, concepto = _conceptoDeLabel(label);
-    if (partesLabel.length > 1 && I && typeof I.resolverEntidad === "function") {
+    if (partesLabel.length > 1 && factsSim && factsSim.conTotal && partesLabel[0] === "Negocio") { entidad = "Negocio"; concepto = partesLabel.slice(1).join(" · "); }   /* el total del negocio con el supuesto: un bloque más, con dueño «Negocio» */
+    else if (partesLabel.length > 1 && I && typeof I.resolverEntidad === "function") {
       const e0 = I.resolverEntidad(partesLabel[0]);
       if (e0) { entidad = e0.nombre; concepto = partesLabel.slice(1).join(" · "); }
       else if (partesLabel.length === 2) {
@@ -3035,16 +3049,22 @@ function _planSimulacion(parte, figs, supuesto, ref, declararDerivada, I) {
     if (!grupo.base.length && !grupo.resultado.length) continue;
     const { pares, resultadoSueltos, baseSinPar } = _emparejar(grupo);
     let idDelta = null, deltaConcepto = null;
-    for (const p of pares) { const id = declararDerivada(p.resultado.fig, p.resultado.id, p.base.fig, p.base.id); if (id) { idDelta = id; deltaConcepto = p.concepto; break; } }
+    /* el delta que acompaña al cuerpo es el de la primera pareja que CAMBIA (una simulación de solo costo no abre con «la venta se mantiene ($0)»); si ninguna cambia, la primera */
+    const _cambia = (p) => !(p.base.fig && p.resultado.fig && Number.isFinite(p.base.fig.raw) && Number.isFinite(p.resultado.fig.raw) && p.base.fig.raw === p.resultado.fig.raw);
+    for (const p of pares) p.cambia = _cambia(p);   /* la prosa dice primero lo que CAMBIA («el costo pasaría de … a …») y al final lo que se mantiene */
+    /* una entidad que ningún supuesto toca (la simulación pidió varias) no inventa un delta de $0: se dice que no cambia */
+    for (const p of pares.filter(_cambia)) { const id = declararDerivada(p.resultado.fig, p.resultado.id, p.base.fig, p.base.id); if (id) { idDelta = id; deltaConcepto = p.concepto; break; } }
     // DECISIÓN 38(c) (diagnóstico v14, A5): un crecimiento en DINERO se simuló como volumen a precio constante; la conversión a % de la venta del período cerrado de la entidad es una cifra REAL de la
     // simulación (el `%` de volumen que la tool calculó y publicó: «<entidad> · Volumen propuesto») y la Entrega la DECLARA como supuesto (`idConversion`), nunca la esconde como jerga del motor.
-    const esCrecimientoEnDinero = supuesto.tipo === "growth" && supuesto.unidad === "money" && supuesto.productor === "simulateGeneral";
+    const idsDelBloque = idsPorEntidad.has(grupo.entidad) ? idsPorEntidad.get(grupo.entidad) : lista.map((s) => s.id);
+    const suyos = lista.filter((s) => idsDelBloque.includes(s.id));
+    const esCrecimientoEnDinero = suyos.some((s) => s.tipo === "growth" && s.unidad === "money");
     const conversion = esCrecimientoEnDinero ? baseSinPar.find((b) => _normConcepto(b.concepto) === "volumen" && b.fig && b.fig.unit === "pct") : null;
-    bloques.push({ entidad: grupo.entidad, pares, resultadoSueltos, baseSinPar: conversion ? baseSinPar.filter((b) => b !== conversion) : baseSinPar, idDelta, deltaConcepto, sinDelta: !idDelta, idConversion: conversion ? conversion.id : null });
+    bloques.push({ entidad: grupo.entidad, pares, resultadoSueltos, baseSinPar: conversion ? baseSinPar.filter((b) => b !== conversion) : baseSinPar, idDelta, deltaConcepto, sinDelta: !idDelta && (pares.length === 0 || pares.some(_cambia)), idConversion: conversion ? conversion.id : null, frase: fraseDe(idsDelBloque), frasesPorSupuesto: suyos.map((s) => ({ id: s.id, dinero: s.tipo === "growth" && s.unidad === "money", frase: _fraseDeSupuesto(s) })), supuestoIds: idsDelBloque.length ? idsDelBloque : lista.map((s) => s.id) });
   }
   if (!bloques.length && !negocio.base.length && !negocio.resultado.length) return null;
 
-  return { kind: "simulacion", tema: parte.tema, parteId: parte.id, supuesto, fraseSupuesto, bloques, negocio, descartadasFueraDeUniverso: descartadas, universoPedido: entidadesPermitidas ? [...entidadesPermitidas] : null };
+  return { kind: "simulacion", tema: parte.tema, parteId: parte.id, supuesto, supuestos: lista, fraseSupuesto, bloques, negocio, descartadasFueraDeUniverso: descartadas, universoPedido: entidadesPermitidas ? [...entidadesPermitidas].filter((n) => n !== "Negocio") : null, topadas: factsSim && Array.isArray(factsSim.topadas) ? factsSim.topadas : [], sinModeloDeCosto: Boolean(factsSim && factsSim.limitacion) };
 }
 
 /* CORTE 3e (owner 2026-09-26, «LA ENTREGA NO LE HABLA A NADIE», resuelto por el owner) — «una sola verdad por
@@ -3833,8 +3853,10 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
       // sustituye por uno que la parte no citó.
       const crudaP = ((resolucion.encargo && resolucion.encargo.partes) || []).find((x) => x && x.id === p.id);
       const citados = crudaP && Array.isArray(crudaP.supuestos) ? crudaP.supuestos : [];
-      const supuesto = citados.map((sid) => (resolucion.supuestos || []).find((s) => s.id === sid)).find(Boolean) || null;
-      const planS = _planSimulacion(p, figsDeP, supuesto, ref, declararDerivada, I);
+      const supuestosDeP = citados.map((sid) => (resolucion.supuestos || []).find((s) => s.id === sid)).filter(Boolean);
+      /* los facts de la herramienta de simulación combinada de ESTA parte (qué supuestos tocó a cada entidad, si hay total, qué quedó topado) */
+      const factsSim = [..._callIdsDePartes([p.id])].map((cid) => rp.results[Number(cid.slice(1))]).map((r) => r && r.facts).find((fc) => fc && fc.simulacion === "supuestos") || null;
+      const planS = _planSimulacion(p, figsDeP, supuestosDeP, ref, declararDerivada, I, factsSim);
       if (planS) planes.push(planS);
     } else if (p.cierre === "definicion") {
       // la call de ESTA parte es SIEMPRE una sola (`_pasosDefinicion`, lecturasDe.js) — se ubica por su índice
@@ -4333,21 +4355,21 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         // ETAPA 2 · BLOQUE 3 (owner 2026-10-03, decisión §7.3·58) — esa frase era FALSA: el supuesto de una simulación sale del encargo (lo planteó quien consulta), no de una declaración de la empresa.
         // El origen sale de la función única (`procedenciaDeSupuesto`: planteado en la consulta) y la frase de la tabla única, en femenino por «simulación»; nunca escrita a mano.
         const simulacionTxt = `Simulación ${etiquetaDeProcedencia(procedenciaDeSupuesto(), { genero: "f" })}`;
-        const supuestoTxt = _capitaliza(plan.fraseSupuesto);
-        const _valorSupuesto = plan.supuesto.unidad === "money" ? formatoDeLaCasa(Math.abs(plan.supuesto.valor), "money") : `${Math.abs(plan.supuesto.valor)}${plan.supuesto.unidad === "pct" ? "%" : plan.supuesto.unidad === "pp" ? " puntos" : ` ${plan.supuesto.unidad}`}`;
-        cifrasImpresas.push(_valorSupuesto);
+        for (const sx of plan.supuestos) cifrasImpresas.push(_esValorDeSupuesto(sx));
 
         // `prioridad` (opcional, default 0 — "Negocio" nunca se recorta: es el contexto compartido de TODOS los
         // bloques) — cuando se pasa, iguala la del bloque dueño de la fila (misma prioridad explícita que sus
         // oraciones, ver más abajo), para que `gobernarTamano` recorte fila+oración del mismo bloque JUNTAS.
-        const _filaSim = (entidadTxt, etiqueta, id, prioridad = 0) => {
+        const _filaSim = (entidadTxt, etiqueta, id, prioridad = 0, bloqueDe = null) => {
+          const supuestoTxt = bloqueDe ? _capitaliza(bloqueDe.frase) : _capitaliza(plan.fraseSupuesto);
+          const supuestoIdFila = bloqueDe ? bloqueDe.supuestoIds.join("+") : plan.supuesto.id;
           const procedencia = _procedenciaDeFila(libro, [id]);
           // §7.3·39(e): en una Entrega MIXTA (la simulación comparte tabla con otro cierre) la tabla es la genérica —Entidad / grupo · Tema · Métrica · Valor · Tipo—: cada fila lleva SU dueño y su tema, y el
           // rótulo de la métrica dice de qué simulación y supuesto es (la fila sigue siendo indivisible). Con SOLO simulación, la tabla propia de siempre (sin cambio).
           const _valoresFila = _esSoloSimulacion
             ? { Entidad: entidadTxt, "Simulación": simulacionTxt, Supuesto: supuestoTxt, Métrica: rotuloDeSimulacion(etiqueta), Valor: R(id), Tipo: _textoDeTipo(procedencia) }   /* FAMILIA 4: el rótulo de la simulación es el de su productor (ningún artículo del contrato lo cubre) y pasa por `rotulos.js` sin cambio */
             : { "Entidad / grupo": entidadTxt, "Tema": _DOM_NOMBRE[plan.tema] || plan.tema, "Métrica": `${rotuloDeSimulacion(etiqueta)} (simulación: ${String(supuestoTxt).charAt(0).toLowerCase()}${String(supuestoTxt).slice(1)})`, "Valor": R(id), "Tipo": _textoDeTipo(procedencia) };
-          return { valores: _valoresFila, hechos: [id], procedencia, entidad: entidadTxt === "Negocio" ? "negocio" : entidadTxt, escenarioId: plan.supuesto.id, supuestoId: plan.supuesto.id, prioridad };
+          return { valores: _valoresFila, hechos: [id], procedencia, entidad: entidadTxt === "Negocio" ? "negocio" : entidadTxt, escenarioId: supuestoIdFila, supuestoId: supuestoIdFila, prioridad };
         };
 
         // LÉXICO DE LA CASA (owner 2026-09-26, ronda final del corte) — la tabla de una simulación sirve SOLO
@@ -4401,17 +4423,17 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
           // FILAS — pares (base + resultado, ambos con papel de negocio), resultados sueltos (sin base que
           // contrastar — ej. simulateCapital), impacto/referencia entre lo que quedó sin par; el resto se descarta.
           for (const p of bloque.pares) {
-            entrega.cifras.filas.push(_filaSim(bloque.entidad, p.base.concepto, p.base.id, i));
-            entrega.cifras.filas.push(_filaSim(bloque.entidad, p.resultado.concepto, p.resultado.id, i));
+            entrega.cifras.filas.push(_filaSim(bloque.entidad, p.base.concepto, p.base.id, i, bloque));
+            entrega.cifras.filas.push(_filaSim(bloque.entidad, p.resultado.concepto, p.resultado.id, i, bloque));
           }
-          for (const r of bloque.resultadoSueltos) entrega.cifras.filas.push(_filaSim(bloque.entidad, r.concepto, r.id, i));
+          for (const r of bloque.resultadoSueltos) entrega.cifras.filas.push(_filaSim(bloque.entidad, r.concepto, r.id, i, bloque));
           for (const b of bloque.baseSinPar) {
-            if (_ES_IMPACTO_SIM(b.concepto) || _referenciaServible(b)) entrega.cifras.filas.push(_filaSim(bloque.entidad, b.concepto, b.id, i));
+            if (_ES_IMPACTO_SIM(b.concepto) || _referenciaServible(b)) entrega.cifras.filas.push(_filaSim(bloque.entidad, b.concepto, b.id, i, bloque));
             else descartadasJergaInterna++;
           }
-          if (bloque.idDelta) entrega.cifras.filas.push(_filaSim(bloque.entidad, `Delta · ${_capitaliza(bloque.deltaConcepto)}`, bloque.idDelta, i));
+          if (bloque.idDelta) entrega.cifras.filas.push(_filaSim(bloque.entidad, `Delta · ${_capitaliza(bloque.deltaConcepto)}`, bloque.idDelta, i, bloque));
           // 38(c): la conversión del monto a % de la venta del período cerrado (citada en el encabezado) va también en la tabla — un hecho citado en la respuesta no puede faltar en Cifras (regla de doble colocación)
-          if (bloque.idConversion) entrega.cifras.filas.push(_filaSim(bloque.entidad, "Volumen equivalente al crecimiento en dinero, a precio constante", bloque.idConversion, i));
+          if (bloque.idConversion) entrega.cifras.filas.push(_filaSim(bloque.entidad, "Volumen equivalente al crecimiento en dinero, a precio constante", bloque.idConversion, i, bloque));
 
           // ENCABEZADO — cita un hecho REAL y SERVIDO (la referencia si existe; si no, el primer par o resultado
           // suelto del bloque) para que la regla «oración con cifra» (verificar.js regla 2) se cumpla sin
@@ -4420,7 +4442,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
             : bloque.pares[0] ? [bloque.pares[0].resultado.id]
             : bloque.resultadoSueltos[0] ? [bloque.resultadoSueltos[0].id]
             : bloque.baseSinPar.slice(0, 1).map((b) => b.id);
-          const _fraseTieneCifra = /\d/.test(plan.fraseSupuesto);
+          const _fraseTieneCifra = /\d/.test(bloque.frase);
           const _citaValor = !_fraseTieneCifra && hechosEncabezado.length ? ` (${R(hechosEncabezado[0])})` : "";
           // CORTE 3d.3 (owner 2026-09-26) — PRIORIDAD EXPLÍCITA: el encabezado y el cuerpo de un MISMO bloque
           // comparten la MISMA `.prioridad` (el índice del bloque — el primero es 0, «la conclusión», nunca
@@ -4431,11 +4453,13 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
           // C4) — nunca «escenario declarado por usted»: «Falabella — simulación: la carga comercial baja 1
           // punto», no un mundo alterno con nombre propio, la pregunta «¿qué pasa si…?» del usuario.
           // 38(c): la conversión del monto a % de la venta del período cerrado se declara EN el encabezado, como parte del supuesto («a precio constante»)
+          /* con VARIOS supuestos la conversión del monto (la del volumen) va pegada a SU frase, no al final de todas */
+          const _fraseDelEncabezado = (b, conv) => (b.frasesPorSupuesto && b.frasesPorSupuesto.length > 1 && conv ? b.frasesPorSupuesto.map((x) => (x.dinero ? `${x.frase}${conv}` : x.frase)).join("; ") : `${b.frase}${conv}`);
           const _conversion = bloque.idConversion ? `, que equivale a ${R(bloque.idConversion)} de su venta del año cerrado, a precio constante` : "";
           entrega.respuesta.push({
-            texto: `${bloque.entidad} — simulación: ${plan.fraseSupuesto}${_conversion}${_citaValor}.`,
+            texto: `${bloque.entidad} — simulación: ${_fraseDelEncabezado(bloque, _conversion)}${_citaValor}.`,
             hechos: bloque.idConversion ? [...hechosEncabezado, bloque.idConversion] : hechosEncabezado, _bloqueId: bloqueId, _bloqueEncabezado: true, _simulacion: true, prioridad: i,
-            _bloqueMeta: { entidad: bloque.entidad, escenarioId: plan.supuesto.id, supuestoId: plan.supuesto.id },
+            _bloqueMeta: { entidad: bloque.entidad, escenarioId: bloque.supuestoIds.join("+"), supuestoId: bloque.supuestoIds.join("+") },
           });
 
           // CUERPO — COMPARABLES JUNTAS (ley del plan LLMBusiness, owner 2026-09-26): cada resultado viaja con SU
@@ -4443,7 +4467,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
           // sujeto suelto sin decir desde dónde. El delta se pega al par que lo trae, entre paréntesis. Los
           // resultados sin base propia (simulateCapital) caen a «concepto pasaría a valor», la única forma que el
           // dato sostiene cuando no hay un "antes" que contrastar.
-          const frasesPares = bloque.pares.map((p, pi) => {
+          const frasesPares = [...bloque.pares.filter((p) => p.cambia !== false), ...bloque.pares.filter((p) => p.cambia === false)].map((p, pi) => {
             const art = _articulo(p.concepto);
             const esDelta = bloque.idDelta && p.concepto === bloque.deltaConcepto;
             const baseTxt = R(p.base.id), resultadoTxt = R(p.resultado.id);
@@ -4468,6 +4492,9 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         }
         // CORTE 3e (owner 2026-09-26) — «lo declaró usted» → «lo declaró la empresa».
         entrega.limites.push({ titulo: "Esta simulación es un resultado hipotético, no lo que ya ocurrió", motivo: `El supuesto fue ${etiquetaDeProcedencia(procedenciaDeSupuesto())}; ADI calcula el efecto sobre el dato real, pero no afirma que vaya a pasar.` });
+        /* ENSAYO 9 (owner 2026-10-09): cómo se calculó, UNA vez y solo con las reglas de los tipos de supuesto presentes (los supuestos de una parte se aplican JUNTOS: lo que cada uno mueve y lo que no) */
+        { const reglas = _reglasDeLaSimulacion(plan.supuestos); if (reglas) entrega.limites.push({ titulo: "Cómo se calculó la simulación", motivo: reglas }); }
+        if (plan.topadas && plan.topadas.length) entrega.limites.push({ titulo: "La carga comercial no puede quedar negativa", motivo: `En ${plan.topadas.join("; ")} la baja efectiva de la carga comercial es menor que la pedida: su carga actual no alcanza y se detiene en cero.` });
         if (plan.descartadasFueraDeUniverso) entrega._simulacionDescartadas = (entrega._simulacionDescartadas || 0) + plan.descartadasFueraDeUniverso;
         if (descartadasJergaInterna) entrega._simulacionDescartadasJerga = (entrega._simulacionDescartadasJerga || 0) + descartadasJergaInterna;
         // el universo pedido de ESTA simulación, para que `verificar.js` regla 14 audite «ninguna fila fuera del

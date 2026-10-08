@@ -128,6 +128,7 @@ const MOTIVO = Object.freeze({
   deListado: "es la suma de las cifras de su listado, que se revalidan una por una: el total no se vuelve a comparar aparte, y no se afirma como vigente",
   filasDelTotal: "es la suma de las cifras de su listado y alguna de ellas no se pudo revalidar con las mismas filas (ya no figura, cambió de universo o no se pudo comparar): el total no se recalcula, y no se afirma como vigente",
   derivacion: "uno de sus operandos no se pudo revalidar: la derivación no se afirma vigente",
+  derivacionDeSupuesto: "sale del resultado de un supuesto: un supuesto es de quien lo planteó y no se revalida contra los datos (lo medido en que se apoya sí puede haber cambiado: para saber qué resultaría hoy, pida de nuevo la simulación y derive sobre ella)",
   premisa: "una premisa es de quien la planteó en la consulta: no se revalida contra los datos",
 });
 const _motivoDeTitular = (t) => (t === "declarado" ? MOTIVO.declarado : t === "documento" ? MOTIVO.documento : MOTIVO.supuesto);
@@ -298,6 +299,8 @@ const _idsDeLaDerivacion = (d) => [...(Array.isArray(d.sobre) ? d.sobre : []), .
 export function revalidarDerivacion(d, resultadosPorId, { versionIdActual = null } = {}) {
   const R = d && d.resultado && typeof d.resultado === "object" ? d.resultado : {};
   const anterior = { valor: R.texto != null ? R.texto : null, raw: _finito(R.raw) ? R.raw : null, unidad: R.unidad || null };
+  /* ENSAYO 9 (owner 2026-10-09): una derivación sobre cifras SIMULADAS tampoco se revalida contra los datos —igual que la cifra simulada de la que sale—, y lo dice con SU razón (no el genérico «un operando no se pudo revalidar») */
+  if (d && d.deSupuesto === true) return { estado: "no_se_revalida", motivo: MOTIVO.derivacionDeSupuesto, anterior };
   const mapa = new Map(resultadosPorId instanceof Map ? resultadosPorId : []);
   /* un criterio declarado por el usuario no se mide: sigue siendo el que el usuario dijo (igual por definición) — la derivación se revalida por sus otras cifras */
   if (d && d.criterio && typeof d.criterio === "object" && _finito(d.criterio.valor)) mapa.set(CRITERIO_ID, { estado: "igual", anterior: { valor: null, raw: d.criterio.valor, unidad: d.criterio.unidad || null } });

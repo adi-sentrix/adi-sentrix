@@ -59,7 +59,7 @@ export const ORIGEN_LIBRO = "complemento";
  * es regular (una fila ancha con `rv.mas`, una cifra con campos que esta forma no conoce, un libro anterior a este cambio) se guarda tal cual y se lee igual. Y `tamanoBytes(libro)` mide la
  * forma GUARDADA, que es la que la base limita. */
 const _CLAVES_HECHO = new Set(["id", "sujeto", "metrica", "valor", "unidad", "periodo", "origen", "ref", "rv", "fuera"]);
-const _CLAVES_RV = new Set(["raw", "unidad", "clave", "dueno", "titular", "procedencia", "tipo", "prioridad", "deSupuesto", "deListado", "filas"]);
+const _CLAVES_RV = new Set(["raw", "unidad", "clave", "dueno", "titular", "procedencia", "tipo", "prioridad", "deSupuesto", "supuesto", "deListado", "filas"]);
 const _esTxtONulo = (x) => x === null || typeof x === "string";
 const _esObj = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
 
@@ -72,13 +72,14 @@ function _tuplaDeHecho(h, k, n) {
   const v = h.rv;
   if (!_esObj(v) || !Object.keys(v).every((c) => _CLAVES_RV.has(c))) return null;
   if (!Number.isFinite(v.raw) || typeof v.clave !== "string" || typeof v.unidad !== "string" || typeof v.dueno !== "string" || typeof v.procedencia !== "string") return null;
-  if (("titular" in v && typeof v.titular !== "string") || ("tipo" in v && typeof v.tipo !== "string") || ("deSupuesto" in v && v.deSupuesto !== true) || ("deListado" in v && v.deListado !== true) || ("filas" in v && (typeof v.filas !== "string" || !v.filas))) return null;
+  if (("titular" in v && typeof v.titular !== "string") || ("tipo" in v && typeof v.tipo !== "string") || ("deSupuesto" in v && v.deSupuesto !== true) || ("supuesto" in v && (typeof v.supuesto !== "string" || !v.supuesto)) || ("deListado" in v && v.deListado !== true) || ("filas" in v && (typeof v.filas !== "string" || !v.filas))) return null;
   if ("prioridad" in v && !Number.isFinite(v.prioridad)) return null;
   const x = {};
   if (!("prioridad" in v)) x.np = 1; else if (v.prioridad !== k) x.p = v.prioridad;
   if ("titular" in v) x.s = v.titular;
   if ("tipo" in v) x.t = v.tipo;
   if (v.deSupuesto === true) x.d = 1;
+  if (typeof v.supuesto === "string") x.u = v.supuesto;   /* ensayo 9: de QUÉ supuestos sale una cifra simulada («s1» · «s1+s2»): `derivar` dice «bajo el supuesto …» */
   if (v.deListado === true) x.l = 1;
   if (typeof v.filas === "string") x.r = v.filas;   /* el total de un listado: de qué filas es la suma (ensayo 8: retomar lo recalcula desde ellas) */
   if (h.fuera === true) x.f = 1;
@@ -89,7 +90,7 @@ function _tuplaDeHecho(h, k, n) {
 }
 function _hechoDeTupla(t, k, n) {
   const [valor, raw, clave, unidad, sujeto, metrica, dn, procedencia, og, rf, x = {}] = t;
-  const rv = { raw, unidad, clave, dueno: dn === 0 || dn === undefined ? sujeto : dn, ...(x.s !== undefined ? { titular: x.s } : {}), procedencia, ...(x.t !== undefined ? { tipo: x.t } : {}), ...(x.d ? { deSupuesto: true } : {}), ...(x.l ? { deListado: true } : {}), ...(x.r !== undefined ? { filas: x.r } : {}), ...(x.np ? {} : { prioridad: x.p !== undefined ? x.p : k }) };
+  const rv = { raw, unidad, clave, dueno: dn === 0 || dn === undefined ? sujeto : dn, ...(x.s !== undefined ? { titular: x.s } : {}), procedencia, ...(x.t !== undefined ? { tipo: x.t } : {}), ...(x.d ? { deSupuesto: true } : {}), ...(x.u !== undefined ? { supuesto: x.u } : {}), ...(x.l ? { deListado: true } : {}), ...(x.r !== undefined ? { filas: x.r } : {}), ...(x.np ? {} : { prioridad: x.p !== undefined ? x.p : k }) };
   return { sujeto, metrica, valor, unidad: null, periodo: null, origen: og === 0 || og === undefined ? procedencia : og, ref: rf === 0 || rf === undefined ? `e${k + 1}` : rf, rv, ...(x.f ? { fuera: true } : {}), id: `E${n}.h${k + 1}` };
 }
 

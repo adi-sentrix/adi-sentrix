@@ -238,11 +238,11 @@ function _etiquetaSupuesto(s) {
  * no capturada) dice varias cifras: la primera va en `rv` y las demás en `rv.mas`, cada una con la columna de la que sale (la que imprime EXACTAMENTE su valor) — así ninguna se
  * pierde y los ids de siempre (`E<n>.h<k>` = la k-ésima fila) no se mueven. Lo derivado de un SUPUESTO (una fila de simulación cuyo valor no es una medición) se marca `deSupuesto`:
  * el libro de hechos lo declara «derivado» pero de `medido` (su insumo es medido), así que no hay otro dato estructural que lo distinga de un derivado del motor que sí se revalida. */
-function _cifraParaRevalidar(libro, id, deSupuestoFila) {
+function _cifraParaRevalidar(libro, id, deSupuestoFila, supuestoId = null) {
   const c = libro && libro.porId ? cifraDeHecho(libro.porId.get(id)) : null;
   if (!c) return null;
   /* compacto a propósito (el libro tiene un tope de 16 KB que además exige la base, migración 015): los dos valores de siempre —`titular: "medido"`, `tipo: "ref"`— no se escriben; `cifrasDeLaEntrega` los repone */
-  return { raw: c.raw, unidad: c.unidad, clave: c.clave, dueno: c.dueno, ...(c.titular === "medido" ? {} : { titular: c.titular }), procedencia: c.procedencia, ...(c.tipo === "ref" ? {} : { tipo: c.tipo }), ...(deSupuestoFila && c.procedencia !== "medido" ? { deSupuesto: true } : {}) };
+  return { raw: c.raw, unidad: c.unidad, clave: c.clave, dueno: c.dueno, ...(c.titular === "medido" ? {} : { titular: c.titular }), procedencia: c.procedencia, ...(c.tipo === "ref" ? {} : { tipo: c.tipo }), ...(deSupuestoFila && c.procedencia !== "medido" && !(c.clave && esReferenciaDeLaCasa(c.clave)) ? { deSupuesto: true, ...(typeof supuestoId === "string" && supuestoId ? { supuesto: supuestoId } : {}) } : {}) };   /* la REFERENCIA que acompaña a una simulación (el benchmark) es de la empresa o de la casa, no un resultado del supuesto */
 }
 export function _hechosDeLaEntrega(entregaJson, { conFueraDelTexto = true } = {}) {   // exportada para `capacidad/compacto.js` (lo que viaja al anfitrión sale de la MISMA función que arma lo que el libro guarda: mismas cifras, mismos ids)
   const filas = (entregaJson && entregaJson.cifras && Array.isArray(entregaJson.cifras.filas)) ? entregaJson.cifras.filas : [];
@@ -273,7 +273,7 @@ export function _hechosDeLaEntrega(entregaJson, { conFueraDelTexto = true } = {}
     if (!ids.length || !libro) return hecho;
     const prioridad = typeof f.prioridad === "number" ? f.prioridad : idx;
     const deSupuestoFila = typeof v["Supuesto"] === "string" && v["Supuesto"].trim() !== "";
-    const primera = _cifraParaRevalidar(libro, ids[0], deSupuestoFila);
+    const primera = _cifraParaRevalidar(libro, ids[0], deSupuestoFila, f.supuestoId);
     if (!primera) return hecho;
     const ancha = v["Métrica"] == null && v["Valor"] == null;
     if (!ancha) return { ...hecho, rv: { ...primera, prioridad } };
@@ -283,7 +283,7 @@ export function _hechosDeLaEntrega(entregaJson, { conFueraDelTexto = true } = {}
     const usadas = new Set();
     const columnaDe = (id) => { const t = renderDe(libro, id); const col = columnas.find((k) => !usadas.has(k) && typeof v[k] === "string" && v[k] === t); if (col) usadas.add(col); return { col: col || null, texto: col ? v[col] : t }; };
     const l0 = columnaDe(ids[0]);
-    const mas = ids.slice(1).map((id) => { const cf = _cifraParaRevalidar(libro, id, deSupuestoFila); if (!cf) return null; const l = columnaDe(id); return { ref: id, metrica: l.col, valor: l.texto, ...cf }; }).filter(Boolean);
+    const mas = ids.slice(1).map((id) => { const cf = _cifraParaRevalidar(libro, id, deSupuestoFila, f.supuestoId); if (!cf) return null; const l = columnaDe(id); return { ref: id, metrica: l.col, valor: l.texto, ...cf }; }).filter(Boolean);
     return { ...hecho, rv: { ...primera, prioridad, sujeto: typeof v[claves[0]] === "string" ? v[claves[0]] : null, metrica: l0.col, valor: l0.texto, ...(mas.length ? { mas } : {}) } };
   };
   /* LAS CIFRAS DE `detalle.fueraDelTexto` (owner 2026-10-05, §8.2 del Contrato del Anfitrión: «toda cifra que viaja al anfitrión lleva id»): lo que la Entrega recortó de la tabla de Cifras va al detalle y viaja al anfitrión; ahora entra al libro

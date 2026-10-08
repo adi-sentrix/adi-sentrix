@@ -73,7 +73,7 @@ export function guiaDeSimulacion({ tipos = null, sinTipos = false } = {}) {
   const lista = Array.isArray(tipos) && tipos.length ? tipos : Object.entries(ASSUMPTIONS).map(([tipo, def]) => ({ tipo, nombre: def.label, unidades: def.units }));
   const growth = lista.find((t) => t.tipo === "growth") || lista[0];
   return {
-    forma: "Una simulación declara su supuesto en la RAÍZ del encargo, con un id —supuestos: [{ id, tipo, valor, unidad, alcance }]—, y la parte lo CITA por ese id —cierre: \"simulacion\", supuestos: [\"s1\"]—. valor: un número; unidad: una de las del tipo; alcance: \"negocio\" o { eje, nombre } con el nombre exacto de la entidad. Un supuesto escrito dentro de la parte, o sin id, también se lee, pero esta es la forma completa. Hasta " + SUPUESTOS_USUARIO_MAX + " supuestos por encargo.",
+    forma: "Una simulación declara su supuesto en la RAÍZ del encargo, con un id —supuestos: [{ id, tipo, valor, unidad, alcance }]—, y la parte lo CITA por ese id —cierre: \"simulacion\", supuestos: [\"s1\"]—. valor: un número; unidad: una de las del tipo; alcance: \"negocio\" o { eje, nombre } con el nombre exacto de la entidad. Un supuesto escrito dentro de la parte, o sin id, también se lee, pero esta es la forma completa. Hasta " + SUPUESTOS_USUARIO_MAX + " supuestos por encargo. Los supuestos de una parte se aplican juntos, sobre el negocio o un mismo eje; si no se pueden combinar sin inventar un reparto, la parte se rechaza con la razón.",
     ...(sinTipos ? {} : { tipos: lista.map((t) => ({ tipo: t.tipo, ...(t.nombre ? { nombre: t.nombre } : {}), unidades: t.unidades })) }),
     ejemplo: {
       version: "encargo/v1",

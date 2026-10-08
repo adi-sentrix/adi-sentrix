@@ -22,7 +22,7 @@
  *     el cierre `decision` corre las MISMAS lecturas que `lectura` para sus temas — es lo que `prioridadIntegrada`
  *     necesita para poder leer las señales después.
  *   · `oracle/toolRegistry.js:compareEntities` — el cierre `comparacion`.
- *   · `oracle/toolRegistry.js:simulate{General,Carga,Capital,Costo}` — el cierre `simulacion`, con el `productor`
+ *   · `encargo/simulacion.js:simularSupuestos` (ensayo 9: precio · volumen · costo · carga · margen, TODOS los supuestos de una parte JUNTOS) y `oracle/toolRegistry.js:simulateCapital` — el cierre `simulacion`, con el `productor`
  *     que ya resolvió `validar.js` (`Resolucion.supuestos[].productor`, contrato §3.5): este archivo NUNCA vuelve
  *     a decidir el productor, solo arma los args de la tool que `validar.js` ya nombró.
  *   · `agente/herramientasAgente.js:cobranza` (mesaFlujo) — el productor de cobranza en TODOS los cierres: no vive
@@ -53,6 +53,8 @@
  *   effort de trazabilidad — no es una segunda validación de negocio, ver su comentario). */
 import { TOOLS } from "../oracle/toolRegistry.js";
 import { cajaDelAgente } from "../agente/herramientasAgente.js";
+import { simularSupuestos } from "./simulacion.js";   // ensayo 9 (owner 2026-10-09): la simulación comercial COMBINADA — todos los supuestos de una parte, aplicados juntos sobre la fila de cada entidad
+import { ES_COMERCIAL } from "../../engine/simulacionSupuestos.js";
 /* `pasosDelContratoComercial` NO se importa directo: `pasosDeDominios` (abajo) ya la llama por dentro cuando el
  * tema comercial participa sin eje explícito — importarla acá sería una segunda invocación que nadie usa. */
 import { pasosDeDominios } from "../agente/contratoDeDominios.js";
@@ -70,7 +72,7 @@ import { MEDIDAS_DE_LENTE } from "../entrega/prioridad.js";   // FAMILIA 1 (cons
  * oráculo puro. Se exporta para que el LLAMADOR (el gate, y más adelante `entrega/componer.js`) pase SIEMPRE este
  * registro a `runPlan`, nunca `TOOLS` a secas — si no, esas dos tools salen "desconocida" y el plan degrada honesto
  * pero incompleto. */
-export const REGISTRO_LECTURAS = cajaDelAgente(TOOLS);
+export const REGISTRO_LECTURAS = { ...cajaDelAgente(TOOLS), simularSupuestos };   // + la simulación combinada del Encargo (ensayo 9): no es una herramienta del oráculo ni del agente, es de la caja de lecturas del Encargo
 
 /* ── «FRENADO» SIN UMBRAL: la misma prueba para la LECTURA (que pide los días sin venta) y la ENTREGA (que declara el límite) ── */
 /* EL UMBRAL DE VENTA FRENADA PLANTEADO EN LA CONSULTA (owner 2026-09-29, etapa 6, §7.3·35): `criterio.referencia` con
@@ -394,53 +396,32 @@ function _pasosComparacion(p) {
 
 /* ── cierre `simulacion` (contrato §3.5: el PRODUCTOR ya lo resolvió `validar.js`, acá solo se arman los args) ─── */
 function _callDeSupuesto(s) {
-  const alcance = s.alcance;
-  const esNegocio = alcance === "negocio";
-  const nombre = esNegocio ? null : (alcance && alcance.nombre) || null;
-  const ejeAlcance = esNegocio ? null : (alcance && alcance.eje) || null;
-  // CORREGIDO (owner 2026-09-26, CORTE 3d — hallazgo de raíz, «96 filas de clientes no pedidos» en D27) —
-  // `oracle/specRetrieval.js:_scopeRows` exige `entityScope.entities` (un ARRAY dentro de esa clave; ver
-  // `oracle/toolContracts.js`, el otro productor de este mismo campo: `entityScope: { entities }`). Este archivo
-  // pasaba `[nombre]` — un array A SECAS, sin la clave `.entities` — así que `Array.isArray(entityScope.entities)`
-  // daba `false` (un array no tiene esa propiedad) y el filtro por entidad se saltaba EN SILENCIO: la simulación
-  // corría sobre las 13 cuentas del tenant en vez de la UNA que el supuesto citaba. Mismo defecto para
-  // simulateCarga/simulateCapital/simulateCosto (los tres consumen `entityScope` vía `_scopeRows`).
-  const entityScope = nombre ? { entities: [nombre] } : null;
-  if (s.productor === "simulateGeneral") {
-    // simulateGeneral exige DOS variables de rol distinto (precio · volumen), cada una con su delta — contrato
-    // §3.5: "price" mueve precio, "growth" mueve volumen; la variable que el supuesto NO trae viaja en 0 (el
-    // usuario no declaró ese movimiento, así que su delta es cero, nunca inferido de otra cifra).
-    const variableA = { campo: "precioLista", delta_pct: s.tipo === "price" ? s.valor : 0 };
-    // §7.3·38(c) (diagnóstico v14, A5) — un crecimiento en DINERO («+$500.000») NUNCA se pasa como porcentaje (`delta_pct: 500000` era «+500000 % de volumen»):
-    // viaja como `delta_money` y la tool lo convierte a % de la venta del período cerrado de la entidad, a precio constante. El % no se calcula acá: lo sabe la tool, que tiene el dato.
-    const variableB = s.tipo === "growth" && s.unidad === "money"
-      ? { campo: "unidades", delta_money: s.valor }
-      : { campo: "unidades", delta_pct: s.tipo === "growth" ? s.valor : 0 };
-    return { tool: "simulateGeneral", args: { dimension: ejeAlcance, entity: nombre, variableA, variableB }, para: `simulación ${s.tipo} (${s.valor}${s.unidad}) sobre ${nombre || "el negocio"} (simulateGeneral)` };
-  }
-  if (s.productor === "simulateCarga") {
-    return { tool: "simulateCarga", args: { entityScope, delta_pp: s.valor }, para: `simulación de carga (${s.valor}pp) sobre ${nombre || "la cartera"} (simulateCarga)` };
-  }
+  /* ENSAYO 9 (owner 2026-10-09): los supuestos COMERCIALES (precio · volumen · costo · carga · margen) ya no tienen una herramienta cada uno: corren JUNTOS en `simularSupuestos` (`_pasosSimulacion`, abajo; `engine/simulacionSupuestos.js`).
+   * Se retiraron de acá las llamadas a `simulateGeneral` / `simulateCarga` / `simulateCosto`: cada una calculaba SU supuesto sola y la Entrega pegaba los resultados (el margen de «costo +10 % y precio +5 %» salía con el costo sin mover, y la contribución de una
+   * marca, familia o producto sin las acciones comerciales). Queda el único productor que no es un movimiento de la cuenta: liberar el capital inmovilizado de un SKU. */
   if (s.productor === "simulateCapital") {
+    const alcance = s.alcance;
+    const nombre = alcance === "negocio" ? null : (alcance && alcance.nombre) || null;
+    // `oracle/specRetrieval.js:_scopeRows` exige `entityScope.entities` (un ARRAY dentro de esa clave): un array a secas hacía que el filtro por entidad se saltara EN SILENCIO (CORTE 3d, «96 filas de clientes no pedidos»).
+    const entityScope = nombre ? { entities: [nombre] } : null;
     return { tool: "simulateCapital", args: { entityScope }, para: `liberar el capital inmovilizado crítico de ${nombre || "el SKU"} (simulateCapital)` };
-  }
-  if (s.productor === "simulateCosto") {
-    // scope:"all" — el supuesto apunta a UNA entidad puntual (entityScope); el filtro "bajo_benchmark" de
-    // simulateCosto es del modo SIN entidad (mover el costo de todo el eje bajo la vara) y la excluiría si ya
-    // está sobre el benchmark, que no es la pregunta que el supuesto puntual hace.
-    return { tool: "simulateCosto", args: { dimension: ejeAlcance, entityScope, pct: s.valor, scope: "all" }, para: `simulación de costo (${s.valor}%) sobre ${nombre || "el eje"} (simulateCosto)` };
   }
   return null;
 }
 function _pasosSimulacion(p, supuestosResueltos, citadosPorParte) {
   const citados = citadosPorParte.get(p.id) || [];
   const out = [];
+  const comerciales = [];
   for (const sid of citados) {
     const s = (supuestosResueltos || []).find((x) => x.id === sid);
     if (!s) continue;   // el gate del corte 1 ya lo declara en noResuelto; acá simplemente no hay llamada que armar
+    /* ENSAYO 9 (owner 2026-10-09): los supuestos COMERCIALES de una parte se aplican JUNTOS en UNA llamada (antes, una herramienta por supuesto y los resultados se pegaban: «costo +10 % y precio +5 %» mostraba el margen del precio con el costo
+     * sin mover). Los demás productores (liberar capital de inventario) siguen su camino. */
+    if (ES_COMERCIAL(s.tipo) && s.productor !== "simulateCapital") { comerciales.push({ id: s.id, tipo: s.tipo, valor: s.valor, unidad: s.unidad, alcance: s.alcance }); continue; }
     const call = _callDeSupuesto(s);
     if (call) out.push(call);
   }
+  if (comerciales.length) out.unshift({ tool: "simularSupuestos", args: { supuestos: comerciales, entidades: (p.entidades || []).map((e) => ({ nombre: e.nombre, eje: e.eje })), pideTotal: p.universo === "negocio" }, para: `simulación de ${comerciales.length === 1 ? "un supuesto" : `${comerciales.length} supuestos juntos`} (simularSupuestos)` });
   return out;
 }
 

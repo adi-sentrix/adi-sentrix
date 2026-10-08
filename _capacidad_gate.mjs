@@ -485,7 +485,9 @@ for (const M of MUNDOS) {
     ok(x.noResuelto.some((n) => n.motivo === "concepto_sin_productor"), `   «${r.clave}»: consultar sigue sin tener productor (por eso no se ofrece)`);
   }
   ok(!cat.supuestosAdmitidos.some((s) => s.tipo === "inventory") && cat.supuestosAdmitidos.every((s) => Object.keys(s.alcances).length > 0), "★ el supuesto de inventario (sin productor en ningún tema) ya no se ofrece, y cada tipo ofrecido dice DÓNDE corre (tema · ejes)", JSON.stringify(cat.supuestosAdmitidos.map((s) => [s.tipo, s.alcances])).slice(0, 400));
-  ok(cat.supuestosAdmitidos.find((s) => s.tipo === "carga").alcances.comercial.join() === "cliente" && cat.supuestosAdmitidos.find((s) => s.tipo === "custom").alcances.inventario.join() === "sku", "   (carga: solo cuentas · libre: solo producto, en Inventario — lo que el validador decide)");
+  /* ENSAYO 9 (owner 2026-10-09): los cinco tipos comerciales corren en UN modelo — el negocio y cada eje (cuenta · marca · familia · producto); antes la carga era solo de cuentas y el costo y el margen no tenían el negocio (`supuesto_sin_productor`) */
+  const _EJES_DE_SUPUESTO = ["cliente", "familia", "marca", "negocio", "sku"];
+  ok(["growth", "price", "costo", "margin", "carga"].every((tp) => cat.supuestosAdmitidos.find((s) => s.tipo === tp).alcances.comercial.slice().sort().join() === _EJES_DE_SUPUESTO.join()) && cat.supuestosAdmitidos.find((s) => s.tipo === "custom").alcances.inventario.join() === "sku", "   (los cinco tipos comerciales: el negocio y cada eje · libre: solo producto, en Inventario — lo que el validador decide)");
   ok(["ventas_anterior", "markup", "variacion", "variacion_usd", "vs_presupuesto_usd", "umbral_materialidad", "unidades_stock"].every((id) => !cat.conceptosDeDefinicion.some((x) => x.id === id)) && ["ventas", "margen", "capital", "saldo_vencido"].every((id) => cat.conceptosDeDefinicion.some((x) => x.id === id)), "★ los ids que el glosario no define dejan de ofrecerse como definición (y los que sí, siguen)");
 
   /* CARNADAS: el catálogo de ANTES (lo que el recorrido tiene que cazar) — cada defecto reconstruido, solo él, pone el recorrido en ROJO */
