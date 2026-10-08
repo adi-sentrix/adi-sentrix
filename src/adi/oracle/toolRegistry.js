@@ -660,14 +660,14 @@ function _umbralDiasPedido(texto) {
   const m = _UMBRAL_DIAS_CMP.exec(t) || _UMBRAL_DIAS_SUFIJO.exec(t);
   return m ? parseInt(m[1], 10) : null;
 }
-function inventoryStatus({ filters = {}, scenario, focus = "frenado", staleDays = null, entityScope = null, limit = null, _preguntaUsuario = null } = {}) {
+function inventoryStatus({ filters = {}, scenario, focus = "frenado", staleDays = null, entityScope = null, limit = null, _preguntaUsuario = null, porFamilia = false } = {}) {
   const x = _crossGuard(filters, _SCOPE_KEYS); if (x) return _crossFail(x);
   /* EL UMBRAL DE LA CONSULTA (§7.3·32, diseño §3.4): con `focus:"stale"` el umbral vale PARA ESA PREGUNTA y lo trae
    * el plan del LLM en `staleDays`. Si no lo trae, NO se deduce leyendo la pregunta con un reconocedor (entender el
    * lenguaje le toca al LLM, ley del owner): queda «sin evaluar» y el hecho de los días sin venta se entrega igual
    * (supervisor 2026-09-28). */
   const _staleDaysEfectivo = staleDays;
-  const r = _pack(composeSpecInventory({ filters: _isObj(filters) ? filters : {}, scenario, focus, staleDays: _staleDaysEfectivo, entityScope, limit }),
+  const r = _pack(composeSpecInventory({ filters: _isObj(filters) ? filters : {}, scenario, focus, staleDays: _staleDaysEfectivo, entityScope, limit, porFamilia }),
     "no hay señal de inventario para estos filtros");
   // `contrapunta` es OTRO estado del inventario (ej. riesgo de quiebre), INDEPENDIENTE del capital detenido — la clave
   // no lo decía y el LLM la leía como la CAUSA del capital frenado (y mezclaba sus familias con las de los SKU detenidos).
@@ -780,10 +780,11 @@ function marginRead({ filters = {}, scenario, focus = "bajo_benchmark", dimensio
 // salesRead · lectura de ventas por eje (vs período anterior · pivot · brecha).
 // `figsPct` (R-VARIACION-SIN-CIFRA-EN-TOP, diagnóstico v6): forwarding mecánico a `composeSpecVentas` — APAGADO
 // por defecto, solo lo prende `encargo/lecturasDe.js` para la lectura del Encargo (ver la nota en specRetrieval.js).
-function salesRead({ filters = {}, scenario, focus = "vs_anterior", dimension = "cliente", gap = null, pivotFocus = null, entityScope = null, figsPct = false } = {}) {
+// `figsAnterior` (ensayo 7, owner 2026-10-08): igual, aditivo y APAGADO por defecto — publica la venta del año anterior de CADA entidad (el concepto `ventas_anterior` que el catálogo ofrece).
+function salesRead({ filters = {}, scenario, focus = "vs_anterior", dimension = "cliente", gap = null, pivotFocus = null, entityScope = null, figsPct = false, figsAnterior = false } = {}) {
   const x = _crossGuard(filters, _SCOPE_KEYS); if (x) return _crossFail(x);
   const dim = _ejeCanon(dimension) || dimension;   // "SKU"/"clientes" → el eje que el composer sí indexa
-  const r = _pack(composeSpecVentas({ filters: _isObj(filters) ? filters : {}, scenario, focus, dimension: dim, gap, pivotFocus, entityScope, figsPct }),
+  const r = _pack(composeSpecVentas({ filters: _isObj(filters) ? filters : {}, scenario, focus, dimension: dim, gap, pivotFocus, entityScope, figsPct, figsAnterior }),
     `no hay lectura de ventas para el eje '${dimension}' con estos filtros`);
   // DECISIÓN 8 · dos formas del mismo defecto quedan cerradas acá: el eje inexistente (`bodega` → el composer caía
   // a `cliente`) y el pivot INTERNO que conserva el nombre del eje pedido (`vs_anterior` por SKU declara `sku` y

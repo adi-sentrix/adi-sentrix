@@ -216,7 +216,10 @@ export function ausenciaPorId(id) {
 /* ── EL DATO AUSENTE POR ENTIDAD (§7.3·52b, owner 2026-10-01 · «el cero solo si el dato lo demuestra») ─────────────────────
  * Lo que la fuente no trae para una entidad NO es un cero: se dice «sin dato de X para Y» y se declara aparte. Es la ÚNICA forma nueva de la regla del cero;
  * su redacción vive ACÁ, una vez (la Entrega la lee; ningún composer la escribe a mano). `metrica` es el nombre de la casa (léxico) y `sujetos` las entidades. */
-export const MOTIVO_SIN_DATO = "La lectura de este turno no publicó esa cifra para esas cuentas; no se rellena con otra.";   /* el motivo de siempre de la foto (v22, S31): una sola redacción */
+/* ENSAYO 7 (owner 2026-10-08 · B02|2|3): el aviso decía «sin dato de ventas del año anterior para Samsung y LG» y el anfitrión lo repitió al usuario como «no hay ventas del año anterior» con el dato en la tabla. Lo que la Entrega sabe es SOLO que esta lectura no publicó la cifra: eso es lo que dice,
+ * que el dato puede existir, y cómo pedirlo. El título conserva la forma única «sin dato de X para Y» (52b) precedida de «esta lectura quedó». */
+export const MOTIVO_SIN_DATO = "Es un límite de esta lectura, no un dato que la empresa no tenga: la lectura de este turno no publicó esa cifra para esas cuentas. No se rellena con otra; pídala aparte (solo ese concepto, para esas cuentas) y ADI la entrega si el dato la tiene.";
+export const PREFIJO_SIN_DATO = "esta lectura quedó";   /* «Sobre la parte p1 (comercial), esta lectura quedó sin dato de X para Y» */
 export function textoSinDato(metrica, sujetos) {
   const xs = (Array.isArray(sujetos) ? sujetos : [sujetos]).map((s) => String(s)).filter(Boolean);
   const lista = xs.length > 1 ? `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}` : String(xs[0] || "");

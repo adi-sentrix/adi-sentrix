@@ -5,6 +5,10 @@
  *   palabras[]     lo que el rastreo NO ve (conteos, relaciones y afirmaciones dichas con letras), por TURNO `hilo|sesión|turno` (un id puede agrupar varios con « · ")
  *   paraRevisar    { noV[] } las cifras que el rastreo dejó «para revisar» y la persona juzgó no-V (con id de celda)
  *   casosA[]       los candidatos a error de ADI: estado «firme» · «a decidir…» (candidato) · «observación»
+ *
+ * CONVENCIÓN DE MEDICIÓN (owner 2026-10-08 · es de DOCUMENTACIÓN: ningún cálculo cambia; el diseño completo está en `_ADI_DISENO_MEDICION_ANFITRION.md` §6):
+ *   · MATERIAL (H-grave, y A cuando la Entrega indujo el error) = un error que cambiaría una conclusión o una cifra sobre la que el usuario actuaría.
+ *   · LEVE (H-leve) = un error DENTRO de una hipótesis explícita, una autocorrección en la misma respuesta, o una imprecisión de orden que no cambia la conclusión.
  * NADA acá llama a un modelo. Es lectura de datos de la persona, con una sola regla de fondo: lo que la persona clasificó manda sobre la máquina. */
 
 const _plano = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "");

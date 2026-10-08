@@ -80,6 +80,29 @@ export function normalizarFormaDelEncargo(encargo) {
         }
       }
 
+      /* universo como LISTA DE NOMBRES (ensayo 7, owner 2026-10-08): el catálogo documenta «una lista de nombres de entidades» y el Core no tiene universo por nombres —tiene `entidades`—: la lista se ignoraba y la consulta devolvía el eje entero (con su total) como si
+       * nadie hubiera acotado. Un conjunto NOMBRADO es lo que `entidades` ya sabe servir (las cifras de exactamente esas entidades, sin total ni cola de las demás): la lista se lee como `entidades`. Si la parte trae las dos y no son las mismas, no se adivina cuál
+       * manda: `formato_invalido`, con la forma esperada. Una lista vacía o con algo que no es un nombre tampoco corre. */
+      if (Array.isArray(p.universo)) {
+        const ESPERADO_UNIVERSO_LISTA = "una lista de nombres exactos de entidades (la misma que \"entidades\": [{\"nombre\": …}]); para acotar con reglas (los mayores, un estado, un filtro) use un objeto: {\"eje\": …, \"top\": …}";
+        const nombres = p.universo.map((x) => (_str(x) ? x.trim() : _es(x) && _str(x.nombre) ? x.nombre.trim() : null));
+        if (!nombres.length || nombres.some((n) => n == null)) {
+          salida.formato.push(_problema(id, "universo", _breve(p.universo), ESPERADO_UNIVERSO_LISTA, `En la parte ${id}, «universo» llegó como una lista ${nombres.length ? "con un elemento que no es un nombre de entidad" : "vacía"} (${_breve(p.universo)}); se esperaba ${ESPERADO_UNIVERSO_LISTA}. No se evaluó nada: la consulta no corrió sin acotar.`));
+        } else {
+          const ya = Array.isArray(parte.entidades) ? parte.entidades.map((e) => (_es(e) && _str(e.nombre) ? e.nombre.trim() : null)) : null;
+          const clave = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+          const mismos = ya && ya.length && ya.every((n) => n != null) && new Set(ya.map(clave)).size === new Set(nombres.map(clave)).size && ya.every((n) => nombres.some((m) => clave(m) === clave(n)));
+          if (ya && ya.length && !mismos) {
+            salida.formato.push(_problema(id, "universo", _breve(p.universo), ESPERADO_UNIVERSO_LISTA, `En la parte ${id}, «universo» (${_breve(p.universo)}) y «entidades» (${_breve(ya)}) nombran entidades distintas; ADI no adivina cuál manda. Mande una sola de las dos con la lista completa (${ESPERADO_UNIVERSO_LISTA}).`));
+          } else {
+            copiarParte();
+            if (!mismos) parte.entidades = nombres.map((nombre) => ({ nombre }));
+            delete parte.universo;
+            salida.avisos.push(`en la parte ${id}, «universo» llegó como lista de nombres: se leyó como las entidades de la parte (${nombres.length}), y la consulta sirve exactamente esas, sin las demás del eje ni su total.`);
+          }
+        }
+      }
+
       /* conceptos y supuestos de la parte: una cadena suelta es la lista de uno */
       if (_str(p.conceptos)) { copiarParte(); parte.conceptos = [p.conceptos]; salida.avisos.push(`en la parte ${id}, «conceptos» llegó como un nombre suelto: se leyó como lista de uno.`); }
       if (_str(p.supuestos)) { copiarParte(); parte.supuestos = [p.supuestos]; }

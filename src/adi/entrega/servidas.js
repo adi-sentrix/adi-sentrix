@@ -26,7 +26,7 @@ import { valorDeRanking } from "../notario/verificar.js";
 import { metricaPorClave, unidadDeClave, claveDeMetrica, claveExactaDeMetrica, coberturaDeLaMetrica } from "../notario/lexico.js";
 import { normalizar } from "../notario/afirmacion.js";
 import { productorDe } from "../encargo/esquema.js";
-import { textoSinDato, MOTIVO_SIN_DATO } from "../../config/contract/ausencias.js";
+import { textoSinDato, MOTIVO_SIN_DATO, PREFIJO_SIN_DATO } from "../../config/contract/ausencias.js";
 
 export const ORIGEN = Object.freeze({ MEDIDO: "medido", COBERTURA: "cobertura", AUSENTE: "ausente" });
 const _nombreDeMetrica = (clave) => (metricaPorClave(clave) || {}).nombre || clave;
@@ -128,7 +128,7 @@ export function declararLoQueFalta(plan, entrega, { dominioNombre = (t) => t, co
   const parte = `Sobre la parte ${plan.parteId} (${dominioNombre(plan.tema)})`;
   for (const nombre of plan.sinCifra || []) {
     if (_impreso(entrega, nombre)) continue;
-    limites.push({ titulo: `${parte}, no se pudo servir la cifra de ${nombre}`, motivo: `La lectura de este turno no trajo ninguna cifra de ${nombre} para lo pedido: se declara en vez de omitirla. No se sustituye por otra cuenta.` });
+    limites.push({ titulo: `${parte}, no se pudo servir la cifra de ${nombre}`, motivo: `La lectura de este turno no trajo ninguna cifra de ${nombre} para lo pedido: es un límite de esta lectura, no prueba que la empresa no tenga el dato, y se puede pedir aparte (ADI la entrega si el dato la tiene). Se declara en vez de omitirla; no se sustituye por otra cuenta.` });
   }
   const porClave = new Map();
   const sinNada = new Set((plan.sinCifra || []).map(normalizar));   /* la entidad sin NINGUNA cifra ya se declaró entera arriba */
@@ -140,9 +140,9 @@ export function declararLoQueFalta(plan, entrega, { dominioNombre = (t) => t, co
     if (esFoto && conFila.length && conteoDeEje) {
       numeros.push(String(sin.length), String(orden.length));
       /* §7.3·52(b) (parte B): la ausencia se dice SIEMPRE «sin dato de X para Y» (el texto de `ausencias.js`); la foto agrega solo cuántas de las cuentas del eje quedan sin la cifra */
-      limites.push({ titulo: `${parte}, ${textoSinDato(_nombreDeMetrica(clave), sin)} (${sin.length} de ${conteoDeEje(plan.eje, orden.length).texto})`, motivo: MOTIVO_SIN_DATO });
+      limites.push({ titulo: `${parte}, ${PREFIJO_SIN_DATO} ${textoSinDato(_nombreDeMetrica(clave), sin)} (${sin.length} de ${conteoDeEje(plan.eje, orden.length).texto})`, motivo: MOTIVO_SIN_DATO });
     } else {
-      limites.push({ titulo: `${parte}, ${textoSinDato(_nombreDeMetrica(clave), sin)}`, motivo: MOTIVO_SIN_DATO });
+      limites.push({ titulo: `${parte}, ${PREFIJO_SIN_DATO} ${textoSinDato(_nombreDeMetrica(clave), sin)}`, motivo: MOTIVO_SIN_DATO });
     }
   }
   return { limites, numeros };

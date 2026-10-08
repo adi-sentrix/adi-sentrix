@@ -219,6 +219,11 @@ anfitrión (mediría otra cosa), ni juez de la misma familia.
   como medido o referencia general dicha como criterio/objetivo de la empresa; premisa falsa aceptada con cifra; pedido no
   soportado respondido con cifra ajena; dato de otra empresa. **No material:** redondeo a lo impreso, estilo, orden de
   párrafos, hechos no obligatorios omitidos, preguntar de más (se anota).
+- **Convención de medición (owner, 2026-10-08).** Al clasificar a mano un error del anfitrión se usa esta definición, textual:
+  **«Material = un error que cambiaría una conclusión o una cifra sobre la que el usuario actuaría. Leve = errores dentro de una hipótesis explícita, autocorrecciones dentro de la misma respuesta, o imprecisiones de orden que no cambian la conclusión.»**
+  Es una convención de la revisión humana, no una regla del medidor: no cambia ningún cálculo, umbral ni tolerancia (el límite de 1 cada 500, el patrón sistemático y el «ADI: 0 errores materiales» siguen como arriba). Las categorías de la clasificación
+  (`clasificacion.json`, leída por `scripts/medicion-anfitrion/clasificacion.mjs`): **V** falla del medidor (la frase era verdadera) · **H-correcta** verdadera, pero calculada por el anfitrión (fuera de contrato) · **H-leve** falsa y leve según la definición ·
+  **H-grave** falsa y material según la definición · **A** error de ADI. Una oración con varias celdas falsas sigue siendo un solo error.
 - **Falla del medidor** (el juez marcó falso y la persona lo revierte) no cuenta contra el anfitrión; se corrige el juez y
   se registra (como en la etapa 1: bruto vs real).
 - **Invalida una corrida:** huella del catálogo rota antes de correr (lo leyó alguien que implementa); cambio de modelo o

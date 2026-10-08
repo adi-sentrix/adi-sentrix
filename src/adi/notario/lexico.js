@@ -15,7 +15,7 @@ import { coberturaDeLaMetrica } from "../../config/contract/coberturaDeFuentes.j
 export const CLAVES_DE_METRICA = [
   /* ── comercial ── */
   { clave: "ventas", nombre: "Venta", conceptos: ["venta", "ventas", "ventas del periodo", "venta del periodo", "ventas totales", "vendo", "vende", "venden", "vendio", "vendiste", "vendieron", "te compro", "te compraron", "le vendiste", "les vendiste", "facturado", "facturaste", "nos compra", "nos compran", "te compra", "le compra", "les compra"], dominio: "comercial", polaridad: "mayor", unidad: "money", muro: ["ventas"] },
-  { clave: "ventas_anterior", nombre: "Ventas del año anterior", conceptos: ["ventas del ano anterior"], dominio: "comercial", polaridad: null, unidad: "money", muro: ["ventas"] },
+  { clave: "ventas_anterior", nombre: "Ventas del año anterior", conceptos: ["ventas del ano anterior", "ventas ano anterior"], dominio: "comercial", polaridad: null, unidad: "money", muro: ["ventas"] },
   { clave: "margen", nombre: "Margen", conceptos: ["margen"], dominio: "comercial", polaridad: "mayor", unidad: "pct", muro: ["margen"], tasa: true },
   { clave: "margen_promedio", nombre: "Margen promedio", conceptos: ["margen promedio"], dominio: "comercial", polaridad: "mayor", unidad: "pct", muro: ["margen"], tasa: true, negocio: true },
   { clave: "contribucion", nombre: "Contribución", conceptos: ["contribucion", "contribucion total"], dominio: "comercial", polaridad: "mayor", unidad: "money", muro: ["contribucion"] },

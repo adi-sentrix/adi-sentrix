@@ -18,6 +18,7 @@
  *       declaran (`ok:false`), nunca lanzan — y nunca tocan el tenant activo del proceso.
  *   8 · ENSAYO 6 (owner 2026-10-08): LA VENTA NO SE ABRE POR BODEGA — `consultar` rechaza (`venta_por_bodega`) toda métrica comercial sobre un universo definido por bodega o agrupada por bodega, con la razón de negocio y lo que SÍ se puede; el inventario por bodega sigue permitido; el agente ya cumple la misma ley.
  *   9 · ENSAYO 6: EL CATÁLOGO ES COHERENTE CON `consultar` — un recorrido llama a `consultar` por cada concepto × eje × cierre, definición, tipo de supuesto, lente, estado y conjunto que el catálogo ofrece (demo y no-demo), y cada defecto de ANTES reconstruido lo pone en rojo.
+ *   10 · ENSAYO 7 (owner 2026-10-08): LO OFRECIDO ENTREGA CIFRAS (ventas del año anterior en las 4 cuentas/marcas/familias/canales, brecha por cuenta, capital inmovilizado por familia, margen de inventario por SKU, y los conceptos con productor propio al nombrar entidades o comparar), el aviso de ausencia no dice «la empresa no tiene el dato», y un universo como lista de nombres se honra (o se rechaza enseñando) — nunca se ignora.
  *   7 · ENSAYO 5: UN RECHAZO ENSEÑA — el catálogo documenta `universo` (con ejemplos que valen) y cada rechazo de `consultar` (los `universo_invalido` del ensayo, la entidad inexistente, cada motivo del contrato) trae alternativas.
  *
  * CERO llamadas a un LLM · CERO red. Solo por `npm run gates:offline` o
@@ -42,6 +43,8 @@ import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
 import { mapaDelDato } from "./src/adi/agente/mapaDelDato.js";
 import { packRenombrado, EMPRESA_NO_DEMO } from "./scripts/medicion-anfitrion/empresa-no-demo.mjs";
+import { claveDeMetrica } from "./src/adi/notario/lexico.js";
+import { MOTIVO_SIN_DATO } from "./src/config/contract/ausencias.js";
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -410,12 +413,18 @@ H("8 · la ley, en frío: forma de lo que deja pasar y de lo que no");
 /* ═══ 9 · EL CATÁLOGO ES COHERENTE CON `consultar` (ensayo 6, owner 2026-10-08): TODO LO QUE OFRECE SE PUEDE RESPONDER ═══════════════════════════════════════════════════════════════
  * A01|1|4 pidió `margen_promedio` (ofrecido por el catálogo como concepto del negocio) y `consultar` volvió `concepto_sin_productor`. Este recorrido camina la OFERTA del catálogo y llama a `consultar` por cada combinación —concepto × eje × cierre (cifra ·
  * lectura · decisión · comparación), cada id de definición, cada tipo de supuesto en cada lugar donde dice que corre, cada lente de criterio, cada estado y conjunto de universo—: si algo ofrecido no se responde, el recorrido lo nombra. Así no vuelve a desviarse. */
+/* ENSAYO 7 (owner 2026-10-08): «responder» ya no es «no rechazar». Lo que el catálogo ofrece como concepto tiene que traer AL MENOS UNA CIFRA DEL CONCEPTO CON ID (una fila de la tabla con su hecho), o consultar la rechaza con una razón precisa que enseña
+ * (`noResuelto` con alternativas). Un `ok` sin una sola cifra suya —aunque traiga un aviso genérico o las cifras de otro concepto— es una oferta que no se cumple (los sondeos del ensayo 7: `ventas_anterior` en los 4 ejes, `brecha` por cuenta, `capital_inmovilizado`
+ * por familia y `margen_inventario` por SKU volvían ok con cero cifras). */
+const filasConId = (r) => [...((((r && r.entrega && r.entrega.json) || {}).cifras || {}).filas || []), ...((((r && r.entrega && r.entrega.json) || {}).detalle || {}).filas || [])].filter((f) => Array.isArray(f.hechos) && f.hechos.length);
+const cifrasDelConcepto = (r, concepto) => filasConId(r).filter((f) => claveDeMetrica(String((f.valores || {})["Métrica"] || "")) === concepto).length;
 async function recorrerOferta(A, T, catalogo) {
   const malas = [];
-  const probar = async (etiqueta, partes, extra) => {
+  const probar = async (etiqueta, partes, extra, concepto = null) => {
     let r; try { r = await A.consultar({ tenant: T, encargo: E1(partes, extra) }); } catch (e) { malas.push(`${etiqueta}: lanzó ${e && e.message}`); return false; }
     const ok1 = r.ok === true && (r.noResuelto || []).length === 0;
     if (!ok1) malas.push(`${etiqueta} → ${r.ok ? "ok" : "no ok"} ${(r.noResuelto || []).map((n) => `${n.campo}:${n.motivo}`).join(",")}`);
+    else if (concepto && cifrasDelConcepto(r, concepto) === 0) { malas.push(`${etiqueta} → ok pero SIN UNA CIFRA de «${concepto}» con id y sin una razón que enseñe`); return false; }
     return ok1;
   };
   const ejemplos = Object.fromEntries((catalogo.ejes || []).map((e) => [e.eje, e.ejemplos || []]));
@@ -425,11 +434,13 @@ async function recorrerOferta(A, T, catalogo) {
       const ejes = c.ejes && c.ejes.length ? c.ejes : [null];
       for (const eje of ejes) {
         const base = { tema: t.id, conceptos: [c.clave], ...(eje ? { eje } : {}) };
-        for (const cierre of ["cifra", "lectura", "decision"]) if (t.cierres[cierre] === true) await probar(`${t.id}/${c.clave}/${eje || "sin eje"}/${cierre}`, [{ id: "p1", ...base, cierre }]);
+        for (const cierre of ["cifra", "lectura", "decision"]) if (t.cierres[cierre] === true) await probar(`${t.id}/${c.clave}/${eje || "sin eje"}/${cierre}`, [{ id: "p1", ...base, cierre }], undefined, c.negocio || c.referencia || !eje ? null : c.clave);
+        /* nombrando entidades (como B02|2|3: «ventas y ventas del año anterior de Samsung y LG»): el concepto sigue entregando su cifra */
+        if (eje && !c.negocio && !c.referencia) { const ex2 = ejemplos[eje] || []; if (ex2.length >= 2 && t.cierres.cifra === true) await probar(`${t.id}/${c.clave}/${eje}/cifra con entidades nombradas`, [{ id: "p1", ...base, cierre: "cifra", entidades: ex2.slice(0, 2).map((nombre) => ({ nombre, eje })) }], undefined, c.clave); }
         if (t.cierres.comparacion === true) {
           const ex = eje ? ejemplos[eje] || [] : [];
           if (ex.length < 2) malas.push(`${t.id}/${c.clave}/${eje || "sin eje"}/comparacion: el catálogo no trae dos ejemplos del eje para comparar`);
-          else await probar(`${t.id}/${c.clave}/${eje}/comparacion`, [{ id: "p1", ...base, cierre: "comparacion", entidades: ex.slice(0, 2).map((nombre) => ({ nombre, eje })) }]);
+          else await probar(`${t.id}/${c.clave}/${eje}/comparacion`, [{ id: "p1", ...base, cierre: "comparacion", entidades: ex.slice(0, 2).map((nombre) => ({ nombre, eje })) }], undefined, c.negocio || c.referencia ? null : c.clave);
         }
       }
     }
@@ -489,6 +500,109 @@ for (const M of MUNDOS) {
   const m5 = await recorrerOferta(A, M.T, minimo({ temas: [temaComercial([{ clave: "ventas", rotulo: "Venta", unidad: "money", referencia: false, negocio: false, ejes: ["cliente"] }])] }));
   ok(m5.length === 0, "…y el control: la misma mini-oferta SIN la bodega pasa limpia (el recorrido no inventa rojos)", m5.join(" | ").slice(0, 200));
   ok(m4.some((x) => /comercial\/ventas\/bodega/.test(x)), "CARNADA «el catálogo ofrece la venta por bodega» → el recorrido la nombra (la ley de la bodega)", m4.join(" | ").slice(0, 300));
+
+  /* CARNADAS DEL ENSAYO 7 — «ok sin una sola cifra»: cada oferta que los sondeos encontraron vacía, con la respuesta de ANTES reconstruida (la misma consulta, sin las cifras de ese concepto, sin aviso del concepto) → el recorrido la nombra;
+   * el control es la misma oferta con la respuesta de HOY → limpia */
+  const sinLasCifrasDe = (concepto) => ({ consultar: async (x) => {
+    const r = JSON.parse(JSON.stringify(await A.consultar(x)));
+    const j = r.entrega && r.entrega.json; if (!j) return r;
+    const quitar = (o) => { if (o && Array.isArray(o.filas)) o.filas = o.filas.filter((f) => claveDeMetrica(String((f.valores || {})["Métrica"] || "")) !== concepto); };
+    quitar(j.cifras); quitar(j.detalle); j.limites = (j.limites || []).filter((l) => l._ausencia === true || /perfil completo/.test(String(l.titulo || "")));
+    return r;
+  } });
+  const temaDe = (id, conceptos) => { const t = cat.temas.find((x) => x.id === id); return { id, estado: "activo", cierres: t.cierres, conceptos }; };
+  const OFERTAS_VACIAS = [
+    ["comercial", "ventas_anterior", ["cliente", "marca", "familia", "canal"], "Ventas del año anterior", "money"],
+    ["comercial", "brecha", ["cliente"], "Brecha al benchmark", "pp"],
+    ["inventario", "capital_inmovilizado", ["familia"], "Capital inmovilizado", "money"],
+    ["inventario", "margen_inventario", ["sku"], "Margen de inventario", "pct"],
+  ];
+  for (const [tema, clave, ejes, rotulo, unidad] of OFERTAS_VACIAS) {
+    const oferta = minimo({ temas: [temaDe(tema, [{ clave, rotulo, unidad, referencia: false, negocio: false, ejes }])] });
+    const antes = await recorrerOferta(sinLasCifrasDe(clave), M.T, oferta);
+    ok(ejes.every((e) => antes.some((x) => x.startsWith(`${tema}/${clave}/${e}/cifra → ok pero SIN UNA CIFRA`))), `CARNADA «${clave} por ${ejes.join(" · ")} vuelve ok con cero cifras» → el recorrido nombra cada eje (ni una cifra con id ni una razón que enseñe)`, antes.join(" | ").slice(0, 400));
+    const hoy = await recorrerOferta(A, M.T, oferta);
+    ok(hoy.length === 0, `…y el control: «${clave}» de HOY entrega su cifra en ${ejes.join(" · ")} (cifra · lectura · decisión · con entidades nombradas · comparación)`, hoy.join(" | ").slice(0, 400));
+  }
+}
+
+/* ═══ 10 · ENSAYO 7 (owner 2026-10-08): LO QUE EL CATÁLOGO OFRECE ENTREGA SU CIFRA · EL AVISO DE AUSENCIA NO DICE «LA EMPRESA NO TIENE EL DATO» · UN UNIVERSO COMO LISTA DE NOMBRES NO SE IGNORA ═══════════════════════════════════════════════════════
+ * B02|2|3: «ventas y ventas del año anterior de Samsung y LG» → la Entrega dijo «sin dato de ventas del año anterior para Samsung y LG» con el dato en la tabla (`anterior`, la fuente de la variación: 4.1 % y 15.6 %) y el anfitrión le dijo al usuario «no hay ventas del año anterior».
+ * Dos causas: la fila completa de la marca rotula esa cifra «Ventas año anterior» (el léxico solo conocía «Ventas del año anterior» y la leía como la venta del período) y la lectura por eje solo publicaba el TOTAL del negocio. Sobre el demo Y la empresa no-demo. */
+const dinero = (txt) => { const m = String(txt).match(/\$([\d.,]+)\s*([KMB]?)/); if (!m) return NaN; return parseFloat(m[1].replace(/,/g, "")) * ({ "": 1, K: 1e3, M: 1e6, B: 1e9 })[m[2]]; };
+const filaDe = (r, ent, metrica) => filasConId(r).find((f) => f.valores && f.valores["Entidad / grupo"] === ent && f.valores["Métrica"] === metrica) || null;
+const limitesDe = (r) => ((((r && r.entrega && r.entrega.json) || {}).limites) || []).filter((l) => l._ausencia !== true);
+for (const M of MUNDOS) {
+  H(`10 · ensayo 7: lo ofrecido entrega, el aviso es honesto, el universo por nombres se honra (${M.etiqueta})`);
+  const A = crearAcciones();
+  const C = (partes, extra) => A.consultar({ tenant: M.T, encargo: E1(partes, extra) });
+  const nombresDe = (eje) => conTenantActivo(M.T.dataset, () => axisEntityNames(eje));
+  const [mA, mB] = nombresDe("marca");
+
+  /* 10a · B02|2|3 tal cual: la venta del año anterior de dos marcas nombradas, junto a la venta */
+  const rB = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas", "ventas_anterior"], eje: "marca", entidades: [mA, mB] }]);
+  const fA = filaDe(rB, mA, "Ventas del año anterior"), fB = filaDe(rB, mB, "Ventas del año anterior");
+  ok(rB.ok === true && !!fA && !!fB, `★ B02|2|3: «ventas y ventas del año anterior de ${mA} y ${mB}» entrega la venta del año anterior de cada una, con su id (antes: «sin dato de ventas del año anterior para ${mA} y ${mB}»)`, JSON.stringify(limitesDe(rB).map((l) => l.titulo)));
+  ok(!limitesDe(rB).some((l) => /ventas del año anterior/i.test(l.titulo)) && !/sin dato de ventas del año anterior/.test(rB.entrega.texto), "   y la Entrega ya no dice «sin dato de ventas del año anterior» (ni en el texto ni en los límites)");
+  const rG = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas_anterior"], eje: "marca" }]);
+  ok(rG.ok === true && cifrasDelConcepto(rG, "ventas_anterior") === nombresDe("marca").length, "★ la venta del año anterior por marca (el eje entero) entrega UNA cifra por marca, con id", `${cifrasDelConcepto(rG, "ventas_anterior")} de ${nombresDe("marca").length}`);
+  ok(filaDe(rG, mA, "Ventas del año anterior") && filaDe(rG, mA, "Ventas del año anterior").valores.Valor === fA.valores.Valor && filaDe(rG, mB, "Ventas del año anterior").valores.Valor === fB.valores.Valor, "   y es LA MISMA cifra por la fila completa de la marca y por el eje entero (una sola verdad por eje)", `${fA && fA.valores.Valor} / ${filaDe(rG, mA, "Ventas del año anterior") && filaDe(rG, mA, "Ventas del año anterior").valores.Valor}`);
+  /* coherente con la variación que la misma Entrega ya entregaba: venta ÷ año anterior − 1 (las cifras vienen redondeadas a $0.1M: la diferencia posible es la del redondeo) */
+  const rV = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["variacion", "ventas"], eje: "marca", entidades: [mA] }]);
+  const vA = filaDe(rV, mA, "Variación vs año anterior"), ventaA = filaDe(rV, mA, "Venta");
+  if (vA && ventaA && fA) { const calc = (dinero(ventaA.valores.Valor) / dinero(fA.valores.Valor) - 1) * 100, dicho = parseFloat(String(vA.valores.Valor).replace("%", "")); ok(Math.abs(calc - dicho) <= 0.6, `   y cuadra con la variación entregada de ${mA} (${vA.valores.Valor}) contra su venta y su año anterior (${ventaA.valores.Valor} / ${fA.valores.Valor})`, `${calc.toFixed(2)} vs ${dicho}`); }
+  else ok(false, "   la variación, la venta y el año anterior de la misma marca existen para compararlos", JSON.stringify([!!vA, !!ventaA, !!fA]));
+  /* 10b · lo que el catálogo ofrece al NOMBRAR entidades o COMPARAR: cada concepto con productor propio entrega (antes «no se pudo servir la cifra de X» / «sin dato de …»), uno por uno */
+  const CON_PRODUCTOR_PROPIO = [["comercial", "ventas_anterior", ["cliente", "marca", "familia", "canal"]], ["comercial", "variacion_usd", ["cliente", "marca", "familia", "canal"]], ["comercial", "vs_presupuesto", ["cliente", "marca", "familia", "canal"]], ["comercial", "vs_presupuesto_usd", ["cliente", "marca", "familia", "canal"]], ["comercial", "carga_alta", ["cliente"]], ["comercial", "brecha_precio_costo", ["cliente"]], ["comercial", "markup", ["cliente"]], ["inventario", "capital_frenado", ["familia"]], ["inventario", "capital_inmovilizado", ["familia"]]];
+  const sinCifra = [];
+  for (const [tema, concepto, ejes] of CON_PRODUCTOR_PROPIO) for (const eje of ejes) {
+    const ex = nombresDe(eje); if (ex.length < 2) continue;
+    for (const cierre of ["cifra", "comparacion"]) {
+      const r = await C([{ id: "p1", tema, cierre, conceptos: [concepto], eje, entidades: ex.slice(0, 2).map((nombre) => ({ nombre, eje })) }]);
+      if (cifrasDelConcepto(r, concepto) === 0) sinCifra.push(`${tema}/${concepto}/${eje}/${cierre} con entidades`);
+    }
+  }
+  ok(sinCifra.length === 0, "★ nombrando dos entidades (cifra y comparación) cada concepto con productor propio entrega al menos una cifra suya con id — antes: «no se pudo servir la cifra de X» / «sin dato de …» con el dato en la lectura", sinCifra.join(" | ").slice(0, 400));
+
+  /* 10c · el aviso de ausencia: precisa que es un límite de ESTA LECTURA (no del dato de la empresa) y cómo pedirlo */
+  const [f1, f2] = nombresDe("familia");
+  const rAus = await C([{ id: "p1", tema: "inventario", cierre: "comparacion", conceptos: ["capital_frenado"], eje: "familia", entidades: [f1, f2].map((nombre) => ({ nombre, eje: "familia" })) }]);
+  const lAus = limitesDe(rAus).find((l) => /sin dato de capital inmovilizado crítico para/.test(l.titulo));
+  ok(!!lAus && /^Sobre la parte p1 \(inventario\), esta lectura quedó sin dato de capital inmovilizado crítico para /.test(lAus.titulo), "★ el aviso de ausencia dice «esta lectura quedó sin dato de X para Y» (la forma única «sin dato de X para Y», ahora atribuida a la lectura)", JSON.stringify(lAus));
+  ok(!!lAus && lAus.motivo === MOTIVO_SIN_DATO && /no un dato que la empresa no tenga/.test(lAus.motivo) && /no publicó esa cifra/.test(lAus.motivo) && /pídala aparte/.test(lAus.motivo), "★ y su motivo dice lo que sabe: es un límite de esta lectura, NO un dato que la empresa no tenga, que se puede pedir aparte (solo ese concepto, para esas cuentas) — nunca puede leerse como «la empresa no tiene el dato»", lAus && lAus.motivo);
+  ok(!/La lectura de este turno no publicó esa cifra para esas cuentas; no se rellena con otra\./.test(rAus.entrega.texto), "   y la redacción de ANTES («La lectura de este turno no publicó esa cifra para esas cuentas; no se rellena con otra.») ya no sale");
+  const { declararLoQueFalta } = await import("./src/adi/entrega/servidas.js");
+  const dSin = declararLoQueFalta({ _servido: true, parteId: "p1", tema: "comercial", sinCifra: ["Falabella"], orden: [], faltantes: [] }, { cifras: { filas: [] } }, { dominioNombre: (t) => t });
+  ok(dSin.limites.length === 1 && /es un límite de esta lectura, no prueba que la empresa no tenga el dato/.test(dSin.limites[0].motivo) && /se puede pedir aparte/.test(dSin.limites[0].motivo), "★ «no se pudo servir la cifra de X» tampoco puede leerse como «la empresa no tiene la cifra»: dice que puede pedirse aparte", JSON.stringify(dSin.limites));
+
+  /* 10d · UN UNIVERSO COMO LISTA DE NOMBRES: se honra (el conjunto nombrado, sin total) o se rechaza enseñando — nunca se ignora */
+  const clientes = nombresDe("cliente"), [c1, c2] = clientes;
+  const filasDe = (r) => (((((r && r.entrega && r.entrega.json) || {}).cifras) || {}).filas) || [];
+  const entidadesDe = (r) => [...new Set(filasDe(r).map((f) => f.valores["Entidad / grupo"]))];
+  const rU = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: [c1, c2] }]);
+  ok(rU.ok === true && entidadesDe(rU).join() === [c1, c2].join() && filasDe(rU).length === 2, `★ \`universo: ["${c1}","${c2}"]\` sirve EXACTAMENTE esas dos cuentas (antes: las ${clientes.length} del eje más su total, sin aviso)`, JSON.stringify(entidadesDe(rU)));
+  ok(!filasDe(rU).some((f) => /total|negocio/i.test(String(f.valores["Entidad / grupo"]))), "   sin ninguna fila de «total» (un total solo si el conjunto es el universo entero)");
+  ok((rU.advertencias || []).some((a) => /universo.*lista de nombres.*entidades de la parte/.test(a)), "   y lo dice: una advertencia explica que la lista se leyó como las entidades de la parte", JSON.stringify(rU.advertencias));
+  const rE = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", entidades: [c1, c2] }]);
+  ok(rE.entrega.texto === rU.entrega.texto, "   y la Entrega es la MISMA que con `entidades` (un solo camino: el conjunto nombrado)");
+  const rTodos = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: clientes }]);
+  ok(rTodos.ok === true && entidadesDe(rTodos).length === clientes.length, "   la lista con TODAS las cuentas sirve todas (el conjunto nombrado es el universo entero)");
+  const rNeg = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: "negocio" }]);
+  ok(rNeg.ok === true && entidadesDe(rNeg).length === clientes.length, "   y el texto «negocio» sigue sirviendo el eje entero (no cambia)");
+  const skusM = nombresDe("sku");
+  const rSku = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "sku", universo: skusM.slice(0, 2) }]);
+  ok(rSku.ok === true && entidadesDe(rSku).join() === skusM.slice(0, 2).join(), "   en el eje producto también: solo los dos SKU nombrados");
+  const rMismas = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: [c1, c2], entidades: [c2, c1].map((nombre) => ({ nombre })) }]);
+  ok(rMismas.ok === true && entidadesDe(rMismas).length === 2, "   con `universo` y `entidades` que nombran las mismas cuentas, no hay conflicto");
+  const rDist = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: [c1, c2], entidades: [clientes[2]] }]);
+  ok(rDist.ok === false && rDist.entrega === null && ((rDist.noResuelto || [])[0] || {}).motivo === "formato_invalido" && ((rDist.noResuelto || [])[0] || {}).campo === "universo" && /distintas/.test(((rDist.noResuelto || [])[0] || {}).detalle), "★ `universo` y `entidades` DISTINTOS no se adivinan: se rechaza (formato_invalido, campo universo) en vez de elegir una en silencio", JSON.stringify(rDist.noResuelto));
+  ok(/entidades/.test(((((rDist.noResuelto || [])[0] || {}).alternativas || [])[0] || {}).esperado || ""), "   y enseña la forma válida (la lista de `entidades`, o un objeto con reglas)", JSON.stringify(((rDist.noResuelto || [])[0] || {}).alternativas));
+  for (const [u, que] of [[[], "vacía"], [[c1, 3], "con un elemento que no es un nombre"], [[c1, null], "con un null"]]) {
+    const rX = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: u }]);
+    ok(rX.ok === false && rX.entrega === null && ((rX.noResuelto || [])[0] || {}).motivo === "formato_invalido" && ((rX.noResuelto || [])[0] || {}).campo === "universo", `   una lista ${que} no corre sin acotar: formato_invalido (antes servía el eje entero)`, JSON.stringify(rX.noResuelto).slice(0, 200));
+  }
+  const rIn = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: [c1, "Cliente Que No Existe"] }]);
+  ok(rIn.entrega === null || rIn.noResuelto.some((n) => n.motivo === "entidad_inexistente"), "   un nombre que no existe lo dice el validador de siempre (entidad_inexistente, con los nombres del eje), no se descarta en silencio", JSON.stringify(rIn.noResuelto).slice(0, 300));
 }
 
 console.log(`\n── _capacidad_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);

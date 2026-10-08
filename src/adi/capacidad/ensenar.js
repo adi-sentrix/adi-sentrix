@@ -40,7 +40,7 @@ export function guiaDeUniverso() {
   const estadoDeC = eC && estados[eC] ? estados[eC][0] : null;
   const metricaDeFiltro = eC ? (metricasDelEje(eC).find((k) => k === "dias_vencido") || metricasDelEje(eC)[0]) : null;
   return {
-    forma: "El universo de una parte acota sobre qué entidades se calcula: un texto («negocio»), una lista de nombres de entidades, o un objeto de UN eje con alguno de estos campos (todos opcionales). Los campos son exactamente estos; cualquier otro se rechaza.",
+    forma: "El universo de una parte acota sobre qué entidades se calcula: un texto («negocio»), una lista de nombres de entidades (se lee como las entidades de la parte: sirve exactamente esas, sin las demás del eje ni su total), o un objeto de UN eje con alguno de estos campos (todos opcionales). Los campos son exactamente estos; cualquier otro se rechaza.",
     ejes: EJES_VALIDOS.filter((e) => ejesConEntidades.includes(e)),
     campos: {
       eje: "el eje del universo (uno de «ejes»); por omisión, el de la parte",

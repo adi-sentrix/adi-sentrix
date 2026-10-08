@@ -1064,7 +1064,7 @@ function _contrapunta(D, focusEst) {
   return null;
 }
 
-export function composeSpecInventory({ filters = {}, scenario, focus = "frenado", staleDays = null, entityScope = null, limit = null } = {}) {
+export function composeSpecInventory({ filters = {}, scenario, focus = "frenado", staleDays = null, entityScope = null, limit = null, porFamilia = false } = {}) {
   const kSF = _sf("capital", "sku"), rSF = _sf("rotacion", "sku"), dSF = _sf("doh", "sku");
   if (!kSF || !rSF || !dSF) return null;
   const rows = _scopeRows(_load(kSF.source, scenario), filters, entityScope);   // "de esos SKU, ¿cuáles frenados?" respeta el alcance heredado
@@ -1188,6 +1188,9 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
     if (J.critico.usd) bol.push(fig("Capital inmovilizado crítico · subtotal", _money(J.critico.usd), { unit: "money", raw: J.critico.usd, mandatory: false, context: "capital inmovilizado" }));
     if (J.sobrestock.usd) bol.push(fig("Sobrestock · subtotal", _money(J.sobrestock.usd), { unit: "money", raw: J.sobrestock.usd, mandatory: false, context: "capital inmovilizado" }));
     for (const b of byBod) bol.push(fig(`${b.nombre} · Capital inmovilizado`, _money(b.usd), { unit: "money", raw: b.usd, mandatory: false, context: "capital inmovilizado por bodega" }));
+    /* POR FAMILIA (ensayo 7, owner 2026-10-08): el catálogo ofrece `capital_inmovilizado` por familia (el agregado de sus SKU, como la bodega) y la lectura solo publicaba el total, las bodegas y los SKU: «Capital inmovilizado por familia» volvía ok con cero cifras. Mismo rótulo que la bodega; la familia es la del eje (`sfamilia`, la que nombra el catálogo). APAGADO por defecto (`porFamilia`, como `figsPct`): solo lo prende la lectura del Encargo de ese concepto por ese eje; la boleta del agente y las rutas fijas de la Entrega no cambian. */
+    if (porFamilia) { const byFamI = _groupBy(skus.map((s) => ({ usd: s.capital, familia: s.sfamilia || s.familia || "—" })), "familia", total);
+    for (const f of byFamI) bol.push(fig(`${f.nombre} · Capital inmovilizado`, _money(f.usd), { unit: "money", raw: f.usd, mandatory: false, context: "capital inmovilizado por familia" })); }
     // TODOS los SKU, cada uno con SU cifra — el punto de esta etapa (diseño §8.4: "cierra la raíz A3").
     for (const s of skus) bol.push(fig(`${s.sku} · capital inmovilizado`, _money(s.capital), { unit: "money", raw: s.capital, mandatory: false, context: "capital inmovilizado", gancho: true }));
     return {
@@ -1905,7 +1908,7 @@ function _pptoByDim(dim, scenario) {
 // `figsPct` (aditivo, R-VARIACION-SIN-CIFRA-EN-TOP, diagnóstico v6 · owner 2026-09-26): APAGADO por defecto —
 // solo lo prende `encargo/lecturasDe.js` para la lectura del Encargo (`_FAM_VS_ANTERIOR`), NUNCA la caja del
 // agente en vivo (`cajaDelAgente`/playbooks del chat) — la boleta que el agente sirve hoy queda byte-idéntica.
-function _ventasFocusBlock(focus, dim, filters, entityScope, scenario, figsPct = false) {
+function _ventasFocusBlock(focus, dim, filters, entityScope, scenario, figsPct = false, figsAnterior = false) {
   const L = _VLBL[dim] || _VLBL.cliente;
   // TOTALES DEL ESCENARIO, no del literal base (hallazgo B, segunda mitad). `_vKPI` es el KPI de `baseKpis.js`:
   // FIJO — 100.000 en bonanza, en tensión y en crisis. Por eso salesRead contestaba $100.0M mientras la pantalla
@@ -1997,6 +2000,8 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario, figsPct =
      * (mismo patrón que el $ de arriba, solo que completo). APAGADO por defecto — ver la nota de `figsPct` en la
      * cabecera de esta función. */
     if (figsPct) for (const r of mov) bol.push(fig(`${r.nombre} · Variación vs año anterior`, `${_sgnp(r.p)}${_p1(r.p)}%`, { unit: "pct", raw: r.p, mandatory: false, context: "vs año anterior" }));
+    /* LA VENTA DEL AÑO ANTERIOR DE CADA ENTIDAD (ensayo 7, owner 2026-10-08 · B02|2|3): el catálogo ofrece `ventas_anterior` por cuenta, marca, familia y canal, y la lectura solo publicaba el TOTAL del negocio: la Entrega declaraba «sin dato de ventas del año anterior para Samsung y LG» con el dato en la tabla (`anterior`, la MISMA fuente de la variación) y el anfitrión lo repitió como «no hay ventas del año anterior». Rótulo canónico exacto («Ventas del año anterior»); APAGADO por defecto, como `figsPct`: solo lo prende la lectura del Encargo, la boleta del agente vivo queda byte-idéntica. */
+    if (figsAnterior) for (const r of conA) bol.push(fig(`${r.entidad} · Ventas del año anterior`, _m(r.anterior), { unit: "money", raw: r.anterior * _fxe(), mandatory: false, context: "vs año anterior · la venta del año anterior de esta entidad: la base contra la que se mide su crecimiento" }));
     /* LA VENTA DEL AÑO ANTERIOR CON RÓTULO PROPIO (Notario semántico, fase 2 — deuda de la fase 1): «$100,0M vs $92,9M» viajaba solo en
      * `headlineSub`, sin significado, y una afirmación verdadera quedaba no-verificable. La base del crecimiento es una cifra del negocio. */
     bol.push(fig("Ventas del año anterior", _m(totAnt), { unit: "money", raw: totAnt * _fxe(), mandatory: false, context: "la venta del año anterior: la base contra la que se mide el crecimiento" }));
@@ -2170,7 +2175,7 @@ const _VGAP = {
   sin_ticket: { no: "dar el TICKET promedio, el tráfico o la conversión", falta: "transacciones (el ticket real necesita nº de operaciones; lo que hay es venta/unidades = precio realizado)" },
 };
 
-export function composeSpecVentas({ filters = {}, scenario, focus = "vs_anterior", dimension = "cliente", gap = null, pivotFocus = null, entityScope = null, figsPct = false } = {}) {
+export function composeSpecVentas({ filters = {}, scenario, focus = "vs_anterior", dimension = "cliente", gap = null, pivotFocus = null, entityScope = null, figsPct = false, figsAnterior = false } = {}) {
   const dim = _VLBL[dimension] ? dimension : "cliente";
   if (gap) {
     const g = _VGAP[gap] || _VGAP.sin_sucursal;
@@ -2185,7 +2190,7 @@ export function composeSpecVentas({ filters = {}, scenario, focus = "vs_anterior
     return { opener: lines.filter(Boolean).join("\n\n"), suggestions: block.suggestions.length ? block.suggestions : ["Cómo vamos vs el año anterior", "Cómo vamos vs presupuesto"], sentrixAction: null,
       evidence: { lens: "ventas", metrica: "ventas", dimension: pivotDim, ...(block.orden ? { orden: block.orden } : {}), boleta: block.bol, ventas: { focus: "gap:" + gap, pivot: pf, gapLabel: g.no, panel: block.panel || null } } };
   }
-  const block = _ventasFocusBlock(focus, dim, filters, entityScope, scenario, figsPct);
+  const block = _ventasFocusBlock(focus, dim, filters, entityScope, scenario, figsPct, figsAnterior);
   if (!block) return null;
   // ORDEN SELLADO (owner 2026-08-03, MISMO patrón que composeSpecMargin/commit 9184ec0): _ventasFocusBlock declara
   // `orden` SOLO en los focos de un único criterio sin cruce de signo (rank_venta/concentracion/mix_familia/

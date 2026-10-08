@@ -165,7 +165,7 @@ function _callsDeConceptoEje(tema, concepto, eje) {
     return [{ tool: "diagnose", args: {}, para: `${concepto} — el detector de brecha comercial, por cliente (contrato §3.3)` }];
   }
   if (_FAM_CAPITAL_INMOVILIZADO.has(concepto)) {
-    return [{ tool: "inventoryStatus", args: { focus: "inmovilizado" }, para: `${concepto} — capital inmovilizado (crítico ⊎ sobrestock), todos los SKU con su cifra (mesaCapital)` }];
+    return [{ tool: "inventoryStatus", args: { focus: "inmovilizado", ...(eje === "familia" ? { porFamilia: true } : {}) }, para: `${concepto} — capital inmovilizado (crítico ⊎ sobrestock), todos los SKU con su cifra${eje === "familia" ? " y el agregado por familia" : ""} (mesaCapital)` }];
   }
   if (_FAM_DIAS_SIN_VENTA.has(concepto)) {
     return [_CALL_DIAS_SIN_VENTA(`${concepto} — los días sin venta de TODOS los SKU, un hecho histórico (mesaCapital, la vista «Días sin venta»)`)];
@@ -178,7 +178,8 @@ function _callsDeConceptoEje(tema, concepto, eje) {
     // Encargo — hace que `salesRead` publique la fig de % por entidad («… · Variación vs año anterior», clave
     // `variacion`), la misma que un `universo.top.metrica:"variacion"` necesita citar en la tabla. Apagado en
     // cualquier otro llamador (la caja del agente en vivo, `cajaDelAgente`): su boleta queda byte-idéntica.
-    return [{ tool: "salesRead", args: { focus: "vs_anterior", dimension: eje, figsPct: true }, para: `${concepto} por ${eje} (salesRead vs_anterior)` }];
+    /* `ventas_anterior` (ensayo 7): la venta del año anterior de CADA entidad (`figsAnterior`); la variación sola no la pide */
+    return [{ tool: "salesRead", args: { focus: "vs_anterior", dimension: eje, figsPct: true, ...(concepto === "ventas_anterior" ? { figsAnterior: true } : {}) }, para: `${concepto} por ${eje} (salesRead vs_anterior)` }];
   }
   if (_FAM_VS_PRESUPUESTO.has(concepto)) {
     return [{ tool: "salesRead", args: { focus: "vs_presupuesto", dimension: eje }, para: `${concepto} por ${eje} (salesRead vs_presupuesto)` }];
@@ -210,6 +211,23 @@ function _direccionDeTop(direccion, metrica) {
   }
   return _dirAscDesc(dir === "menor" ? "menor" : "mayor");
 }
+/* NOMBRAR ENTIDADES NO APAGA EL PRODUCTOR DEL CONCEPTO (ensayo 7, owner 2026-10-08). `entityRecord` (la fila completa de una entidad) y `compareEntities` (las métricas del registro, lado a lado) no publican estos conceptos: nombrando cuentas, marcas o familias el catálogo los
+ * seguía ofreciendo y la Entrega los declaraba «sin dato» / «no se pudo servir la cifra». Cada uno tiene SU productor (el mismo de la `cifra` sin entidades) y el compositor filtra sus cifras a las entidades nombradas, como ya hace con bodega y canal.
+ *   · con entidades (cifra · lectura · decisión): la carga alta y la brecha por precio y costo (el detector), el markup (rolesCartera), la variación en $ y contra el presupuesto, y la venta del año anterior (que la fila completa publica solo por cuenta, marca y familia: la lectura la pide igual);
+ *   · en una comparación, además, el capital (inmovilizado crítico o total) por familia. */
+const _CON_PRODUCTOR_PROPIO = new Set(["carga_alta", "brecha_precio_costo", "markup", "variacion_usd", "vs_presupuesto", "vs_presupuesto_usd", "ventas_anterior"]);
+const _CON_PRODUCTOR_PROPIO_EN_COMPARACION = new Set([..._CON_PRODUCTOR_PROPIO, "capital_frenado", "capital_inmovilizado"]);
+function _callsDelProductorPropio(p, eje, { comparacion = false } = {}) {
+  const set = comparacion ? _CON_PRODUCTOR_PROPIO_EN_COMPARACION : _CON_PRODUCTOR_PROPIO;
+  const out = [];
+  for (const c of p.conceptos || []) {
+    if (!set.has(c) || !productorDe(c, eje)) continue;
+    if ((c === "capital_frenado" || c === "capital_inmovilizado") && eje !== "familia") continue;   /* por SKU y bodega la comparación ya los sirve */
+    out.push(..._callsDeConceptoEje(p.tema, c, eje));
+  }
+  return out;
+}
+
 /* LA LLAMADA de COBRANZA de una parte (mesaFlujo): la MISMA para un `cifra` y para una `comparacion` (§7.3·40c) — con las cuentas que la parte nombra (`entidadesRequeridas`, decisión v13 Z78) y, si la
  * parte trae universo propio, el universo YA RESUELTO. Una sola definición: la comparación no arma una lectura de cobranza paralela. */
 function _callDeCobranzaDeParte(p, universoRequerido, quien) {
@@ -247,7 +265,7 @@ function _pasosCifra(p) {
     const topMetrica = p.universo && p.universo.top && p.universo.top.metrica;
     if (topMetrica && !_FAM_COBRANZA.has(topMetrica)) {
       out.push(..._FAM_VS_ANTERIOR.has(topMetrica)
-        ? [{ tool: "salesRead", args: { focus: "vs_anterior", dimension: eje, figsPct: true }, para: `${topMetrica} por ${eje} (universo.top de una parte de cobranza, salesRead vs_anterior)` }]
+        ? [{ tool: "salesRead", args: { focus: "vs_anterior", dimension: eje, figsPct: true, ...(topMetrica === "ventas_anterior" ? { figsAnterior: true } : {}) }, para: `${topMetrica} por ${eje} (universo.top de una parte de cobranza, salesRead vs_anterior)` }]
         : [{ tool: "queryMetric", args: { metric: metricaCoreDe(topMetrica) || topMetrica, dimension: eje }, para: `${topMetrica} por ${eje} (universo.top de una parte de cobranza)` }]);
     }
     return _dedupeCalls(out);
@@ -284,6 +302,7 @@ function _pasosCifra(p) {
       out.push({ tool: "entityRecord", args: { dimension: e.eje, entity: e.nombre }, para: `la fila completa de ${e.nombre} (entityRecord)` });
       /* la carga comercial la declara el registro de métricas por cuenta, SKU, marca y familia, pero la fila completa la rotula «Rebate (%)» (otro nombre del mismo campo): sin su propia lectura la entidad quedaba «sin dato de carga comercial» con el dato publicado */
       if ((p.conceptos || []).includes("carga")) out.push(..._callsDeConceptoEje(p.tema, "carga", e.eje));
+      out.push(..._callsDelProductorPropio(p, e.eje));
     }
     return _dedupeCalls(out);
   }
@@ -324,7 +343,7 @@ function _pasosCifra(p) {
     const necesitaEjeCompleto = universoCombinado || String(p.universo.top.sobre || "").trim().toLowerCase() === "eje";
     const argsQueryMetric = { metric: metricaCoreDe(metrica) || metrica, dimension: ejeUniverso, sort: { dir: _direccionDeTop(direccion, metrica) } };
     const out = _FAM_VS_ANTERIOR.has(metrica)
-      ? [{ tool: "salesRead", args: { focus: "vs_anterior", dimension: ejeUniverso, figsPct: true }, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top, salesRead vs_anterior)` }]
+      ? [{ tool: "salesRead", args: { focus: "vs_anterior", dimension: ejeUniverso, figsPct: true, ...(metrica === "ventas_anterior" ? { figsAnterior: true } : {}) }, para: `el top ${k} de ${ejeUniverso} por ${metrica} (universo.top, salesRead vs_anterior)` }]
       : _FAM_DIAS_SIN_VENTA.has(metrica)
       ? [_CALL_DIAS_SIN_VENTA(`el top ${k} de ${ejeUniverso} por ${metrica} (universo.top): el ranking COMPLETO de días sin venta, el orden lo aplica la Entrega`)]
       /* v24 (Q05 · barrido familia i): el capital inmovilizado (crítico) tiene SU productor (`inventoryStatus`, el foco de la familia); `queryMetric` no publica esa métrica por SKU (ni por bodega), así que un top por ella servía entidades SIN la cifra que las ordena («ordenado por Capital inmovilizado crítico: LG-DRYER8KG, BOS-SANDER» sin valores) */
@@ -369,6 +388,7 @@ function _pasosComparacion(p) {
   if (p.tema === "cobranza") return [_callDeCobranzaDeParte(p, null, p.entidades.map((e) => e.nombre).join(" y "))];
   const calls = [{ tool: "compareEntities", args: { dimension: eje, entities: p.entidades.map((e) => e.nombre) }, para: `comparación ${p.entidades.map((e) => e.nombre).join(" vs ")}` }];
   for (const c of p.conceptos || []) if (_FAM_FUERA_DE_COMPARE.has(c)) calls.push(..._callsDeConceptoEje(p.tema, c, eje));
+  calls.push(..._callsDelProductorPropio(p, eje, { comparacion: true }));
   return _dedupeCalls(calls);
 }
 
@@ -510,7 +530,7 @@ function _pasosLecturaDecision(partes) {
     const ejeP = (p.universo && p.universo.eje) || p.eje || sujetoDeTema(p.tema);
     /* una parte de eje por defecto y sin universo propio sirve su FOTO con los conceptos que declara: lo que el paquete fijo del dominio no publica (el costo y la carga por cuenta, el capital inmovilizado de los SKU) se lee
      * con la lectura de SU productor (`queryMetric`/`inventoryStatus`: fuentes que el paquete no repite); las lecturas con foco (`salesRead`, `marginRead`, `diagnose`, `cobranza`…) ya las trae el paquete. */
-    for (const c of (p.conceptos || [])) for (const call of _callsDeConceptoEje(p.tema, c, ejeP)) if (propio || call.tool === "queryMetric" || call.tool === "inventoryStatus") out.push(call);
+    for (const c of (p.conceptos || [])) for (const call of _callsDeConceptoEje(p.tema, c, ejeP)) if (propio || call.tool === "queryMetric" || call.tool === "inventoryStatus" || (c === "ventas_anterior" && call.tool === "salesRead")) out.push(call);   /* la venta del año anterior de cada cuenta (ensayo 7): el paquete fijo trae el foco por defecto de salesRead, que no la publica */
   }
   /* «Saldo por vencer» lo publica la mesa de cobranza solo con `figsPorVencer`: si una parte lo declara, la llamada de cobranza del paquete lo pide */
   if (partes.some((p) => p.tema === "cobranza" && (p.conceptos || []).includes("saldo_por_vencer"))) out = out.map((c) => (c.tool === "cobranza" && !(c.args && c.args.figsPorVencer) ? { ...c, args: { ...c.args, figsPorVencer: true } } : c));
@@ -588,6 +608,10 @@ function _dedupeCalls(calls) {
     if (!c || !c.tool) continue;
     const clave = JSON.stringify({ tool: c.tool, args: c.args || {} });
     if (vistos.has(clave)) continue;
+    /* la misma lectura «vs año anterior» del mismo eje pedida por dos conceptos (la variación y la venta del año anterior) es UNA llamada: la cifra opcional se suma en vez de correr la lectura dos veces */
+    const _sinAnterior = (a) => JSON.stringify({ ...a, figsAnterior: undefined });   /* solo se fusionan dos llamadas idénticas salvo la cifra opcional: nunca se pierde un argumento de la otra (p. ej. `figsPct`) */
+    const hermana = c.tool === "salesRead" && c.args && c.args.focus === "vs_anterior" ? out.find((o) => o.tool === "salesRead" && o.args && o.args.focus === "vs_anterior" && _sinAnterior(o.args) === _sinAnterior(c.args)) : null;
+    if (hermana) { vistos.add(clave); if (c.args.figsAnterior) hermana.args = { ...hermana.args, figsAnterior: true }; continue; }
     vistos.add(clave);
     out.push(c);
   }

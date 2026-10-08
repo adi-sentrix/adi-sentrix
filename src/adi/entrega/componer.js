@@ -2639,7 +2639,7 @@ function _planCifraGrupo(parte, figs, { ejesDelTenant = {}, indice = null, direc
   if (soloEntidades && soloEntidades.size) { const _solo = new Set([...soloEntidades].map(normalizar)); entidadesEnJuego = entidadesEnJuego.filter((e) => _solo.has(normalizar(e))); }
   /* CONSOLIDACIÓN, SEGUNDA VUELTA (§7.3·45a · 49c): la foto no depende de que la lectura del turno haya traído UNA fig. Si ningún productor de la boleta publicó el concepto (el margen de inventario de los SKU: solo lo publica la fila completa de cada SKU) pero
    * la proyección SÍ lo publica para el eje, la foto es el eje entero con la cifra de la proyección (medido) de cada miembro: nunca «ninguna evidencia» sobre una cifra que el dato publica. */
-  if (foto && !top && !soloEntidades && indice && universoResuelto === false && !entidadesEnJuego.length && !errorUniverso) {
+  if ((foto || parte.cierre === "cifra") && !top && !soloEntidades && indice && universoResuelto === false && !entidadesEnJuego.length && !errorUniverso) {
     const miembros = ejesDelTenant && Array.isArray(ejesDelTenant[eje]) ? ejesDelTenant[eje] : null;
     if (miembros && miembros.length && conceptos.some((c) => miembros.some((n) => figDeLaProyeccion(indice, n, c)))) entidadesEnJuego = miembros.slice();
   }
