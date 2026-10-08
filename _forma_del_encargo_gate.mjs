@@ -173,11 +173,12 @@ H("1e · lo bien formado no cambia: en los 532 encargos de los catálogos sellad
 }
 
 /* ═══ 2 · LA CABECERA DE USO TRAE LA REGLA DEL TOTAL ══════════════════════════════════════════════════════════════════════════════════════════════════ */
-H("2 · la cabecera de uso (instrucción previa al anfitrión): UNA regla del contrato — toda cifra empresarial es un hecho entregado por ADI (Contrato del Anfitrión, cabecera de cuatro reglas)");
+H("2 · la cabecera de uso (instrucción previa al anfitrión): UNA regla del contrato — toda cifra empresarial es un hecho entregado por ADI (Contrato del Anfitrión, cabecera de cinco reglas: la 2.ª, del ensayo 8, es el orden sobre el total)");
 {
   const REGLA = "Toda cifra empresarial que usted diga —en números o en palabras, incluidos totales, diferencias, porcentajes y conteos— debe ser un hecho que ADI le entregó en esta conversación. Si la cifra que necesita no está entre lo entregado, no la calcule ni la complete: pídasela a ADI (derivar, sobre identificadores ya entregados; o una consulta nueva). Redondear a lo impreso no es calcular.";
-  ok(CABECERA_DE_USO[0] === REGLA && CABECERA_DE_USO.length === 4, "★ `CABECERA_DE_USO` trae la regla del contrato en `[0]` (las reglas 1/5 y 2/5 se fundieron: cabecera de cuatro)", JSON.stringify(CABECERA_DE_USO));
-  ok(/^Lo que la Entrega declara en «Lo que no se puede concluir»/.test(CABECERA_DE_USO[1]) && /Redacte con total libertad/.test(CABECERA_DE_USO[CABECERA_DE_USO.length - 1]), "las reglas que ya tenía conservan su texto y la libertad de redacción sigue cerrando la cabecera");
+  ok(CABECERA_DE_USO[0] === REGLA && CABECERA_DE_USO.length === 5, "★ `CABECERA_DE_USO` trae la regla del contrato en `[0]` (las reglas 1/5 y 2/5 se fundieron; el ensayo 8 le agregó UNA, el orden sobre el total: cinco reglas)", JSON.stringify(CABECERA_DE_USO));
+  ok(CABECERA_DE_USO[1] === "Toda afirmación de orden sobre el total (el mayor, el menor, el que más creció, el más grave) debe venir de una consulta de ADI que vio el universo completo; con una vista parcial, dígalo como parcial o pídale a ADI el extremo.", "★ la regla 2.ª es el texto EXACTO del owner: todo orden sobre el total viene de una consulta que vio el universo completo; con una vista parcial se dice parcial o se pide el extremo");
+  ok(/^Lo que la Entrega declara en «Lo que no se puede concluir»/.test(CABECERA_DE_USO[2]) && /Redacte con total libertad/.test(CABECERA_DE_USO[CABECERA_DE_USO.length - 1]), "las reglas que ya tenía conservan su texto y la libertad de redacción sigue cerrando la cabecera");
   const r = await consultar(E([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente" }]));
   ok(r.ok && r.uso.includes(REGLA), "★ cada `consultar` la trae en `uso`");
   // por la puerta real (JSON-RPC y REST): lo que llega al anfitrión
@@ -201,6 +202,48 @@ H("2 · la cabecera de uso (instrucción previa al anfitrión): UNA regla del co
   ok(mal1.ok === false && mal1.noResuelto[0].motivo === "formato_invalido" && mal1.uso.includes(REGLA), "★ por la PUERTA: una forma ininterpretable llega como `formato_invalido`, con la regla en `uso`", JSON.stringify(mal1.noResuelto));
   const ref = await crearAcciones({ continuidad: crearAlmacenEnMemoria() }).consultar({ tenant: TENANT_PUERTA, encargo: E([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", entidades: [{ nombre: "Jumbo" }, { nombre: "Lider" }] }]) });
   ok(ok1.entrega && ref.ok && Buffer.from(ok1.entrega.texto).equals(Buffer.from(ref.entrega.texto)), "★ el texto de la Entrega que llega por la puerta es el mismo, byte a byte, que con la forma canónica");
+}
+
+/* ═══ 5 · ENSAYO 8 (owner 2026-10-08) · EL SUPUESTO DE UNA SIMULACIÓN: el que el anfitrión escribió dentro de la parte, sin id o sin citar, se lee con su única lectura ═══════════════════════════════════
+ * A02|1|7 («si Mercantil Pacífico subiera diez por ciento»): tres intentos con `cierre_incompleto · ningún supuesto citado tiene productor`. Las tres cargas útiles, TAL COMO LAS MANDÓ el anfitrión (transcrito A02), contra la forma que corre
+ * (`supuestos:[{id:'s1',…}]` en la raíz y `supuestos:['s1']` en la parte). Solo cuando la lectura es ÚNICA; lo ambiguo no se adivina. */
+H("5 · ensayo 8: el supuesto de una simulación declarado dentro de la parte, sin id o sin que la parte lo cite, se lee con su única lectura");
+{
+  const MP = CLIENTES.includes("Mercantil Pacífico") ? "Mercantil Pacífico" : CLIENTES[0];
+  const parte = { id: "p1", tema: "comercial", cierre: "simulacion", conceptos: ["ventas"], eje: "cliente", entidades: [{ nombre: MP }] };
+  const canonico = { id: "s1", tipo: "growth", valor: 10, unidad: "pct", alcance: { eje: "cliente", nombre: MP } };
+  const forma = (enc) => { const r = normalizarFormaDelEncargo(enc); return { r, sup: r.encargo.supuestos, citas: r.encargo.partes[0].supuestos }; };
+  /* los tres intentos del transcrito */
+  const i1 = forma({ version: "encargo/v1", partes: [{ ...parte, entidades: [MP], supuestos: [{ tipo: "growth", valor: 10, unidad: "pct", alcance: MP }] }] });
+  ok(mismo(i1.sup, [canonico]) && mismo(i1.citas, ["s1"]) && i1.r.formato.length === 0, "★ intento 1 (el supuesto dentro de la parte, `alcance` como cadena): sube a la raíz con id «s1», el alcance es {eje, nombre} y la parte lo cita", JSON.stringify(i1.r.encargo));
+  const i2 = forma({ version: "encargo/v1", partes: [{ ...parte, supuestos: [{ tipo: "growth", entidad: MP, valor: { raw: 10, unidad: "pct" } }] }] });
+  ok(mismo(i2.sup, [canonico]) && mismo(i2.citas, ["s1"]), "★ intento 2 (dentro de la parte, con `entidad` y `valor: {raw, unidad}`): el mismo supuesto canónico", JSON.stringify(i2.r.encargo));
+  const i3 = forma({ version: "encargo/v1", supuestos: [{ tipo: "growth", valor: 10, unidad: "pct", alcance: { tema: "comercial", eje: "cliente", entidad: MP } }], partes: [parte] });
+  ok(mismo(i3.sup, [canonico]) && mismo(i3.citas, ["s1"]), "★ intento 3 (en la raíz sin id, con `alcance:{tema, eje, entidad}`, y la parte sin citarlo): recibe id, el alcance se lee, y lo cita la única simulación que no citaba ninguno", JSON.stringify(i3.r.encargo));
+  ok([i1, i2, i3].every((x) => x.r.avisos.some((a) => /supuesto/.test(a) && /«s1»/.test(a))), "…y cada lectura se DICE: un aviso con el id y la forma completa");
+  /* lo bien formado pasa idéntico */
+  const bien = { version: "encargo/v1", supuestos: [canonico], partes: [{ ...parte, supuestos: ["s1"] }] };
+  const rb = normalizarFormaDelEncargo(bien);
+  ok(rb.encargo === bien && rb.avisos.length === 0 && rb.formato.length === 0, "★ la forma completa pasa IDÉNTICA (misma referencia de objeto, sin avisos)");
+  const sinSim = normalizarFormaDelEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente" }] });
+  ok(sinSim.avisos.length === 0, "y un encargo sin simulación no cambia");
+  /* lo ambiguo NO se adivina */
+  const dosSim = normalizarFormaDelEncargo({ version: "encargo/v1", supuestos: [canonico], partes: [parte, { ...parte, id: "p2" }] });
+  ok(dosSim.encargo.partes.every((p) => !p.supuestos) && mismo(dosSim.encargo.supuestos, [canonico]), "★ con DOS simulaciones que no citan nada, un supuesto huérfano no se asigna a ninguna (no se adivina)");
+  const sinEje = normalizarFormaDelEncargo({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "simulacion", conceptos: ["ventas"], supuestos: [{ tipo: "growth", valor: 10, unidad: "pct", alcance: MP }] }] });
+  ok(sinEje.encargo.supuestos[0].alcance === MP, "una cuenta como alcance SIN eje en la parte no se interpreta (no hay con qué eje leerla): el validador dice qué falta");
+  const colision = forma({ version: "encargo/v1", supuestos: [{ ...canonico, valor: 5 }], partes: [{ ...parte, supuestos: ["s1", { tipo: "price", valor: 3, unidad: "pct", alcance: MP }] }] });
+  ok(colision.sup.length === 2 && colision.sup[0].valor === 5 && colision.sup[1].id === "s2" && mismo(colision.citas, ["s1", "s2"]), "un id que ya existe en la raíz no se pisa: el supuesto de la parte recibe otro id («s2») y la parte cita los dos", JSON.stringify(colision.r.encargo));
+  const negocio = forma({ version: "encargo/v1", partes: [{ ...parte, entidades: undefined, supuestos: [{ tipo: "growth", valor: 10, unidad: "pct", alcance: "negocio" }] }] });
+  ok(negocio.sup[0].alcance === "negocio" && negocio.sup[0].id === "s1", "«negocio» como alcance se conserva");
+  /* de punta a punta: los tres intentos CORREN y dan lo mismo que la forma completa */
+  const filas = (r) => (r.entrega && r.entrega.json ? r.entrega.json.cifras.filas : []).map((f) => `${f.valores["Entidad / grupo"]}|${f.valores["Métrica"]}|${f.valores["Valor"]}`).join(";");
+  const buena = await consultar(bien);
+  ok(buena.ok === true && /Venta supuesta/.test(filas(buena)), "(control) la forma completa corre en la empresa del ensayo (Distribuidora Río Claro)", JSON.stringify(buena.noResuelto).slice(0, 300));
+  for (const [n, enc] of [["1", { version: "encargo/v1", partes: [{ ...parte, supuestos: [{ tipo: "growth", valor: 10, unidad: "pct", alcance: MP }] }] }], ["2", { version: "encargo/v1", partes: [{ ...parte, supuestos: [{ tipo: "growth", entidad: MP, valor: { raw: 10, unidad: "pct" } }] }] }], ["3", { version: "encargo/v1", supuestos: [{ tipo: "growth", valor: 10, unidad: "pct", alcance: { tema: "comercial", eje: "cliente", entidad: MP } }], partes: [parte] }]]) {
+    const r = await consultar(enc);
+    ok(r.ok === true && filas(r) === filas(buena), `★ el intento ${n} del anfitrión CORRE (antes: cierre_incompleto) y da las mismas cifras que la forma completa: ${filas(r).split(";").slice(0, 2).join(" · ")}`, JSON.stringify(r.noResuelto).slice(0, 300));
+  }
 }
 
 H("CERO RED");

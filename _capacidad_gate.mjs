@@ -29,6 +29,7 @@ import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { DOMINIOS_REGISTRO } from "./src/config/contract/dominios.js";
 import { construirCatalogo } from "./src/adi/capacidad/catalogo.js";
 import { crearAcciones } from "./src/adi/capacidad/acciones.js";
+import { MCP_TOOLS } from "./src/adi/capacidad/puerta.js";
 import { crearAlmacenEnMemoria } from "./src/adi/continuidad/almacen.js";
 import { compactarParaAnfitrion } from "./src/adi/capacidad/compacto.js";
 import { conTenantActivo } from "./src/adi/capacidad/aislamiento.js";
@@ -134,7 +135,7 @@ H("3 · consultar(encargo) sobre 5 encargos válidos de fixtures/encargos-desarr
   for (const caso of cincoValidos) {
     const salida = await consultar({ tenant: TENANT, encargo: caso.encargo });
     ok(salida.ok === true, `${caso.id} (${caso.titulo}) · consultar responde ok:true`, JSON.stringify(salida.noResuelto));
-    ok(Array.isArray(salida.uso) && salida.uso.length === 4, `${caso.id} · trae la cabecera de uso completa (4 reglas)`, JSON.stringify(salida.uso));
+    ok(Array.isArray(salida.uso) && salida.uso.length === 5, `${caso.id} · trae la cabecera de uso completa (5 reglas)`, JSON.stringify(salida.uso));
     ok(Boolean(salida.entrega && typeof salida.entrega.texto === "string" && salida.entrega.texto.length > 0), `${caso.id} · la Entrega trae texto`, "");
     ok(Boolean(salida.entrega && salida.entrega.json && Array.isArray(salida.entrega.json.cifras.filas)), `${caso.id} · la Entrega trae json.cifras`, "");
   }
@@ -603,6 +604,72 @@ for (const M of MUNDOS) {
   }
   const rIn = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: [c1, "Cliente Que No Existe"] }]);
   ok(rIn.entrega === null || rIn.noResuelto.some((n) => n.motivo === "entidad_inexistente"), "   un nombre que no existe lo dice el validador de siempre (entidad_inexistente, con los nombres del eje), no se descarta en silencio", JSON.stringify(rIn.noResuelto).slice(0, 300));
+}
+
+/* ═══ 11 · ENSAYO 8 (owner 2026-10-08) · LA SIMULACIÓN SE ENSEÑA Y EL SUPUESTO EVIDENTE SE ACEPTA · EL EXTREMO SOBRE EL TOTAL SE PIDE A ADI ═════════════════════════════════════════════════════
+ * A02|1|7: «Calcúlame tú directo cuánto sería la venta si Mercantil Pacífico subiera diez por ciento»: tres intentos, tres `cierre_incompleto · ningún supuesto citado tiene productor` (el supuesto dentro de la parte con `alcance` como cadena · con `entidad` y
+ * `valor:{raw,unidad}` · en la raíz sin id y sin que la parte lo cite). Con el supuesto en la raíz con id y la parte citándolo, corre. Ahora el contrato lo ENSEÑA (catálogo, esquema de la herramienta y el rechazo) y ACEPTA la forma evidente.
+ * Y el orden sobre el total («el mayor», «el que más creció») se le pide a ADI: un top de 1 sobre el universo completo; la lista parcial lo dice. */
+H("11 · ensayo 8: la simulación (el supuesto en la raíz con id, la parte lo cita) se enseña y se acepta · el extremo se pide a ADI");
+{
+  initTenant(TENANT_DEMO);
+  const { consultar, conocerEmpresa } = crearAcciones();
+  const C = (partes, extra = {}) => consultar({ tenant: TENANT, encargo: { version: "encargo/v1", partes, ...extra } });
+  const clientes = axisEntityNames("cliente");
+  const cuenta = clientes[0];
+  const PARTE = { id: "p1", tema: "comercial", cierre: "simulacion", conceptos: ["ventas"], eje: "cliente", entidades: [cuenta] };
+  const filas = (r) => (r.entrega && r.entrega.json && r.entrega.json.cifras ? r.entrega.json.cifras.filas : []).map((f) => `${f.valores["Entidad / grupo"]}|${f.valores["Métrica"]}|${f.valores["Valor"]}`);
+  const buena = await C([{ ...PARTE, supuestos: ["s1"] }], { supuestos: [{ id: "s1", tipo: "growth", valor: 10, unidad: "pct", alcance: { eje: "cliente", nombre: cuenta } }] });
+  ok(buena.ok === true && filas(buena).some((x) => /Venta supuesta/.test(x)), "(control) la forma completa corre: el supuesto en la raíz con id y la parte lo cita", JSON.stringify(buena.noResuelto).slice(0, 300));
+  ok(!(buena.advertencias || []).some((a) => /supuesto/.test(a)), "   y no trae ninguna advertencia de forma (lo bien formado pasa idéntico)");
+  /* los tres intentos del anfitrión, tal como los mandó */
+  const intentos = [
+    ["A02|1|7 intento 1 · el supuesto DENTRO de la parte, con `alcance` como cadena", [{ ...PARTE, supuestos: [{ tipo: "growth", valor: 10, unidad: "pct", alcance: cuenta }] }], {}],
+    ["A02|1|7 intento 2 · dentro de la parte, con `entidad` y `valor: {raw, unidad}`", [{ ...PARTE, supuestos: [{ tipo: "growth", entidad: cuenta, valor: { raw: 10, unidad: "pct" } }] }], {}],
+    ["A02|1|7 intento 3 · en la raíz SIN id, con `alcance: {tema, eje, entidad}`, y la parte sin citarlo", [PARTE], { supuestos: [{ tipo: "growth", valor: 10, unidad: "pct", alcance: { tema: "comercial", eje: "cliente", entidad: cuenta } }] }],
+  ];
+  for (const [nombre, partes, extra] of intentos) {
+    const r = await C(partes, extra);
+    ok(r.ok === true && r.noResuelto.length === 0 && JSON.stringify(filas(r)) === JSON.stringify(filas(buena)), `★ ${nombre}: corre y da las MISMAS cifras que la forma completa (antes: «ningún supuesto citado tiene productor»)`, JSON.stringify(r.noResuelto).slice(0, 400));
+    ok((r.advertencias || []).some((a) => /supuesto/.test(a) && /(«s1»|id «s1»)/.test(a)), "   y lo dice: una advertencia explica cómo se leyó y la forma completa", JSON.stringify(r.advertencias));
+  }
+  /* lo ambiguo NO se adivina: dos simulaciones y un supuesto que ninguna cita */
+  const amb = await C([{ ...PARTE, id: "p1" }, { ...PARTE, id: "p2", entidades: [clientes[1]] }], { supuestos: [{ id: "s1", tipo: "growth", valor: 10, unidad: "pct", alcance: { eje: "cliente", nombre: cuenta } }] });
+  ok(amb.noResuelto.some((n) => n.motivo === "cierre_incompleto"), "★ con DOS simulaciones y un supuesto que ninguna cita, no se adivina de cuál es: las dos quedan sin supuesto (cierre_incompleto)", JSON.stringify(amb.noResuelto).slice(0, 300));
+  /* el rechazo ENSEÑA la forma exacta que corre */
+  const sin = await C([PARTE]);
+  const nr = sin.noResuelto.find((n) => n.motivo === "cierre_incompleto");
+  const forma = nr && nr.alternativas.find((a) => a.tipo === "forma_de_simulacion");
+  ok(sin.ok === false && forma && /RAÍZ/.test(forma.forma) && /CITA/.test(forma.forma) && forma.ejemplo && forma.ejemplo.supuestos[0].id === "s1" && forma.ejemplo.partes[0].supuestos[0] === "s1", "★ el rechazo «ningún supuesto citado tiene productor» trae la forma EXACTA de una simulación (el supuesto en la raíz con id, la parte lo cita) con un ejemplo mínimo", JSON.stringify(nr && nr.alternativas).slice(0, 600));
+  const conNum = (x) => JSON.parse(JSON.stringify(x).replace(/"<número>"/g, "10").replace(/"<nombre exacto>"/g, JSON.stringify(cuenta)));
+  const ej = forma ? conNum(forma.ejemplo) : null;
+  const rEj = ej ? await consultar({ tenant: TENANT, encargo: ej }) : null;
+  ok(rEj && rEj.ok === true && JSON.stringify(filas(rEj)) === JSON.stringify(filas(buena)), "★ y el ejemplo del rechazo CORRE (con el número y la cuenta que le faltan): da la misma simulación", rEj && JSON.stringify(rEj.noResuelto).slice(0, 300));
+  const cat = construirCatalogo();
+  const sinNumeros = (x) => (typeof x === "number" ? false : Array.isArray(x) ? x.every(sinNumeros) : x && typeof x === "object" ? Object.values(x).every(sinNumeros) : true);
+  ok(cat.simulacion && cat.simulacion.ejemplo && JSON.stringify(cat.simulacion.ejemplo) === JSON.stringify(forma.ejemplo) && /RAÍZ/.test(cat.simulacion.forma), "★ el catálogo (conocerEmpresa) trae la MISMA forma y el mismo ejemplo: `simulacion`");
+  const rCat = await consultar({ tenant: TENANT, encargo: conNum(cat.simulacion.ejemplo) });
+  ok(rCat.ok === true && JSON.stringify(filas(rCat)) === JSON.stringify(filas(buena)), "   y el ejemplo del catálogo corre");
+  ok(JSON.stringify(cat.simulacion).length < 1000 && sinNumeros(cat.simulacion.ejemplo), `   corto (${JSON.stringify(cat.simulacion).length} B) y sin una cifra de negocio`);
+  const c = await conocerEmpresa({ tenant: TENANT });
+  ok(c.ok && JSON.stringify(compactarParaAnfitrion("conocerEmpresa", c).catalogo.simulacion) === JSON.stringify(cat.simulacion), "   y llega al anfitrión por la respuesta compacta");
+  const tool = MCP_TOOLS.find((t) => t.name === "consultar");
+  const props = tool.inputSchema.properties.encargo.properties;
+  ok(/SIMULACIÓN/.test(tool.inputSchema.properties.encargo.description) && /supuestos:\[\{id:'s1'/.test(tool.inputSchema.properties.encargo.description) && props.supuestos && props.supuestos.items.required.includes("id") && props.supuestos.items.required.includes("alcance"), "★ la herramienta `consultar` dice la forma de la simulación (descripción con el ejemplo + esquema de `supuestos` con id y alcance)");
+
+  /* EL EXTREMO SOBRE EL TOTAL: un top de 1 sobre el universo completo */
+  const u = cat.universo;
+  ok(u.extremo && /top de 1/.test(u.extremo.texto) && /universo completo/.test(u.extremo.texto) && u.extremo.ejemplo && u.extremo.ejemplo.top.k !== undefined, "★ el catálogo expone el camino del extremo: «un top de 1 … calculado sobre el universo completo del eje»");
+  ok(tool.inputSchema.properties.encargo.description.includes("top:{metrica, k:1"), "   y la herramienta `consultar` lo dice");
+  for (const direccion of ["mayor", "menor"]) {
+    const r = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: { eje: "cliente", top: { metrica: "ventas", k: 1, direccion } } }]);
+    const completa = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: "negocio" }]);
+    const ventas = completa.entrega.json.cifras.filas.filter((f) => f.valores["Métrica"] === "Venta" && f.valores["Entidad / grupo"] !== undefined).map((f) => [f.valores["Entidad / grupo"], f.valores["Valor"]]);
+    const cr = (x) => completa.entrega.json.procedencia.libro.hechos.find((hh) => hh.roles && hh.roles.sujetos && hh.roles.sujetos[0] === x && hh.claves && [...hh.claves][0] === "ventas").numeros.at(-1).raw;
+    const ordenadas = ventas.map(([n]) => n).sort((a, b) => cr(b) - cr(a));
+    const esperado = direccion === "mayor" ? ordenadas[0] : ordenadas[ordenadas.length - 1];
+    ok(r.ok === true && filas(r).length === 1 && filas(r)[0].startsWith(`${esperado}|`) && new RegExp(`top 1 de ${clientes.length}`).test(r.entrega.texto), `★ el extremo (${direccion}) sobre el total: un top de 1 devuelve ${esperado}, y la Entrega dice «top 1 de ${clientes.length}» (vio el universo completo)`, JSON.stringify(filas(r)));
+  }
 }
 
 console.log(`\n── _capacidad_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);

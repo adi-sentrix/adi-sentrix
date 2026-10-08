@@ -28,8 +28,8 @@ import { componerEntrega } from "./src/adi/entrega/componer.js";
 import { crearAcciones, CABECERA_DE_RETOMAR } from "./src/adi/capacidad/acciones.js";
 import { conTenantActivo } from "./src/adi/capacidad/aislamiento.js";
 import { crearAlmacenEnMemoria, ErrorDeAlmacen } from "./src/adi/continuidad/almacen.js";
-import { LIBRO_TOPE_BYTES, tamanoBytes } from "./src/adi/continuidad/libro.js";
-import { cifraDeHecho, llaveDeCifra, revalidarEntrega, elegirCambiosANombrar, cifrasDeLaEntrega, ESTADOS_DE_REVALIDACION, CAMBIOS_NOMBRADOS_MAX } from "./src/adi/continuidad/revalidar.js";
+import { LIBRO_TOPE_BYTES, tamanoBytes, comprimirLibro, expandirLibro } from "./src/adi/continuidad/libro.js";
+import { cifraDeHecho, llaveDeCifra, revalidarEntrega, elegirCambiosANombrar, cifrasDeLaEntrega, ESTADOS_DE_REVALIDACION, CAMBIOS_NOMBRADOS_MAX, codificarFilasDelTotal, decodificarFilasDelTotal } from "./src/adi/continuidad/revalidar.js";
 import { formatoDeLaCasa } from "./src/adi/notario/hechos.js";
 import { compactarParaAnfitrion } from "./src/adi/capacidad/compacto.js";
 
@@ -74,6 +74,17 @@ function verdadDeHoy(dataset, encargos) {
 const LLAVE_DE = (h) => llaveDeCifra({ tipo: h.rv.tipo, clave: h.rv.clave, dueno: h.rv.dueno, unidad: h.rv.unidad, procedencia: h.rv.procedencia });
 const nDe = (id) => Number(String(id).slice(1, String(id).indexOf(".")));
 
+/* el crudo de HOY de una cifra, directo del Core; el del TOTAL de un listado (ensayo 8) es la suma de hoy de SUS filas (la que ya no figura en los datos no suma) */
+function crudosDeHoy(ret, hoy, h) {
+  if (h.rv.deListado === true && h.rv.filas) {
+    const filas = decodificarFilasDelTotal(h.rv.filas, nDe(h.id)).map((id) => ret.hechos.find((x) => x.id === id));
+    if (!filas.length || filas.some((f) => !f)) return [];
+    const por = filas.map((f) => ((hoy && hoy.get(nDe(f.id)) && hoy.get(nDe(f.id)).get(LLAVE_DE(f))) || [])[0]);
+    return por.some((r) => r != null) ? [Number(por.reduce((a, r) => a + (r || 0), 0).toPrecision(12))] : [];
+  }
+  return (hoy && hoy.get(nDe(h.id)) && hoy.get(nDe(h.id)).get(LLAVE_DE(h))) || [];
+}
+
 /* AUDITORÍA: cada veredicto de un retomar contra el oráculo y contra las reglas duras de §2.3. Devuelve la lista de problemas (vacía = limpio). */
 function auditar(ret, hoy) {
   const malos = [];
@@ -83,12 +94,12 @@ function auditar(ret, hoy) {
     if (rv.estado !== est || !ESTADOS_DE_REVALIDACION.includes(est)) malos.push(`${h.id}: estado incoherente (${rv.estado} / ${est})`);
     if ((est === "sin_reverificar" || est === "no_se_revalida") && rv.actual !== undefined) malos.push(`${h.id}: «actual» dentro de ${est}`);
     if (est !== "cambio" && rv.diferencia !== undefined) malos.push(`${h.id}: diferencia dentro de ${est}`);
-    if (est === "igual") {
-      const hoyRaws = (hoy && hoy.get(nDe(h.id)) && hoy.get(nDe(h.id)).get(LLAVE_DE(h))) || [];
+    if (est === "igual" && !h.derivada) {   /* una derivación (D<k>) no es una cifra del Core: se audita por sus operandos, en su propia sección */
+      const hoyRaws = crudosDeHoy(ret, hoy, h);
       if (!hoyRaws.length || hoyRaws.some((r) => formatoDeLaCasa(r, h.rv.unidad) !== formatoDeLaCasa(h.rv.raw, h.rv.unidad))) malos.push(`${h.id}: «igual» cuyos crudos no imprimen lo mismo (antes ${formatoDeLaCasa(h.rv.raw, h.rv.unidad)}, hoy ${hoyRaws.map((r) => formatoDeLaCasa(r, h.rv.unidad)).join("/")})`);
     }
-    if (est === "cambio") {
-      const hoyRaws = (hoy && hoy.get(nDe(h.id)) && hoy.get(nDe(h.id)).get(LLAVE_DE(h))) || [];
+    if (est === "cambio" && !h.derivada) {
+      const hoyRaws = crudosDeHoy(ret, hoy, h);
       if (!hoyRaws.includes(rv.actual && rv.actual.raw)) malos.push(`${h.id}: «cambio» cuyo valor de hoy no es el que da el Core`);
       if (!(rv.diferencia && rv.diferencia.valor === rv.actual.raw - rv.anterior.raw)) malos.push(`${h.id}: la diferencia no es actual − anterior`);
       if (formatoDeLaCasa(rv.actual.raw, h.rv.unidad) === formatoDeLaCasa(rv.anterior.raw, h.rv.unidad)) malos.push(`${h.id}: «cambio» que se imprime igual`);
@@ -171,13 +182,13 @@ H("1 · mismo dataset y misma carga → todo igual · cero eventos · cero líne
 {
   const { ret, intacto, restaurado } = await retomarSinTocar(T(TENANT_DEMO, 1));
   ok(ret.ok === true && ret.hechos.length === 32 && ret.resumen.total === 32, "retomar trae las 31 cifras de las cuatro Entregas (la fila ancha de E1 abre sus tres cifras) y el total del listado completo de E2 (E2.h14)", String(ret.hechos && ret.hechos.length));
-  ok(ret.resumen.igual === 26 && ret.resumen.no_se_revalida === 6 && ret.hechos.find((h) => h.id === "E2.h14").estadoReverificacion === "no_se_revalida" && ret.resumen.cambio + ret.resumen.ya_no_existe + ret.resumen.no_comparable + ret.resumen.sin_reverificar === 0, "★ todo lo medido sale IGUAL (26) y lo derivado del supuesto NO SE REVALIDA (5, más el total del listado, que lo revalidan sus filas): ni un cambio ni un «no sé» donde no pasó nada", jj(ret.resumen));
+  ok(ret.resumen.igual === 27 && ret.resumen.no_se_revalida === 5 && ret.hechos.find((h) => h.id === "E2.h14").estadoReverificacion === "igual" && ret.resumen.cambio + ret.resumen.ya_no_existe + ret.resumen.no_comparable + ret.resumen.sin_reverificar === 0, "★ todo lo medido sale IGUAL (26) y también el total del listado (se recalcula desde sus filas: 27), y lo derivado del supuesto NO SE REVALIDA (5): ni un cambio ni un «no sé» donde no pasó nada", jj(ret.resumen));
   ok(ret.eventos.length === 0 && ret.lineaContinuidad === null, "★ cero eventos y cero línea: sin nada que aclarar, la continuidad no dice una palabra");
   ok(auditar(ret, HOY.base).length === 0, "la auditoría contra lo que da el Core hoy no encuentra ni un veredicto mal puesto", auditar(ret, HOY.base).join(" · "));
   ok(ret.advertencias.length === 0 && !jj(ret).includes("no re-verifica"), "★ y sin el límite declarado de antes («este corte no re-verifica…»): se revalidó de verdad, así que no hay nada que advertir");
   ok(intacto && restaurado, "★ el libro queda BYTE A BYTE igual antes y después (el pasado no se reescribe), nadie lo escribió y la empresa activa del Core se restauró");
   ok(ret.hechos.filter((h) => h.estadoReverificacion === "no_se_revalida" && !h.rv.deListado).every((h) => h.revalidacion.actual === undefined && /supuesto es de quien lo planteó/.test(h.revalidacion.motivo)), "lo derivado de un supuesto: «un supuesto es de quien lo planteó: no se revalida contra los datos», sin valor de hoy");
-  { const tl = ret.hechos.find((h) => h.id === "E2.h14"); ok(tl && tl.estadoReverificacion === "no_se_revalida" && tl.revalidacion.actual === undefined && /suma de las cifras de su listado/.test(tl.revalidacion.motivo) && tl.origen === "derivado" && /total del listado completo \(13 cuentas\)/.test(tl.metrica), "★ el total del listado completo (E2.h14) NO se revalida aparte: lo dicen sus filas; retomar lo declara con su motivo y sin valor de hoy (no se afirma como vigente)", JSON.stringify(tl)); }
+  { const tl = ret.hechos.find((h) => h.id === "E2.h14"); ok(tl && tl.estadoReverificacion === "igual" && tl.revalidacion.actual === undefined && tl.origen === "derivado" && /total del listado completo \(13 cuentas\)/.test(tl.metrica) && tl.rv.filas === "1-13", "★ el total del listado completo (E2.h14) se REVALIDA recalculándolo desde sus 13 filas (las mismas, la misma suma exacta): con los mismos datos sale IGUAL", JSON.stringify(tl)); }
   ok(ret.hechos.some((h) => h.id === "E4.h1" && h.estadoReverificacion === "igual") && ret.hechos.find((h) => h.id === "E4.h1").metrica === "Venta actual", "…y lo MEDIDO de esa misma simulación (la venta actual de la que parte) sí se revalida");
   ok(ret.uso === CABECERA_DE_RETOMAR && CABECERA_DE_RETOMAR.length === 4 && Object.isFrozen(CABECERA_DE_RETOMAR) && !/boleta|\bfig\b|carga v|versi[oó]n/i.test(CABECERA_DE_RETOMAR.join(" ")), "la cabecera de uso (cuatro reglas, en palabras de negocio) viaja en cada retomar");
   ok(jj(JSON.parse(jj(ret))) === jj(ret) && jj((await retomarSinTocar(T(TENANT_DEMO, 1))).ret) === jj(ret), "la respuesta es JSON limpio y determinística: retomar dos veces da exactamente lo mismo");
@@ -200,13 +211,15 @@ const HOY2 = { base: verdadDeHoy(DS2, ORDEN) };
   ok(unimarc.sujeto === "Unimarc" && unimarc.estadoReverificacion === "ya_no_existe" && unimarc.revalidacion.anterior.valor === "$2.3M" && unimarc.revalidacion.actual === undefined, "★ Unimarc (retirado de los datos): ya_no_existe, con lo que se entregó y sin valor de hoy");
   ok(ret.hechos.filter((h) => h.id.startsWith("E2.") && h.id !== "E2.h2" && h.id !== "E2.h13" && h.id !== "E2.h14").every((h) => h.estadoReverificacion === "igual"), "los otros 11 clientes de esa Entrega: igual");
   const cambiaron = ret.hechos.filter((h) => h.estadoReverificacion === "cambio" || h.estadoReverificacion === "ya_no_existe");
-  ok(cambiaron.every((h) => ["Lider", "Total (cuentas materiales)", "Unimarc"].includes(h.sujeto)), "lo que cambió es SOLO lo de Lider (su venta, su brecha, la cobranza de su cuenta y el total que lo incluye) y lo de Unimarc: nada más se movió", cambiaron.map((h) => `${h.id}:${h.sujeto}`).join(" "));
+  ok(cambiaron.every((h) => ["Lider", "Total (cuentas materiales)", "Unimarc"].includes(h.sujeto) || h.id === "E2.h14"), "lo que cambió es SOLO lo de Lider (su venta, su brecha, la cobranza de su cuenta y el total que lo incluye), lo de Unimarc y el total del listado (que se recalcula desde sus filas): nada más se movió", cambiaron.map((h) => `${h.id}:${h.sujeto}`).join(" "));
+  { const tl = por("E2.h14"); ok(tl.estadoReverificacion === "cambio" && tl.revalidacion.anterior.raw === 100000000 && tl.revalidacion.actual.raw === crudosDeHoy(ret, HOY2.base, tl)[0] && tl.revalidacion.diferencia.valor === tl.revalidacion.actual.raw - 100000000 && /1 ya no figura/.test(tl.revalidacion.detalle), "★ el total del listado con Lider cambiado y Unimarc retirado: CAMBIO con las dos cifras (antes $100.0M, ahora la suma de hoy de sus filas), la diferencia calculada por ADI, y dice que una fila ya no figura y no suma", jj(tl.revalidacion)); }
+  ok(!ret.lineaContinuidad.includes("total del listado"), "el total NO entra a la línea de continuidad (es la suma de filas que la línea ya nombra: dos veces el mismo cambio sería ruido)");
   ok(ret.hechos.filter((h) => h.estadoReverificacion === "no_se_revalida" && !h.rv.deListado).length === 5 && ret.hechos.filter((h) => h.id.startsWith("E4.") && h.rv.deSupuesto).every((h) => h.estadoReverificacion === "no_se_revalida"), "lo derivado del supuesto sigue «no se revalida»");
   const tipos = ret.eventos.map((e) => e.tipo);
   ok(tipos.join(",") === "datos_cambiaron,cifra_cambio", "eventos: el cambio de datos y UN evento de cifras", tipos.join(","));
   const L = ret.lineaContinuidad;
   ok(typeof L === "string" && !L.includes("\n") && lineaLimpia(L), "★ UNA línea, sin «yo», «te» ni «usted», sin versiones ni flechas de carga: tercera persona y lenguaje de negocio", L);
-  const distintos = new Set(cambiaron.map((h) => `${h.sujeto}|${h.metrica}|${h.revalidacion.anterior.valor}|${h.revalidacion.actual ? h.revalidacion.actual.valor : ""}`)).size;
+  const distintos = new Set(cambiaron.filter((h) => !h.rv.deListado).map((h) => `${h.sujeto}|${h.metrica}|${h.revalidacion.anterior.valor}|${h.revalidacion.actual ? h.revalidacion.actual.valor : ""}`)).size;
   ok(cuenta(L, "(antes ") === CAMBIOS_NOMBRADOS_MAX && L.includes("(antes $17.9M, ahora $16.1M)") && L.includes("venta de Lider") && L.includes(`, y ${distintos - CAMBIOS_NOMBRADOS_MAX} cambios más; el detalle está disponible`), `★ nombra TRES cambios con «antes … ahora …» y dice cuántos más hay (${distintos} distintos: «y ${distintos - CAMBIOS_NOMBRADOS_MAX} cambios más»), nunca solo el conteo`, L);
   ok(L.startsWith("los datos cambiaron desde la Entrega 4 · de lo ya entregado, con los datos actuales cambiaron: venta de Lider (antes $17.9M, ahora $16.1M), saldo pendiente de Lider (antes $9.8M, ahora $8.8M), contribución no capturada (brecha estimada) de Lider (antes $1.5M, ahora $1.4M), y "), "los tres nombrados son los de MAYOR PRIORIDAD de las Entregas originales (la fila de Lider, de arriba hacia abajo en cada tabla), la venta repetida en dos Entregas se nombra una vez", L);
   ok(!/Unimarc/.test(L.split(", y ")[0]) && ret.hechos.some((h) => h.id === "E2.h13" && h.estadoReverificacion === "ya_no_existe"), "el cliente retirado NO se nombra en la línea (su prioridad es la última de su tabla) pero sí está completo en el detalle tipado");
@@ -233,7 +246,7 @@ H("3 · otra carga con OTRO período en el Marco → la Entrega de cobranza qued
   const e3 = ret.hechos.filter((h) => h.id.startsWith("E3."));
   ok(e3.length === 2 && e3.every((h) => h.estadoReverificacion === "no_comparable" && h.revalidacion.motivo === "otro_periodo"), "★ toda la Entrega de cobranza (foto al 31 ago) frente a una foto al 30 sep: no_comparable · otro_periodo, nunca «cambió»", jj(e3.map((h) => h.revalidacion.motivo)));
   ok(e3.every((h) => h.revalidacion.diferencia === undefined && h.revalidacion.actual && h.revalidacion.periodoAnterior === "foto de cobranza al 31 ago 2026" && h.revalidacion.periodoActual === "foto de cobranza al 30 sep 2026"), "trae el valor de hoy rotulado con SU período y el de entonces, y NINGUNA diferencia", jj(e3[0].revalidacion));
-  ok(ret.resumen.cambio === 0 && ret.resumen.ya_no_existe === 0 && ret.resumen.no_comparable === 2 && ret.resumen.igual === 24 && auditar(ret, hoy3).length === 0, "las otras Entregas (de otro período distinto del que cambió: año cerrado) siguen igual; la auditoría contra el Core no objeta nada", jj(ret.resumen));
+  ok(ret.resumen.cambio === 0 && ret.resumen.ya_no_existe === 0 && ret.resumen.no_comparable === 2 && ret.resumen.igual === 25 && auditar(ret, hoy3).length === 0, "las otras Entregas (de otro período distinto del que cambió: año cerrado) siguen igual; la auditoría contra el Core no objeta nada", jj(ret.resumen));
   ok(ret.lineaContinuidad === "los datos cambiaron desde la Entrega 4", "★ la línea es SOLO el cambio de datos: lo no comparable no genera texto", ret.lineaContinuidad);
   ok(ret.eventos.length === 1 && ret.eventos[0].tipo === "datos_cambiaron" && lineaLimpia(ret.lineaContinuidad) && intacto, "un solo evento (datos_cambiaron), línea limpia y el libro intacto");
 }
@@ -272,8 +285,8 @@ H("5 · seis cambios en una Entrega → la línea nombra los TRES de mayor prior
   const hoy5 = verdadDeHoy(DS5, [ENC.ventasTodos]);
   const retA = crearAcciones({ continuidad: { ...sA, guardarLibro: async (...a) => { escrituras++; return sA.guardarLibro(...a); } }, ahora: reloj }).retomar;
   const ret5 = (await retomarSinTocar(T(DS5, 2), cidA, retA, sA)).ret;
-  const cambios = ret5.hechos.filter((h) => h.estadoReverificacion === "cambio" || h.estadoReverificacion === "ya_no_existe");
-  ok(cambios.length === 6 && ret5.resumen.cambio === 5 && ret5.resumen.ya_no_existe === 1 && ret5.resumen.igual === 7, "seis cambios (cinco ventas y un cliente retirado) y siete que siguen igual", jj(ret5.resumen));
+  const cambios = ret5.hechos.filter((h) => (h.estadoReverificacion === "cambio" || h.estadoReverificacion === "ya_no_existe") && !h.rv.deListado);
+  ok(cambios.length === 6 && ret5.resumen.cambio === 6 && ret5.resumen.ya_no_existe === 1 && ret5.resumen.igual === 7 && ret5.hechos.find((h) => h.rv.deListado).estadoReverificacion === "cambio", "seis cambios de cifras (cinco ventas y un cliente retirado), siete que siguen igual, y el total del listado, que se recalcula desde sus filas y también cambió", jj(ret5.resumen));
   ok(auditar(ret5, hoy5).length === 0, "la auditoría contra el Core no objeta ningún veredicto", auditar(ret5, hoy5).join(" · "));
   const mag = (h) => Math.abs(h.revalidacion.diferencia ? h.revalidacion.diferencia.valor : 0);
   const porMonto = cambios.slice().sort((a, b) => mag(b) - mag(a)).slice(0, 3).map((h) => h.sujeto);
@@ -487,6 +500,66 @@ H("10 · retomar dice qué es cada cifra: la descripción de cada derivación y 
   ok(ids.every((id) => comp.hechos.find((x) => x.id === id).universo) && !ids.every((id) => sinUniv.hechos.find((x) => x.id === id).universo), "CARNADA «retomar vuelve a devolver las cifras de un conjunto acotado sin su universo» → ROJO");
   ok(CABECERA_DE_RETOMAR.length === 4 && /descripcion/.test(CABECERA_DE_RETOMAR[0]) && /universo/.test(CABECERA_DE_RETOMAR[0]), "la cabecera de uso de `retomar` (siguen siendo cuatro reglas) le dice al anfitrión que cite cada cifra derivada y cada conjunto acotado con su descripción");
   console.log(`   · retomar de este hilo: ${ret.hechos.length} hechos, ${(JSON.stringify(comp).length / 1024).toFixed(1)} KB compacta (las descripciones suman ${derivadas.reduce((n, h) => n + h.descripcion.length, 0)} caracteres)`);
+}
+
+/* ═══ 11 · ENSAYO 8 (owner 2026-10-08) · RETOMAR REVALIDA EL TOTAL DEL LISTADO RECALCULÁNDOLO DESDE SUS FILAS ════════════════════════════════════════════════════════════════════════════
+ * El límite que el diseño dejó a decisión del owner (§10): una derivación sobre el total de un listado terminaba `no_se_revalida` aunque nada hubiera cambiado. Ahora el libro guarda de qué filas es la suma (`rv.filas`) y `retomar` la vuelve a sumar con las cifras de
+ * HOY de esas MISMAS filas (la misma suma exacta de crudos): `igual` si imprime lo mismo, `cambio` con las dos cifras si no, y si una fila salió de los datos no suma (y se dice); si una fila no se pudo revalidar, el total no se afirma vigente. */
+H("11 · retomar revalida el total del listado desde sus filas: igual si nada cambió, cambio con las dos cifras si cambió, y lo derivado sobre él lo sigue");
+{
+  const tenant = T(TENANT_DEMO, 1);
+  const sT = crearAlmacenEnMemoria();
+  const aT = crearAcciones({ continuidad: sT, ahora: reloj });
+  const r1 = await aT.consultar({ tenant, encargo: ENC.ventasTodos });
+  const conv = r1.continuidad.conversacionId;
+  const libro = await sT.leerLibro("demo", conv);
+  const total = libro.entregas[0].hechos.find((h) => h.rv && h.rv.deListado === true);
+  const filasDe = (h) => libro.entregas[0].hechos.filter((x) => !(x.rv && x.rv.deListado) && x.rv.clave === h.rv.clave && x.rv.unidad === h.rv.unidad);
+  ok(total && total.rv.filas === "1-13" && filasDe(total).length === 13 && filasDe(total).reduce((a, x) => a + x.rv.raw, 0) === total.rv.raw, "★ el libro guarda de qué filas es el total (`rv.filas`: «1-13») y esas filas SUMAN exactamente su crudo", jj(total && total.rv));
+  const cq = codificarFilasDelTotal;
+  ok(cq(["1", "2", "3"]) === "1-3" && cq(["1", "3", "5"]) === "1,3,5" && cq(["1", "2", "4.2", "5", "6", "7"]) === "1,2,4.2,5-7" && cq(["13", "1", "2"]) === "1,2,13", "la cadena de filas es corta y ordenada (rangos, posiciones sueltas, la segunda cifra de una fila ancha)");
+  ok(jj(decodificarFilasDelTotal("1,2,4.2,5-7", 3)) === jj(["E3.h1", "E3.h2", "E3.h4.2", "E3.h5", "E3.h6", "E3.h7"]) && ["", "a", "1-", "3-1", "1..2", "1-2-3", "1,x"].every((m) => decodificarFilasDelTotal(m, 1).length === 0), "se lee de vuelta con los ids del libro; lo que no es una cadena de filas no resuelve ninguna (el total no se revalida)");
+  ok(jj(expandirLibro(comprimirLibro(libro))) === jj(libro) && jj(expandirLibro(JSON.parse(jj(comprimirLibro(libro))))) === jj(libro), "★ la forma guardada del libro conserva `rv.filas` SIN PÉRDIDA (comprimir y expandir da el mismo libro)");
+  /* las derivaciones sobre el total */
+  const part = await aT.derivar({ tenant, conversacionId: conv, operacion: "participacion", sobre: ["E1.h2"], base: total.id });
+  const dife = await aT.derivar({ tenant, conversacionId: conv, operacion: "diferencia", sobre: [total.id, "E1.h2"] });
+  ok(part.ok && dife.ok, "(armado) la participación de Lider sobre el total y el resto del total");
+  const ret = async (dataset, version) => (await retomarSinTocar(T(dataset, version), conv, aT.retomar, sT)).ret;
+  const por = (r, id) => r.hechos.find((h) => h.id === id);
+  /* nada cambió → todo igual */
+  const r0 = await ret(TENANT_DEMO, 1);
+  ok(por(r0, total.id).estadoReverificacion === "igual" && por(r0, part.hecho.id).estadoReverificacion === "igual" && por(r0, dife.hecho.id).estadoReverificacion === "igual" && r0.resumen.no_se_revalida === 0 && r0.lineaContinuidad === null, "★ con los mismos datos el total sale IGUAL y la participación y la diferencia sobre él también (antes: no_se_revalida), sin una palabra en la línea", jj(r0.resumen));
+  ok(auditar(r0, verdadDeHoy(TENANT_DEMO, [ENC.ventasTodos])).length === 0, "la auditoría contra el Core no objeta nada");
+  /* cambia la venta de Lider → el total CAMBIA con las dos cifras, y lo derivado sobre él, recalculado */
+  const DSL = conVentas(TENANT_DEMO, { Lider: 14000 });
+  const hoyL = verdadDeHoy(DSL, [ENC.ventasTodos]);
+  const rL = await ret(DSL, 2);
+  const tL = por(rL, total.id), pL = por(rL, part.hecho.id), dL = por(rL, dife.hecho.id);
+  const crudoLider = hoyL.get(1).get(llaveDeCifra({ tipo: "ref", clave: "ventas", dueno: "Lider", unidad: "money", procedencia: "medido" }))[0];
+  const sumaHoy = filasDe(total).reduce((a, x) => a + ((hoyL.get(1).get(llaveDeCifra({ tipo: "ref", clave: x.rv.clave, dueno: x.rv.dueno, unidad: x.rv.unidad, procedencia: x.rv.procedencia })) || [0])[0]), 0);
+  ok(tL.estadoReverificacion === "cambio" && tL.revalidacion.anterior.raw === total.rv.raw && Math.abs(tL.revalidacion.actual.raw - sumaHoy) < 1e-6 && tL.revalidacion.diferencia.valor === tL.revalidacion.actual.raw - total.rv.raw && tL.revalidacion.cargaAnterior === 1 && tL.revalidacion.cargaActual === 2, `★ con la venta de Lider cambiada el total pasa de ${tL.revalidacion.anterior.valor} a ${tL.revalidacion.actual && tL.revalidacion.actual.valor}: CAMBIO con las dos cifras, la diferencia calculada por ADI y las dos cargas`, jj(tL.revalidacion));
+  const esperadaPart = (100 * crudoLider) / sumaHoy;
+  ok(pL.estadoReverificacion === "cambio" && Math.abs(pL.revalidacion.actual.raw - esperadaPart) < 1e-6 && pL.revalidacion.actual.valor === formatoDeLaCasa(esperadaPart, "pct"), `★ la participación de Lider sobre el total se recalcula con el total de hoy: ${pL.revalidacion.anterior.valor} → ${pL.revalidacion.actual && pL.revalidacion.actual.valor}`, jj(pL.revalidacion));
+  ok(dL.estadoReverificacion === "igual", "y el resto del total (total − Lider) sigue IGUAL: las demás cuentas no cambiaron, y el recálculo del total con la venta de Lider de hoy lo confirma");
+  ok(auditar(rL, hoyL).length === 0 && !/total del listado/.test(rL.lineaContinuidad || ""), "la auditoría contra el Core no objeta nada y el total no entra a la línea (la suma ya nombra a sus filas)");
+  /* una fila sale de los datos → no suma, y se dice */
+  const DSU = sinCliente(TENANT_DEMO, "Unimarc");
+  const hoyU = verdadDeHoy(DSU, [ENC.ventasTodos]);
+  const rU = await ret(DSU, 2);
+  const tU = por(rU, total.id);
+  const uni = libro.entregas[0].hechos.find((h) => h.sujeto === "Unimarc");
+  ok(tU.estadoReverificacion === "cambio" && tU.revalidacion.actual.raw === total.rv.raw - uni.rv.raw && /1 ya no figura/.test(tU.revalidacion.detalle) && por(rU, uni.id).estadoReverificacion === "ya_no_existe" && auditar(rU, hoyU).length === 0, `★ B01: si una cuenta salió de los datos (Unimarc), el total de las MISMAS filas cambia (${tU.revalidacion.anterior.valor} → ${tU.revalidacion.actual && tU.revalidacion.actual.valor}) y lo dice («1 ya no figura»); la cuenta queda «ya no existe»`, jj(tU.revalidacion));
+  ok(por(rU, part.hecho.id).estadoReverificacion === "cambio", "y la participación sobre ese total cambia con él");
+  /* un libro de ANTES (sin `filas`) se sigue leyendo: el total no se revalida, como siempre */
+  const antiguo = clon(await sT.leerLibro("demo", conv));
+  for (const h of antiguo.entregas[0].hechos) if (h.rv && h.rv.filas) delete h.rv.filas;
+  const sA = crearAlmacenEnMemoria(); await sA.guardarLibro("demo", antiguo);
+  const rA = (await retomarSinTocar(T(TENANT_DEMO, 1), conv, crearAcciones({ continuidad: sA, ahora: reloj }).retomar, sA)).ret;
+  ok(por(rA, total.id).estadoReverificacion === "no_se_revalida" && /suma de las cifras de su listado/.test(por(rA, total.id).revalidacion.motivo) && por(rA, part.hecho.id).estadoReverificacion === "no_se_revalida", "★ un libro de ANTES (el total sin sus filas) se sigue leyendo igual: el total no se afirma vigente y la derivación tampoco (falla cerrada)");
+  /* sin una re-corrida (las filas no se pudieron comparar), el total tampoco */
+  const rS = revalidarEntrega(clon(libro.entregas[0]), { versionIdActual: 1, noResuelto: [] });
+  const tS = rS.hechos.get(total.id);
+  ok(tS && tS.estado === "no_se_revalida" && tS.actual === undefined && /alguna de ellas no se pudo revalidar/.test(tS.motivo), "★ si ninguna fila se pudo revalidar (no hubo re-corrida), el total NO se afirma vigente: no_se_revalida, con su motivo y sin valor de hoy", jj(tS));
 }
 
 /* ═══ 9 · AUDITORÍAS DE CÓDIGO ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */

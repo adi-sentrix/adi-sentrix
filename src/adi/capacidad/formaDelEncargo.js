@@ -30,6 +30,29 @@ function _entidad(ref) {
   return { ok: false };
 }
 
+/* ── EL SUPUESTO DE UNA SIMULACIÓN (ensayo 8, owner 2026-10-08) ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * La forma que el Encargo exige: el supuesto vive en la RAÍZ con su id (`supuestos: [{id, tipo, valor, unidad, alcance}]`) y la parte lo CITA (`supuestos: ["s1"]`). En el ensayo 8 el anfitrión declaró el supuesto dentro de la parte (con `alcance` como cadena, con `entidad` y
+ * `valor: {raw, unidad}`) y en la raíz sin id y sin citarlo: tres veces `cierre_incompleto · ningún supuesto citado tiene productor`, sin saber por qué. Cuando la lectura es ÚNICA se acepta: un supuesto declarado dentro de la parte sube a la raíz con un id y la parte lo cita; un
+ * supuesto de la raíz sin id recibe uno; el que ninguna parte cita se asigna a la única simulación que no cita ninguno; el alcance dicho como cadena (una cuenta) o con `entidad`/`tema` se lee como {eje, nombre} con el eje de la parte, solo si la parte tiene UN eje. Lo que no
+ * se puede leer sin adivinar queda como llegó (el validador lo dice, y el rechazo enseña la forma). */
+function _supuestoNormalizado(s, parte) {
+  const out = { ...s };
+  const cambios = [];
+  if (_es(out.valor) && typeof out.valor.raw === "number") { if (!_str(out.unidad) && _str(out.valor.unidad)) out.unidad = out.valor.unidad; out.valor = out.valor.raw; cambios.push("valor"); }
+  const eje = parte && _str(parte.eje) ? parte.eje.trim() : null;
+  let nombre = null;
+  if (_str(out.entidad)) { nombre = out.entidad.trim(); delete out.entidad; cambios.push("entidad"); }
+  if (out.alcance == null && nombre && eje) { out.alcance = { eje, nombre }; }
+  else if (_str(out.alcance) && out.alcance.trim() !== "negocio" && eje) { out.alcance = { eje, nombre: out.alcance.trim() }; cambios.push("alcance"); }
+  else if (_es(out.alcance) && !(_str(out.alcance.eje) && _str(out.alcance.nombre))) {
+    const nom = _str(out.alcance.nombre) ? out.alcance.nombre : _str(out.alcance.entidad) ? out.alcance.entidad : null;
+    const ej = _str(out.alcance.eje) ? out.alcance.eje : eje;
+    if (nom && ej) { out.alcance = { eje: ej.trim(), nombre: nom.trim() }; cambios.push("alcance"); }
+  } else if (_es(out.alcance) && "tema" in out.alcance) { const { tema, ...resto } = out.alcance; out.alcance = resto; cambios.push("alcance"); }
+  return { supuesto: out, cambios };
+}
+const _idLibre = (usados) => { let n = 1; while (usados.has(`s${n}`)) n++; return `s${n}`; };
+
 /** normalizarFormaDelEncargo(encargo) → { encargo, avisos: string[], formato: NoResuelto[] }
  *  `encargo` es el MISMO objeto cuando nada cambió; si algo se leyó de otra forma, una copia con solo eso cambiado (la entrada no se muta). */
 export function normalizarFormaDelEncargo(encargo) {
@@ -110,6 +133,56 @@ export function normalizarFormaDelEncargo(encargo) {
       if (parte !== p) { copiarPartes(); partes[i] = parte; }
     });
     if (partes !== encargo.partes) { copiarRaiz(); raiz.partes = partes; }
+  }
+
+  /* ── los supuestos de una simulación (ver arriba): del lugar donde el anfitrión los escribió a la raíz, con id, citados por la parte ── */
+  if (Array.isArray(raiz.partes) && (Array.isArray(raiz.supuestos) || raiz.partes.some((p) => _es(p) && Array.isArray(p.supuestos) && p.supuestos.some(_es)))) {
+    const partesAct = raiz.partes;
+    const sup = Array.isArray(raiz.supuestos) ? raiz.supuestos.slice() : [];
+    const usados = new Set(sup.filter((s) => _es(s) && _str(s.id)).map((s) => s.id));
+    const partesNuevas = partesAct.slice();
+    let cambio = false;
+    const avisos = [];
+    /* 1 · un supuesto escrito DENTRO de la parte sube a la raíz con un id y la parte lo cita */
+    partesAct.forEach((p, i) => {
+      if (!_es(p) || !Array.isArray(p.supuestos) || !p.supuestos.some(_es)) return;
+      const idP = _str(p.id) ? p.id : `p${i + 1}`;
+      const ids = [];
+      for (const s of p.supuestos) {
+        if (!_es(s)) { ids.push(s); continue; }
+        const { supuesto, cambios } = _supuestoNormalizado(s, p);
+        const id = _str(supuesto.id) && !usados.has(supuesto.id) ? supuesto.id.trim() : _idLibre(usados);
+        usados.add(id);
+        const { id: _omitido, ...resto } = supuesto;
+        sup.push({ id, ...resto });
+        ids.push(id);
+        avisos.push(`en la parte ${idP}, el supuesto escrito dentro de la parte se leyó como un supuesto de la raíz con id «${id}» citado por la parte${cambios.length ? ` (se leyó ${cambios.join(", ")} en la forma del contrato)` : ""}. La forma completa: en la raíz «supuestos»: [{"id", "tipo", "valor", "unidad", "alcance"}] y en la parte «supuestos»: ["${id}"].`);
+      }
+      partesNuevas[i] = { ...p, supuestos: ids };
+      cambio = true;
+    });
+    const simulaciones = partesNuevas.filter((p) => _es(p) && p.cierre === "simulacion");
+    /* 2 · un supuesto de la raíz sin id recibe uno; su alcance se lee con el eje de la parte que lo cita (o de la única simulación) */
+    sup.forEach((s, k) => {
+      if (!_es(s)) return;
+      let t = s, cambiosT = [];
+      if (!_str(t.id)) { const id = _idLibre(usados); usados.add(id); t = { id, ...t }; cambiosT.push("id"); }
+      const citante = partesNuevas.find((p) => _es(p) && Array.isArray(p.supuestos) && p.supuestos.includes(t.id)) || (simulaciones.length === 1 ? simulaciones[0] : null);
+      const n = _supuestoNormalizado(t, citante);
+      if (n.cambios.length) { t = { id: t.id, ...Object.fromEntries(Object.entries(n.supuesto).filter(([c]) => c !== "id")) }; cambiosT = cambiosT.concat(n.cambios); }
+      if (cambiosT.length) { sup[k] = t; cambio = true; avisos.push(`el supuesto «${t.id}» de la raíz se leyó en la forma del contrato (${cambiosT.join(", ")}).`); }
+    });
+    /* 3 · el supuesto que ninguna parte cita pertenece a la ÚNICA simulación que no cita ninguno */
+    const citados = new Set(partesNuevas.flatMap((p) => (_es(p) && Array.isArray(p.supuestos) ? p.supuestos.filter(_str) : [])));
+    const huerfanos = sup.filter((s) => _es(s) && _str(s.id) && !citados.has(s.id)).map((s) => s.id);
+    const sinCitas = simulaciones.filter((p) => !Array.isArray(p.supuestos) || p.supuestos.length === 0);
+    if (huerfanos.length && sinCitas.length === 1) {
+      const i = partesNuevas.indexOf(sinCitas[0]);
+      partesNuevas[i] = { ...sinCitas[0], supuestos: huerfanos };
+      cambio = true;
+      avisos.push(`el/los supuesto(s) ${huerfanos.map((x) => `«${x}»`).join(", ")} no los citaba ninguna parte: se asignaron a la parte ${_str(sinCitas[0].id) ? sinCitas[0].id : `p${i + 1}`}, la única simulación que no citaba ninguno (la parte los cita con «supuestos»: [ids]).`);
+    }
+    if (cambio) { copiarRaiz(); raiz.supuestos = sup; raiz.partes = partesNuevas; salida.avisos.push(...avisos); }
   }
 
   salida.encargo = raiz;

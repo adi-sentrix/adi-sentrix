@@ -30,7 +30,7 @@ const _conjuntosDelEje = (eje) => CONJUNTOS_DE_LA_CASA.filter((c) => c.familia !
 
 /* ── LA FORMA DE UN UNIVERSO, DOCUMENTADA (va en `catalogo.universo`) ──────────────────────────────────────────────────────────────────────────────────────────────────────────── */
 /* el catálogo no lleva ninguna cifra (ni siquiera de ejemplo): lo que es un número se escribe como lo que falta poner, «<cantidad>» · «<número>» */
-const _K = "<cantidad>", _N = "<número>";
+const _K = "<cantidad>", _N = "<número>", _UNO = "<1: un solo extremo>";
 const _EJEMPLO_DE_TOP = (eje) => { const m = metricasDelEje(eje)[0]; return m ? { eje, top: { metrica: m, k: _K, direccion: DIRECCIONES_DE_TOP[0] } } : null; };
 export function guiaDeUniverso() {
   const ejesConEntidades = EJES.filter((e) => axisEntityNames(e).length);
@@ -56,7 +56,30 @@ export function guiaDeUniverso() {
     estados,
     conjuntos,
     ejemplos: [_EJEMPLO_DE_TOP(eC), estadoDeC ? { eje: eC, estados: [estadoDeC] } : null, metricaDeFiltro ? { eje: eC, filtros: [{ metrica: metricaDeFiltro, op: ">", valor: _N }] } : null].filter(Boolean),
+    extremo: {
+      texto: "El mayor, el menor, el que más creció o el más grave sobre el total se le pide a ADI: un top de 1 por esa métrica (direccion: mayor · menor · peor · mejor), calculado sobre el universo completo del eje. Una lista parcial (marcada «parcial» en la Entrega) no autoriza a afirmar el orden del total.",
+      ejemplo: eC && metricasDelEje(eC)[0] ? { eje: eC, top: { metrica: metricasDelEje(eC)[0], k: _UNO, direccion: DIRECCIONES_DE_TOP[0] } } : null,
+    },
     limite: "Un universo no se acota por la marca, la familia o el canal de otro eje (los SKU no se filtran por marca): pida el eje marca, familia o canal, o nombre las entidades. Y la venta, el margen, la contribución y las unidades vendidas no se abren por bodega: el dato no dice qué bodega despachó cada venta (la bodega solo tiene inventario).",
+  };
+}
+
+/* ── LA FORMA DE UNA SIMULACIÓN, DOCUMENTADA (ensayo 8, owner 2026-10-08) ──────────────────────────────────────────────────────────────────────────────────────────────────────
+ * El anfitrión probó tres veces la simulación «+10 %» (el supuesto dentro de la parte, con otro alcance, sin id) y recibió «ningún supuesto citado tiene productor» sin saber qué faltaba. La forma que el Encargo exige: el supuesto en la RAÍZ con id, y la parte lo CITA por ese id. Sin cifras:
+ * el ejemplo trae «<número>» y «<nombre exacto>»; el gate lo prueba contra el validador y contra `consultar` (con un número y una cuenta reales). `tipos` = los que corren en esta empresa (el catálogo los pasa; el rechazo, los de la forma). */
+export function guiaDeSimulacion({ tipos = null, sinTipos = false } = {}) {
+  const ejesConEntidades = EJES.filter((e) => axisEntityNames(e).length);
+  const eje = ejesConEntidades.includes("cliente") ? "cliente" : ejesConEntidades[0] || "cliente";
+  const lista = Array.isArray(tipos) && tipos.length ? tipos : Object.entries(ASSUMPTIONS).map(([tipo, def]) => ({ tipo, nombre: def.label, unidades: def.units }));
+  const growth = lista.find((t) => t.tipo === "growth") || lista[0];
+  return {
+    forma: "Una simulación declara su supuesto en la RAÍZ del encargo, con un id —supuestos: [{ id, tipo, valor, unidad, alcance }]—, y la parte lo CITA por ese id —cierre: \"simulacion\", supuestos: [\"s1\"]—. valor: un número; unidad: una de las del tipo; alcance: \"negocio\" o { eje, nombre } con el nombre exacto de la entidad. Un supuesto escrito dentro de la parte, o sin id, también se lee, pero esta es la forma completa. Hasta " + SUPUESTOS_USUARIO_MAX + " supuestos por encargo.",
+    ...(sinTipos ? {} : { tipos: lista.map((t) => ({ tipo: t.tipo, ...(t.nombre ? { nombre: t.nombre } : {}), unidades: t.unidades })) }),
+    ejemplo: {
+      version: "encargo/v1",
+      supuestos: [{ id: "s1", tipo: growth ? growth.tipo : "growth", valor: _N, unidad: growth && growth.unidades ? growth.unidades[0] : "pct", alcance: { eje, nombre: "<nombre exacto>" } }],
+      partes: [{ id: "p1", tema: "comercial", cierre: "simulacion", conceptos: ["ventas"], eje, entidades: ["<nombre exacto>"], supuestos: ["s1"] }],
+    },
   };
 }
 
@@ -123,7 +146,7 @@ function _alternativasDe(nr, { parte, libro }) {
     case "partes_tope": return [{ tipo: "maximo", partes: PARTES_MAX }];
     case "supuesto_tope": return [{ tipo: "maximo", supuestos: SUPUESTOS_USUARIO_MAX }];
     case "origen_no_admitido": return _lista("origen", "validos", ["supuesto", "declarado"]);
-    case "supuesto_mal_formado": case "supuesto_sin_productor": return [{ tipo: "supuestos_admitidos", tipos: Object.keys(ASSUMPTIONS), alcance: "\"negocio\" o { eje, nombre }" }];
+    case "supuesto_mal_formado": case "supuesto_sin_productor": return [{ tipo: "supuestos_admitidos", tipos: Object.keys(ASSUMPTIONS), alcance: "\"negocio\" o { eje, nombre }" }, { tipo: "forma_de_simulacion", ...guiaDeSimulacion() }];
     case "premisa_mal_formada": return _lista("tipos_de_premisa", "validos", TIPOS_DE_PREMISA);
     case "usar_invalido": return _lista("usar", "validos", USAR_VALORES);
     case "profundidad_invalida": return _lista("profundidad", "validos", PROFUNDIDAD_VALORES);
@@ -132,7 +155,8 @@ function _alternativasDe(nr, { parte, libro }) {
       const ns = libro && Array.isArray(libro.entregas) ? libro.entregas.filter((e) => e && !e.recortada).map((e) => `E${e.n}`) : [];
       return [{ tipo: "contexto", forma: "E<n> (una Entrega), E<n>.h<k> (una cifra) o E<n>.u<k> (un universo)", entregas: ns }];
     }
-    case "cierre_incompleto": case "cierre_desconocido": case "cardinalidad": return [{ tipo: "cierres", validos: CIERRES.slice() }];
+    case "cierre_incompleto": return parte && parte.cierre === "simulacion" && /supuesto/.test(String(nr.detalle || "")) ? [{ tipo: "forma_de_simulacion", ...guiaDeSimulacion() }] : [{ tipo: "cierres", validos: CIERRES.slice() }];
+    case "cierre_desconocido": case "cardinalidad": return [{ tipo: "cierres", validos: CIERRES.slice() }];
     case "tema_desconocido": case "tema_ausente": return _lista("temas", "validos", _TEMAS());
     case "eje_no_soportado": case "ejes_mezclados": case "cruce_bloqueado": return _lista("ejes", "validos", EJES);
     case "concepto_de_otro_tema": case "concepto_sin_productor": return [{ tipo: "conceptos", claves: _unicos(DOMINIOS_REGISTRO.filter((d) => d.estado === "activo").flatMap((d) => d.metricas || [])).filter((k) => ejesConProductor(k).length) }];

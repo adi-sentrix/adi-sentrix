@@ -63,7 +63,15 @@ export function cifrasDeLaConsulta(entregaJson, turno) {
   });
 }
 
-function _compactarEntrega(entrega, turno) {
+/* UNA LISTA PARCIAL SE DICE (ensayo 8, owner 2026-10-08): un universo con menos entidades que su eje (los 3 de mayor venta, unas cuentas nombradas, las que están en mora) es una vista parcial: `parcial: "k de N"`. Con ella no se afirma el orden del total (el mayor, el menor, el que más creció, el más grave): lo dice la
+ * cabecera de uso y el extremo se le pide a ADI (un top de 1, `catalogo.universo.extremo`). La marca es corta a propósito: viaja en cada universo parcial. */
+function _parcial(u, tamanosDeEje) {
+  const N = tamanosDeEje && u && typeof u.eje === "string" ? tamanosDeEje[u.eje] : null;
+  const n = u && Array.isArray(u.entidades) ? u.entidades.length : null;
+  return Number.isInteger(N) && Number.isInteger(n) && n < N ? `${n} de ${N}` : null;
+}
+
+function _compactarEntrega(entrega, turno, tamanosDeEje = null) {
   const texto = entrega.texto;
   const j = entrega.json && typeof entrega.json === "object" ? entrega.json : null;
   if (!j) return { texto };
@@ -76,7 +84,7 @@ function _compactarEntrega(entrega, turno) {
   /* `definiciones` y `referencia`: los criterios con que se calculó (piso, techo, benchmark) cada uno con SU origen («declarado por la empresa» · «criterio general de ADI») — lo que la persona preguntará: «¿con qué criterio?» */
   const marco = _soloConValor({ empresa: m.empresa, periodo: m.periodo, universo: m.universo, moneda: m.moneda, definiciones: _noVacio(m.definiciones) ? m.definiciones : null, referencia: m.referenciaDeclarada && m.referenciaDeclarada.texto ? m.referenciaDeclarada.texto : null, perfil: _perfilBreve(m.perfil) });
   /* el id del universo es el que el libro le da por posición (`E<n>.u<k>`): el que una persona puede citar después con `contexto.universoRef` */
-  const universos = (Array.isArray(j.universos) ? j.universos : []).map((u, k) => _soloConValor({ id: `E${turno}.u${k + 1}`, parte: u.id, eje: u.eje, texto: u.texto, n: Array.isArray(u.entidades) ? u.entidades.length : null, ...(Array.isArray(u.entidades) && u.entidades.length <= ENTIDADES_DE_UN_UNIVERSO_MAX ? { entidades: u.entidades } : {}), ...(u.valido === false ? { valido: false, errorValidacion: u.errorValidacion || null } : {}) }));
+  const universos = (Array.isArray(j.universos) ? j.universos : []).map((u, k) => _soloConValor({ id: `E${turno}.u${k + 1}`, parte: u.id, eje: u.eje, texto: u.texto, n: Array.isArray(u.entidades) ? u.entidades.length : null, parcial: _parcial(u, tamanosDeEje), ...(Array.isArray(u.entidades) && u.entidades.length <= ENTIDADES_DE_UN_UNIVERSO_MAX ? { entidades: u.entidades } : {}), ...(u.valido === false ? { valido: false, errorValidacion: u.errorValidacion || null } : {}) }));
   const me = j.meta || {};
   const alcance = _soloConValor({ profundidad: me.profundidad, palabras: me.palabras, tope: me.tope, filas: me.filas, topeFilas: me.topeFilas, recortoFilas: me.recortoFilas, recortoOraciones: me.recortoOraciones, excedeTope: me.excedeTope });
   const d = j.detalle && typeof j.detalle === "object" ? j.detalle : null;
@@ -102,11 +110,12 @@ function _compactarEntrega(entrega, turno) {
 }
 
 function _compactarConsultar(s) {
-  if (!s || typeof s !== "object" || !s.entrega) return s;                       // sin Entrega (rechazo, nada resuelto): ya es chica
-  const { entrega, ...resto } = s;
+  if (!s || typeof s !== "object") return s;
+  if (!s.entrega) { const { tamanosDeEje, ...r } = s; return r; }                // sin Entrega (rechazo, nada resuelto): ya es chica
+  const { entrega, tamanosDeEje, ...resto } = s;
   const ev = resto.continuidad && resto.continuidad.estadoVigente;
   const turno = ev && Number.isInteger(ev.turno) ? ev.turno : null;
-  return { ok: resto.ok, entrega: _compactarEntrega(entrega, turno), ...Object.fromEntries(Object.entries(resto).filter(([k]) => k !== "ok")) };
+  return { ok: resto.ok, entrega: _compactarEntrega(entrega, turno, tamanosDeEje), ...Object.fromEntries(Object.entries(resto).filter(([k]) => k !== "ok")) };
 }
 
 /* ── CONOCER EMPRESA ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────── */

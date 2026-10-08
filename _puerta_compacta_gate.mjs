@@ -385,6 +385,30 @@ H("6 · por la puerta real (bearer · JSON-RPC y REST): lo que llega es la respu
 }
 
 /* ═══ 7 · SIN RED, SIN node:* ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+/* ═══ 8 · ENSAYO 8 (owner 2026-10-08) · UNA LISTA PARCIAL SE DICE: «k de N» ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * La regla de la cabecera de uso —el orden sobre el total (el mayor, el menor, el que más creció, el más grave) viene de una consulta que vio el universo completo— necesita que el anfitrión SEPA cuándo lo que tiene es una vista parcial: cada universo con menos
+ * entidades que su eje (los 3 de mayor venta, unas cuentas nombradas, las que están en mora) viaja con `parcial: "k de N"`; el universo completo no lleva la marca. Es corto a propósito (viaja en cada universo parcial). */
+H("8 · ensayo 8: una lista parcial viaja marcada «k de N»; la completa no");
+{
+  const { consultar } = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
+  const C = async (partes) => compactarParaAnfitrion("consultar", await consultar({ tenant: TENANT, encargo: { version: "encargo/v1", partes } }));
+  const clientes = (TENANT_DEMO.clientesVentas || []).map((c) => c.nombre);
+  const N = clientes.length;
+  const top = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: { eje: "cliente", top: { metrica: "ventas", k: 3, direccion: "mayor" } } }]);
+  ok(top.ok === true && top.entrega.universos.length === 1 && top.entrega.universos[0].parcial === `3 de ${N}`, `★ los 3 de mayor venta: el universo viaja con \`parcial: "3 de ${N}"\``, JSON.stringify(top.entrega && top.entrega.universos));
+  const uno = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["variacion"], eje: "cliente", universo: { eje: "cliente", top: { metrica: "variacion", k: 1, direccion: "mayor" } } }]);
+  ok(uno.ok === true && uno.entrega.universos[0].parcial === `1 de ${N}` && /top 1 de /.test(uno.entrega.texto), "el extremo (un top de 1) también es un universo parcial: la marca dice «1 de N» y la Entrega dice «el top 1 de N» (la consulta vio el universo completo para elegirlo)");
+  const nombrados = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", entidades: clientes.slice(0, 2).map((nombre) => ({ nombre })) }]);
+  ok(nombrados.ok === true && nombrados.entrega.universos.every((u) => typeof u.parcial === "string" && new RegExp(`^\\d+ de ${N}$`).test(u.parcial)), "las cuentas NOMBRADAS también son una vista parcial", JSON.stringify(nombrados.entrega.universos));
+  const completo = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: "negocio" }]);
+  ok(completo.ok === true && completo.entrega.universos.every((u) => u.parcial === undefined), "★ el listado COMPLETO no lleva la marca");
+  const rechazo = compactarParaAnfitrion("consultar", await consultar({ tenant: TENANT, encargo: { version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: { top: 5 } }] } }));
+  ok(rechazo.ok === false && !("tamanosDeEje" in rechazo), "un rechazo no arrastra el dato interno con que se marca lo parcial");
+  ok(!("tamanosDeEje" in top) && JSON.stringify(top).length < 20 * 1024, "y lo interno (`tamanosDeEje`) no viaja al anfitrión");
+  const cabecera = top.uso.find((r) => /orden sobre el total/.test(r));
+  ok(Boolean(cabecera) && /universo completo/.test(cabecera) && /vista parcial/.test(cabecera) && /el extremo/.test(cabecera), "★ la cabecera de uso que viaja con la consulta trae la regla del orden sobre el total");
+}
+
 H("7 · candado: compacto.js no importa nada de `node:*` ni del gateway, y este gate es offline");
 {
   const src = fs.readFileSync(new URL("./src/adi/capacidad/compacto.js", import.meta.url), "utf8");

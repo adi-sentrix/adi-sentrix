@@ -68,6 +68,20 @@ export function recorrerApoyo(texto, filas, libros, n, yViajan = []) {
 }
 
 /* ── lo que el libro guarda de ellas ─────────────────────────────────────────────────────────────────────────────────────────────────────── */
+/* LA CIFRA EXACTA DE UNA CIFRA DE APOYO (ensayo 8, owner 2026-10-08): la cifra que el libro guarda tiene que ser la que el texto IMPRIME. `cifraDeHecho` toma la ÚLTIMA cifra del hecho —en «3 de 13 en los clientes con días vencido superior a 15 días» eso es 13, un conteo—
+ * y el apoyo imprimía «15 días»: la cifra vivía como `E1.e1`, tipada `count`, y una diferencia con días daba `unidades_distintas`. Ahora: si lo impreso es UN número del hecho (el umbral de un filtro, «15 días»), se guarda ESE, con su unidad (los días son días); un conteo impreso «3 de 13» no es una cifra sobre la
+ * que se derive. El umbral de un filtro es un PARÁMETRO de la consulta, no una medición: se marca `premisa` (no se deriva sobre él; un valor que el usuario fijó se pasa a `derivar` como «criterio»). */
+function _cifraDeApoyo(H, item) {
+  const impreso = String(item && item.valor != null ? item.valor : "");
+  if (/^\d+ de \d+$/.test(impreso)) return { c: null, parametro: false };
+  const numeros = H && Array.isArray(H.numeros) ? H.numeros : [];
+  if (impreso && !impreso.includes(" · ")) {
+    const n = numeros.find((x) => x && x.texto === impreso);
+    if (n && n !== numeros[numeros.length - 1]) return { c: cifraDeHecho({ ...H, numeros: [n] }), parametro: n.dueno === "universo" };
+  }
+  return { c: cifraDeHecho(H), parametro: false };
+}
+
 /** apoyoParaElLibro(recorrido, { origenDeReferencia }) → [{ id, rv? }] · una entrada por cifra de apoyo que viaja. Con cifra exacta (un único valor medido o una referencia): `rv` compacto, como el de la tabla
  *  (`titular:"medido"` y `tipo:"ref"` no se escriben) y, si es una REFERENCIA de la casa, `origenRef` (de quién es). Un resultado que ADI ya calculó (`tipo` derivada: «A − B = C») NO es una cifra sobre la que se
  *  derive: la tabla trae sus dos operandos con id — se guarda solo el id. Las premisas llevan `premisa:true` (no son una medición). `origenDeReferencia`: clave de la referencia → su origen (`ORIGEN.*`), resuelto
@@ -75,7 +89,7 @@ export function recorrerApoyo(texto, filas, libros, n, yViajan = []) {
 export function apoyoParaElLibro(recorrido, { origenDeReferencia = {} } = {}) {
   const out = [];
   for (const { item, H, premisa } of Array.isArray(recorrido) ? recorrido : []) {
-    const c = cifraDeHecho(H);
+    const { c, parametro } = _cifraDeApoyo(H, item);
     const exacta = c && Number.isFinite(c.raw) && c.clave && c.unidad && c.dueno && c.procedencia && c.tipo !== "derivada";
     if (!exacta) { out.push({ id: item.id }); continue; }
     out.push({
@@ -86,7 +100,7 @@ export function apoyoParaElLibro(recorrido, { origenDeReferencia = {} } = {}) {
         procedencia: c.procedencia,
         ...(c.tipo && c.tipo !== "ref" ? { tipo: c.tipo } : {}),
         ...(origenDeReferencia[c.clave] ? { origenRef: origenDeReferencia[c.clave] } : {}),
-        ...(premisa ? { premisa: true } : {}),
+        ...(premisa || parametro ? { premisa: true } : {}),
       },
     });
   }

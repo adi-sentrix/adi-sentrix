@@ -106,7 +106,7 @@ const libroBase = await base.store.leerLibro(T.id, base.r.continuidad.conversaci
   // retomar: mismo id, mismo valor, revalidado
   const rt = await base.A.retomar({ tenant: T, conversacionId: base.r.continuidad.conversacionId });
   const h = rt.hechos.find((x) => x.id === t.id);
-  ok(h && h.valor === t.valor && h.origen === "derivado" && h.estadoReverificacion === "no_se_revalida" && /suma de las cifras de su listado/.test(h.revalidacion.motivo) && h.sujeto == null, "★ `retomar` devuelve el total con el mismo id y valor, sin entidad, y declara que NO se revalida aparte (lo revalidan sus filas, que sí salen «igual»)", JSON.stringify(h));
+  ok(h && h.valor === t.valor && h.origen === "derivado" && h.estadoReverificacion === "igual" && h.revalidacion.actual === undefined && h.rv.filas === "1-13" && h.sujeto == null, "★ `retomar` devuelve el total con el mismo id y valor, sin entidad, y lo REVALIDA recalculándolo desde sus filas (ensayo 8: con los mismos datos sale «igual»; antes: no se revalidaba aparte)", JSON.stringify(h));
 }
 
 H("1b · el mismo total por la PUERTA (JSON-RPC)");

@@ -50,8 +50,8 @@ export function retomar(libro, { versionIdActual = null, reverificar = null, len
     const estado = ESTADOS_DE_REVALIDACION.includes(r.estado) ? r.estado : "sin_reverificar";
     return { ...h, estadoReverificacion: estado, ...(r.valorNuevo != null ? { valorNuevo: r.valorNuevo } : {}), ...(r.revalidacion ? { revalidacion: r.revalidacion } : {}) };
   });
-  const hechosDeEntregas = hechos.filter((h) => !h.derivada);   /* la línea de continuidad nombra a los OPERANDOS que cambiaron, no a su suma: dos veces el mismo cambio sería ruido */
-  const conRevalidacion = hechosDeEntregas.some((h) => h.revalidacion);
+  const hechosDeEntregas = hechos.filter((h) => !h.derivada && !(h.rv && h.rv.deListado === true));   /* la línea de continuidad nombra a los OPERANDOS que cambiaron, no a su suma (ni al total de un listado, que se recalcula desde sus filas): dos veces el mismo cambio sería ruido */
+  const conRevalidacion = hechos.some((h) => !h.derivada && h.revalidacion);
 
   const cifrasReverificadas = hechosDeEntregas
     .filter((h) => h.estadoReverificacion === "cambio" || h.estadoReverificacion === "ya_no_existe")

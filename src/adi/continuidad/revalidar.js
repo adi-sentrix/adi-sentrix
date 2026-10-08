@@ -31,7 +31,7 @@
  * fila de Cifras, la MISMA con que `entrega/tamano.js` decide qué se recorta: menor = más prioritaria) y la magnitud solo DESEMPATA. */
 import { formatoDeLaCasa } from "../notario/hechos.js";
 import { normalizar } from "../notario/afirmacion.js";
-import { aritmeticaDeDerivacion, textoDeDerivada } from "../capacidad/derivar.js";   /* el ciclo con `derivar.js` es solo de funciones usadas en una llamada (nada se evalúa al cargar): UNA sola aritmética para derivar y para revalidar */
+import { aritmeticaDeDerivacion, textoDeDerivada, CRITERIO_ID } from "../capacidad/derivar.js";   /* el ciclo con `derivar.js` es solo de funciones usadas en una llamada (nada se evalúa al cargar): UNA sola aritmética para derivar y para revalidar */
 import { cifrasDeApoyo } from "../capacidad/apoyo.js";
 import { metricaDeClave } from "../notario/lexico.js";
 
@@ -126,6 +126,7 @@ const MOTIVO = Object.freeze({
   incompleta: "la consulta ya no se pudo responder completa con los datos actuales",
   ambigua: "la misma cifra aparece más de una vez, con valores distintos, en los datos actuales",
   deListado: "es la suma de las cifras de su listado, que se revalidan una por una: el total no se vuelve a comparar aparte, y no se afirma como vigente",
+  filasDelTotal: "es la suma de las cifras de su listado y alguna de ellas no se pudo revalidar con las mismas filas (ya no figura, cambió de universo o no se pudo comparar): el total no se recalcula, y no se afirma como vigente",
   derivacion: "uno de sus operandos no se pudo revalidar: la derivación no se afirma vigente",
   premisa: "una premisa es de quien la planteó en la consulta: no se revalida contra los datos",
 });
@@ -135,10 +136,41 @@ const _motivoDeTitular = (t) => (t === "declarado" ? MOTIVO.declarado : t === "d
 function _noSeRevalida(v) {
   if (v.deSupuesto === true) return MOTIVO.supuesto;
   if (v.premisa === true) return MOTIVO.premisa;
-  if (v.deListado === true) return MOTIVO.deListado;   /* el total de un listado completo (owner 2026-10-05): lo revalidan sus filas, no él */
+  if (v.deListado === true && !(typeof v.filas === "string" && v.filas)) return MOTIVO.deListado;   /* el total de un listado completo (owner 2026-10-05): sin saber de qué filas es (un libro de antes), lo revalidan sus filas, no él · con `filas`, se recalcula desde ellas (ensayo 8) */
   if (v.procedencia === "supuesto_usuario" || v.procedencia === "propuesta") return MOTIVO.supuesto;
   if (v.titular && v.titular !== "medido") return _motivoDeTitular(v.titular);
   return null;
+}
+
+/* ── LAS FILAS DE UN TOTAL DEL LISTADO (ensayo 8) ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * El total de un listado completo es la suma EXACTA de sus filas (`componer.js:declararTotalDelListado`). Para revalidarlo al retomar se vuelve a sumar con las cifras de HOY de esas mismas filas —la misma regla de suma—: el libro guarda de qué filas es (`rv.filas`, las posiciones de
+ * las cifras en la Entrega: «1-13», «1-3,5,7-9», y «4.2» la segunda cifra de la fila ancha 4) en una cadena corta (el tope de 16 KB es de la base). */
+const _pos = (t) => { const [k, j] = String(t).split(".").map(Number); return [k, j || 0]; };
+/** codificarFilasDelTotal(posiciones) → «1-13» · posiciones: «k» o «k.j» */
+export function codificarFilasDelTotal(posiciones) {
+  const o = (Array.isArray(posiciones) ? posiciones : []).map(String).sort((a, b) => { const [ka, ja] = _pos(a), [kb, jb] = _pos(b); return ka - kb || ja - jb; });
+  const out = [];
+  for (let i = 0; i < o.length;) {
+    if (o[i].includes(".")) { out.push(o[i]); i++; continue; }
+    let j = i;
+    while (j + 1 < o.length && !o[j + 1].includes(".") && Number(o[j + 1]) === Number(o[j]) + 1) j++;
+    out.push(j > i + 1 ? `${o[i]}-${o[j]}` : o.slice(i, j + 1).join(","));
+    i = j + 1;
+  }
+  return out.join(",");
+}
+/** decodificarFilasDelTotal(filas, n) → ["E1.h1", …, "E1.h4.2"] · [] si la cadena no se puede leer (el total no se revalida) */
+export function decodificarFilasDelTotal(filas, n) {
+  if (typeof filas !== "string" || !filas || !Number.isInteger(n)) return [];
+  const out = [];
+  const entero = (t) => (typeof t === "string" && t !== "" && [...t].every((c) => c >= "0" && c <= "9") ? Number(t) : NaN);   /* sin expresiones regulares: este módulo compara estructuras tipadas, no reconoce frases */
+  for (const parte of filas.split(",")) {
+    const rango = parte.split("-");
+    if (rango.length === 2) { const a = entero(rango[0]), b = entero(rango[1]); if (!(b >= a) || b - a > 5000) return []; for (let k = a; k <= b; k++) out.push(`E${n}.h${k}`); }
+    else if (rango.length === 1) { const [k, j, ...mas] = parte.split("."); if (mas.length || !Number.isInteger(entero(k)) || (j !== undefined && !Number.isInteger(entero(j)))) return []; out.push(`E${n}.h${parte}`); }
+    else return [];
+  }
+  return out;
 }
 
 /* lo que el libro guardó de la cifra: el texto con que se entregó (`valor`) y, aparte (`rv`), el valor exacto y su unidad */
@@ -192,12 +224,14 @@ export function revalidarEntrega(entrega, ctx = {}) {
   const noComparable = (h, motivo, detalle, A) => ({ estado: "no_comparable", motivo, detalle, anterior: _anteriorDe(h), ...(A ? { actual: _actualDe(A), ...(motivo === "otro_periodo" ? { periodoActual: _periodoTexto(marcoActual && marcoActual.periodo) } : {}) } : {}), ...(motivo === "otro_periodo" ? { periodoAnterior: _periodoTexto(E.periodo) } : {}) });
   const sinReverificar = (h, motivo, extra = {}) => ({ estado: "sin_reverificar", motivo, anterior: _anteriorDe(h), ...extra });
 
+  const totalesARecalcular = [];
   for (const h of H0) {
     if (!h || !h.id) continue;
     let r;
     const v = h.rv && typeof h.rv === "object" ? h.rv : {};
     const motivoSupuesto = _noSeRevalida(v);
     if (motivoSupuesto) r = { estado: "no_se_revalida", motivo: motivoSupuesto, anterior: _anteriorDe(h) };
+    else if (v.deListado === true) { totalesARecalcular.push(h); continue; }   /* se recalcula después, desde sus filas ya revalidadas */
     else if (!E.revalidable) r = sinReverificar(h, MOTIVO.antigua);
     else if (!_finito(v.raw) || !v.clave) r = sinReverificar(h, MOTIVO.sinCrudo);
     else if (!libroActual) r = sinReverificar(h, ctx.motivoSinRecorrida || MOTIVO.sinRecorrida, ctx.noResuelto && ctx.noResuelto.length ? { noResuelto: ctx.noResuelto } : {});
@@ -230,6 +264,28 @@ export function revalidarEntrega(entrega, ctx = {}) {
     }
     hechos.set(h.id, r);
   }
+  /* EL TOTAL DE UN LISTADO se recalcula desde SUS filas (las mismas, la misma suma exacta de crudos) con la cifra de hoy de cada una: si todas siguen (igual) o cambiaron (cambio), el total es la suma de hoy — igual si imprime lo mismo, cambio con las dos cifras si no; si alguna no se pudo
+   * revalidar, el total no se afirma vigente. */
+  for (const h of totalesARecalcular) {
+    const v = h.rv;
+    const ids = decodificarFilasDelTotal(v.filas, E.n);
+    const rs = ids.map((id) => hechos.get(id));
+    const vigente = (x) => x && (x.estado === "igual" || x.estado === "cambio") && x.anterior && _finito(x.anterior.raw) && (x.estado === "igual" || (x.actual && _finito(x.actual.raw)));
+    const ausente = (x) => x && x.estado === "ya_no_existe";   /* la fila salió de los datos (firme: toda la consulta resolvió y no aparece): no suma, y se dice */
+    const sumables = rs.filter(vigente);
+    if (!ids.length || !rs.every((x) => vigente(x) || ausente(x)) || !sumables.length || !_finito(v.raw) || !v.unidad) { hechos.set(h.id, { estado: "no_se_revalida", motivo: MOTIVO.filasDelTotal, anterior: _anteriorDe(h) }); continue; }
+    const nAusentes = rs.length - sumables.length;
+    const detalle = `se recalculó con las mismas ${rs.length} filas de su listado${nAusentes ? `; ${nAusentes} ya ${nAusentes === 1 ? "no figura" : "no figuran"} en los datos de hoy y ${nAusentes === 1 ? "no suma" : "no suman"}` : ""}`;
+    const hoy = Number((sumables.reduce((a, x) => a + (x.estado === "cambio" ? x.actual.raw : x.anterior.raw), 0)).toPrecision(12));
+    const impresoAntes = formatoDeLaCasa(v.raw, v.unidad), impresoAhora = formatoDeLaCasa(hoy, v.unidad);
+    if (impresoAntes === impresoAhora) { hechos.set(h.id, { estado: "igual", anterior: _anteriorDe(h) }); continue; }
+    const d = Number((hoy - v.raw).toPrecision(12));
+    hechos.set(h.id, {
+      estado: "cambio", detalle, anterior: _anteriorDe(h), actual: { valor: impresoAhora, raw: hoy, unidad: v.unidad, hecho: h.id },
+      diferencia: { valor: d, texto: formatoDeLaCasa(Math.abs(d), v.unidad === "pct" ? "pp" : v.unidad), sentido: d > 0 ? "sube" : "baja" },
+      cargaAnterior: E.versionId != null ? E.versionId : null, cargaActual: versionIdActual,
+    });
+  }
   return { hechos, resumen: resumirRevalidacion([...hechos.values()]) };
 }
 
@@ -242,7 +298,9 @@ const _idsDeLaDerivacion = (d) => [...(Array.isArray(d.sobre) ? d.sobre : []), .
 export function revalidarDerivacion(d, resultadosPorId, { versionIdActual = null } = {}) {
   const R = d && d.resultado && typeof d.resultado === "object" ? d.resultado : {};
   const anterior = { valor: R.texto != null ? R.texto : null, raw: _finito(R.raw) ? R.raw : null, unidad: R.unidad || null };
-  const mapa = resultadosPorId instanceof Map ? resultadosPorId : new Map();
+  const mapa = new Map(resultadosPorId instanceof Map ? resultadosPorId : []);
+  /* un criterio declarado por el usuario no se mide: sigue siendo el que el usuario dijo (igual por definición) — la derivación se revalida por sus otras cifras */
+  if (d && d.criterio && typeof d.criterio === "object" && _finito(d.criterio.valor)) mapa.set(CRITERIO_ID, { estado: "igual", anterior: { valor: null, raw: d.criterio.valor, unidad: d.criterio.unidad || null } });
   const ids = _idsDeLaDerivacion(d || {});
   const rs = ids.map((id) => mapa.get(id));
   const vigente = (r) => r && (r.estado === "igual" || r.estado === "cambio") && r.anterior && _finito(r.anterior.raw) && (r.estado === "igual" || (r.actual && _finito(r.actual.raw)));

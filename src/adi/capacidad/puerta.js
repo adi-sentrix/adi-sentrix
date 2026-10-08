@@ -34,7 +34,7 @@
  * íntegro, las cifras con sus ids del libro (`E<n>.h<k>`), lo declarado, la continuidad y lo que no se pudo resolver; las cifras, el Core y el Notario no se tocan. */
 import { crearAcciones } from "./acciones.js";
 import { compactarParaAnfitrion } from "./compacto.js";
-import { OPERACIONES, OPERADORES } from "./derivar.js";
+import { OPERACIONES, OPERADORES, UNIDADES_DE_CRITERIO } from "./derivar.js";
 import { crearAlmacenEnMemoria } from "../continuidad/almacen.js";
 import { crearAlmacenSupabase } from "../continuidad/almacenSupabase.js";
 import { CAMPOS_PERFIL_DECLARABLES } from "../continuidad/empresa.js";
@@ -170,8 +170,11 @@ export const MCP_TOOLS = [
       properties: {
         encargo: {
           type: "object",
-          description: "Encargo v1 (ver _ADI_CONTRATO_ENCARGO_V1.md): { version:'encargo/v1', partes:[{id,tema,cierre,conceptos?,entidades?,eje?,universo?,periodo?,concepto?,supuestos?}], criterio?, supuestos?, premisas?, usar?, profundidad?, conversacionId? }.",
-          properties: { version: { type: "string", const: "encargo/v1" }, partes: { type: "array", minItems: 1 } },
+          description: "Encargo v1 (ver _ADI_CONTRATO_ENCARGO_V1.md): { version:'encargo/v1', partes:[{id,tema,cierre,conceptos?,entidades?,eje?,universo?,periodo?,concepto?,supuestos?}], criterio?, supuestos?, premisas?, usar?, profundidad?, conversacionId? }. SIMULACIÓN (ej. +10 %): el supuesto va en la RAÍZ con id y la parte lo CITA: supuestos:[{id:'s1',tipo:'growth',valor:10,unidad:'pct',alcance:{eje:'cliente',nombre:'<cuenta>'}}], partes:[{id:'p1',tema:'comercial',cierre:'simulacion',conceptos:['ventas'],eje:'cliente',entidades:['<cuenta>'],supuestos:['s1']}]. El mayor, el menor o el que más creció sobre el total: universo {eje, top:{metrica, k:1, direccion:'mayor'|'menor'}}.",
+          properties: {
+            version: { type: "string", const: "encargo/v1" }, partes: { type: "array", minItems: 1 },
+            supuestos: { type: "array", description: "Supuestos de una simulación; cada parte 'simulacion' los cita por id en su campo supuestos.", items: { type: "object", properties: { id: { type: "string" }, tipo: { type: "string", description: "growth · price · margin · carga · costo (ver catalogo.simulacion)" }, valor: { type: "number" }, unidad: { type: "string" }, alcance: { description: "'negocio' o { eje, nombre }" } }, required: ["id", "tipo", "valor", "unidad", "alcance"] } },
+          },
           required: ["version", "partes"],
         },
       },
@@ -222,20 +225,21 @@ export const MCP_TOOLS = [
   },
   {
     name: "derivar",
-    description: "Calcula, verifica y devuelve como hecho nuevo —con identificador y procedencia «derivado»— una cifra que sale de cifras que ADI YA entregó en esta conversación: suma, diferencia, participación, razón (cuántas veces es una cifra respecto de otra) o conteo. Úsela SIEMPRE que necesite un total, subtotal, diferencia, porcentaje, múltiplo o conteo que no esté entre lo entregado: nunca lo calcule usted. Solo acepta identificadores de cifras de esta conversación (E<n>.h<k>), de cifras de apoyo (E<n>.e<k>, como el benchmark) y de derivaciones que ADI ya le devolvió (D<k>), que se pueden encadenar; lo que no se puede derivar con exactitud se rechaza diciendo por qué. Para una cifra no entregada (otra cuenta, métrica o período) use consultar.",
+    description: "Calcula, verifica y devuelve como hecho nuevo —con identificador y procedencia «derivado»— una cifra que sale de cifras que ADI YA entregó en esta conversación: suma, diferencia (también la de una misma cifra entre dos cargas o períodos), participación, razón o conteo. Úsela SIEMPRE que necesite un total, subtotal, diferencia, porcentaje, múltiplo o conteo que no esté entre lo entregado: nunca lo calcule usted. Acepta cifras de esta conversación (E<n>.h<k>), de apoyo (E<n>.e<k>, como el benchmark) y derivaciones que ADI ya le devolvió (D<k>), que se pueden encadenar; lo que no se puede derivar con exactitud se rechaza diciendo por qué. Lo que el usuario fijó en la conversación («ninguna bodega con más de un tercio») va en «criterio». Para una cifra no entregada use consultar.",
     inputSchema: {
       type: "object",
       properties: {
         conversacionId: { type: "string", description: "La conversación con ADI en la que se entregaron las cifras." },
-        operacion: { type: "string", enum: [...OPERACIONES], description: "suma (2 o más cifras de la misma métrica) · diferencia (exactamente 2: la primera menos la segunda) · participacion (una o varias cifras sobre una base) · razon (una cifra respecto de otra: «N veces») · conteo (cuántas cifras cumplen una condición)." },
-        sobre: { type: "array", items: { type: "string" }, description: "Los identificadores (E<n>.h<k>, E<n>.e<k> o D<k>) sobre los que se calcula. En una participación, el numerador: una cifra, o varias de la misma métrica que se suman (por ejemplo, los tres primeros). En una razón, la cifra que se compara." },
-        base: { type: ["string", "null"], description: "Solo participacion y razon: el identificador de la cifra que es la base (por ejemplo, el total de un listado) o aquella respecto de la cual se compara." },
+        operacion: { type: "string", enum: [...OPERACIONES], description: "suma · diferencia (2 cifras: la primera menos la segunda) · participacion (una o varias cifras sobre una base) · razon (una cifra respecto de otra: «N veces») · conteo (cuántas cifras cumplen una condición)." },
+        sobre: { type: "array", items: { type: "string" }, description: "Identificadores (E<n>.h<k>, E<n>.e<k>, D<k>) o 'criterio'. En una participación, el numerador (una cifra, o varias de la misma métrica que se suman); en una razón, la cifra que se compara." },
+        base: { type: ["string", "null"], description: "Solo participacion y razon: la base (p. ej. el total de un listado) o aquella respecto de la cual se compara." },
         condicion: {
           type: ["object", "null"],
-          description: "Solo conteo: qué debe cumplir cada cifra. 'valor' es un número o el identificador de otra cifra entregada; con cifras de dinero, un número solo puede ser 0.",
+          description: "Solo conteo: 'valor' es un número, el id de otra cifra o 'criterio'; con dinero, un número solo puede ser 0.",
           properties: { op: { type: "string", enum: [...OPERADORES] }, valor: {} },
           required: ["op", "valor"],
         },
+        criterio: { type: ["object", "null"], description: "Lo que el USUARIO fijó (no es de ADI); se cita como 'criterio' en diferencia, razon o conteo.", properties: { valor: { type: "number" }, unidad: { type: "string", enum: [...UNIDADES_DE_CRITERIO] }, texto: { type: "string" } }, required: ["valor", "unidad", "texto"] },
       },
       required: ["conversacionId", "operacion", "sobre"],
       additionalProperties: false,
@@ -259,7 +263,7 @@ async function _despachar(nombreAccion, argsCrudos, { tenant, acciones }) {
   if (nombreAccion === "conocerEmpresa") salida = await acciones.conocerEmpresa({ tenant, conversacionId: limpio.conversacionId ?? null });
   else if (nombreAccion === "consultar") salida = await acciones.consultar({ tenant, encargo: limpio.encargo });
   else if (nombreAccion === "aportarContexto") salida = await acciones.aportarContexto({ tenant, conversacionId: limpio.conversacionId ?? null, aportes: limpio.aportes || [], confirmar: limpio.confirmar || [], omitir: limpio.omitir || [] });
-  else if (nombreAccion === "derivar") salida = await acciones.derivar({ tenant, conversacionId: limpio.conversacionId ?? null, operacion: limpio.operacion, sobre: limpio.sobre, base: limpio.base ?? undefined, condicion: limpio.condicion ?? undefined });
+  else if (nombreAccion === "derivar") salida = await acciones.derivar({ tenant, conversacionId: limpio.conversacionId ?? null, operacion: limpio.operacion, sobre: limpio.sobre, base: limpio.base ?? undefined, condicion: limpio.condicion ?? undefined, criterio: limpio.criterio ?? undefined });
   else salida = await acciones.retomar({ tenant, conversacionId: limpio.conversacionId });
 
   /* LO QUE VIAJA AL ANFITRIÓN es la respuesta COMPACTA (`compacto.js`, owner 2026-10-05): el texto de la Entrega íntegro, las cifras con sus ids, la continuidad y lo declarado; la estructura interna

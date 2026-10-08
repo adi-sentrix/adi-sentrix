@@ -18,6 +18,7 @@
  * 12 · ENSAYO 5 (owner 2026-10-07): NINGUNA cifra sin id (el hilo de C01: el libro guarda en su forma compacta, sin pérdida, y si la base no admite más ADI LO DICE) · `derivar` acepta cifras de apoyo (`E<n>.e<k>`: el benchmark) con la
  *       procedencia de cada lado · la operación nueva `razon` («cuántas veces es A respecto de B»). `_ADI_DISENO_CONTRATO_ANFITRION.md` §11.
  * 13 · ENSAYO 6 (owner 2026-10-08): `derivar` NO ARMA VENTA POR BODEGA (el libro de antes del ensayo: la suma de «los SKU de Lampa» se rechaza, también a través del linaje) y CADA DERIVACIÓN DICE QUÉ ES (`descripcion` en `derivar` y en `retomar`, con el `universo` de las cifras de un conjunto acotado). `_ADI_DISENO_CONTRATO_ANFITRION.md` §12.
+ * 14 · ENSAYO 8 (owner 2026-10-08): contar/sumar/comparar PARTICIPACIONES de una misma base (el total que es solo el denominador no es operando; `bases_distintas` si se mezclan) · comparar la MISMA cifra entre dos cargas o períodos (`diferencia`/`razon`, con el marco de cada lado; nunca un falso «repetido») · un CRITERIO declarado por el usuario como operando (`criterio:{valor, unidad, texto}`) con su procedencia · los días son días (el umbral de un filtro se guarda tipado y se enseña a pasarlo como criterio). `_ADI_DISENO_CONTRATO_ANFITRION.md` §14.
  * CERO llamadas a un LLM · CERO red. Solo por `npm run gates:offline` o `node --import ./scripts/offline-guard.mjs _derivar_gate.mjs`. */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
@@ -27,7 +28,7 @@ import { componerEntrega } from "./src/adi/entrega/componer.js";
 import { crearAcciones, CABECERA_DE_USO, _hechosDeLaEntrega } from "./src/adi/capacidad/acciones.js";
 import { conTenantActivo } from "./src/adi/capacidad/aislamiento.js";
 import { compactarParaAnfitrion, ENTIDADES_DE_UN_UNIVERSO_MAX } from "./src/adi/capacidad/compacto.js";
-import { OPERACIONES, OPERANDOS_MAX, MOTIVOS_DE_DERIVACION, validarDerivacion, calcularDerivacion, derivacionParaElLibro } from "./src/adi/capacidad/derivar.js";
+import { OPERACIONES, OPERANDOS_MAX, MOTIVOS_DE_DERIVACION, UNIDADES_DE_CRITERIO, textoDeVeces, validarDerivacion, calcularDerivacion, derivacionParaElLibro } from "./src/adi/capacidad/derivar.js";
 import { manejarPuerta, MCP_TOOLS, construirOpenApi } from "./src/adi/capacidad/puerta.js";
 import { crearAlmacenEnMemoria, ErrorDeAlmacen } from "./src/adi/continuidad/almacen.js";
 import { LIBRO_TOPE_BYTES, tamanoBytes, comprimirLibro, expandirLibro, libroNuevo, registrarEntrega, registrarDerivacion } from "./src/adi/continuidad/libro.js";
@@ -96,14 +97,15 @@ const noDeriva = async (h, T, nombre, pedido, motivo) => {
 };
 
 /* ═══ 0 · LO CERRADO ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
-H("0 · lo cerrado: cuatro operaciones (sin promedio), la cabecera de cuatro reglas, el tope de operandos");
+H("0 · lo cerrado: cinco operaciones (sin promedio), la cabecera de cinco reglas, el tope de operandos");
 {
   ok(jj(OPERACIONES) === jj(["suma", "diferencia", "participacion", "conteo", "razon"]), "★ las operaciones son EXACTAMENTE suma · diferencia · participacion · conteo · razon (sin `promedio`, §8.3; la razón llegó con el ensayo 5)");
   ok(OPERANDOS_MAX === 40 && OPERANDOS_MAX === ENTIDADES_DE_UN_UNIVERSO_MAX, "el tope de operandos es lo que un universo lista a la vista (40)");
-  ok(CABECERA_DE_USO.length === 4, "★ la cabecera de uso tiene CUATRO reglas");
+  ok(CABECERA_DE_USO.length === 5, "★ la cabecera de uso tiene CINCO reglas (la cuarta del contrato original + la del orden sobre el total, ensayo 8)");
+  ok(CABECERA_DE_USO[1] === "Toda afirmación de orden sobre el total (el mayor, el menor, el que más creció, el más grave) debe venir de una consulta de ADI que vio el universo completo; con una vista parcial, dígalo como parcial o pídale a ADI el extremo.", "★ la regla 2.ª es el texto EXACTO del owner (el orden sobre el total)");
   ok(CABECERA_DE_USO[0] === "Toda cifra empresarial que usted diga —en números o en palabras, incluidos totales, diferencias, porcentajes y conteos— debe ser un hecho que ADI le entregó en esta conversación. Si la cifra que necesita no está entre lo entregado, no la calcule ni la complete: pídasela a ADI (derivar, sobre identificadores ya entregados; o una consulta nueva). Redondear a lo impreso no es calcular.", "★ la regla 1 es el texto EXACTO del contrato (sin «con su identificador»)");
   ok(!/con su identificador/.test(jj(CABECERA_DE_USO)) && !/promedios? de más de dos cifras/.test(jj(CABECERA_DE_USO)), "las dos reglas viejas (1/5 y 2/5) ya no están");
-  ok(/^Lo que la Entrega declara en «Lo que no se puede concluir» se respeta/.test(CABECERA_DE_USO[1]) && /^La «Referencia del oficio» es conocimiento general/.test(CABECERA_DE_USO[2]) && /^Redacte con total libertad/.test(CABECERA_DE_USO[3]), "las otras tres reglas siguen, en su orden");
+  ok(/^Lo que la Entrega declara en «Lo que no se puede concluir» se respeta/.test(CABECERA_DE_USO[2]) && /^La «Referencia del oficio» es conocimiento general/.test(CABECERA_DE_USO[3]) && /^Redacte con total libertad/.test(CABECERA_DE_USO[4]), "las otras tres reglas siguen, en su orden");
 }
 
 /* ═══ 1-7 · POR EMPRESA ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
@@ -1081,6 +1083,201 @@ for (const { etiqueta, T } of EMPRESAS) {
   const bytesCon = JSON.stringify(rr).length, bytesSin = JSON.stringify({ ...rr, hechos: rr.hechos.map(({ descripcion, universo, ...x }) => x) }).length;
   ok(bytesCon < 20 * 1024 && (bytesCon - bytesSin) / (rr.hechos.length || 1) < 130, `el costo es chico: retomar de este hilo pesa ${(bytesCon / 1024).toFixed(1)} KB (+${bytesCon - bytesSin} B por ${rr.hechos.length} hechos: ${((bytesCon - bytesSin) / rr.hechos.length).toFixed(0)} B por hecho)`);
   console.log(`   · ${etiqueta}: descripciones — ${todasLasD.slice(0, 3).map((x) => `${x.id} «${x.descripcion}»`).join(" · ")}`);
+}
+
+/* ═══ 14 · ENSAYO 8 (owner 2026-10-08) · CONTAR PARTICIPACIONES · COMPARAR ENTRE CARGAS · UN CRITERIO DEL USUARIO · LOS DÍAS SON DÍAS ═════════════════════════════════════════════════════════════════════════
+ * Los casos reales del ensayo 8 (A02|1|6, B01|2|6, A02|1|5 · B02|1|5 · C02|1|5):
+ *   (1) `conteo` sobre [D1] —UNA participación— daba `operando_es_total «D1 se calcula sobre E1.h14, el total de un listado»` y sobre [D1,D2,D3] `operando_repetido «E1.h14 está en D1 y en D2»`: el total solo es el DENOMINADOR;
+ *   (2) `diferencia` [E4.h14, E5.h13] —el total de ayer contra el de hoy— daba `operando_repetido «la cifra E5.h13 ya está entre los operandos»` aunque son dos ids distintos de dos cargas;
+ *   (3) la distancia a un valor que el usuario fijó («ninguna cuenta más de un cuarto», «nadie más de 15 días») no tenía camino en `derivar`, y el «15 días» del apoyo (E4.e1) estaba tipado `count`. */
+const _cargas = async (T, { alterar = null } = {}) => {
+  /* dos consultas de las ventas de la MISMA empresa en dos cargas (versión 1 y 2) de una conversación; el libro se guarda en un almacén aparte, con lo que `alterar` le cambie (un dato nuevo no sale del Core con el mismo dataset) */
+  const s1 = crearAlmacenEnMemoria(), A1 = crearAcciones({ continuidad: s1, ahora: () => "2026-10-05T12:00:00.000Z" });
+  conTenant(T);
+  const c1 = await A1.consultar({ tenant: T, encargo: E([PARTE(["ventas"])]) });
+  const conv = c1.continuidad.conversacionId;
+  const c2 = await A1.consultar({ tenant: { ...T, version: 2 }, encargo: E([PARTE(["ventas"])], conv) });
+  const L = clon(await s1.leerLibro(T.id, conv));
+  if (alterar) alterar(L);
+  const s2 = crearAlmacenEnMemoria(); await s2.guardarLibro(T.id, L);
+  const A = crearAcciones({ continuidad: s2 });
+  const k1 = compactarParaAnfitrion("consultar", c1), k2 = compactarParaAnfitrion("consultar", c2);
+  return { A, conv, L, k1, k2, tot1: k1.entrega.cifras.find((x) => !x.entidad), tot2: k2.entrega.cifras.find((x) => !x.entidad), filas1: k1.entrega.cifras.filter((x) => x.entidad), filas2: k2.entrega.cifras.filter((x) => x.entidad) };
+};
+
+for (const { etiqueta, T } of EMPRESAS) {
+  H(`14 · ensayo 8 (${etiqueta})`);
+
+  /* 14a · CONTAR, SUMAR Y COMPARAR PARTICIPACIONES: el total que es solo el denominador no cuenta como operando */
+  {
+    const h = await hilo(T, [["ventas", ["ventas"], "comercial"], ["saldos", ["saldo_vencido", "saldo_pendiente"], "cobranza"]]);
+    const oVentas = crudosDelCore(T, E([PARTE(["ventas"], "comercial")]));
+    const ventas = delMetrica(h.ventas, "Venta"), totalV = totalDe(h.ventas, "Venta");
+    const vencidos = delMetrica(h.saldos, "Saldo vencido"), totalS = totalDe(h.saldos, "Saldo vencido");
+    const lib0 = await h.store.leerLibro(T.id, h.conv);
+    const crudoTotal = lib0.entregas[0].hechos.find((x) => x.id === totalV.id).rv.raw;
+    const part = (x) => (100 * rawDe(oVentas, "ventas", x.entidad)) / crudoTotal;
+    const D = [];
+    for (const x of ventas.slice(0, 4)) { const r = await derivar(h, { operacion: "participacion", sobre: [x.id], base: totalV.id }, T); D.push(r.hecho.id); }
+    const umbral = Math.floor((part(ventas[0]) + part(ventas[3])) / 2);   /* un umbral que parte a las cuatro */
+    const esperadas = ventas.slice(0, 4).map(part);
+    const r1 = await derivar(h, { operacion: "conteo", sobre: [D[0]], condicion: { op: ">", valor: umbral } }, T);
+    ok(r1.ok === true && r1.hecho.valor === `${esperadas[0] > umbral ? 1 : 0} de 1`, `★ A02|1|6 · conteo sobre UNA participación (D1 = ${formatoDeLaCasa(esperadas[0], "pct")}) > ${umbral}: ya no se acusa de «operando_es_total» (el total es solo su denominador)`, jj(r1).slice(0, 400));
+    const r3 = await derivar(h, { operacion: "conteo", sobre: D.slice(0, 3), condicion: { op: ">", valor: umbral } }, T);
+    const n3 = esperadas.slice(0, 3).filter((v) => v > umbral).length;
+    ok(r3.ok === true && r3.hecho.valor === `${n3} de 3` && jj(r3.cumplen) === jj(D.slice(0, 3).filter((_, i) => esperadas[i] > umbral)), `★ conteo sobre [D1,D2,D3] que comparten la base: ${n3} de 3 (con los que cumplen), ya sin «operando_repetido» por el total que comparten`, jj(r3).slice(0, 400));
+    const rg = await derivar(h, { operacion: "conteo", sobre: D, condicion: { op: ">=", valor: umbral } }, T);
+    ok(rg.ok === true && rg.hecho.valor === `${esperadas.filter((v) => v >= umbral).length} de 4` && /^Venta|^Participación/.test(rg.hecho.metrica), "…y de las cuatro", jj(rg.hecho));
+    ok(rg.hecho.linaje && rg.hecho.linaje.includes(totalV.id), "el linaje sigue diciendo de qué cifras sale (el total entre ellas, como denominador)");
+    /* sumar y comparar participaciones de una misma base */
+    const rsum = await derivar(h, { operacion: "suma", sobre: D.slice(0, 3) }, T);
+    const rgrupo = await derivar(h, { operacion: "participacion", sobre: ventas.slice(0, 3).map((x) => x.id), base: totalV.id }, T);
+    ok(rsum.ok === true && rsum.hecho.valor === rgrupo.hecho.valor && rsum.hecho.valor === formatoDeLaCasa(esperadas.slice(0, 3).reduce((a, v) => a + v, 0), "pct"), `★ sumar participaciones de la misma base (${rsum.ok && rsum.hecho.valor}) es la participación del grupo (${rgrupo.ok && rgrupo.hecho.valor}), exacta sobre los crudos`, jj(rsum).slice(0, 300));
+    const rdif = await derivar(h, { operacion: "diferencia", sobre: [D[0], D[1]] }, T);
+    ok(rdif.ok === true && rdif.hecho.valor === formatoDeLaCasa(esperadas[0] - esperadas[1], "pp"), "comparar dos participaciones de la misma base: la diferencia en puntos (como antes)", jj(rdif.hecho));
+    /* mezclar bases NO: la participación de una venta sobre el total de ventas y la de un saldo sobre el total de saldos */
+    const dS = await derivar(h, { operacion: "participacion", sobre: [vencidos[0].id], base: totalS.id }, T);
+    await noDeriva(h, T, "contar participaciones de BASES distintas (ventas ÷ total de ventas · saldo ÷ total de saldos)", { operacion: "conteo", sobre: [D[0], dS.hecho.id], condicion: { op: ">", valor: 1 } }, "bases_distintas");
+    await noDeriva(h, T, "sumar participaciones de BASES distintas", { operacion: "suma", sobre: [D[0], dS.hecho.id] }, "bases_distintas");
+    ok(MOTIVOS_DE_DERIVACION.includes("bases_distintas") && MOTIVOS_DE_DERIVACION.length === new Set(MOTIVOS_DE_DERIVACION).size, "el motivo nuevo está en la lista cerrada (sin repetidos)");
+    /* lo que SIGUE rechazándose: el total como operando de lo que se suma/cuenta, y la participación contada dos veces */
+    const dResto = await derivar(h, { operacion: "diferencia", sobre: [totalV.id, ventas[0].id] }, T);
+    await noDeriva(h, T, "un conteo sobre «total − una cuenta» (el total es OPERANDO: está en el valor de la derivación)", { operacion: "conteo", sobre: [dResto.hecho.id], condicion: { op: ">", valor: 0 } }, "operando_es_total");
+    const dResta = await derivar(h, { operacion: "participacion", sobre: [dResto.hecho.id], base: totalV.id }, T);
+    await noDeriva(h, T, "un conteo sobre «(total − una cuenta) ÷ total» (el total sigue siendo operando del numerador)", { operacion: "conteo", sobre: [dResta.hecho.id], condicion: { op: ">", valor: 0 } }, "operando_es_total");
+    const dUno = await derivar(h, { operacion: "participacion", sobre: [ventas[0].id, ventas[1].id], base: totalV.id }, T);
+    await noDeriva(h, T, "contar la participación de {a,b} junto a la de {a}: la cuenta «a» estaría dos veces", { operacion: "conteo", sobre: [dUno.hecho.id, D[0]], condicion: { op: ">", valor: 1 } }, "operando_repetido");
+    /* retomar: el total se recalcula desde sus filas, así que lo derivado sobre él vuelve `igual` */
+    const rt = await h.A.retomar({ tenant: T, conversacionId: h.conv });
+    const est = (id) => (rt.hechos.find((x) => x.id === id) || {}).estadoReverificacion;
+    ok(est(totalV.id) === "igual" && est(D[0]) === "igual" && est(rg.hecho.id) === "igual" && est(rsum.hecho.id) === "igual", "★ `retomar`: el total del listado se revalida desde sus filas, así que las participaciones, el conteo y la suma sobre él vuelven «igual» (antes: no_se_revalida)", jj([est(totalV.id), est(D[0]), est(rg.hecho.id), est(rsum.hecho.id)]));
+  }
+
+  /* 14b · ENTRE CARGAS: la MISMA cifra en dos momentos se compara, nombrando el marco de cada lado */
+  {
+    const DELTA = 1300000;
+    const { A, conv, L, tot1, tot2, filas1, filas2 } = await _cargas(T, { alterar: (L) => { const e = L.entregas[1]; for (const hh of e.hechos) if (hh.rv && (hh.rv.deListado || hh.id === `E2.h1`)) hh.rv.raw -= DELTA; } });
+    const raw = (id) => L.entregas.flatMap((e) => e.hechos).find((x) => x.id === id).rv.raw;
+    const d = (pedido) => A.derivar({ tenant: T, conversacionId: conv, ...pedido });
+    ok(tot1 && tot2 && tot1.id !== tot2.id && filas1.length === filas2.length, "(armado) dos consultas de las ventas en dos cargas: dos totales y dos juegos de filas con ids distintos");
+    const r = await d({ operacion: "diferencia", sobre: [tot1.id, tot2.id] });
+    ok(r.ok === true && r.hecho.valor === formatoDeLaCasa(DELTA, "money") && r.repetida === false, `★ B01|2|6 · la diferencia entre el total de la carga 1 y el de la carga 2: ${r.ok && r.hecho.valor} (ya no «operando_repetido»)`, jj(r).slice(0, 500));
+    ok(/de la carga 1/.test(r.hecho.descripcion) && /de la carga 2/.test(r.hecho.descripcion) && r.operandos[0].marco === "carga 1" && r.operandos[1].marco === "carga 2" && /entre cargas de datos/.test(r.hecho.metrica), "★ la descripción y cada operando nombran su carga (la cifra dice de CUÁNDO es cada lado)", jj([r.hecho.descripcion, r.hecho.metrica, r.operandos.map((o) => o.marco)]));
+    const rr = await d({ operacion: "diferencia", sobre: [tot2.id, tot1.id] });
+    ok(rr.ok && rr.hecho.valor === formatoDeLaCasa(-DELTA, "money"), "el orden manda: la carga 2 menos la 1 es negativa", jj(rr.hecho));
+    const ra = await d({ operacion: "diferencia", sobre: [filas1[0].id, filas2[0].id] });
+    ok(ra.ok === true && ra.hecho.valor === formatoDeLaCasa(raw(filas1[0].id) - raw(filas2[0].id), "money") && ra.hecho.entidad === filas1[0].entidad, `la misma cuenta (${filas1[0].entidad}) en las dos cargas: ${ra.ok && ra.hecho.valor}`, jj(ra).slice(0, 300));
+    const rz = await d({ operacion: "razon", sobre: [tot2.id], base: tot1.id });
+    ok(rz.ok === true && rz.hecho.valor === textoDeVeces(raw(tot2.id) / raw(tot1.id)) && /entre cargas de datos/.test(rz.hecho.metrica), `la razón del total de hoy respecto del de ayer: ${rz.ok && rz.hecho.valor}`, jj(rz).slice(0, 300));
+    /* lo que SIGUE rechazándose, con una razón que enseña (nunca un falso «repetido») */
+    const otra = await d({ operacion: "diferencia", sobre: [filas1[0].id, filas2[1].id] });
+    ok(otra.ok === false && otra.motivo === "otra_carga" && /MISMA cifra/.test(otra.detalle) && /carga 1/.test(otra.detalle), "★ dos cifras DISTINTAS de cargas distintas (la cuenta A de ayer, la B de hoy) siguen sin compararse: «otra_carga», y dice que se compara la MISMA cifra", jj(otra).slice(0, 400));
+    const sumaCruzada = await d({ operacion: "suma", sobre: [filas1[0].id, filas2[0].id] });
+    ok(sumaCruzada.ok === false && sumaCruzada.motivo === "otra_carga" && /diferencia/.test(sumaCruzada.detalle) && /razon/.test(sumaCruzada.detalle), "★ una SUMA entre cargas se rechaza y enseña que lo que se compara entre cargas es «diferencia» o «razon»", jj(sumaCruzada).slice(0, 400));
+    const partCruzada = await d({ operacion: "participacion", sobre: [filas1[0].id], base: tot2.id });
+    ok(partCruzada.ok === false && partCruzada.motivo === "otra_carga", "una participación entre cargas tampoco (el numerador de ayer sobre la base de hoy)", jj(partCruzada).slice(0, 200));
+    /* otro PERÍODO: lo mismo, y la descripción nombra el período */
+    const P = await _cargas(T, { alterar: (L2) => { L2.entregas[1].periodo = { texto: "otro", rango: "otro" }; L2.entregas[1].versionId = L2.entregas[0].versionId; } });
+    const rp = await P.A.derivar({ tenant: T, conversacionId: P.conv, operacion: "diferencia", sobre: [P.tot1.id, P.tot2.id] });
+    ok(rp.ok === true && /del período otro/.test(rp.hecho.descripcion) && /entre períodos/.test(rp.hecho.metrica), "otro PERÍODO (la misma carga): se compara y la descripción nombra «del período otro»", jj(rp).slice(0, 400));
+    const spp = await P.A.derivar({ tenant: T, conversacionId: P.conv, operacion: "suma", sobre: [P.filas1[0].id, P.filas2[0].id] });
+    ok(spp.ok === false && spp.motivo === "otro_periodo" && /diferencia/.test(spp.detalle), "…y una suma entre períodos se rechaza «otro_periodo», enseñando la diferencia");
+    const M = await _cargas(T, { alterar: (L2) => { L2.entregas[1].moneda = "USD"; } });
+    const rmn = await M.A.derivar({ tenant: T, conversacionId: M.conv, operacion: "diferencia", sobre: [M.tot1.id, M.tot2.id] });
+    ok(rmn.ok === false && rmn.motivo === "otra_moneda", "★ la moneda NUNCA se cruza: otra moneda se rechaza también en una diferencia");
+    /* dos ids distintos de la MISMA carga y la MISMA cifra: una diferencia es 0 (no un «repetido»); sumarlos sí se contaría dos veces y lo dice con precisión */
+    const mismaCarga = await _cargas(T);   /* sin alterar: las dos consultas son de versiones distintas; las ponemos en la misma */
+    const same = crearAlmacenEnMemoria(), As = crearAcciones({ continuidad: same });
+    conTenant(T);
+    const s1 = await As.consultar({ tenant: T, encargo: E([PARTE(["ventas"])]) });
+    const cs = s1.continuidad.conversacionId;
+    await As.consultar({ tenant: T, encargo: E([PARTE(["ventas"])], cs) });
+    const rz0 = await As.derivar({ tenant: T, conversacionId: cs, operacion: "diferencia", sobre: ["E1.h1", "E2.h1"] });
+    ok(rz0.ok === true && rz0.hecho.valor === formatoDeLaCasa(0, "money"), "★ la misma cifra entregada dos veces en la MISMA carga: su diferencia es 0 (dos ids distintos nunca son «repetidos» en una comparación)", jj(rz0).slice(0, 300));
+    const rs0 = await As.derivar({ tenant: T, conversacionId: cs, operacion: "suma", sobre: ["E1.h1", "E2.h1"] });
+    ok(rs0.ok === false && rs0.motivo === "operando_repetido" && /es la misma que E1\.h1/.test(rs0.detalle), "y SUMARLAS sí se rechaza, con la razón exacta («es la misma que E1.h1, entregada otra vez»)", jj(rs0).slice(0, 300));
+    void mismaCarga;
+  }
+
+  /* 14c · UN CRITERIO DECLARADO POR EL USUARIO: la distancia, la razón y el conteo contra lo que el usuario fijó */
+  {
+    const h = await hilo(T, [["ventas", ["ventas"], "comercial"]]);
+    const oVentas = crudosDelCore(T, E([PARTE(["ventas"], "comercial")]));
+    const ventas = delMetrica(h.ventas, "Venta"), totalV = totalDe(h.ventas, "Venta");
+    const lib0 = await h.store.leerLibro(T.id, h.conv);
+    const crudoTotal = lib0.entregas[0].hechos.find((x) => x.id === totalV.id).rv.raw;
+    const part = (x) => (100 * rawDe(oVentas, "ventas", x.entidad)) / crudoTotal;
+    const D = [];
+    for (const x of ventas.slice(0, 3)) D.push((await derivar(h, { operacion: "participacion", sobre: [x.id], base: totalV.id }, T)).hecho.id);
+    const crit = { valor: 25, unidad: "pct", texto: "ninguna cuenta con más de un cuarto de la venta" };
+    const libroAntes = jj((await h.store.leerLibro(T.id, h.conv)).entregas);
+    const r = await derivar(h, { operacion: "diferencia", sobre: ["criterio", D[0]], criterio: crit }, T);
+    ok(r.ok === true && r.hecho.valor === formatoDeLaCasa(25 - part(ventas[0]), "pp") && r.hecho.procedencia === "derivado", `★ A02|1|5 · la holgura contra el criterio del usuario: 25 − ${formatoDeLaCasa(part(ventas[0]), "pct")} = ${r.ok && r.hecho.valor} (ADI la calcula, con el crudo exacto)`, jj(r).slice(0, 500));
+    const cOp = r.operandos.find((o) => o.id === "criterio");
+    ok(cOp && cOp.procedencia === "declarado" && cOp.origen === "declarado por el usuario en esta conversación" && cOp.valor === "25%" && cOp.texto === crit.texto, "★ el criterio viaja con SU procedencia: «declarado por el usuario en esta conversación», su valor exacto y sus palabras", jj(cOp));
+    ok(r.hecho.procedencias.includes("declarado por el usuario en esta conversación") && r.hecho.procedencias.length === 2 && /criterio declarado por el usuario/.test(r.hecho.metrica) && /el criterio declarado por el usuario/.test(r.hecho.descripcion), "★ el hecho nombra las DOS procedencias (lo derivado de ADI y lo declarado por el usuario) y la métrica y la descripción dicen que el criterio es del usuario", jj([r.hecho.procedencias, r.hecho.metrica, r.hecho.descripcion]));
+    ok(!/criterio de ADI|referencia del oficio|benchmark|declarado por la empresa/i.test(jj({ ...r, uso: undefined })), "★ NUNCA se presenta como criterio de ADI, del oficio ni de la empresa");
+    const rAlReves = await derivar(h, { operacion: "diferencia", sobre: [D[0], "criterio"], criterio: crit }, T);
+    ok(rAlReves.ok && rAlReves.hecho.valor === formatoDeLaCasa(part(ventas[0]) - 25, "pp") && rAlReves.hecho.id !== r.hecho.id, "el orden manda: lo medido menos el criterio es la distancia con el signo contrario", jj(rAlReves.hecho));
+    const rep = await derivar(h, { operacion: "diferencia", sobre: ["criterio", D[0]], criterio: crit }, T);
+    ok(rep.ok && rep.repetida === true && rep.hecho.id === r.hecho.id, "idempotente: el mismo pedido devuelve el mismo D");
+    const otroValor = await derivar(h, { operacion: "diferencia", sobre: ["criterio", D[0]], criterio: { ...crit, valor: 20 } }, T);
+    ok(otroValor.ok && otroValor.repetida === false && otroValor.hecho.id !== r.hecho.id && otroValor.hecho.valor === formatoDeLaCasa(20 - part(ventas[0]), "pp"), "otro valor del criterio es otra cifra (otro D)");
+    const rCuenta = await derivar(h, { operacion: "conteo", sobre: D, condicion: { op: "<=", valor: "criterio" }, criterio: crit }, T);
+    const n = D.filter((_, i) => part(ventas[i]) <= 25).length;
+    ok(rCuenta.ok && rCuenta.hecho.valor === `${n} de 3` && rCuenta.condicion.referencia && rCuenta.condicion.referencia.procedencia === "declarado" && rCuenta.hecho.procedencias.includes("declarado por el usuario en esta conversación"), `★ cumplimiento: «cuántas cumplen mi criterio» = ${n} de 3, con el criterio como referencia declarada`, jj(rCuenta).slice(0, 500));
+    const rRazon = await derivar(h, { operacion: "razon", sobre: [D[0]], base: "criterio", criterio: crit }, T);
+    ok(rRazon.ok && rRazon.hecho.valor === textoDeVeces(part(ventas[0]) / 25) && /respecto del criterio declarado por el usuario/.test(rRazon.hecho.descripcion), "la razón respecto del criterio («cuántas veces el tope»)", jj(rRazon.hecho));
+    /* en dinero: el criterio declara su escala (la cantidad suelta de un conteo de dinero era ambigua) */
+    const tope = Math.round(rawDe(oVentas, "ventas", ventas[1].entidad));
+    const rDinero = await derivar(h, { operacion: "conteo", sobre: ventas.slice(0, 3).map((x) => x.id), condicion: { op: ">", valor: "criterio" }, criterio: { valor: tope, unidad: "money", texto: "más de lo que vende la segunda" } }, T);
+    ok(rDinero.ok && rDinero.hecho.valor === `${ventas.slice(0, 3).filter((x) => rawDe(oVentas, "ventas", x.entidad) > tope).length} de 3`, "en DINERO el criterio trae su escala: un conteo contra un monto del usuario (sin la ambigüedad de «5»)", jj(rDinero).slice(0, 300));
+    /* lo que se rechaza, con su razón */
+    await noDeriva(h, T, "el criterio en otra unidad que la cifra (dinero contra %)", { operacion: "diferencia", sobre: ["criterio", D[0]], criterio: { valor: 5000, unidad: "money", texto: "x" } }, "unidades_distintas");
+    await noDeriva(h, T, "«criterio» citado sin declararlo", { operacion: "diferencia", sobre: ["criterio", D[0]] }, "criterio_invalido");
+    await noDeriva(h, T, "un criterio declarado que nadie cita", { operacion: "diferencia", sobre: [D[0], D[1]], criterio: crit }, "criterio_invalido");
+    await noDeriva(h, T, "un criterio sin la forma {valor, unidad, texto}", { operacion: "diferencia", sobre: ["criterio", D[0]], criterio: { valor: "un cuarto" } }, "criterio_invalido");
+    await noDeriva(h, T, "un criterio con una unidad que no existe", { operacion: "diferencia", sobre: ["criterio", D[0]], criterio: { valor: 25, unidad: "puntos", texto: "x" } }, "criterio_invalido");
+    await noDeriva(h, T, "sumar un criterio", { operacion: "suma", sobre: ["criterio", D[0]], criterio: crit }, "criterio_invalido");
+    await noDeriva(h, T, "un criterio como numerador de una participación", { operacion: "participacion", sobre: ["criterio"], base: totalV.id, criterio: crit }, "criterio_invalido");
+    await noDeriva(h, T, "contar el criterio (es la condición, no lo contado)", { operacion: "conteo", sobre: ["criterio", D[0]], condicion: { op: ">", valor: 0 }, criterio: crit }, "criterio_invalido");
+    await noDeriva(h, T, "encadenar una derivación hecha contra un criterio", { operacion: "diferencia", sobre: [r.hecho.id, D[1]] }, "derivacion_no_encadenable");
+    ok(jj((await h.store.leerLibro(T.id, h.conv)).entregas) === libroAntes, "ninguna Entrega ni id `E<n>.h<k>` se movió");
+    /* retomar: lo medido se revalida; el criterio sigue siendo el que el usuario dijo */
+    const rt = await h.A.retomar({ tenant: T, conversacionId: h.conv });
+    const hr = rt.hechos.find((x) => x.id === r.hecho.id);
+    ok(hr && hr.estadoReverificacion === "igual" && /el criterio declarado por el usuario/.test(hr.descripcion || ""), "★ `retomar`: la derivación contra un criterio se revalida por sus cifras medidas (igual) y conserva su descripción", jj(hr).slice(0, 300));
+    const tool = MCP_TOOLS.find((t) => t.name === "derivar");
+    ok(tool.inputSchema.properties.criterio && jj(tool.inputSchema.properties.criterio.properties.unidad.enum) === jj(UNIDADES_DE_CRITERIO) && /criterio/.test(tool.description) && /'criterio'/.test(tool.inputSchema.properties.sobre.description), "el esquema de la herramienta dice cómo pasar el criterio (campo `criterio` + «criterio» en sobre/base/condicion)");
+  }
+
+  /* 14d · LOS DÍAS SON DÍAS: el umbral de un filtro se guarda tipado en días y se enseña a pasar el valor del usuario como criterio */
+  {
+    const store = crearAlmacenEnMemoria(), A = crearAcciones({ continuidad: store, ahora: () => "2026-10-05T12:00:00.000Z" });
+    conTenant(T);
+    const c = await A.consultar({ tenant: T, encargo: E([{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["dias_vencido", "saldo_vencido"], eje: "cliente", universo: { eje: "cliente", filtros: [{ metrica: "dias_vencido", op: ">", valor: 15 }] } }]) });
+    ok(c.ok === true, "(armado) la consulta con el filtro «días vencido > 15» responde", jj(c.noResuelto).slice(0, 300));
+    const conv = c.continuidad.conversacionId;
+    const k = compactarParaAnfitrion("consultar", c);
+    const L = await store.leerLibro(T.id, conv);
+    const umbral = (L.entregas[0].apoyo || []).find((a) => a.rv && a.rv.unidad === "days" && a.rv.raw === 15);
+    ok(umbral && umbral.rv.premisa === true && umbral.rv.clave === "dias_vencido", "★ C02|1|5 · el «15 días» del apoyo se guarda con su cifra EXACTA y en DÍAS (antes: 13 de «3 de 13», tipado count)", jj(L.entregas[0].apoyo));
+    const mal = (L.entregas[0].apoyo || []).filter((a) => a.rv && a.rv.unidad === "count" && a.rv.clave === "dias_vencido" && a.rv.tipo === "conteo");
+    ok(mal.length === 0, "…y ninguna cifra de apoyo guarda el TAMAÑO de un conteo («13») como si fuera lo que el texto imprime");
+    const fila = k.entrega.cifras.find((x) => x.entidad && /Días vencido/i.test(x.metrica));
+    const ap = (k.entrega.apoyo || []).find((a) => a.valor === "15 días");
+    ok(fila && ap, "(armado) hay una cifra de días y el apoyo «15 días»", jj((k.entrega.apoyo || []).map((a) => a.valor)));
+    const rApoyo = await A.derivar({ tenant: T, conversacionId: conv, operacion: "diferencia", sobre: [fila.id, ap.id] });
+    ok(rApoyo.ok === false && rApoyo.motivo === "operando_no_medido" && /criterio/.test(rApoyo.detalle) && !/unidades distintas/.test(rApoyo.detalle), "★ derivar sobre ese umbral ya no da «unidades_distintas (days, count)»: dice que es un parámetro de la consulta y que un valor del usuario se pasa en «criterio»", jj(rApoyo).slice(0, 500));
+    const filasDias = k.entrega.cifras.filter((x) => x.entidad && /Días vencido/i.test(x.metrica));
+    const crudoDias = (id) => L.entregas[0].hechos.find((x) => x.id === id).rv.raw;
+    const rD = await A.derivar({ tenant: T, conversacionId: conv, operacion: "diferencia", sobre: [filasDias[0].id, "criterio"], criterio: { valor: 15, unidad: "days", texto: "nadie más de 15 días" } });
+    ok(rD.ok === true && rD.hecho.valor === formatoDeLaCasa(crudoDias(filasDias[0].id) - 15, "days") && /^(?:\d|-)/.test(rD.hecho.valor) && /días/.test(rD.hecho.valor), `★ cuánto se pasa de los 15 días: ${rD.ok && rD.hecho.valor} (días menos criterio, en días)`, jj(rD).slice(0, 400));
+    const rC = await A.derivar({ tenant: T, conversacionId: conv, operacion: "conteo", sobre: filasDias.map((x) => x.id), condicion: { op: ">", valor: "criterio" }, criterio: { valor: 15, unidad: "days", texto: "nadie más de 15 días" } });
+    ok(rC.ok === true && rC.hecho.valor === `${filasDias.filter((x) => crudoDias(x.id) > 15).length} de ${filasDias.length}`, "cuántas pasan del criterio de 15 días", jj(rC.hecho));
+    const rU = await A.derivar({ tenant: T, conversacionId: conv, operacion: "diferencia", sobre: [filasDias[0].id, "criterio"], criterio: { valor: 15, unidad: "pct", texto: "x" } });
+    ok(rU.ok === false && rU.motivo === "unidades_distintas", "un criterio en otra unidad que los días se rechaza (los porcentajes no se restan a los días)");
+  }
 }
 
 H("13 · estático y esquema");

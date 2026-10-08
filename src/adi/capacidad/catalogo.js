@@ -41,7 +41,7 @@ import {
 } from "../entrega/componer.js";
 import { periodoDeclaradoDe } from "../../config/contract/bandaTamano.js";
 import { monedaDelNegocio } from "../../config/moneda.js";
-import { guiaDeUniverso } from "./ensenar.js";
+import { guiaDeUniverso, guiaDeSimulacion } from "./ensenar.js";
 import { validarEncargo } from "../encargo/validar.js";   // SOLO para preguntarle al validador dónde corre cada supuesto (la misma tabla que decide, nunca una copia)
 import { getTenantData } from "../../data/tenantStore.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
@@ -253,6 +253,7 @@ export function construirCatalogo({ registro = DOMINIOS_REGISTRO } = {}) {
     estados,
     conceptosDeDefinicion,
     universo: guiaDeUniverso(),   // la forma de un universo (top · estados · filtros · base · excluir · union), documentada para esta empresa (ensayo 5)
+    simulacion: guiaDeSimulacion({ tipos: supuestosAdmitidos, sinTipos: true }),   // la forma de una simulación: el supuesto en la raíz con id, la parte lo cita (ensayo 8); los tipos y dónde corren, en `supuestosAdmitidos`
     tiposDePremisa: TIPOS_DE_PREMISA,
     usar: USAR_VALORES,
     profundidad: PROFUNDIDAD_VALORES,

@@ -91,16 +91,17 @@ import { validarDerivacion, calcularDerivacion, derivacionParaElLibro, respuesta
 import { textoDeUniversoDeLaCifra, universoDeBodegaDe } from "./universoDeLasCifras.js";
 import { estadoVigenteDe, eventosDeContinuidad, lineaDeContinuidad } from "../continuidad/estadoVigente.js";
 import { retomar as reverificarConversacion } from "../continuidad/retomar.js";
-import { cifraDeHecho, referenciasDe, revalidarEntrega, reverificadorDe, encargoParaElLibro } from "../continuidad/revalidar.js";
+import { cifraDeHecho, referenciasDe, revalidarEntrega, reverificadorDe, encargoParaElLibro, codificarFilasDelTotal } from "../continuidad/revalidar.js";
 import { renderDe } from "../notario/hechos.js";
 import { serializarPorClave } from "../continuidad/serializar.js";
 import { conTenantActivo } from "./aislamiento.js";
 import { recorrerApoyo, apoyoParaElLibro, hechosQueYaViajan } from "./apoyo.js";
 import { ensenarRechazos } from "./ensenar.js";
 import { separarVentaPorBodega, resolucionDeLoRechazado } from "./leyDeBodega.js";
+import { AXES as EJES_DEL_INDICE, axisEntityNames } from "../oracle/entityIndex.js";
 
 /* ── LA CABECERA DE USO (plan v2, Etapa 3 · «una cabecera de USO para el LLM») ───────────────────────────────────
- * Viaja en CADA `consultar(...)`. Cuatro reglas, en el vocabulario de negocio del contrato (nunca "boleta" ni
+ * Viaja en CADA `consultar(...)`. Cinco reglas (la 2.ª, del ensayo 8: el orden sobre el total), en el vocabulario de negocio del contrato (nunca "boleta" ni
  * "fig" ni ningún nombre interno): las cifras se PIDEN, no se recalculan; las NEGATIVAS —los hallazgos de «Lo que
  * no se puede concluir», no los números bajo cero (corrección del supervisor 2026-09-26)— se respetan; la
  * referencia del oficio no es un objetivo de esta empresa y el benchmark no es un promedio (CLAUDE.md §4:
@@ -108,6 +109,7 @@ import { separarVentaPorBodega, resolucionDeLoRechazado } from "./leyDeBodega.js
  * entidad SOLO cuando de verdad hay ambigüedad (ley del colapso de escenarios: el texto dice «simulación»). */
 export const CABECERA_DE_USO = Object.freeze([
   "Toda cifra empresarial que usted diga —en números o en palabras, incluidos totales, diferencias, porcentajes y conteos— debe ser un hecho que ADI le entregó en esta conversación. Si la cifra que necesita no está entre lo entregado, no la calcule ni la complete: pídasela a ADI (derivar, sobre identificadores ya entregados; o una consulta nueva). Redondear a lo impreso no es calcular.",
+  "Toda afirmación de orden sobre el total (el mayor, el menor, el que más creció, el más grave) debe venir de una consulta de ADI que vio el universo completo; con una vista parcial, dígalo como parcial o pídale a ADI el extremo.",
   "Lo que la Entrega declara en «Lo que no se puede concluir» se respeta: son hallazgos, no excusas — no se afirma lo contrario ni se rellena el hueco con una suposición.",
   `La «Referencia del oficio» es conocimiento general del sector, no un dato de esta empresa ni un objetivo suyo; el benchmark lleva su origen (${ETIQUETA_ORIGEN[ORIGEN.EMPRESA]} o criterio general de ADI) y no es un promedio.`,
   "Redacte con total libertad — resuma, ordene, adapte el tono al lector — y nombre la simulación o la entidad exacta SOLO cuando haya ambigüedad real sobre a cuál se refiere la cifra.",
@@ -248,8 +250,9 @@ export function _hechosDeLaEntrega(entregaJson, { conFueraDelTexto = true } = {}
   /* EL TOTAL DEL LISTADO (owner 2026-10-05): cuando la Entrega sirvió un listado COMPLETO de una métrica aditiva, `componerEntrega` declaró en el libro la SUMA EXACTA de sus filas y la dejó en `cifras.totales` (no impresa en el texto).
    * Entra al libro de la conversación como un hecho más, DESPUÉS de las filas (los ids `E<n>.h<k>` de las filas no se mueven): su procedencia es «derivado» (es una suma de lo medido) y se revalida como cualquier otra cifra. */
   const totales = (entregaJson && entregaJson.cifras && Array.isArray(entregaJson.cifras.totales)) ? entregaJson.cifras.totales : [];
-  const hechosDeTotales = totales.map((t, j) => {
-    /* NO es una entidad (no entra a «entidades» del estado vigente): el universo se dice en la métrica («Venta · total del listado completo (13 cuentas)»). NO se revalida aparte (`deListado`, `revalidar.js`): lo revalidan sus filas; retomar lo declara «no se revalida», con su motivo, y no se afirma como vigente. */
+  /* ensayo 8 (owner 2026-10-08): el total se REVALIDA recalculándolo desde SUS filas (las mismas, la misma regla de suma): el hecho guarda de qué filas es la suma (`rv.filas`, posiciones de la Entrega) y `retomar` lo vuelve a sumar con las cifras de hoy de esas filas (`revalidar.js`); si alguna fila no se pudo revalidar, el total no se afirma vigente. */
+  const hechosDeTotalesBase = totales.map((t, j) => {
+    /* NO es una entidad (no entra a «entidades» del estado vigente): el universo se dice en la métrica («Venta · total del listado completo (13 cuentas)»). */
     const universo = String(t.entidad || "").replace(/^Total del listado completo/, "total del listado completo");
     const base = { sujeto: null, metrica: [t.metrica, universo].filter(Boolean).join(" · ") || null, valor: t.valor || null, unidad: null, periodo: null, origen: "derivado", ref: t.hecho || null };
     const c = libro && t.hecho ? _cifraParaRevalidar(libro, t.hecho, false) : null;
@@ -288,7 +291,26 @@ export function _hechosDeLaEntrega(entregaJson, { conFueraDelTexto = true } = {}
    * del estado vigente y las entidades entregadas siguen siendo las de siempre). */
   const detalleFilas = conFueraDelTexto && entregaJson && entregaJson.detalle && Array.isArray(entregaJson.detalle.filas) ? entregaJson.detalle.filas : [];
   const hechosFuera = detalleFilas.map((f, j) => ({ ...hechoDeFila(f, filas.length + totales.length + j), fuera: true }));
-  return filas.map(hechoDeFila).concat(hechosDeTotales, hechosFuera);
+  const deLaTabla = filas.map(hechoDeFila);
+  /* las filas de cada total: el hecho del libro del que sale (la suma, con sus sumandos escritos) → la posición de cada sumando entre los hechos de la Entrega; solo si TODAS aparecen y suman EXACTAMENTE el total (si no, el total no se revalida: falla cerrada) */
+  const posicion = new Map(), crudoDe = new Map();
+  /* la cifra (fig) de la que sale cada hecho de una fila: la suma del total se compone de figs, y cada fila de la tabla es UNA de ellas */
+  const figDe = (idHecho) => { const H = libro && libro.porId && idHecho != null ? libro.porId.get(idHecho) : null; const c = H && Array.isArray(H.composicion) ? H.composicion : []; return c.length === 1 && c[0] && c[0].id != null ? c[0].id : null; };
+  [...deLaTabla, ...hechosDeTotalesBase, ...hechosFuera].forEach((h, i) => {
+    const f = h.rv ? figDe(h.ref) : null;
+    if (f != null && !posicion.has(f)) { posicion.set(f, String(i + 1)); crudoDe.set(f, h.rv.raw); }
+    (h.rv && Array.isArray(h.rv.mas) ? h.rv.mas : []).forEach((m, j) => { const fm = m ? figDe(m.ref) : null; if (fm != null && !posicion.has(fm)) { posicion.set(fm, `${i + 1}.${j + 2}`); crudoDe.set(fm, m.raw); } });
+  });
+  const hechosDeTotales = hechosDeTotalesBase.map((h, j) => {
+    const H = libro && totales[j] && totales[j].hecho ? libro.porId.get(totales[j].hecho) : null;
+    const sumandos = H && H.tipo === "derivada" && Array.isArray(H.composicion) && H.composicion.every((c) => c && typeof c.rol === "string" && c.rol.startsWith("sumando")) ? H.composicion.map((c) => c.id) : [];
+    if (!h.rv || sumandos.length < 2 || !sumandos.every((id) => posicion.has(id))) return h;
+    const suma = sumandos.reduce((a, id) => a + crudoDe.get(id), 0);
+    if (!Number.isFinite(suma) || Math.abs(suma - h.rv.raw) > 1e-9 * Math.max(1, Math.abs(h.rv.raw))) return h;
+    const { prioridad, ...rv } = h.rv;
+    return { ...h, rv: { ...rv, filas: codificarFilasDelTotal(sumandos.map((id) => posicion.get(id))), prioridad } };
+  });
+  return deLaTabla.concat(hechosDeTotales, hechosFuera);
 }
 /* ── EL DATASET «DE HOY» DE UNA EMPRESA: la ficha que cargó + lo que declaró conversando y confirmó (bloques 2 y 3) ──────────────────────────────────────────────────────────
  * UNA sola función para `consultar` y para `retomar` (bloque 4): para que una cifra revalidada hoy salga de EXACTAMENTE el mismo dataset con el que `consultar` la daría hoy (una sola
@@ -459,7 +481,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       const { dataset, criteriosAplicados, benchmarkDeclarado } = _datasetDeLaEmpresa(tenant.dataset, estadoPerfil, loDeclarado);
 
       // 2 · EL TRAMO DEL CORE — síncrono, sin una sola espera entre `initTenant` y el cálculo
-      const { resolucion, salida, perfilCliente, hechosContrastados, origenDeReferencia, noResueltoEnsenado } = conTenantActivo(dataset, () => {
+      const { resolucion, salida, perfilCliente, hechosContrastados, origenDeReferencia, noResueltoEnsenado, tamanosDeEje } = conTenantActivo(dataset, () => {
         // el benchmark declarado pisa también el benchmark embebido por fila del dato (la vara de la empresa, como C.2): lo limpia el siguiente `initTenant` (el de `conTenantActivo` al salir)
         if (benchmarkDeclarado) setBenchmarkOverride(benchmarkDeclarado.valor);
         // `libro: libroLeido` = la cita `contexto: E1` se resuelve contra lo que ESTA conversación ya entregó (bloque 3)
@@ -479,7 +501,9 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         const origenDeReferencia = salida.ok && salida.entrega ? Object.fromEntries(Object.entries(POLICY_DE_REFERENCIA).map(([clave, llave]) => [clave, procedenciaDeLlave(llave).origen]).filter(([, o]) => o)) : {};
         /* UN RECHAZO ENSEÑA (ensayo 5): cada rechazo que el validador deja sin alternativas sale con lo que SÍ es válido en ese lugar, para esta empresa (`ensenar.js`); la Entrega y el Core no se tocan */
         const noResueltoEnsenado = ensenarRechazos(resolucion.noResuelto || [], { encargo, libro: libroLeido });
-        return { resolucion, salida, perfilCliente: estadoPerfil ? construirPerfilCliente(dataset) : null, hechosContrastados, origenDeReferencia, noResueltoEnsenado };
+        /* cuántas entidades tiene cada eje de esta empresa: con ello la respuesta dice cuándo una lista es PARCIAL (k de N) — ensayo 8, el orden sobre el total solo lo da una consulta que vio el universo completo */
+        const tamanosDeEje = Object.fromEntries(EJES_DEL_INDICE.map((e) => [e, axisEntityNames(e).length]).filter(([, n]) => n > 0));
+        return { resolucion, salida, perfilCliente: estadoPerfil ? construirPerfilCliente(dataset) : null, hechosContrastados, origenDeReferencia, noResueltoEnsenado, tamanosDeEje };
       });
 
       // 3 · avanzar el libro (puro — no toca el Core ni la base)
@@ -619,6 +643,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         entrega: salida.ok ? (fueraNoCabe ? Object.defineProperty({ texto: textoConContinuidad, json: salida.entrega }, "fueraNoCabe", { value: fueraNoCabe }) : { texto: textoConContinuidad, json: salida.entrega }) : null,   /* `fueraSinId`: no enumerable —no sale en el JSON—; solo se lo dice a `compacto.js` */
         noResuelto: noResueltoEnsenado,
         uso: CABECERA_DE_USO,
+        ...(salida.ok ? { tamanosDeEje } : {}),
         ...(avisosDeForma.length || avisosDeMemoria.length ? { advertencias: [...avisosDeForma, ...avisosDeMemoria] } : {}),
         ...(bloquePerfil ? { perfil: bloquePerfil } : {}),
         ...(declarado ? { declarado } : {}),
@@ -876,7 +901,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
    * ORDEN (D2): 1 · LEER el libro (base) → 2 · calcular (puro, sin Core) → 3 · ESCRIBIR el libro (base), todo serializado por conversación (el mismo candado que `consultar`). A diferencia de `consultar`, que entrega la Entrega
    * verdadera aunque no pueda guardar, acá el id ES el producto: si GUARDAR falla, la acción FALLA CERRADA (`memoria:"no_disponible"`) — un `D1` que no quedó guardado se reasignaría al siguiente pedido. IDEMPOTENTE: el mismo pedido
    * (operación, operandos, base, condición) devuelve la derivación que ya existe (`repetida:true`) y NO escribe el libro. */
-  async function derivar({ tenant, conversacionId = null, operacion, sobre, base, condicion } = {}) {
+  async function derivar({ tenant, conversacionId = null, operacion, sobre, base, condicion, criterio } = {}) {
     const forma = _validarTenant(tenant);
     if (!forma.ok) return { ok: false, motivo: forma.motivo, uso: CABECERA_DE_USO };
     const tenantId = tenant.id || null;
@@ -888,13 +913,13 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       let libro;
       try { libro = await store.leerLibro(tenantId, conversacionId); }
       catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: CABECERA_DE_USO }; throw e; }
-      const pedido = { conversacionId, operacion, sobre, base, condicion };
+      const pedido = { conversacionId, operacion, sobre, base, condicion, criterio };
       /* la venta no se abre por bodega: una cifra comercial que sale de un universo definido por bodega no entra a un agregado (`derivar.js`; el origen lo dicen los universos del libro) */
       const deBodega = (h) => { const e = ((libro && libro.entregas) || []).find((x) => x && x.n === h.entregaN); return e ? universoDeBodegaDe(e, h.entidad != null ? h.entidad : null) : null; };
       const v = validarDerivacion(libro, pedido, { tenantId, deBodega });
       if (!v.ok) return { ok: false, motivo: v.motivo, detalle: v.detalle, ...(v.ids ? { ids: v.ids } : {}), uso: CABECERA_DE_USO };
 
-      const llave = llaveDeDerivacion({ operacion: v.operacion, sobre: v.operandos.map((x) => x.id), base: v.base ? v.base.id : null, condicion: v.condicion });
+      const llave = llaveDeDerivacion({ operacion: v.operacion, sobre: v.operandos.map((x) => x.id), base: v.base ? v.base.id : null, condicion: v.condicion, criterio: v.criterio });
       const previa = derivacionesDe(libro).find((d) => llaveDeDerivacion(d) === llave);
       if (previa) {
         const ids = [...previa.sobre, ...(previa.base ? [previa.base] : []), ...(previa.condicion && typeof previa.condicion.valor === "string" ? [previa.condicion.valor] : [])];
