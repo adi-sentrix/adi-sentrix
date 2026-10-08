@@ -27,7 +27,7 @@
  * empresas sería compartir el pase de la primera — nunca se hace. */
 import { crearClienteRest } from "../../data/supabaseRest.js";
 import { ErrorDeAlmacen } from "./almacen.js";
-import { VERSION_LIBRO } from "./libro.js";
+import { VERSION_LIBRO, comprimirLibro, expandirLibro } from "./libro.js";
 
 /* el motivo corto y SIN dato del cliente que viaja en el error: qué dijo la base, no qué se le preguntó. */
 const _motivoDe = (r) => `${r.motivo || "la base no respondió"}${r.detalle ? ` · ${String(r.detalle).replace(/\s+/g, " ").slice(0, 160)}` : ""}`;
@@ -87,10 +87,10 @@ export function crearAlmacenSupabase({ url, apikey, pase, transporte } = {}) {
       const estado = r.filas && r.filas[0] ? r.filas[0].estado : null;
       // una fila de `conversaciones` sin libro (estado `{}`: un hilo de la app) NO es un libro — es «no existe».
       if (!estado || typeof estado !== "object" || estado.version !== VERSION_LIBRO || estado.conversacionId !== conversacionId) return null;
-      return estado;
+      return expandirLibro(estado);   /* la base guarda la forma compacta (`libro.js:comprimirLibro`, sin pérdida) y acá se lee como siempre */
     },
     async guardarLibro(_tenantId, libro) {
-      const r = await cliente.llamarFuncion("adi_guardar_estado_conversacion", { p_hilo_id: libro.conversacionId, p_estado: libro, p_actor_id: null, p_actor_label: null, p_actor_rol: null }, { pase });
+      const r = await cliente.llamarFuncion("adi_guardar_estado_conversacion", { p_hilo_id: libro.conversacionId, p_estado: comprimirLibro(libro), p_actor_id: null, p_actor_label: null, p_actor_rol: null }, { pase });
       if (!r.ok) throw new ErrorDeAlmacen("guardarLibro", _motivoDe(r), { estado: r.estado || null });
       return libro;
     },

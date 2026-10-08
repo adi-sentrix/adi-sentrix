@@ -25,6 +25,7 @@
  * Cero `node:*` (corre en `edge` como el resto de la puerta). */
 import { _hechosDeLaEntrega } from "./acciones.js";
 import { cifrasDeLaEntrega } from "../continuidad/revalidar.js";
+import { recorrerApoyo, hechosQueYaViajan } from "./apoyo.js";
 
 /* quiénes son los miembros de un universo se dice cuando es un conjunto que cabe a la vista (hasta 40 nombres); de uno mayor viaja solo cuántos son (`n`) */
 export const ENTIDADES_DE_UN_UNIVERSO_MAX = 40;
@@ -34,48 +35,9 @@ const _soloConValor = (o) => { const r = {}; for (const [k, v] of Object.entries
 const _noVacio = (x) => (Array.isArray(x) ? x.length > 0 : x !== null && x !== undefined && x !== "" && !(typeof x === "object" && Object.keys(x).length === 0));
 
 /* ── CONSULTAR ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
-const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** ¿el texto imprime este valor? (límites de número: «$17.3M» no está dentro de «$117.3M» ni de «$17.35M») — y «95d» (la forma del libro) es «95 días» en el texto */
-function _impreso(texto, p) {
-  const formas = [p];
-  const d = /^(-?\d+)d$/.exec(p);
-  if (d) formas.push(`${d[1]} días`, `${d[1]} día`);
-  return formas.some((f) => new RegExp(`(?<![\\w.,$-])${_esc(f)}(?![\\w]|[.,]\\d)`).test(texto));
-}
-const _conDigito = (s) => typeof s === "string" && /\d/.test(s);
-const _enteroSuelto = (s) => /^-?\d+$/.test(String(s).trim());
-/** los valores con unidad que escribe una oración de la casa («Jumbo: venta $17.3M, puesto 3 de 13…» → $17.3M): el valor impreso es lo que la casa escribió, nunca uno recalculado */
-const _RX_VALOR = /-?\$?\d[\d.,]*(?:\s?(?:M|K|pp|x|d|días?)\b|%)?/g;
-const _conUnidad = (p) => /[$%]|\d(?:M|K|x|d|pp)$|\s(?:días?|pp)$/.test(p);
-const _hojas = (x, out = []) => { if (typeof x === "string") out.push(x); else if (Array.isArray(x)) x.forEach((y) => _hojas(y, out)); else if (x && typeof x === "object") Object.values(x).forEach((y) => _hojas(y, out)); return out; };
-const _valoresDe = (txt) => (typeof txt === "string" ? (txt.match(_RX_VALOR) || []).map((x) => x.trim().replace(/[.,]+$/, "")).filter((x) => _conDigito(x) && _conUnidad(x)) : []);
-
+/* `apoyo` = las demás cifras que el texto imprime: la fuente es `apoyo.js` (lo que viaja y lo que el libro guarda salen de la MISMA función: mismas cifras, mismos ids) */
 function _apoyoDe(texto, filas, libros, n, yViajan = []) {
-  const enFilas = new Set(yViajan);   /* lo que ya viaja con su propio id en `cifras` (el total del listado) no se repite como apoyo */
-  for (const f of filas) for (const id of (Array.isArray(f && f.hechos) ? f.hechos : [])) enFilas.add(id);
-  const out = [];
-  const vistos = new Set();
-  for (const { libro, premisa } of libros) {
-    for (const H of (libro && Array.isArray(libro.hechos) ? libro.hechos : [])) {
-      if (!H || (!premisa && enFilas.has(H.id))) continue;
-      const render = H.render && typeof H.render === "object" ? H.render : {};
-      const candidatos = [render.valor, ...(Array.isArray(H.numeros) ? H.numeros.map((x) => x && x.texto) : []), ..._valoresDe(H.verdad), ..._hojas(render).flatMap(_valoresDe)].filter((s) => _conDigito(s) && !_enteroSuelto(s));
-      const encontrados = [...new Set(candidatos)].filter((p) => _impreso(texto, p));
-      let valor = encontrados.join(" · ");
-      if (!valor && render.n != null && render.m != null && _impreso(texto, `${render.n} de ${render.m}`)) valor = `${render.n} de ${render.m}`;
-      if (!valor) continue;
-      const sujetos = H.roles && Array.isArray(H.roles.sujetos) ? H.roles.sujetos.filter(Boolean) : [];
-      const hecho = typeof H.verdad === "string" ? H.verdad : null;
-      const clave = `${valor}|${hecho}|${premisa ? 1 : 0}`;
-      if (vistos.has(clave)) continue;
-      vistos.add(clave);
-      out.push(_soloConValor({
-        id: `E${n}.${H.id}`, valor, hecho, ...(sujetos.length ? { entidad: sujetos.join(", ") } : {}),
-        procedencia: H.procedencia || null, ...(premisa ? { premisa: true, veredicto: H.veredicto || null } : {}),
-      }));
-    }
-  }
-  return out;
+  return recorrerApoyo(texto, filas, libros, n, yViajan).map((x) => x.item);
 }
 
 /** el perfil del Marco en lo que importa al conversar: el valor de cada campo y su procedencia (la explicación larga de cada uno la trae `conocerEmpresa`, una vez) */
@@ -107,9 +69,9 @@ function _compactarEntrega(entrega, turno) {
   if (!j) return { texto };
   const filas = (j.cifras && Array.isArray(j.cifras.filas)) ? j.cifras.filas : [];
   const prov = j.procedencia || {};
-  /* ensayo 4: el total del listado viaja en `cifras` con su id `E<n>.h<k>`; el hecho del libro del que sale (la suma, con todos sus sumandos escritos) no se repite además como «apoyo»: pesaba ~250 B por total y el total ya viaja en `lectura`/`decision` también */
-  const totalesQueViajan = (j.cifras && Array.isArray(j.cifras.totales) ? j.cifras.totales : []).map((t) => t && t.hecho).filter(Boolean);
-  const apoyo = _apoyoDe(String(texto || ""), filas, [{ libro: prov.libro }, { libro: prov.libroPremisas, premisa: true }, { libro: prov.libroIniciativa }], turno, totalesQueViajan);
+  /* ensayo 4: el total del listado viaja en `cifras` con su id `E<n>.h<k>`; el hecho del libro del que sale (la suma, con todos sus sumandos escritos) no se repite además como «apoyo»: pesaba ~250 B por total y el total ya viaja en `lectura`/`decision` también.
+   * Ensayo 5: lo mismo con las cifras de `fueraDelTexto` (ya viajan con su `E<n>.h<k>`): no se repiten con un segundo id que no se deriva igual. */
+  const apoyo = _apoyoDe(String(texto || ""), filas, [{ libro: prov.libro }, { libro: prov.libroPremisas, premisa: true }, { libro: prov.libroIniciativa }], turno, hechosQueYaViajan(j));
   const m = j.marco || {};
   /* `definiciones` y `referencia`: los criterios con que se calculó (piso, techo, benchmark) cada uno con SU origen («declarado por la empresa» · «criterio general de ADI») — lo que la persona preguntará: «¿con qué criterio?» */
   const marco = _soloConValor({ empresa: m.empresa, periodo: m.periodo, universo: m.universo, moneda: m.moneda, definiciones: _noVacio(m.definiciones) ? m.definiciones : null, referencia: m.referenciaDeclarada && m.referenciaDeclarada.texto ? m.referenciaDeclarada.texto : null, perfil: _perfilBreve(m.perfil) });
@@ -122,15 +84,14 @@ function _compactarEntrega(entrega, turno) {
   if (d) {
     /* cada cifra de `fueraDelTexto` lleva el id que el libro le da (§8.2 del Contrato del Anfitrión: «toda cifra que viaja al anfitrión lleva id»): van DESPUÉS de las filas y los totales de la tabla, en el orden del detalle */
     const nDeLaTabla = _hechosDeLaEntrega(j, { conFueraDelTexto: false }).length;
-    /* si el libro no las pudo guardar (el tope de 16 KB), viajan como siempre —sin id—: `entrega.fueraSinId` lo dice `acciones.js` */
-    const fuera = Array.isArray(d.filas) && d.filas.length
-      ? (entrega.fueraSinId === true
-        ? cifrasDeLaEntrega({ hechos: _hechosDeLaEntrega({ cifras: { filas: d.filas }, procedencia: prov }) }).map((c) => { const { id, ...resto } = _cifraBreve(c); return resto; })
-        : cifrasDeLaEntrega({ hechos: _hechosDeLaEntrega({ cifras: { filas: d.filas }, procedencia: prov }).map((h, k) => ({ ...h, id: `E${turno}.h${nDeLaTabla + k + 1}` })) }).map((c) => _cifraBreve(c)))
+    /* NUNCA UNA CIFRA SIN ID (ensayo 5): si el libro no las pudo guardar ni cediendo todo lo anterior (el tope de la base: solo una Entrega enorme), NO viajan — `entrega.fueraNoCabe` lo dice `acciones.js` — y el detalle dice cuántas son y cómo pedirlas */
+    const noCabe = typeof entrega.fueraNoCabe === "number" && entrega.fueraNoCabe > 0 ? entrega.fueraNoCabe : 0;
+    const fuera = Array.isArray(d.filas) && d.filas.length && !noCabe
+      ? cifrasDeLaEntrega({ hechos: _hechosDeLaEntrega({ cifras: { filas: d.filas }, procedencia: prov }).map((h, k) => ({ ...h, id: `E${turno}.h${nDeLaTabla + k + 1}` })) }).map((c) => _cifraBreve(c))
       : [];
     detalle = _soloConValor({
       comoPedirlo: d.comoPedirlo || null, notaDeUso: _noVacio(d.notaDeUso) ? d.notaDeUso : null,
-      fueraDelTexto: fuera.length ? fuera : null, oraciones: _noVacio(d.oraciones) ? d.oraciones : null, iniciativaNoVerificada: _noVacio(d.iniciativaNoVerificada) ? d.iniciativaNoVerificada : null,
+      fueraDelTexto: fuera.length ? fuera : null, fueraNoCabe: noCabe ? { n: noCabe, nota: "no caben en la memoria de la conversación: ADI no entrega una cifra que no pueda citar después; pídalas con una consulta acotada (comoPedirlo)" } : null, oraciones: _noVacio(d.oraciones) ? d.oraciones : null, iniciativaNoVerificada: _noVacio(d.iniciativaNoVerificada) ? d.iniciativaNoVerificada : null,
     });
     if (!Object.keys(detalle).length) detalle = null;
   }

@@ -18,16 +18,23 @@
  * construcción; el resultado de un `conteo` no se encadena (`derivacion_no_encadenable`: «5 de 12» no es una cantidad que se sume ni se divida); (2) una PARTICIPACIÓN admite VARIOS numeradores —«los 3 primeros sobre el total» es UN hecho de ADI—: se suman
  * (misma métrica, aditiva, sin repetirse ni solaparse, sin total del listado entre ellos) y su suma no puede superar la base.
  *
+ * ENSAYO 5 (owner 2026-10-07; `_ADI_DISENO_CONTRATO_ANFITRION.md` §11): (1) un operando también puede ser una cifra de APOYO (`E<n>.e<k>`: la referencia con la que se compara, el benchmark) — el id que ADI entrega y antes
+ * rechazaba—, con las mismas reglas de siempre (unidad, período, moneda, carga) y UNA más: una referencia se compara con la métrica de la que es referencia (el benchmark con el margen: una diferencia en puntos), nunca con
+ * otra; y el hecho que sale lleva la procedencia de cada lado (lo medido y la referencia, con DE QUIÉN es: «declarado por la empresa» o «criterio general de ADI»), nunca una referencia presentada como criterio de la
+ * empresa; (2) una quinta operación, `razon`: «cuántas veces es A respecto de B» (A ÷ B, misma métrica, misma unidad, ambas positivas; «2.3 veces»).
+ *
  * DECISIONES QUE EL DISEÑO NO CUBRÍA (la opción conservadora, a revisión del owner): (a) un TOTAL DEL LISTADO (`deListado`) no entra a una suma ni a un conteo —sumaría dos veces lo que ya contiene— pero sí a una
  * diferencia o a una participación, como numerador o COMO BASE (total − top-3 · una fila ÷ su total · los 3 primeros ÷ su total): `operando_es_total`; (b) una participación no se calcula con un numerador o una base NEGATIVOS: `operando_negativo`; (c) una diferencia o
  * participación entre métricas distintas exige el MISMO dueño («Saldo pendiente − Saldo vencido» de una cuenta): dos métricas y dos dueños a la vez no es una cifra del negocio — `metricas_distintas`; (d) el conteo de
  * DINERO contra una cantidad suelta solo admite 0 (la escala de «5» —¿$5 o $5M?— es ambigua): contra otra cifra entregada (su id) admite cualquier valor. */
 import { cifrasDeLaEntrega, llaveDeCifra } from "../continuidad/revalidar.js";
 import { formatoDeLaCasa } from "../notario/hechos.js";
-import { metricaPorClave, metricaDeClave } from "../notario/lexico.js";
+import { metricaPorClave, metricaDeClave, CLAVES_DE_METRICA } from "../notario/lexico.js";
 import { normalizar } from "../notario/afirmacion.js";
+import { cifrasDeApoyo } from "./apoyo.js";
+import { etiquetaDeProcedencia, ORIGEN } from "../../config/businessPolicy.js";
 
-export const OPERACIONES = Object.freeze(["suma", "diferencia", "participacion", "conteo"]);
+export const OPERACIONES = Object.freeze(["suma", "diferencia", "participacion", "conteo", "razon"]);
 export const OPERADORES = Object.freeze([">", ">=", "<", "<=", "="]);
 /** lo que un universo lista a la vista (= `compacto.js:ENTIDADES_DE_UN_UNIVERSO_MAX`; el gate lo iguala: acá no se importa para no cerrar un ciclo con `acciones.js`) */
 export const OPERANDOS_MAX = 40;
@@ -36,12 +43,15 @@ export const MOTIVOS_DE_DERIVACION = Object.freeze([
   "operacion_desconocida", "faltan_operandos", "demasiados_operandos", "derivacion_no_encadenable",
   "id_invalido", "id_inexistente", "entrega_recortada",
   "operando_sin_valor_exacto", "operando_no_medido", "operando_repetido", "operando_es_total", "operando_negativo",
-  "unidades_distintas", "metricas_distintas", "metrica_no_aditiva",
+  "unidades_distintas", "metricas_distintas", "metrica_no_aditiva", "operando_no_positivo",
   "otro_periodo", "otra_moneda", "otra_carga",
   "base_cero", "numerador_mayor_que_base", "unidad_no_participable", "condicion_invalida",
 ]);
 const _PROCEDENCIAS_ADMITIDAS = new Set(["medido", "derivado", "estimacion_referencia"]);   /* una brecha también se suma; un supuesto o una propuesta no */
 const _ID_DE_CIFRA = /^E(\d+)\.h(\d+)(?:\.(\d+))?$/;
+/* una cifra de APOYO: `E<n>.<id del hecho en la Entrega>` (`e3`; una premisa o un dato de la iniciativa llevan otra letra). Un universo (`E1.u1`) no es una cifra. */
+const _ID_DE_APOYO = /^E(\d+)\.((?![hu]\d)[A-Za-z][A-Za-z0-9_]*)$/;
+const _esIdDeCifra = (id) => typeof id === "string" && (_ID_DE_CIFRA.test(id.trim()) || _ID_DE_APOYO.test(id.trim()));
 const _ID_DE_DERIVACION = /^D(\d+)$/;
 const _finito = (x) => typeof x === "number" && Number.isFinite(x);
 const _limpio = (x) => Number((+x).toPrecision(12));   /* sin el ruido de coma flotante: 33.3 − 21.5 = 11.8, no 11.799999999999997 */
@@ -52,6 +62,51 @@ const _nombre = (clave) => (clave ? metricaDeClave(clave) : "");
 const _dueno = (d) => String(d == null ? "negocio" : d).split(" + ").map((x) => normalizar(x)).join(" + ");
 const _FRASE_DE_OPERADOR = { ">": "mayores que", ">=": "mayores o iguales que", "<": "menores que", "<=": "menores o iguales que", "=": "iguales a" };
 
+/* ── LAS REFERENCIAS DE LA CASA Y LA MÉTRICA DE LA QUE SON REFERENCIA ─────────────────────────────────────────────────────────────────────────────────────────────────────
+ * Una referencia (el benchmark, el nivel de carga, el piso de rotación…) no es una métrica medida de una cuenta: se compara con la métrica de la que es referencia — el benchmark con el margen, el nivel de carga con la
+ * carga — y con ninguna otra. Es una tabla de DATOS (las claves del léxico) y un candado: cada referencia del léxico que dice a qué métrica apunta (`muro`) tiene que estar acá, o el módulo no carga. */
+export const REFERENCIA_DE = Object.freeze({
+  benchmark: Object.freeze(["margen", "margen_promedio"]),
+  nivel_carga: Object.freeze(["carga"]),
+  piso_rotacion: Object.freeze(["rotacion"]),
+  techo_cobertura: Object.freeze(["dias_inventario"]),
+  umbral_frenado: Object.freeze(["dias_sin_venta"]),
+});
+for (const m of CLAVES_DE_METRICA) {
+  if (!m.referencia) continue;
+  const sinLugar = (Array.isArray(m.muro) ? m.muro : []).length > 0 && !REFERENCIA_DE[m.clave];
+  if (sinLugar) throw new Error(`derivar.js: la referencia «${m.clave}» del léxico no dice de qué métrica es referencia (REFERENCIA_DE)`);
+}
+/** ¿dos claves se pueden comparar? la misma, o una referencia con la métrica de la que es referencia (en cualquier orden) */
+export function clavesComparables(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  return (REFERENCIA_DE[a] || []).includes(b) || (REFERENCIA_DE[b] || []).includes(a);
+}
+const _esReferencia = (clave) => Boolean(clave && Object.prototype.hasOwnProperty.call(REFERENCIA_DE, clave));
+
+/* la procedencia de un operando, en palabras de negocio: lo medido, la estimación contra una referencia, la REFERENCIA con DE QUIÉN es (la empresa la declaró, o es el criterio general de ADI), lo derivado */
+const _ROTULO_DE_PROCEDENCIA = Object.freeze({ medido: "medido", estimacion_referencia: "estimación contra una referencia", derivado: "derivado" });
+const _ORIGENES = new Set(Object.values(ORIGEN));
+export function rotuloDeProcedencia(op) {
+  if (!op) return null;
+  if (op.esReferencia) {
+    const o = typeof op.origenRef === "string" && _ORIGENES.has(op.origenRef) ? etiquetaDeProcedencia({ origen: op.origenRef }) : null;
+    return o ? `referencia, ${o}` : "referencia general (no es un criterio propio de la empresa)";
+  }
+  return _ROTULO_DE_PROCEDENCIA[op.procedencia] || op.procedencia || null;
+}
+/** ¿hay que decir la procedencia de cada lado? solo cuando algún operando NO es una medición a secas: una referencia o una estimación contra una referencia */
+const _hayQueDecirProcedencia = (ops) => ops.some((x) => x && (x.esReferencia || x.procedencia === "estimacion_referencia"));
+
+/** textoDeVeces(raw) → «2.3 veces» · una razón «cuántas veces es A respecto de B»: una decimal desde 1 (la precisión con la que la casa imprime un múltiplo, `notario/hechos.js`: «2.3x», y con la que el Notario lo verifica, ±0,05) y dos por debajo de 1 («0.87 veces»: una sola decimal diría «0.9»). */
+export function textoDeVeces(raw) {
+  if (!_finito(raw)) return "";
+  return `${raw >= 1 ? (Math.round(raw * 10) / 10).toFixed(1) : (Math.round(raw * 100) / 100).toFixed(2)} veces`;   /* la MISMA cuenta con la que la casa imprime un múltiplo (`notario/hechos.js`: `(Math.round(q * 10) / 10).toFixed(1)`) */
+}
+/** el texto de una cifra derivada según su unidad: las de siempre con el formato de la casa; una razón, en «veces» */
+export const textoDeDerivada = (raw, unidad) => (unidad === "veces" ? textoDeVeces(raw) : formatoDeLaCasa(raw, unidad));
+
 /* ═══ 1 · EL PEDIDO ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 /** llaveDeDerivacion({operacion, sobre, base?, condicion?}) → string · la IDENTIDAD de una derivación (para la idempotencia): misma operación, mismos operandos, misma base, misma condición. La suma y el conteo no dependen del orden
  *  de los operandos; la diferencia sí (primero − segundo). */
@@ -59,18 +114,23 @@ export function llaveDeDerivacion(p) {
   const sobre = Array.isArray(p && p.sobre) ? p.sobre.map(String) : [];
   const orden = p && p.operacion === "diferencia" ? sobre : sobre.slice().sort();
   const c = p && p.condicion && typeof p.condicion === "object" ? `${p.condicion.op}|${typeof p.condicion.valor === "number" ? `n:${p.condicion.valor}` : `id:${p.condicion.valor}`}` : "";
-  return [p && p.operacion, orden.join(","), p && p.operacion === "participacion" ? String(p.base || "") : "", p && p.operacion === "conteo" ? c : ""].join("¦");
+  return [p && p.operacion, orden.join(","), p && (p.operacion === "participacion" || p.operacion === "razon") ? String(p.base || "") : "", p && p.operacion === "conteo" ? c : ""].join("¦");
 }
 
 /* ═══ 2 · LAS CIFRAS DEL LIBRO ════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
-/* el índice de lo entregable: Entrega n → { entrega, porId: Map id → cifra (una por cifra: las filas anchas ya vienen abiertas) } — solo de las Entregas que conservan sus hechos */
+/* el índice de lo entregable: Entrega n → { entrega, porId: Map id → cifra (una por cifra: las filas anchas ya vienen abiertas; y las de APOYO que guardaron su cifra exacta), apoyoSinCifra: Set de ids de apoyo que existen pero no traen una cifra sobre la que se derive } — solo de las Entregas que conservan sus hechos */
 function _indiceDelLibro(libro) {
   const idx = new Map();
   for (const e of (libro && Array.isArray(libro.entregas) ? libro.entregas : [])) {
     if (!e || typeof e !== "object") continue;
     const porId = new Map();
-    if (!e.recortada) for (const h of cifrasDeLaEntrega(e)) if (h && h.id) porId.set(h.id, h);
-    idx.set(e.n, { entrega: e, porId });
+    const apoyoSinCifra = new Set();
+    if (!e.recortada) {
+      for (const h of cifrasDeLaEntrega(e)) if (h && h.id) porId.set(h.id, h);
+      for (const h of cifrasDeApoyo(e, { nombreDeClave: metricaDeClave, formato: formatoDeLaCasa })) porId.set(h.id, h);
+      for (const a of (Array.isArray(e.apoyo) ? e.apoyo : [])) if (a && typeof a.id === "string" && !porId.has(a.id)) apoyoSinCifra.add(a.id);
+    }
+    idx.set(e.n, { entrega: e, porId, apoyoSinCifra });
   }
   return idx;
 }
@@ -80,9 +140,9 @@ export function cifrasDeLosOperandos(libro, ids) {
   const indice = _indiceDelLibro(libro);
   const out = new Map();
   for (const id of ids || []) {
-    const m = typeof id === "string" ? _ID_DE_CIFRA.exec(id) : null;
+    const m = typeof id === "string" ? (_ID_DE_CIFRA.exec(id) || _ID_DE_APOYO.exec(id)) : null;
     const h = m && indice.get(Number(m[1])) ? indice.get(Number(m[1])).porId.get(id) : null;
-    if (h) out.set(id, { entidad: h.sujeto != null ? h.sujeto : null, metrica: h.metrica != null ? h.metrica : null, valor: h.valor != null ? h.valor : null });
+    if (h) out.set(id, { entidad: h.sujeto != null ? h.sujeto : null, metrica: h.metrica != null ? h.metrica : null, valor: h.valor != null ? h.valor : null, ...(h.rv && h.rv.procedencia ? { procedencia: h.rv.procedencia, esReferencia: _esReferencia(h.rv.clave), ...(h.rv.origenRef ? { origenRef: h.rv.origenRef } : {}) } : {}) });
     else if (typeof id === "string" && _ID_DE_DERIVACION.test(id)) {   /* una derivación anterior: viaja con su valor y de qué sale */
       const d = (libro && Array.isArray(libro.derivaciones) ? libro.derivaciones : []).find((x) => x && x.id === id);
       if (d) out.set(id, { entidad: d.entidad != null ? d.entidad : null, metrica: d.metrica != null ? d.metrica : null, valor: d.resultado && d.resultado.texto != null ? d.resultado.texto : null, procedencia: "derivado", derivaDe: _idsDeLaDerivada(d) });
@@ -114,7 +174,7 @@ function _resolverDerivada(libro, indice, idc) {
   const ids = Array.isArray(d.linaje) && d.linaje.length ? d.linaje : _idsDeLaDerivada(d);
   const hojas = [];
   for (const hid of ids) {
-    if (typeof hid !== "string" || !_ID_DE_CIFRA.test(hid)) return _rechazo("id_inexistente", `la derivación ${idc} no conserva de qué cifras sale: no se puede derivar sobre ella`, [idc]);
+    if (!_esIdDeCifra(hid)) return _rechazo("id_inexistente", `la derivación ${idc} no conserva de qué cifras sale: no se puede derivar sobre ella`, [idc]);
     const r = _resolverE(libro, indice, hid);
     if (!r.ok) return r;
     if (!hojas.some((h) => h.id === r.op.id)) hojas.push(r.op);
@@ -136,10 +196,11 @@ const _entregasDe = (x) => (x.entregaNs ? x.entregaNs : [x.entregaN]);
 
 /* una cifra del libro → un operando con todo lo que la derivación necesita (y nada que haya que volver a calcular) */
 function _resolverE(libro, indice, id) {
-  const m = typeof id === "string" ? _ID_DE_CIFRA.exec(id.trim()) : null;
-  if (!m) return _rechazo("id_invalido", `«${typeof id === "string" ? id : JSON.stringify(id)}» no es el identificador de una cifra entregada (E<n>.h<k>) ni de una derivación (D<k>): solo se deriva sobre lo que ADI ya entregó en esta conversación`, [String(id)]);
+  const m = typeof id === "string" ? (_ID_DE_CIFRA.exec(id.trim()) || _ID_DE_APOYO.exec(id.trim())) : null;
+  if (!m) return _rechazo("id_invalido", `«${typeof id === "string" ? id : JSON.stringify(id)}» no es el identificador de una cifra entregada (E<n>.h<k>), de una cifra de apoyo (E<n>.e<k>) ni de una derivación (D<k>): solo se deriva sobre lo que ADI ya entregó en esta conversación`, [String(id)]);
   const idc = id.trim();
   const n = Number(m[1]);
+  const esApoyo = _ID_DE_APOYO.test(idc);
   const ent = indice.get(n);
   if (!ent) {
     const turno = libro && Number.isInteger(libro.turno) ? libro.turno : 0;
@@ -149,15 +210,18 @@ function _resolverE(libro, indice, id) {
   }
   if (ent.entrega.recortada) return _rechazo("entrega_recortada", `la Entrega E${n} se recortó por tamaño: ya no conserva sus cifras, así que no se puede derivar sobre ${idc}`, [idc]);
   const h = ent.porId.get(idc);
-  if (!h) return _rechazo("id_inexistente", `la Entrega E${n} no tiene la cifra ${idc}`, [idc]);
+  if (!h && esApoyo && ent.apoyoSinCifra.has(idc)) return _rechazo("operando_sin_valor_exacto", `${idc} es un dato de apoyo sin una cifra sobre la que se derive (un resultado que ADI ya calculó, un conteo o una premisa): derive sobre las cifras de la tabla de las que sale`, [idc]);
+  if (!h) return _rechazo("id_inexistente", esApoyo ? `la Entrega E${n} no tiene la cifra de apoyo ${idc}` : `la Entrega E${n} no tiene la cifra ${idc}`, [idc]);
   const v = h.rv && typeof h.rv === "object" ? h.rv : null;
   if (!v || !_finito(v.raw) || !v.clave || !v.unidad) return _rechazo("operando_sin_valor_exacto", `la cifra ${idc} se entregó sin valor exacto (es de antes de que ADI lo conservara, o es una cifra de proyección): no se puede derivar sobre ella`, [idc]);
+  if (v.premisa === true) return _rechazo("operando_no_medido", `${idc} es una premisa planteada en la consulta, no una medición: no se deriva sobre ella`, [idc]);
   if (v.deSupuesto === true || (v.titular && v.titular !== "medido") || !_PROCEDENCIAS_ADMITIDAS.has(v.procedencia)) return _rechazo("operando_no_medido", `la cifra ${idc} no es una medición (es un supuesto, una propuesta o un dato declarado): no se deriva sobre ella`, [idc]);
   return {
     ok: true,
     op: {
       id: idc, entregaN: n, entidad: h.sujeto != null ? h.sujeto : (v.sujeto != null ? v.sujeto : null), metrica: h.metrica != null ? h.metrica : (v.metrica != null ? v.metrica : null), valor: h.valor != null ? h.valor : (v.valor != null ? v.valor : null),
       raw: v.raw, unidad: v.unidad, clave: v.clave, dueno: v.dueno || "negocio", llave: llaveDeCifra({ tipo: v.tipo || null, clave: v.clave, dueno: v.dueno, unidad: v.unidad, procedencia: v.procedencia }), deListado: v.deListado === true,
+      procedencia: v.procedencia, esReferencia: _esReferencia(v.clave), ...(v.origenRef ? { origenRef: v.origenRef } : {}),
     },
   };
 }
@@ -185,6 +249,11 @@ export function aritmeticaDeDerivacion(operacion, { sobre = [], base = null, con
     const raw = _limpio((100 * suma) / base.raw);
     return { raw, unidad: "pct", clave: "participacion", texto: formatoDeLaCasa(raw, "pct") };
   }
+  if (operacion === "razon") {
+    if (S.length !== 1 || !base || !_finito(S[0].raw) || !_finito(base.raw) || !(S[0].raw > 0) || !(base.raw > 0)) return null;
+    const raw = _limpio(S[0].raw / base.raw);
+    return { raw, unidad: "veces", clave: "razon", texto: textoDeVeces(raw) };
+  }
   if (operacion === "conteo") {
     if (!S.length || !condicion || !OPERADORES.includes(condicion.op) || !_finito(condicion.valor) || !S.every((x) => _finito(x.raw))) return null;
     const e = 1e-9;
@@ -210,16 +279,16 @@ export function validarDerivacion(libro, pedido, { tenantId = null } = {}) {
 
   const sobre = Array.isArray(p.sobre) ? p.sobre : [];
   const minimo = operacion === "suma" || operacion === "diferencia" ? 2 : 1;
-  if (sobre.length < minimo) return _rechazo("faltan_operandos", `«${operacion}» pide ${operacion === "participacion" ? "al menos un identificador en «sobre» (el numerador; varios si es un grupo) y otro en «base»" : operacion === "conteo" ? "al menos un identificador en «sobre»" : "al menos dos identificadores en «sobre»"}`);
-  const maximo = operacion === "diferencia" ? 2 : OPERANDOS_MAX;
-  if (sobre.length > maximo) return _rechazo("demasiados_operandos", operacion === "diferencia" ? "«diferencia» resta exactamente dos cifras (la primera menos la segunda)" : `se pueden derivar hasta ${OPERANDOS_MAX} cifras a la vez (llegaron ${sobre.length})`);
-  if (operacion === "participacion" && (typeof p.base !== "string" || !p.base.trim())) return _rechazo("faltan_operandos", "«participacion» necesita la base: el identificador de la cifra contra la que se calcula, en «base»");
+  if (sobre.length < minimo) return _rechazo("faltan_operandos", `«${operacion}» pide ${operacion === "participacion" ? "al menos un identificador en «sobre» (el numerador; varios si es un grupo) y otro en «base»" : operacion === "razon" ? "un identificador en «sobre» (la cifra que se compara) y otro en «base» (aquella respecto de la cual se compara)" : operacion === "conteo" ? "al menos un identificador en «sobre»" : "al menos dos identificadores en «sobre»"}`);
+  const maximo = operacion === "diferencia" || operacion === "razon" ? (operacion === "razon" ? 1 : 2) : OPERANDOS_MAX;
+  if (sobre.length > maximo) return _rechazo("demasiados_operandos", operacion === "diferencia" ? "«diferencia» resta exactamente dos cifras (la primera menos la segunda)" : operacion === "razon" ? "«razon» compara UNA cifra (en «sobre») con otra (en «base»): cuántas veces es la primera respecto de la segunda" : `se pueden derivar hasta ${OPERANDOS_MAX} cifras a la vez (llegaron ${sobre.length})`);
+  if ((operacion === "participacion" || operacion === "razon") && (typeof p.base !== "string" || !p.base.trim())) return _rechazo("faltan_operandos", `«${operacion}» necesita la base: el identificador de la cifra ${operacion === "razon" ? "respecto de la cual se compara" : "contra la que se calcula"}, en «base»`);
 
   const indice = _indiceDelLibro(libro);
   const operandos = [];
   for (const id of sobre) { const r = _resolverId(libro, indice, id); if (!r.ok) return r; operandos.push(r.op); }
   let base = null;
-  if (operacion === "participacion") { const r = _resolverId(libro, indice, p.base); if (!r.ok) return r; base = r.op; }
+  if (operacion === "participacion" || operacion === "razon") { const r = _resolverId(libro, indice, p.base); if (!r.ok) return r; base = r.op; }
   const todos = base ? [...operandos, base] : operandos;
 
   /* una condición con valor-id: otra cifra entregada contra la que se compara */
@@ -257,13 +326,15 @@ export function validarDerivacion(libro, pedido, { tenantId = null } = {}) {
   }
   const claves = new Set(todos.concat(referencia ? [referencia] : []).map((x) => x.clave));
   /* las métricas que tienen que coincidir: en una suma o un conteo, las de TODAS las cifras (y la de comparación); en una participación de varios numeradores, las de los numeradores entre sí (la base puede ser de otra métrica de la misma cuenta: más abajo) */
-  const clavesDelGrupo = operacion === "participacion" ? new Set(operandos.map((x) => x.clave)) : claves;
+  const clavesDelGrupo = operacion === "participacion" || operacion === "razon" || (operacion === "conteo" && referencia) ? new Set(operandos.map((x) => x.clave)) : claves;
 
   if (sumandos) {
     const agrupa = operacion === "suma" ? "se suman" : operacion === "conteo" ? "se cuentan" : "se agrupan como numerador";
-    if (clavesDelGrupo.size !== 1 || sumandos.some((x) => !x.clave)) {
+    /* contar contra una referencia (cuántos márgenes están bajo el benchmark): la referencia es de la métrica que se cuenta, o es de otra y no se compara */
+    const referenciaIncompatible = operacion === "conteo" && referencia && clavesDelGrupo.size === 1 && !clavesComparables(referencia.clave, [...clavesDelGrupo][0]);
+    if (clavesDelGrupo.size !== 1 || sumandos.some((x) => !x.clave) || referenciaIncompatible) {
       const sinMetrica = sumandos.find((x) => !x.clave);
-      return _rechazo("metricas_distintas", sinMetrica && clavesDelGrupo.size === 1 ? `${sinMetrica.id} no tiene una métrica única (sale de métricas distintas): solo ${agrupa} cifras de la misma métrica` : `las cifras son de métricas distintas (${[...clavesDelGrupo].map(_nombre).join(", ")}): solo ${agrupa} cifras de la misma métrica`, todos.map((x) => x.id));
+      return _rechazo("metricas_distintas", sinMetrica && clavesDelGrupo.size === 1 && !referenciaIncompatible ? `${sinMetrica.id} no tiene una métrica única (sale de métricas distintas): solo ${agrupa} cifras de la misma métrica` : `las cifras son de métricas distintas (${[...claves].map(_nombre).join(", ")}): solo ${agrupa} cifras de la misma métrica${referenciaIncompatible ? " (una referencia solo se compara con la métrica de la que es referencia)" : ""}`, todos.concat(referencia ? [referencia] : []).map((x) => x.id));
     }
     /* un total del listado ya contiene a sus filas; una derivación que sale de él también (su linaje lo trae) */
     const conTotal = sumandos.find((x) => _hojasDe(x).some((h) => h.deListado));
@@ -278,11 +349,18 @@ export function validarDerivacion(libro, pedido, { tenantId = null } = {}) {
     const m = metricaPorClave(operandos[0].clave);
     if (!m || m.referencia || m.negocio || m.tasa || (m.unidad !== "money" && m.unidad !== "count") || (operandos[0].unidad !== "money" && operandos[0].unidad !== "count")) return _rechazo("metrica_no_aditiva", `«${_nombre(operandos[0].clave)}» no se suma (un porcentaje, un promedio, unos días o una razón no son aditivos): se resta o se cuenta, o se pide a ADI`, operandos.map((x) => x.id));
   }
-  if (operacion === "diferencia" || operacion === "participacion") {
+  if (operacion === "diferencia" || operacion === "participacion" || operacion === "razon") {
     /* el numerador de una participación de varios es UN grupo: su métrica es la de todos y su dueño, el conjunto de los dueños */
     const num = operacion === "diferencia" ? operandos[0] : { ...operandos[0], dueno: operandos.length > 1 ? [...new Set(operandos.map((x) => _dueno(x.dueno)))].join(" + ") : operandos[0].dueno, id: operandos.map((x) => x.id).join(" + ") };
     const [a, b] = operacion === "diferencia" ? [operandos[0], operandos[1]] : [num, base];
-    if (a.clave !== b.clave && _dueno(a.dueno) !== _dueno(b.dueno)) return _rechazo("metricas_distintas", `${a.id} y ${b.id} son de métricas distintas (${_nombre(a.clave)} y ${_nombre(b.clave)}) y de dueños distintos: solo se relacionan dos métricas de una misma cuenta`, operacion === "diferencia" ? [a.id, b.id] : [...operandos.map((x) => x.id), b.id]);
+    if (operacion === "razon") {
+      /* una razón compara la MISMA métrica (de dos cuentas, de dos grupos) o una métrica con su referencia: no dos métricas distintas de una misma cuenta (eso es una participación) */
+      if (!clavesComparables(a.clave, b.clave)) return _rechazo("metricas_distintas", `${a.id} y ${b.id} son de métricas distintas (${_nombre(a.clave) || "sin métrica única"} y ${_nombre(b.clave) || "sin métrica única"}): una razón compara la misma métrica, o una métrica con su referencia`, [a.id, b.id]);
+    } else if (!clavesComparables(a.clave, b.clave) && _dueno(a.dueno) !== _dueno(b.dueno)) return _rechazo("metricas_distintas", `${a.id} y ${b.id} son de métricas distintas (${_nombre(a.clave)} y ${_nombre(b.clave)}) y de dueños distintos: solo se relacionan dos métricas de una misma cuenta, o una métrica con su referencia`, operacion === "diferencia" ? [a.id, b.id] : [...operandos.map((x) => x.id), b.id]);
+  }
+  if (operacion === "razon") {
+    const noPositivo = [operandos[0], base].find((x) => !(x.raw > 0));
+    if (noPositivo) return _rechazo("operando_no_positivo", `${noPositivo.id} ${noPositivo.raw === 0 ? "es cero" : "es negativa"}: una razón (cuántas veces es una cifra respecto de otra) se calcula entre cifras positivas`, [noPositivo.id]);
   }
   if (operacion === "participacion") {
     const num = operandos[0];
@@ -291,7 +369,7 @@ export function validarDerivacion(libro, pedido, { tenantId = null } = {}) {
     if (negativo) return _rechazo("operando_negativo", "una participación no se calcula con una cifra negativa", [negativo.id]);
     if (base.raw === 0) return _rechazo("base_cero", `la base ${base.id} es cero: no hay participación`, [base.id]);
     const sumaNum = _limpio(operandos.reduce((a, x) => a + x.raw, 0));
-    if (sumaNum > base.raw) return _rechazo("numerador_mayor_que_base", operandos.length > 1 ? `los numeradores suman más que la base ${base.id}: una participación no supera el 100 %` : `${num.id} es mayor que la base ${base.id}: una participación no supera el 100 %`, [...operandos.map((x) => x.id), base.id]);
+    if (sumaNum > base.raw) return _rechazo("numerador_mayor_que_base", `${operandos.length > 1 ? `los numeradores suman más que la base ${base.id}` : `${num.id} es mayor que la base ${base.id}`}: una participación no supera el 100 %. Si lo que busca es cuántas veces es una cifra respecto de otra, use la operación «razon» (en «sobre» la cifra, en «base» aquella respecto de la cual se compara)`, [...operandos.map((x) => x.id), base.id]);
   }
   if (operacion === "conteo" && typeof condicion.valor === "number" && operandos[0].unidad === "money" && condicion.valor !== 0) {
     return _rechazo("condicion_invalida", "para dinero, la condición compara contra 0 o contra otra cifra entregada (su identificador): una cantidad suelta es ambigua en su escala");
@@ -304,6 +382,9 @@ export function validarDerivacion(libro, pedido, { tenantId = null } = {}) {
 
 /* ═══ 5 · CALCULAR (con su rótulo) ════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 const _unir = (xs, tope = 120) => { const s = xs.filter(Boolean).join(" + "); return s.length <= tope ? s : `${xs.length} entidades entregadas`; };
+
+/* cuando un lado es una REFERENCIA, el rótulo lo dice con de quién es: «(referencia, declarado por la empresa)» — nunca una referencia presentada como criterio de la empresa */
+const _notaDeReferencia = (ops) => { const r = ops.find((x) => x && x.esReferencia); return r ? ` (${rotuloDeProcedencia(r)})` : ""; };
 
 /** calcularDerivacion(validada) → { resultado: { raw, unidad, clave, texto, m? , cumplen? }, entidad, metrica } · `validada` es lo que devolvió `validarDerivacion` con `ok:true`. El rótulo dice qué es la cifra: su métrica, su base (una tasa lleva su
  *  base junto a la cifra, ley de `notario/tasas.js`) y, en un conteo, su condición. */
@@ -320,15 +401,21 @@ export function calcularDerivacion(v) {
   else if (v.operacion === "diferencia") {
     const [x, y] = v.operandos;
     const mismoDueno = _dueno(x.dueno) === _dueno(y.dueno);
-    entidad = mismoDueno ? (x.entidad || null) : [x.entidad, y.entidad].filter(Boolean).join(" − ") || null;
-    metrica = x.clave === y.clave ? `${nom(x)} · diferencia${mismoDueno ? "" : " (primera menos segunda)"}` : `${nom(x)} − ${nom(y)}`;
+    /* una referencia («negocio») no es una entidad: si un lado es la referencia, la cifra es de la cuenta contra la que se compara */
+    const conReferencia = x.esReferencia !== y.esReferencia;
+    entidad = mismoDueno ? (x.entidad || null) : conReferencia ? ((x.esReferencia ? y : x).entidad || null) : [x.entidad, y.entidad].filter(Boolean).join(" − ") || null;
+    metrica = x.clave === y.clave ? `${nom(x)} · diferencia${mismoDueno ? "" : " (primera menos segunda)"}` : `${nom(x)} − ${nom(y)}${_notaDeReferencia([x, y])}`;
+  } else if (v.operacion === "razon") {
+    const [x] = v.operandos, b = v.base;
+    entidad = x.entidad || null;
+    metrica = x.clave === b.clave ? `${nom(x)} · veces respecto de ${b.entidad || b.metrica || b.id}${b.valor ? ` (${b.valor})` : ""}` : `${nom(x)} ÷ ${nom(b)} · veces${_notaDeReferencia([x, b])}`;
   } else if (v.operacion === "participacion") {
     const [x] = v.operandos, b = v.base, varios = v.operandos.length > 1;
     entidad = varios ? _unir(v.operandos.map((o) => o.entidad)) : (x.entidad || null);
     metrica = x.clave === b.clave ? `${nom(x)} · participación${varios ? ` de ${v.operandos.length} cifras entregadas` : ""} sobre ${b.entidad || b.metrica || b.id}${b.valor ? ` (${b.valor})` : ""}` : `${nom(x)} ÷ ${nom(b)} · participación${varios ? ` de ${v.operandos.length} cifras entregadas` : ""}`;
   } else {
     const ref = v.referencia ? (v.referencia.valor || formatoDeLaCasa(v.referencia.raw, v.referencia.unidad)) : formatoDeLaCasa(v.condicion.valor, v.operandos[0].unidad);
-    metrica = `${nom(v.operandos[0])} · cifras entregadas (${v.operandos.length}) ${_FRASE_DE_OPERADOR[v.condicion.op]} ${ref}`;
+    metrica = `${nom(v.operandos[0])} · cifras entregadas (${v.operandos.length}) ${_FRASE_DE_OPERADOR[v.condicion.op]} ${ref}${v.referencia ? _notaDeReferencia([v.referencia]) : ""}`;
   }
   const { cumplen, ...resultado } = a;
   return { resultado: { ...resultado, ...(cumplen ? { cumplen } : {}) }, entidad, metrica };
@@ -342,15 +429,24 @@ export function derivacionParaElLibro(pedido, v, c) {
     ...(v.base ? { base: v.base.id } : {}), ...(v.condicion ? { condicion: { op: v.condicion.op, valor: v.condicion.valor } } : {}),
     resultado: c.resultado, entidad: c.entidad, metrica: c.metrica,
     versionId: v.contexto.versionId, periodo: v.contexto.periodo, moneda: v.contexto.moneda,
+    /* la procedencia de cada lado, SOLO cuando algún operando no es una medición a secas (una referencia o una estimación contra una referencia): [{ id, p: procedencia, r?: 1 si es una referencia, o?: de quién es }] */
+    ...(_hayQueDecirProcedencia([...v.operandos, ...(v.base ? [v.base] : []), ...(v.referencia ? [v.referencia] : [])]) ? { procedencias: [...v.operandos, ...(v.base ? [v.base] : []), ...(v.referencia ? [v.referencia] : [])].filter((x) => !x.derivada).map((x) => ({ id: x.id, p: x.procedencia, ...(x.esReferencia ? { r: 1 } : {}), ...(x.origenRef ? { o: x.origenRef } : {}) })) } : {}),
   };
 }
 
 /** respuestaDeLaDerivacion(d, opciones) → { hecho, operandos, base?, condicion?, cumplen?, noCumplen? } · la forma que viaja al anfitrión, de la derivación guardada y de las cifras que la sostienen (`operandosPorId`: Map id → {entidad, metrica, valor}). */
 export function respuestaDeLaDerivacion(d, operandosPorId) {
-  const pos = (id) => { const o = operandosPorId.get(id) || {}; return { id, ...(o.entidad != null ? { entidad: o.entidad } : {}), ...(o.metrica != null ? { metrica: o.metrica } : {}), ...(o.valor != null ? { valor: o.valor } : {}), ...(o.procedencia === "derivado" ? { procedencia: "derivado", ...(Array.isArray(o.derivaDe) && o.derivaDe.length ? { derivaDe: o.derivaDe.slice() } : {}) } : {}) }; };
+  /* la procedencia de cada lado, cuando la derivación la guardó (hay una referencia o una estimación contra una referencia): lo medido es «medido»; la referencia, «referencia» con de quién es */
+  const procs = new Map((Array.isArray(d.procedencias) ? d.procedencias : []).map((p) => [p.id, p]));
+  const rotulo = (p) => rotuloDeProcedencia({ procedencia: p.p, esReferencia: p.r === 1, origenRef: p.o });
+  const pos = (id) => {
+    const o = operandosPorId.get(id) || {};
+    const p = procs.get(id);
+    return { id, ...(o.entidad != null ? { entidad: o.entidad } : {}), ...(o.metrica != null ? { metrica: o.metrica } : {}), ...(o.valor != null ? { valor: o.valor } : {}), ...(o.procedencia === "derivado" ? { procedencia: "derivado", ...(Array.isArray(o.derivaDe) && o.derivaDe.length ? { derivaDe: o.derivaDe.slice() } : {}) } : (p ? { procedencia: p.r === 1 ? "referencia" : p.p, ...(p.r === 1 || p.p !== "medido" ? { origen: rotulo(p) } : {}) } : {})) };
+  };
   const r = d.resultado || {};
   const out = {
-    hecho: { id: d.id, operacion: d.operacion, sobre: d.sobre.slice(), ...(d.base ? { base: d.base } : {}), ...(Array.isArray(d.linaje) && d.linaje.length ? { linaje: d.linaje.slice() } : {}), ...(d.entidad != null ? { entidad: d.entidad } : {}), metrica: d.metrica, valor: r.texto, procedencia: "derivado" },
+    hecho: { id: d.id, operacion: d.operacion, sobre: d.sobre.slice(), ...(d.base ? { base: d.base } : {}), ...(Array.isArray(d.linaje) && d.linaje.length ? { linaje: d.linaje.slice() } : {}), ...(d.entidad != null ? { entidad: d.entidad } : {}), metrica: d.metrica, valor: r.texto, procedencia: "derivado", ...(procs.size ? { procedencias: [...new Set([...procs.values()].map(rotulo))] } : {}) },
     operandos: d.sobre.map(pos),
   };
   if (d.base) out.base = pos(d.base);

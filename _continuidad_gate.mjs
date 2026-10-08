@@ -373,7 +373,7 @@ H("19 · derivaciones `D<k>`: ids estables tras el recorte, aditivas y sin tocar
   ok(registrarDerivacion(viejo, { operacion: "suma", sobre: [] }).derivaciones[2].id === "D3", "sin contador, el id sigue de lo que el libro ya tiene");
   /* el tope de bytes: las derivaciones más viejas ceden, la más nueva queda */
   let grande = libroNuevo({ conversacionId: "c-grande" });
-  for (let i = 0; i < 24; i++) grande = registrarDerivacion(grande, { operacion: "suma", sobre: ["E1.h1"], entidad: "x".repeat(1200), resultado: { raw: i } });
+  for (let i = 0; i < 24; i++) grande = registrarDerivacion(grande, { operacion: "suma", sobre: ["E1.h1"], entidad: `${i}-${"x".repeat(1200)}`, resultado: { raw: i } });   // textos DISTINTOS: la forma guardada escribe una sola vez lo repetido (`comprimirLibro`), así que 24 iguales ya no llenan los 16 KB
   ok(tamanoBytes(grande) <= LIBRO_TOPE_BYTES && grande.derivaciones[grande.derivaciones.length - 1].id === "D24" && grande.derivaciones.length < 24, "★ si el libro excede 16 KB ceden las derivaciones más viejas y la más nueva se conserva", `${tamanoBytes(grande)} B · ${grande.derivaciones.length}`);
   ok(grande.premisas.length === 0 && grande.criterioVigente === null, "(control) las premisas y el criterio no se tocan");
 }

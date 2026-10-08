@@ -80,11 +80,11 @@ import { conPerfilDeclarado, armarPerfilConversando, opcionesDeCampo, textoDeLim
 import {
   clasificarLoDeclarado, contrastarHechos, textoDeLoDeclarado, plazosCitados, procedenciasDeCriterios, antecedentesDe, textoDeAntecedentes, lugarDeAporte, aplicadoComoDe, validarCriterio, declarable, esReferenciaDeLaCasa, USO_DE_LO_DECLARADO,
 } from "./loDeclarado.js";
-import { conCriteriosDeEmpresa, setBenchmarkOverride, ETIQUETA_ORIGEN, ORIGEN, etiquetaDeProcedencia } from "../../config/businessPolicy.js";
+import { conCriteriosDeEmpresa, setBenchmarkOverride, ETIQUETA_ORIGEN, ORIGEN, etiquetaDeProcedencia, procedenciaDeLlave, POLICY_DE_REFERENCIA } from "../../config/businessPolicy.js";
 import { PIEZAS_CONOCIMIENTO } from "../conocimiento/piezas.js";
 import { ADI_CONOCIMIENTO } from "../../config/voiceFlags.js";
 import {
-  libroNuevo, emitirConversacionId, detectarCambioVersion, registrarEntrega,
+  libroNuevo, emitirConversacionId, detectarCambioVersion, registrarEntrega, LIBRO_TOPE_BYTES,
   actualizarCriterio, agregarSupuestoVivo, registrarPremisa, registrarHechoAportado, registrarDerivacion, derivacionesDe,
 } from "../continuidad/libro.js";
 import { validarDerivacion, calcularDerivacion, derivacionParaElLibro, respuestaDeLaDerivacion, cifrasDeLosOperandos, llaveDeDerivacion } from "./derivar.js";
@@ -94,6 +94,8 @@ import { cifraDeHecho, referenciasDe, revalidarEntrega, reverificadorDe, encargo
 import { renderDe } from "../notario/hechos.js";
 import { serializarPorClave } from "../continuidad/serializar.js";
 import { conTenantActivo } from "./aislamiento.js";
+import { recorrerApoyo, apoyoParaElLibro, hechosQueYaViajan } from "./apoyo.js";
+import { ensenarRechazos } from "./ensenar.js";
 
 /* ── LA CABECERA DE USO (plan v2, Etapa 3 · «una cabecera de USO para el LLM») ───────────────────────────────────
  * Viaja en CADA `consultar(...)`. Cuatro reglas, en el vocabulario de negocio del contrato (nunca "boleta" ni
@@ -118,6 +120,17 @@ export const CABECERA_DE_RETOMAR = Object.freeze([
   "Lo marcado «no_comparable» (otro período, otra moneda, otra unidad, otra referencia o una cuenta que ya no figura en el ranking), «no_se_revalida» (un supuesto, un declarado, un documento) o «sin_reverificar» no se afirma como vigente ni como cambiado: se dice por qué, con las palabras del motivo.",
   "La línea de continuidad es lo único que se dice sin que la persona lo pida, y solo si pasó algo; nombra hasta tres cambios y cuántos más hay. El detalle de cada cifra está en `hechos` por si lo pide (`E1.h3.2` es la segunda cifra de la fila `E1.h3`).",
 ]);
+
+/* ── LO QUE LA MEMORIA DE LA CONVERSACIÓN NO PUDO CONSERVAR (ensayo 5, owner 2026-10-07): el libro tiene un tope de la base (16 KB) y, al llenarse, cede lo MÁS VIEJO. Lo que cede se dice en la respuesta que lo provocó,
+ * en palabras de negocio: las cifras de una Entrega recortada ya no se pueden derivar ni revalidar (`derivar` lo rechaza con su motivo; `retomar` la lista como recortada). */
+const _listaDeEntregas = (ns) => (ns.length === 1 ? `la Entrega E${ns[0]}` : `las Entregas ${ns.slice(0, -1).map((n) => `E${n}`).join(", ")} y E${ns[ns.length - 1]}`);
+export function avisosDeLaMemoria({ perdidas = [], sinGuardar = false, fueraNoCabe = 0, n = null } = {}) {
+  const out = [];
+  if (sinGuardar) out.push(`Esta Entrega${n ? ` (E${n})` : ""} es más grande de lo que la memoria de la conversación admite: sus cifras no quedaron guardadas y no se pueden derivar ni revalidar con ADI. Acote la consulta (menos cuentas o métricas) para poder derivar sobre ellas.`);
+  else if (perdidas.length) out.push(`Por el tamaño de la memoria de esta conversación, ${_listaDeEntregas(perdidas)} ${perdidas.length === 1 ? "ya no conserva" : "ya no conservan"} sus cifras: no se pueden derivar ni revalidar con ADI. Si necesita alguna, vuelva a pedirla con una consulta.`);
+  if (fueraNoCabe) out.push(`${fueraNoCabe} ${fueraNoCabe === 1 ? "cifra" : "cifras"} de «fuera del texto» no se incluyen: no caben en la memoria de la conversación y ADI no entrega una cifra que no pueda citar después. Pídalas con una consulta acotada (detalle.comoPedirlo).`);
+  return out;
+}
 
 /* ── validar la FORMA del tenant inyectado — SIN tocar el estado global del Core (eso es `conTenantActivo`) ────── */
 function _validarTenant(tenant) {
@@ -292,7 +305,7 @@ export function _datasetDeLaEmpresa(datasetDelTenant, estadoPerfil, loDeclarado)
  *  del oficio está encendido (default: la bandera `ADI_CONOCIMIENTO`, apagada en todos los perfiles) y con qué catálogo
  *  de piezas — de eso depende qué campos del perfil hacen falta (`perfilConversando.js:necesitaPerfil`). En producción
  *  no se pasa nada; los candados la encienden. */
-export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = () => new Date().toISOString(), conocimiento = {} } = {}) {
+export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = () => new Date().toISOString(), conocimiento = {}, libroTope = LIBRO_TOPE_BYTES } = {}) {   // `libroTope`: la costura de los candados para probar lo que la base no admite; en producción es siempre el de la base (16 KB)
   const store = continuidad; // alias local: acá adentro es, literal, el almacén de `continuidad/almacen.js`
   const conocimientoActivo = conocimiento && conocimiento.activo != null ? Boolean(conocimiento.activo) : ADI_CONOCIMIENTO;
   const catalogoDePiezas = conocimiento && Array.isArray(conocimiento.catalogo) ? conocimiento.catalogo : PIEZAS_CONOCIMIENTO;
@@ -399,7 +412,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
     /* LA FORMA ANTES DEL VALOR (ensayo 2, owner 2026-10-05): una cadena suelta donde el contrato pide una lista o un objeto se lee con su única lectura posible (`formaDelEncargo.js`); lo que no se puede leer sin adivinar
      * se declara `formato_invalido` —con el campo y la forma esperada— y NUNCA como «la entidad no existe» ni «criterio desconocido». Lo bien formado pasa idéntico. */
     const leido = normalizarFormaDelEncargo(encargo);
-    if (leido.formato.length) return { ok: false, entrega: null, noResuelto: leido.formato, uso: CABECERA_DE_USO };
+    if (leido.formato.length) return { ok: false, entrega: null, noResuelto: ensenarRechazos(leido.formato), uso: CABECERA_DE_USO };
     encargo = leido.encargo;
     const avisosDeForma = leido.avisos;
 
@@ -432,7 +445,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       const { dataset, criteriosAplicados, benchmarkDeclarado } = _datasetDeLaEmpresa(tenant.dataset, estadoPerfil, loDeclarado);
 
       // 2 · EL TRAMO DEL CORE — síncrono, sin una sola espera entre `initTenant` y el cálculo
-      const { resolucion, salida, perfilCliente, hechosContrastados } = conTenantActivo(dataset, () => {
+      const { resolucion, salida, perfilCliente, hechosContrastados, origenDeReferencia, noResueltoEnsenado } = conTenantActivo(dataset, () => {
         // el benchmark declarado pisa también el benchmark embebido por fila del dato (la vara de la empresa, como C.2): lo limpia el siguiente `initTenant` (el de `conTenantActivo` al salir)
         if (benchmarkDeclarado) setBenchmarkOverride(benchmarkDeclarado.valor);
         // `libro: libroLeido` = la cita `contexto: E1` se resuelve contra lo que ESTA conversación ya entregó (bloque 3)
@@ -444,7 +457,11 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         const hechosContrastados = salida.ok && salida.entrega && loDeclarado.hechos.length
           ? contrastarHechos({ hechos: loDeclarado.hechos, libro: salida.entrega.procedencia && salida.entrega.procedencia.libro, resolucion, periodos: marcoPeriodo ? [marcoPeriodo.texto, marcoPeriodo.rango, typeof marcoPeriodo.valor === "string" ? marcoPeriodo.valor : null] : [] })
           : [];
-        return { resolucion, salida, perfilCliente: estadoPerfil ? construirPerfilCliente(dataset) : null, hechosContrastados };
+        /* de quién es cada referencia de la casa (la empresa la declaró, o es el criterio general de ADI), con la MISMA función de origen que escribe el Marco: lo guarda el libro con las cifras de apoyo que son una referencia (`apoyo.js`) */
+        const origenDeReferencia = salida.ok && salida.entrega ? Object.fromEntries(Object.entries(POLICY_DE_REFERENCIA).map(([clave, llave]) => [clave, procedenciaDeLlave(llave).origen]).filter(([, o]) => o)) : {};
+        /* UN RECHAZO ENSEÑA (ensayo 5): cada rechazo que el validador deja sin alternativas sale con lo que SÍ es válido en ese lugar, para esta empresa (`ensenar.js`); la Entrega y el Core no se tocan */
+        const noResueltoEnsenado = ensenarRechazos(resolucion.noResuelto || [], { encargo, libro: libroLeido });
+        return { resolucion, salida, perfilCliente: estadoPerfil ? construirPerfilCliente(dataset) : null, hechosContrastados, origenDeReferencia, noResueltoEnsenado };
       });
 
       // 3 · avanzar el libro (puro — no toca el Core ni la base)
@@ -457,7 +474,15 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       const cambioVersion = detectarCambioVersion(libro, versionIdActivo);
 
       const eventosBase = { cambioVersion, cifrasReverificadas: [], premisasFalsas: [], criterioCambio: null, supuestosVivosRelevantes: [] };
-      let fueraSinId = false;   /* las cifras de `fueraDelTexto` no caben en el libro (16 KB): se entregan como siempre, sin id (ver más abajo) */
+      let fueraNoCabe = 0;      /* cuántas cifras de `fueraDelTexto` NO caben en el libro aunque ceda todo lo anterior: no viajan (nunca una cifra sin id) y se dice (ver más abajo) */
+      let entregasPerdidas = [];   /* las Entregas anteriores que ESTA escritura obligó a recortar: sus cifras ya no se pueden derivar ni revalidar, y se dice en la respuesta */
+      let entregaSinGuardar = false;   /* la propia Entrega es más grande de lo que la base admite: sus cifras no quedaron en el libro, y se dice */
+      /* lo que la persona pidió citar y lo declarado en juego (no dependen del libro): el texto de la Entrega se arma ANTES de guardarla porque las cifras de apoyo que se guardan son las que ese texto imprime */
+      const usarPedido = resolucion.encargo && typeof resolucion.encargo.usar === "string" ? resolucion.encargo.usar : null;
+      const antecedentes = salida.ok && resolucion.contextoResuelto ? antecedentesDe(resolucion.contextoResuelto, { versionActiva: versionIdActivo }) : [];
+      // el plazo de cobro declarado que la pregunta abierta de cobranza de esta Entrega cita (opción A, §7.3·58): se muestra con su origen y NO cambia ningún cálculo
+      const plazosEnJuego = salida.ok && salida.entrega && loDeclarado.plazos.length ? plazosCitados({ plazos: loDeclarado.plazos, entrega: salida.entrega }) : [];
+      let textoConContinuidad = "";
 
       if (salida.ok && salida.entrega) {
         // § criterio (§4·2 del contrato del encargo, ya resuelto por `validarEncargo` — nunca se infiere acá)
@@ -485,8 +510,24 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
           if (vivosAntes.has(s.id)) eventosBase.supuestosVivosRelevantes.push({ id: s.id, texto: _etiquetaSupuesto(s) });
         }
 
+        // § el texto de la Entrega con lo que esta entrada le agrega (la línea de continuidad, el antecedente citado, lo declarado al lado de lo medido) — ver más abajo, 4b
+        /* lenguaje empresarial también en `consultar` (owner 2026-10-04, bloque 4): la línea dice «los datos cambiaron desde la Entrega N», nunca ids de carga («1 → 2») */
+        const lineaContinuidad = lineaDeContinuidad(eventosDeContinuidad({ ...eventosBase, lenguajeDeNegocio: true }));
+        textoConContinuidad = lineaContinuidad ? `${lineaContinuidad}\n\n${salida.texto}` : salida.texto;
+        {
+          // 4b · LO QUE ESTA ENTRADA NUEVA AGREGA A LA ENTREGA (bloque 3) — solo si hay una cita que resolvió o algo declarado en juego; sin ellos
+          // el texto y la respuesta son EXACTAMENTE los de antes. La Entrega compuesta no se toca: se agregan, al final, el antecedente que se citó
+          // (tal cual quedó guardado, sin recalcular) y lo declarado al lado de lo medido.
+          const agregado = [textoDeAntecedentes(antecedentes), textoDeLoDeclarado({ hechos: hechosContrastados, plazos: plazosEnJuego, usar: usarPedido })].filter(Boolean).join("\n\n");
+          if (agregado) textoConContinuidad = `${textoConContinuidad}\n\n${agregado}`;
+        }
+
         // § lo entregado, como referencias (paso 8) — ver `_hechosDeLaEntrega`
         const hechosParaLibro = _hechosDeLaEntrega(salida.entrega);
+        /* LAS CIFRAS DE APOYO (ensayo 5): lo que el texto imprime además de la tabla (la referencia, una comparación) viaja con id (`compacto.js`) y el libro las guarda — la MISMA función decide cuáles son — para que `derivar` las pueda usar */
+        const jEntrega = salida.entrega;
+        const provEntrega = jEntrega.procedencia || {};
+        const apoyoParaGuardar = apoyoParaElLibro(recorrerApoyo(String(textoConContinuidad || ""), (jEntrega.cifras && Array.isArray(jEntrega.cifras.filas)) ? jEntrega.cifras.filas : [], [{ libro: provEntrega.libro }, { libro: provEntrega.libroPremisas, premisa: true }, { libro: provEntrega.libroIniciativa }], libro.turno + 1, hechosQueYaViajan(jEntrega)), { origenDeReferencia });
         const entidadesEntregadas = [...new Set(hechosParaLibro.filter((h) => !h.fuera).map((h) => h.sujeto).filter(Boolean))];   /* las de la tabla de la Entrega: las cifras de `fueraDelTexto` entran al libro con id pero no cambian quiénes se entregaron */
         const cierres = [...new Set((resolucion.partes || []).map((p) => p.cierre).filter(Boolean))];
         const entradaDeLaEntrega = {
@@ -495,21 +536,28 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
           entidades: entidadesEntregadas,
           cierre: cierres.length === 1 ? cierres[0] : (cierres.length ? cierres.join("+") : null),
           hechos: hechosParaLibro,
+          apoyo: apoyoParaGuardar,
           universos: salida.entrega.universos || [],
           entregadaEn: ahora(),
           periodo: (salida.entrega.marco && salida.entrega.marco.periodo) || null,
           // BLOQUE 4: lo que hace falta para REVALIDAR esta Entrega al retomar (el Encargo, con qué referencias se calculó, la moneda): se guarda en el libro, nunca sale en esta respuesta
           revalidable: true, encargo: encargoParaElLibro(resolucion.encargo), referencias: referenciasDe({ criteriosAplicados, marco: salida.entrega.marco }), moneda: (salida.entrega.marco && salida.entrega.marco.moneda) || null,
         };
-        let conFuera = registrarEntrega(libro, entradaDeLaEntrega);
-        /* EL TOPE DE 16 KB MANDA (Contrato del Anfitrión, §8.2): las cifras de `fueraDelTexto` con id entran al libro SOLO si con ellas el libro no recorta más Entregas que sin ellas — nunca le cuestan al hilo una Entrega que antes se conservaba.
-         * Si no caben, esta Entrega queda como siempre (sin esas cifras en el libro) y sus cifras de `fueraDelTexto` viajan SIN id: no se puede derivar sobre lo que el libro no guarda. */
-        if (hechosParaLibro.some((h) => h.fuera)) {
-          const sinFuera = registrarEntrega(libro, { ...entradaDeLaEntrega, hechos: hechosParaLibro.filter((h) => !h.fuera) });
-          const vivas = (L) => L.entregas.filter((e) => !e.recortada).length;
-          if (vivas(conFuera) < vivas(sinFuera)) { conFuera = sinFuera; fueraSinId = true; }
+        /* EL TOPE DE 16 KB ES DE LA BASE Y NO SE TOCA; lo que ADI garantiza es que NINGUNA cifra viaje al anfitrión sin un id que `derivar` y `retomar` puedan resolver (ensayo 5, `_ADI_DISENO_CONTRATO_ANFITRION.md` §11):
+         *   · la Entrega que se entrega manda: se guarda COMPLETA (la tabla, las cifras de `fueraDelTexto` y las de apoyo) en la forma compacta del libro (`libro.js:comprimirLibro`); si para eso hay que ceder lugar, ceden las Entregas MÁS VIEJAS
+         *     (como siempre) — y ahora se DICE en la respuesta cuáles quedaron sin cifras (`entregasPerdidas`), no solo cuando después alguien las pide;
+         *   · si ni así cabe (la propia Entrega es más grande de lo que la base admite), las cifras de `fueraDelTexto` NO viajan (nunca una cifra sin id: `fueraNoCabe`) y, si tampoco cabe la tabla, se dice que sus cifras no quedaron guardadas (`entregaSinGuardar`). */
+        const vivasAntes = new Set((libro.entregas || []).filter((e) => !e.recortada).map((e) => e.n));
+        const guardaLaNueva = (L) => { const e = L.entregas.find((x) => x.n === L.turno); return Boolean(e && !e.recortada); };
+        let registrada = registrarEntrega(libro, entradaDeLaEntrega, { tope: libroTope });
+        if (!guardaLaNueva(registrada) && hechosParaLibro.some((h) => h.fuera)) {
+          const sinFuera = registrarEntrega(libro, { ...entradaDeLaEntrega, hechos: hechosParaLibro.filter((h) => !h.fuera) }, { tope: libroTope });
+          if (guardaLaNueva(sinFuera)) { registrada = sinFuera; fueraNoCabe = hechosParaLibro.filter((h) => h.fuera).length; }
         }
-        libro = conFuera;
+        entregaSinGuardar = !guardaLaNueva(registrada);
+        if (entregaSinGuardar && !fueraNoCabe) fueraNoCabe = hechosParaLibro.filter((h) => h.fuera).length;   /* si ni la tabla quedó guardada, tampoco hay un id que las sostenga */
+        entregasPerdidas = [...vivasAntes].filter((n) => !registrada.entregas.some((e) => e.n === n && !e.recortada)).sort((x, y) => x - y);
+        libro = registrada;
       }
 
       // 4 · ESCRIBIR (base) — después de salir del tramo del Core. Si SOLO falla guardar, la Entrega (verdadera) se
@@ -520,18 +568,6 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       catch (e) { if (!esErrorDeAlmacen(e)) throw e; guardada = false; operacionFallida = e.operacion || null; }
 
       const estadoVigente = estadoVigenteDe(libro, { versionIdActual: versionIdActivo });
-      /* lenguaje empresarial también en `consultar` (owner 2026-10-04, bloque 4): la línea dice «los datos cambiaron desde la Entrega N», nunca ids de carga («1 → 2») */
-      const eventos = eventosDeContinuidad({ ...eventosBase, lenguajeDeNegocio: true });
-      const lineaContinuidad = lineaDeContinuidad(eventos);
-      let textoConContinuidad = salida.ok && lineaContinuidad ? `${lineaContinuidad}\n\n${salida.texto}` : (salida.ok ? salida.texto : "");
-
-      // 4b · LO QUE ESTA ENTRADA NUEVA AGREGA A LA ENTREGA (bloque 3) — solo si hay una cita que resolvió o algo declarado en juego; sin ellos
-      // el texto y la respuesta son EXACTAMENTE los de antes. La Entrega compuesta no se toca: se agregan, al final, el antecedente que se citó
-      // (tal cual quedó guardado, sin recalcular) y lo declarado al lado de lo medido.
-      const usarPedido = resolucion.encargo && typeof resolucion.encargo.usar === "string" ? resolucion.encargo.usar : null;
-      const antecedentes = salida.ok && resolucion.contextoResuelto ? antecedentesDe(resolucion.contextoResuelto, { versionActiva: versionIdActivo }) : [];
-      // el plazo de cobro declarado que la pregunta abierta de cobranza de esta Entrega cita (opción A, §7.3·58): se muestra con su origen y NO cambia ningún cálculo
-      const plazosEnJuego = salida.ok && salida.entrega && loDeclarado.plazos.length ? plazosCitados({ plazos: loDeclarado.plazos, entrega: salida.entrega }) : [];
       const declarado = salida.ok && (criteriosAplicados.length || hechosContrastados.length || plazosEnJuego.length) ? {
         criterios: loDeclarado.criterios.map((c) => {
           const a = criteriosAplicados.find((x) => x.llave === c.llave);
@@ -542,11 +578,6 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         ...(usarPedido ? { usar: { pedido: usarPedido, aplicado: "medido", nota: "ADI no calcula sobre lo declarado ni lo pone en lugar de lo medido: lo declarado se muestra al lado, con su origen." } } : {}),
         uso: USO_DE_LO_DECLARADO,
       } : null;
-      if (salida.ok) {
-        const agregado = [textoDeAntecedentes(antecedentes), textoDeLoDeclarado({ hechos: hechosContrastados, plazos: plazosEnJuego, usar: usarPedido })].filter(Boolean).join("\n\n");
-        if (agregado) textoConContinuidad = `${textoConContinuidad}\n\n${agregado}`;
-      }
-
       // 5 · EL PERFIL CONVERSANDO: qué falta de lo que se pidió (una sola pregunta, nunca repetida), lo por confirmar y lo
       // limitado por una omisión. `null` cuando no hay nada que decir: «si no falta nada, no pide nada».
       let bloquePerfil = null;
@@ -563,12 +594,14 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         }
       }
 
+      /* LO QUE LA MEMORIA DE LA CONVERSACIÓN NO PUDO CONSERVAR se dice AQUÍ, en la entrega que lo provocó (no solo cuando alguien pide la cifra después): nunca una cifra que el anfitrión pueda leer y no pueda citar */
+      const avisosDeMemoria = avisosDeLaMemoria({ perdidas: entregasPerdidas, sinGuardar: entregaSinGuardar, fueraNoCabe, n: libro.turno });
       return {
         ok: Boolean(salida.ok),
-        entrega: salida.ok ? (fueraSinId ? Object.defineProperty({ texto: textoConContinuidad, json: salida.entrega }, "fueraSinId", { value: true }) : { texto: textoConContinuidad, json: salida.entrega }) : null,   /* `fueraSinId`: no enumerable —no sale en el JSON—; solo se lo dice a `compacto.js` */
-        noResuelto: resolucion.noResuelto || [],
+        entrega: salida.ok ? (fueraNoCabe ? Object.defineProperty({ texto: textoConContinuidad, json: salida.entrega }, "fueraNoCabe", { value: fueraNoCabe }) : { texto: textoConContinuidad, json: salida.entrega }) : null,   /* `fueraSinId`: no enumerable —no sale en el JSON—; solo se lo dice a `compacto.js` */
+        noResuelto: noResueltoEnsenado,
         uso: CABECERA_DE_USO,
-        ...(avisosDeForma.length ? { advertencias: avisosDeForma } : {}),
+        ...(avisosDeForma.length || avisosDeMemoria.length ? { advertencias: [...avisosDeForma, ...avisosDeMemoria] } : {}),
         ...(bloquePerfil ? { perfil: bloquePerfil } : {}),
         ...(declarado ? { declarado } : {}),
         ...(antecedentes.length ? { antecedentes } : {}),
@@ -578,6 +611,8 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
           motivoNueva: esNueva ? (conversacionIdEntrante ? "el conversacionId indicado no existe: se abrió una conversación nueva" : "no llegó un conversacionId: se abrió una conversación nueva") : null,
           estadoVigente,
           guardada,
+          ...(entregasPerdidas.length ? { entregasSinCifras: entregasPerdidas } : {}),
+          ...(entregaSinGuardar ? { entregaSinCifras: libro.turno } : {}),
           ...(guardada ? {} : { motivoNoGuardada: "la conversación no se pudo guardar en la memoria de la empresa: esta respuesta es correcta, pero retomarla más tarde no va a encontrar este turno.", operacion: operacionFallida }),
         },
         meta: {
@@ -836,12 +871,15 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
 
       const c = calcularDerivacion(v);
       if (!c) return { ok: false, motivo: "operando_sin_valor_exacto", detalle: "no se pudo calcular la derivación con las cifras indicadas", uso: CABECERA_DE_USO };
-      const nuevo = registrarDerivacion(libro, derivacionParaElLibro(pedido, v, c));
+      const nuevo = registrarDerivacion(libro, derivacionParaElLibro(pedido, v, c), { tope: libroTope });
+      /* una derivación nueva también compite por los 16 KB de la base: si para guardarla hubo que recortar una Entrega, se DICE (nunca una cifra que el anfitrión pueda leer y no pueda citar) */
+      const perdidas = (libro.entregas || []).filter((e) => !e.recortada).map((e) => e.n).filter((n) => !nuevo.entregas.some((e) => e.n === n && !e.recortada));
+      const avisos = avisosDeLaMemoria({ perdidas });
       try { await store.guardarLibro(tenantId, nuevo); }
       catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: CABECERA_DE_USO }; throw e; }
       const d = nuevo.derivaciones[nuevo.derivaciones.length - 1];
       const operandosPorId = new Map([...v.operandos, ...(v.base ? [v.base] : []), ...(v.referencia ? [v.referencia] : [])].map((x) => [x.id, x]));
-      return { ok: true, conversacionId, ...respuestaDeLaDerivacion(d, operandosPorId), repetida: false, continuidad: { conversacionId, guardada: true }, uso: CABECERA_DE_USO };
+      return { ok: true, conversacionId, ...respuestaDeLaDerivacion(d, operandosPorId), repetida: false, continuidad: { conversacionId, guardada: true, ...(perdidas.length ? { entregasSinCifras: perdidas } : {}) }, ...(avisos.length ? { advertencias: avisos } : {}), uso: CABECERA_DE_USO };
     };
     return serializarPorClave(`libro|${tenantId}|${conversacionId}`, trabajo);
   }

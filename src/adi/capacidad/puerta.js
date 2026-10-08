@@ -222,14 +222,14 @@ export const MCP_TOOLS = [
   },
   {
     name: "derivar",
-    description: "Calcula, verifica y devuelve como hecho nuevo —con identificador y procedencia «derivado»— una cifra que sale de cifras que ADI YA entregó en esta conversación: suma, diferencia, participación o conteo. Úsela SIEMPRE que necesite un total, subtotal, diferencia, porcentaje o conteo que no esté entre lo entregado: nunca lo calcule usted. Solo acepta identificadores de cifras de esta conversación (E<n>.h<k>) y de derivaciones que ADI ya le devolvió (D<k>), que se pueden encadenar; lo que no se puede derivar con exactitud se rechaza diciendo por qué. Para una cifra no entregada (otra cuenta, métrica o período) use consultar.",
+    description: "Calcula, verifica y devuelve como hecho nuevo —con identificador y procedencia «derivado»— una cifra que sale de cifras que ADI YA entregó en esta conversación: suma, diferencia, participación, razón (cuántas veces es una cifra respecto de otra) o conteo. Úsela SIEMPRE que necesite un total, subtotal, diferencia, porcentaje, múltiplo o conteo que no esté entre lo entregado: nunca lo calcule usted. Solo acepta identificadores de cifras de esta conversación (E<n>.h<k>), de cifras de apoyo (E<n>.e<k>, como el benchmark) y de derivaciones que ADI ya le devolvió (D<k>), que se pueden encadenar; lo que no se puede derivar con exactitud se rechaza diciendo por qué. Para una cifra no entregada (otra cuenta, métrica o período) use consultar.",
     inputSchema: {
       type: "object",
       properties: {
         conversacionId: { type: "string", description: "La conversación con ADI en la que se entregaron las cifras." },
-        operacion: { type: "string", enum: [...OPERACIONES], description: "suma (2 o más cifras de la misma métrica) · diferencia (exactamente 2: la primera menos la segunda) · participacion (una o varias cifras sobre una base) · conteo (cuántas cifras cumplen una condición)." },
-        sobre: { type: "array", items: { type: "string" }, description: "Los identificadores (E<n>.h<k> o D<k>) sobre los que se calcula. En una participación, el numerador: una cifra, o varias de la misma métrica que se suman (por ejemplo, los tres primeros)." },
-        base: { type: ["string", "null"], description: "Solo participacion: el identificador de la cifra que es la base (por ejemplo, el total de un listado)." },
+        operacion: { type: "string", enum: [...OPERACIONES], description: "suma (2 o más cifras de la misma métrica) · diferencia (exactamente 2: la primera menos la segunda) · participacion (una o varias cifras sobre una base) · razon (una cifra respecto de otra: «N veces») · conteo (cuántas cifras cumplen una condición)." },
+        sobre: { type: "array", items: { type: "string" }, description: "Los identificadores (E<n>.h<k>, E<n>.e<k> o D<k>) sobre los que se calcula. En una participación, el numerador: una cifra, o varias de la misma métrica que se suman (por ejemplo, los tres primeros). En una razón, la cifra que se compara." },
+        base: { type: ["string", "null"], description: "Solo participacion y razon: el identificador de la cifra que es la base (por ejemplo, el total de un listado) o aquella respecto de la cual se compara." },
         condicion: {
           type: ["object", "null"],
           description: "Solo conteo: qué debe cumplir cada cifra. 'valor' es un número o el identificador de otra cifra entregada; con cifras de dinero, un número solo puede ser 0.",

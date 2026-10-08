@@ -41,6 +41,7 @@ import {
 } from "../entrega/componer.js";
 import { periodoDeclaradoDe } from "../../config/contract/bandaTamano.js";
 import { monedaDelNegocio } from "../../config/moneda.js";
+import { guiaDeUniverso } from "./ensenar.js";
 import { getTenantData } from "../../data/tenantStore.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
 import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";
@@ -201,6 +202,7 @@ export function construirCatalogo({ registro = DOMINIOS_REGISTRO } = {}) {
     criterios,
     estados,
     conceptosDeDefinicion,
+    universo: guiaDeUniverso(),   // la forma de un universo (top · estados · filtros · base · excluir · union), documentada para esta empresa (ensayo 5)
     tiposDePremisa: TIPOS_DE_PREMISA,
     usar: USAR_VALORES,
     profundidad: PROFUNDIDAD_VALORES,

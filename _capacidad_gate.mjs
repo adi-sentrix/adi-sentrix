@@ -16,6 +16,7 @@
  *       misma costura de escalabilidad que `_registro_de_dominios_gate.mjs`), sin tocar el registro real.
  *   5 · tenant inyectado: `conocerEmpresa`/`consultar`/`aportarContexto`/`retomar` con un tenant SIN `dataset` se
  *       declaran (`ok:false`), nunca lanzan — y nunca tocan el tenant activo del proceso.
+ *   7 · ENSAYO 5: UN RECHAZO ENSEÑA — el catálogo documenta `universo` (con ejemplos que valen) y cada rechazo de `consultar` (los `universo_invalido` del ensayo, la entidad inexistente, cada motivo del contrato) trae alternativas.
  *
  * CERO llamadas a un LLM · CERO red. Solo por `npm run gates:offline` o
  * `node --import ./scripts/offline-guard.mjs _capacidad_gate.mjs`. */
@@ -26,6 +27,12 @@ import { DOMINIOS_REGISTRO } from "./src/config/contract/dominios.js";
 import { construirCatalogo } from "./src/adi/capacidad/catalogo.js";
 import { crearAcciones } from "./src/adi/capacidad/acciones.js";
 import { crearAlmacenEnMemoria } from "./src/adi/continuidad/almacen.js";
+import { compactarParaAnfitrion } from "./src/adi/capacidad/compacto.js";
+import { conTenantActivo } from "./src/adi/capacidad/aislamiento.js";
+import { ensenarRechazos } from "./src/adi/capacidad/ensenar.js";
+import { validarUniverso, CAMPOS_UNIVERSO } from "./src/adi/notario/hechos.js";
+import { estadosValidosPara } from "./src/adi/notario/estados.js";
+import { MOTIVOS } from "./src/adi/encargo/esquema.js";
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -210,6 +217,65 @@ H("6 · aportarContexto/retomar contra la continuidad real — la forma del enga
   const suelto = crearAcciones();
   const aSuelto = await suelto.aportarContexto({ tenant: TENANT, aportes: [{ clase: "hecho", concepto: "acuerdo verbal de plazo", valor: "60 días" }] });
   ok(aSuelto.ok === true, "crearAcciones() sin argumentos trae su propio almacén en memoria por defecto");
+}
+
+/* ═══ 7 · UN RECHAZO ENSEÑA (ensayo 5, owner 2026-10-07) ═════════════════════════════════════════════════════════════════════════════════════════════════════
+ * En el ensayo 5, 9 de 48 `consultar` se rechazaron con `universo_invalido` y `alternativas: []` (`{"top":5}` ×5, `direccion:"desc"`, `{"estado":"en mora"}` ×2, `{"marca":"Alsen"}` ×2) y 1 con `entidad_inexistente` sin
+ * candidatos, porque el catálogo no documentaba ni `filtros` ni la forma de `universo`. Ahora: el catálogo trae `universo` (la forma, los estados y conjuntos por eje, ejemplos que VALEN) y cada rechazo trae lo válido en ese lugar. */
+H("7 · un rechazo enseña: el catálogo documenta el universo y cada rechazo de consultar trae alternativas de esta empresa");
+{
+  initTenant(TENANT_DEMO);
+  const { conocerEmpresa, consultar } = crearAcciones();
+  const catalogo = construirCatalogo();
+  const u = catalogo.universo;
+  ok(u && typeof u.forma === "string" && u.campos && Array.isArray(u.ejemplos) && u.ejemplos.length >= 3 && u.estados && u.conjuntos, "★ el catálogo trae `universo`: la forma, los campos, los estados y conjuntos por eje y ejemplos");
+  ok(CAMPOS_UNIVERSO.length === Object.keys(u.campos).length && CAMPOS_UNIVERSO.every((c) => c in u.campos), "★ documenta EXACTAMENTE los campos que el validador admite (ni uno más ni uno menos), `filtros` incluido");
+  ok(/mayor · menor · peor · mejor/.test(u.campos.top) && /> · >= · < · <= · == · entre/.test(u.campos.filtros), "las direcciones de `top` y los operadores de `filtros` son los del validador");
+  ok(Object.entries(u.estados).every(([eje, l]) => l.every((e) => estadosValidosPara(eje).includes(e))) && u.estados.cliente.includes("en mora") && u.estados.cliente.includes("al dia"), "los estados por eje son los de la casa: «en mora» y «al dia» están en cliente");
+  /* los ejemplos VALEN: el validador los acepta (con el número que falta) y `consultar` los resuelve */
+  const conNumero = (x) => JSON.parse(JSON.stringify(x).replace(/"<cantidad>"/g, "3").replace(/"<número>"/g, "30"));
+  for (const ej of u.ejemplos) {
+    ok(validarUniverso(conNumero(ej), { tamanoDelEje: () => 13 }) === null, `★ el ejemplo del catálogo ${JSON.stringify(ej)} lo acepta el validador de universos`);
+    const r = await consultar({ tenant: TENANT, encargo: { version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: conNumero(ej) }] } });
+    ok(r.ok === true && r.noResuelto.length === 0, `y consultar lo resuelve: ${JSON.stringify(ej)}`, JSON.stringify(r.noResuelto).slice(0, 300));
+  }
+  const c = await conocerEmpresa({ tenant: TENANT });
+  ok(c.ok && c.catalogo.universo && JSON.stringify(compactarParaAnfitrion("conocerEmpresa", c).catalogo.universo) === JSON.stringify(c.catalogo.universo), "★ conocerEmpresa lo entrega al anfitrión (también por la respuesta compacta)");
+  ok(JSON.stringify(c.catalogo.universo).length < 3500, `y es corto (${JSON.stringify(c.catalogo.universo).length} B)`);
+
+  /* los rechazos del ensayo, tal como los mandó el anfitrión */
+  const P = (universo) => ({ version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo }] });
+  const casos = [
+    ["{top:5}", { top: 5 }, (a) => a.some((x) => x.tipo === "top" && /direccion/.test(x.forma) && x.metricas.includes("ventas") && x.ejemplo.top.direccion === "mayor")],
+    ["direccion «desc»", { top: { metrica: "ventas", k: 5, direccion: "desc" } }, (a) => a.some((x) => x.tipo === "top" && /mayor · menor · peor · mejor/.test(x.forma))],
+    ["{estado:\"en mora\"} (singular)", { estado: "en mora" }, (a) => a.some((x) => x.tipo === "campo_de_universo" && x.campo === "estados" && x.en_lugar_de === "estado") && a.some((x) => x.tipo === "campos_de_universo" && x.validos.includes("filtros"))],
+    ["{marca:\"Alsen\"}", { marca: "Alsen" }, (a) => a.some((x) => x.tipo === "limite" && /marca/.test(x.texto))],
+    ["estado que no existe", { eje: "cliente", estados: ["en moraa"] }, (a) => a.some((x) => x.tipo === "estados" && x.validos.includes("en mora"))],
+    ["conjunto que no existe", { eje: "cliente", base: "clientes grandes" }, (a) => a.some((x) => x.tipo === "conjuntos" && x.validos.length > 0)],
+    ["filtros sin forma", { eje: "cliente", filtros: "dias_vencido > 30" }, (a) => a.some((x) => x.tipo === "filtros" && x.operadores.includes(">") && x.metricas.includes("dias_vencido"))],
+    ["eje que no existe", { eje: "region" }, (a) => a.some((x) => x.tipo === "ejes" && x.validos.includes("cliente"))],
+  ];
+  for (const [nombre, universo, vale] of casos) {
+    const r = await consultar({ tenant: TENANT, encargo: P(universo) });
+    const nr = r.noResuelto.find((n) => n.motivo === "universo_invalido");
+    ok(r.ok === false && nr && nr.alternativas.length > 0 && nr.detalle.length > 0, `★ ${nombre}: se rechaza como universo_invalido, CON alternativas (y con el detalle de siempre)`, JSON.stringify(r.noResuelto).slice(0, 300));
+    ok(nr && vale(nr.alternativas), `   y las alternativas dicen lo válido en ese lugar (${nombre})`, JSON.stringify(nr && nr.alternativas).slice(0, 500));
+    ok(JSON.stringify(nr ? nr.alternativas : []).length < 1800, `   y son compactas (${JSON.stringify(nr ? nr.alternativas : []).length} B)`);
+  }
+  const rEnt = await consultar({ tenant: TENANT, encargo: { version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", entidades: [{ nombre: "Zzzz" }] }] } });
+  const nEnt = rEnt.noResuelto.find((n) => n.motivo === "entidad_inexistente");
+  ok(nEnt && nEnt.alternativas.some((a) => a.tipo === "entidades_del_eje" && a.eje === "cliente" && a.nombres.includes("Falabella") && a.n === 13), "★ una entidad que no existe (C02: «Falabella» en otra empresa) trae los nombres del eje de ESTA empresa", JSON.stringify(nEnt).slice(0, 400));
+  /* un rechazo que ya traía alternativas queda idéntico; todo motivo cerrado tiene su enseñanza */
+  const conAlt = [{ parte: "p1", campo: "tema", valor: "x", motivo: "tema_desconocido", detalle: "", alternativas: [{ tipo: "tema", tema: "comercial" }] }];
+  ok(JSON.stringify(ensenarRechazos(conAlt)) === JSON.stringify(conAlt), "lo que el validador ya enseña no se toca");
+  const sinAlt = MOTIVOS.map((motivo) => ({ parte: null, campo: "raiz", valor: null, motivo, detalle: "", alternativas: [] }));
+  const ens = conTenantActivo(TENANT_DEMO, () => ensenarRechazos(sinAlt, { encargo: { partes: [] } }));
+  ok(ens.length === MOTIVOS.length && ens.every((n) => n.alternativas.length > 0), `★ cada uno de los ${MOTIVOS.length} motivos de rechazo del contrato sale con alternativas (nunca una lista vacía)`, ens.filter((n) => !n.alternativas.length).map((n) => n.motivo).join(", "));
+  const soloCatalogo = ens.filter((n) => n.alternativas.some((a) => a.tipo === "catalogo")).map((n) => n.motivo);
+  ok(soloCatalogo.length === 0, `y NINGUNO se queda en un puntero al catálogo: cada motivo dice lo válido (${soloCatalogo.join(", ")})`);
+  /* el formato inválido (forma antes que valor) también enseña */
+  const rF = await consultar({ tenant: TENANT, encargo: { version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: { a: 1 } }] } });
+  ok(rF.ok === false && rF.noResuelto.length > 0 && rF.noResuelto.every((n) => n.alternativas.length > 0), "un `formato_invalido` también trae alternativas (la forma esperada)", JSON.stringify(rF.noResuelto).slice(0, 300));
 }
 
 console.log(`\n── _capacidad_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);

@@ -55,6 +55,7 @@
  * función de `empresa.js`/`libro.js`/`retomar.js` recibe el almacén como primer o segundo parámetro. */
 
 import { formaDeFilaDeMemoria } from "./empresa.js";
+import { comprimirLibro, expandirLibro } from "./libro.js";
 
 /** Un almacén que no pudo leer o escribir (la base no respondió, rechazó el pase, la función no existe porque la
  * migración no corrió). No lleva dato del cliente: solo la operación y el motivo de la base. */
@@ -122,11 +123,11 @@ export function crearAlmacenEnMemoria({ sinMuroDeForma = false } = {}) {
     },
     async leerLibro(tenantId, conversacionId) {
       const L = librosPorConversacion.get(_claveLibro(tenantId, conversacionId));
-      return L ? _clon(L) : null;
+      return L ? expandirLibro(_clon(L)) : null;   /* el libro se GUARDA en su forma compacta (`libro.js:comprimirLibro`, sin pérdida) y se LEE como siempre */
     },
     async guardarLibro(tenantId, libro) {
       if (!libro || !libro.conversacionId) throw new Error("guardarLibro: falta conversacionId");
-      librosPorConversacion.set(_claveLibro(tenantId, libro.conversacionId), _clon(libro));
+      librosPorConversacion.set(_claveLibro(tenantId, libro.conversacionId), _clon(comprimirLibro(libro)));
       return _clon(libro);
     },
     /* generador de ids del ALMACÉN (no del hecho de negocio ni de la conversación, que emite `libro.js`):

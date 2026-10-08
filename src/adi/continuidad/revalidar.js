@@ -31,7 +31,9 @@
  * fila de Cifras, la MISMA con que `entrega/tamano.js` decide qué se recorta: menor = más prioritaria) y la magnitud solo DESEMPATA. */
 import { formatoDeLaCasa } from "../notario/hechos.js";
 import { normalizar } from "../notario/afirmacion.js";
-import { aritmeticaDeDerivacion } from "../capacidad/derivar.js";   /* el ciclo con `derivar.js` es solo de funciones usadas en una llamada (nada se evalúa al cargar): UNA sola aritmética para derivar y para revalidar */
+import { aritmeticaDeDerivacion, textoDeDerivada } from "../capacidad/derivar.js";   /* el ciclo con `derivar.js` es solo de funciones usadas en una llamada (nada se evalúa al cargar): UNA sola aritmética para derivar y para revalidar */
+import { cifrasDeApoyo } from "../capacidad/apoyo.js";
+import { metricaDeClave } from "../notario/lexico.js";
 
 export const ESTADOS_DE_REVALIDACION = Object.freeze(["igual", "cambio", "ya_no_existe", "no_comparable", "no_se_revalida", "sin_reverificar"]);
 export const MOTIVOS_NO_COMPARABLE = Object.freeze(["otro_periodo", "otra_moneda", "otra_unidad", "otra_referencia", "otro_universo"]);
@@ -125,12 +127,14 @@ const MOTIVO = Object.freeze({
   ambigua: "la misma cifra aparece más de una vez, con valores distintos, en los datos actuales",
   deListado: "es la suma de las cifras de su listado, que se revalidan una por una: el total no se vuelve a comparar aparte, y no se afirma como vigente",
   derivacion: "uno de sus operandos no se pudo revalidar: la derivación no se afirma vigente",
+  premisa: "una premisa es de quien la planteó en la consulta: no se revalida contra los datos",
 });
 const _motivoDeTitular = (t) => (t === "declarado" ? MOTIVO.declarado : t === "documento" ? MOTIVO.documento : MOTIVO.supuesto);
 
 /** ¿este hecho guardado es de lo que NO se midió? (un supuesto del usuario, algo derivado de un supuesto, un declarado, un documento, una propuesta) */
 function _noSeRevalida(v) {
   if (v.deSupuesto === true) return MOTIVO.supuesto;
+  if (v.premisa === true) return MOTIVO.premisa;
   if (v.deListado === true) return MOTIVO.deListado;   /* el total de un listado completo (owner 2026-10-05): lo revalidan sus filas, no él */
   if (v.procedencia === "supuesto_usuario" || v.procedencia === "propuesta") return MOTIVO.supuesto;
   if (v.titular && v.titular !== "medido") return _motivoDeTitular(v.titular);
@@ -163,7 +167,8 @@ function _textoDe(libro, H, c, renderDe) {
 export function revalidarEntrega(entrega, ctx = {}) {
   const hechos = new Map();
   const E = entrega && typeof entrega === "object" ? entrega : {};
-  const H0 = cifrasDeLaEntrega(E);
+  /* las cifras de la tabla y las de APOYO que guardaron su cifra exacta (la referencia con la que se compara, ensayo 5): una derivación sobre `E<n>.e<k>` se revalida como cualquier otra. Las de apoyo no se listan en `retomar` (no son filas de la tabla): solo sirven a quien deriva sobre ellas */
+  const H0 = cifrasDeLaEntrega(E).concat(cifrasDeApoyo(E, { nombreDeClave: metricaDeClave, formato: formatoDeLaCasa }));
   const libroActual = ctx.libroActual && Array.isArray(ctx.libroActual.hechos) ? ctx.libroActual : null;
   const renderDe = ctx.renderDe;
   const marcoActual = ctx.marcoActual || null;
@@ -254,7 +259,7 @@ export function revalidarDerivacion(d, resultadosPorId, { versionIdActual = null
   const dif = anterior.raw != null ? aHoy.raw - anterior.raw : null;
   return {
     estado: "cambio", anterior, actual: { valor: aHoy.texto, raw: aHoy.raw, unidad: aHoy.unidad, hecho: d.id },
-    ...(dif != null ? { diferencia: { valor: dif, texto: formatoDeLaCasa(Math.abs(dif), aHoy.unidad === "pct" ? "pp" : aHoy.unidad), sentido: dif > 0 ? "sube" : "baja" } } : {}),
+    ...(dif != null ? { diferencia: { valor: dif, texto: textoDeDerivada(Math.abs(dif), aHoy.unidad === "pct" ? "pp" : aHoy.unidad), sentido: dif > 0 ? "sube" : "baja" } } : {}),
     cargaAnterior: d.versionId != null ? d.versionId : null, cargaActual: versionIdActual,
   };
 }

@@ -43,8 +43,19 @@ export const CASOS_DEL_CONTRATO = Object.freeze(["hecho_de_adi", "fuera_de_contr
  *   colectivo       «El resto está entre 15 y 58 días»: el sujeto es un conjunto, no la última cuenta nombrada; sus cifras no tienen un dueño que juzgar.
  *   apoyo           las cuentas que ADI calcula y entrega en `apoyo` («Andes del Sur · Ventas = $40.8M − Costa Verde · Ventas = $31.1M = $9.8M») son lo entregado: la diferencia ya viene hecha.
  *   tema            «Su margen es 28%» (viñeta bajo «Cadena Quillay quedó 5.º…»): una oración sin cuenta habla de la última cuenta nombrada O del tema con que abrió el párrafo.
+ *
+ * LAS REGLAS DE LOS ENSAYOS 4 Y 5 (owner 2026-10-07; `_ADI_DISENO_MEDICION_ANFITRION.md` §9): marcas 18 → 6 (cruces 2 → 0) en el 4 y 51 → 8 en el 5, y las que quedan son las no-V de la clasificación humana.
+ *   persona_palabras  los números de la persona dichos con letras («cuarenta y cinco días», «treinta», «cuarenta por ciento») son suyos; «como el doble» dicho «cercano al 100 %» es su eco.
+ *   ejemplo           un valor de muestra que se le OFRECE a la persona («por ejemplo +5 %», «si me dice un crecimiento de 10 %») es un `ejemplo`, no una afirmación sobre la empresa (solo cuando no traza: «por ejemplo, Easy con 270 días» es una cifra real).
+ *   grafia            «la líder» (con acento) no es el cliente «Lider»: a un nombre no se le puede AGREGAR un acento que no tiene.
+ *   ordinal / desigualdad  (`numerosEnPalabras.mjs`) «el cuarto, Sodimac» es el puesto; «menos que la mitad» es una desigualdad estricta y en sentido (sujeto antes, base después).
+ *   dueno_clausula · viñeta_tema   el mismo valor de dos dueños se atribuye al de la cláusula; una viñeta que abre con la cifra habla del tema de su lista.
+ *   grupo             «los tres primeros clientes…» habla de un conjunto, no de la cuenta de la oración anterior.
+ *   metrica_pegada · fallo_de_carga   la métrica pegada a la cifra manda («$21,0M vencido de $69,9M pendiente»); «un error de carga» no es la carga comercial.
+ *   agregado          «los 13 clientes suman $12.6M»: el 13 no es un conteo de vencidos.
+ *   perfil · criterio_nombrado · sujeto_compuesto   lo entregado como dato (perfil a su precisión, rango de un criterio nombrado en la misma viñeta) y «Norvik − Teravolt» se avisa nombrando a las dos.
  * `REGLAS` es mutable SOLO para el análisis (el clasificador y el gate apagan una regla a la vez para demostrar que cada una hace falta). En producción de la medición: todas encendidas. */
-export const REGLAS = { dias_d: true, libro_numerico: true, persona: true, referencia: true, alias: true, entero: true, metrica: true, derivacion: true, contraparte: true, cruce_persona: true, colectivo: true, tema: true, apoyo: true };
+export const REGLAS = { dias_d: true, libro_numerico: true, persona: true, referencia: true, alias: true, entero: true, metrica: true, derivacion: true, contraparte: true, cruce_persona: true, colectivo: true, tema: true, apoyo: true, ejemplo: true, ordinal: true, desigualdad: true, metrica_pegada: true, grupo: true, viñeta_tema: true, dueno_clausula: true, agregado: true, sujeto_compuesto: true, perfil: true, persona_palabras: true, grafia: true, fallo_de_carga: true, criterio_nombrado: true };
 
 const _STOP_ALIAS = new Set(["mayor", "norte", "libre", "verde", "claro", "sur", "personal", "blanca", "cocina", "lavado", "aseo", "obras", "construccion", "almacenes", "comercial", "centro", "casa", "hogar", "grandes", "tiendas", "cadena", "mercado", "oeste", "este", "nuevo", "nueva", "grande", "constructor", "mercantil", "distribuidora", "mayorista", "supermercados", "bazar", "ferreteria"]);
 const _ART_ALIAS = new Set(["el", "la", "los", "las", "de", "del", "y"]);
@@ -162,6 +173,12 @@ export function crearBuscadorDeNombres(nombres, { alias = false } = {}) {
   const original = new Map(lista.map((n) => [_sinAcento(n), n]));
   if (alias) for (const [k, n] of aliasesDe(lista, _sinAcento)) if (!original.has(k)) original.set(k, n);       // el nombre abreviado e inequívoco de una cuenta es la cuenta
   const claves = [...original.keys()].sort((a, b) => b.length - a.length);
+  /* las grafías que cada clave admite CON su acento: «Lider» (el cliente) no admite «líder» (el sustantivo común); «Valparaiso» y «Valparaíso» son el mismo nombre escrito de las dos maneras que la casa lo guarda.
+   * Un texto SIN acento sigue valiendo para un nombre con acento (el anfitrión descuidado que escribe «Valparaiso» sigue siendo un cruce); lo único que se rechaza es agregarle un acento que el nombre no tiene. */
+  const grafias = new Map();
+  const _agregarGrafia = (k, g) => { if (!grafias.has(k)) grafias.set(k, new Set()); grafias.get(k).add(String(g).normalize("NFC").toLowerCase()); };
+  for (const n of lista) _agregarGrafia(_sinAcento(n), n);
+  if (alias) for (const [k, n] of aliasesDe(lista, _sinAcento)) { const pos = _sinAcento(n).indexOf(k); if (pos >= 0 && String(n).normalize("NFC").length === _sinAcento(n).length) _agregarGrafia(k, String(n).normalize("NFC").slice(pos, pos + k.length)); }
   const rx = claves.length ? new RegExp(`(?<![\\p{L}\\p{N}])(?:${claves.map((k) => _esc(k)).join("|")})(?![\\p{L}\\p{N}])`, "gu") : null;
   return (texto) => {
     if (!rx) return [];
@@ -169,7 +186,16 @@ export function crearBuscadorDeNombres(nombres, { alias = false } = {}) {
     const hits = [];
     rx.lastIndex = 0;
     let m;
-    while ((m = rx.exec(t))) { const nombre = original.get(m[0]); if (nombre) hits.push({ nombre, indice: m.index }); }
+    const comparable = t.length === String(texto).length;      // (un texto con acentos descompuestos cambia de largo al normalizarlo: ahí no se puede comparar la grafía)
+    while ((m = rx.exec(t))) {
+      const nombre = original.get(m[0]);
+      if (!nombre) continue;
+      if (comparable && REGLAS.grafia) {
+        const escrito = String(texto).slice(m.index, m.index + m[0].length).normalize("NFC").toLowerCase();
+        if (escrito !== _sinAcento(escrito) && !(grafias.get(m[0]) || new Set()).has(escrito)) continue;      // «líder» (con acento) no es «Lider»
+      }
+      hits.push({ nombre, indice: m.index });
+    }
     return hits;
   };
 }
@@ -181,7 +207,19 @@ const METRICAS = [
   ["inventario", /\binventario|\bstock\b|\bcapital\b/i], ["brecha", /\bbrecha/i],
 ];
 /* la métrica se lee sin acentos: «los márgenes más bajos» nombra el margen (el regex de la métrica no entendía «márgenes» y la cifra de margen quedaba «métrica distinta» de la venta que la oración también nombra) */
-const _metricasDe = (t) => { const x = REGLAS.metrica ? _sinAcento(t) : String(t); return new Set(METRICAS.filter(([, rx]) => rx.test(x)).map(([k]) => k)); };
+/* «un error de carga» es la carga de los datos, no la carga comercial: la palabra «carga» de un fallo de carga no nombra la métrica (ensayo 4, B01 2.4) */
+const _RX_FALLO_DE_CARGA = /\b(?:error|errores|falla|fallas|fallo|fallos|problema|problemas)\s+de\s+(?:la\s+)?carga\b/g;
+const _metricasDe = (t) => { const x = REGLAS.metrica ? (REGLAS.fallo_de_carga ? _sinAcento(t).replace(_RX_FALLO_DE_CARGA, " ") : _sinAcento(t)) : String(t); return new Set(METRICAS.filter(([, rx]) => rx.test(x)).map(([k]) => k)); };
+/** la métrica con que la oración ROTULA a ESTA cifra: la palabra que sigue pegada a la cifra («$21,0M vencido de $69,9M pendiente», «Andes del Sur ($15.0M pendientes)»). Manda sobre las métricas del resto de la cláusula, que
+ *  nombra varias cuando una oración da dos cifras. «pendiente(s)» a secas, tras un monto, es el saldo pendiente. */
+export function metricasPegadasA(texto, tok) {
+  if (!REGLAS.metrica_pegada) return new Set();
+  const m = /^\s*((?:[^\s,;:()$\d.]+\s*){0,3})/.exec(String(texto).slice(tok.fin));
+  const frag = _sinAcento(m ? m[1] : "");
+  const out = _metricasDe(frag);
+  if (/^\s*(?:de\s+)?pendientes?\b/.test(frag)) out.add("saldo_pendiente");
+  return out;
+}
 const _claveDeMetrica = (rotulo) => { const r = String(rotulo || ""); const x = METRICAS.find(([, rx]) => rx.test(r)); return x ? x[0] : null; };
 
 /* ── el LIBRO DEL HILO: todo lo que ADI entregó, con dueño y métrica ───────────────────────────────────────────── */
@@ -230,7 +268,7 @@ export function construirLibro(llamadas, buscar) {
         const v = nodo[campo];
         if (typeof v === "number" && Number.isFinite(v)) {
           const dec = (String(v).split(".")[1] || "").length;
-          hechos.push({ unidad, valor: v, unc: 0.5 * Math.pow(10, -dec), entidades: [], metrica, metricas: metricasDe, exacto: true, deCatalogo, origen, ref: nodo.id || null, texto: String(v) + (unidad === "days" ? "d" : "%") });
+          hechos.push({ unidad, valor: v, unc: 0.5 * Math.pow(10, -dec), entidades: [], metrica, metricas: metricasDe, exacto: true, deCatalogo, origen, ref: nodo.id || null, texto: String(v) + (unidad === "days" ? "d" : "%"), criterio: String(nodo.rotulo || "") });
         }
       }
     }
@@ -245,6 +283,12 @@ export function construirLibro(llamadas, buscar) {
     if (r.entrega && r.entrega.marco && r.entrega.marco.empresa) empresas.add(r.entrega.marco.empresa);
     if (r.entrega && r.entrega.json && r.entrega.json.marco && r.entrega.json.marco.empresa) empresas.add(r.entrega.json.marco.empresa);
     if (r.declarado) ingerirNumericos(r.declarado, origen);
+    if (REGLAS.perfil && r.perfil) {      /* el perfil que ADI entrega (la conversión a dólares y sus bandas) es lo entregado: cada cifra, a la precisión con que ADI la imprime (una banda «US$15 millones» no es «$15.5M») */
+      const antes = hechos.length;
+      recorrer(r.perfil, origen);
+      const nuevos = hechos.splice(antes).filter((h) => h.unidad !== "count");      // (el «12» de «2025-12» no es un conteo de nada)
+      for (const h of nuevos) { h.exacto = true; h.unc = Math.min(h.unc || 0.5, 0.5); hechos.push(h); }
+    }
     if (r.declarable) ingerirNumericos(r.declarable, origen, {}, true);
     if (ll.herramienta === "consultar" && r.entrega && !r.entrega.json) {
       // LA RESPUESTA COMPACTA (`capacidad/compacto.js`, lo que viaja al anfitrión): cifras con su id · apoyo (otras cifras que el texto imprime) · lo que quedó fuera del texto · el texto íntegro
@@ -462,7 +506,8 @@ export function hechosDeLaPersona(personas) {
       const declarativa = !/[?¿]/.test(u.texto);
       const metricas = [..._metricasDe(u.texto)];
       let unidadPrevia = null;      // «es a 45 días, no a 60»: el 60 sin unidad es de la unidad del número anterior de la oración
-      for (const tok of extraerNumeros(u.texto)) {
+      /* la persona dice «cuarenta y cinco días», «treinta», «cuarenta por ciento» tanto como «45 días»: sus números en palabras son suyos igual (ensayo 5: 28 de las 51 marcas eran cifras de la persona escritas con letras) */
+      for (const tok of (REGLAS.persona_palabras ? numerosDelTexto(u.texto) : extraerNumeros(u.texto))) {
         numeros.push(tok);
         if (_ignorable({ ...tok }, tok.unidad, u.texto)) continue;
         const negada = _RX_NEGADA.test(u.texto.slice(Math.max(0, tok.indice - 14), tok.indice));
@@ -478,7 +523,14 @@ export function hechosDeLaPersona(personas) {
       }
     }
   });
-  return { declarados: declarados.filter((h) => !retirados.some((r) => r.orden >= h.orden && _mismoValor(r, h))), preguntados, numeros };
+  /* lo que la persona dijo con una RELACIÓN («como el doble», «la mitad»), dicho como porcentaje por el anfitrión («cercano al 100 %»), es la misma cifra: el doble es +100 %, el triple +200 %, la mitad 50 %… Solo cuenta como eco (no declara nada: casi siempre es una premisa por verificar) */
+  const equivalentes = [];
+  (REGLAS.persona_palabras ? personas : []).forEach((p) => { for (const r of relacionesEnPalabras(String(p.texto || ""))) {
+    const k = /doble|duplic/i.test(r.nombre) ? 1 : /triple|triplic/i.test(r.nombre) ? 2 : /cuadruple|cuadruplic/i.test(r.nombre) ? 3 : null;
+    if (r.tipo === "multiplo" && k != null && !/casi|m[aá]s del/i.test(r.nombre)) equivalentes.push({ unidad: "pct", candidatos: [{ valor: k * 100, unc: 0.5 }], crudo: r.frase, indice: r.indice, fin: r.fin, sinUnidad: false, deRelacion: true });
+    else if (r.tipo === "fraccion" && /^la mitad$/i.test(r.nombre.replace(/\s*\(.*$/, ""))) equivalentes.push({ unidad: "pct", candidatos: [{ valor: 50, unc: 0.5 }], crudo: r.frase, indice: r.indice, fin: r.fin, sinUnidad: false, deRelacion: true });
+  } });
+  return { declarados: declarados.filter((h) => !retirados.some((r) => r.orden >= h.orden && _mismoValor(r, h))), preguntados, numeros: [...numeros, ...equivalentes] };
 }
 
 /* ── lo que dice la cláusula, no la oración entera: «Los $115K de Lampa rotan en 29d, así que ahí el costo de oportunidad es menor» son dos afirmaciones; el «costo» es de la segunda ── */
@@ -505,6 +557,23 @@ function _metricasParaJuicio(mets, unidad) {
 const _RX_CRITERIO = /\b(criterio|umbral|techo|piso|l[ií]mite|referencia|vara|objetivo|m[ií]nimo|m[aá]ximo|meta)\b/i;
 const _RX_COMPARADOR = /\b(frente a|contra|versus|vs\.?|comparad[oa]s? con|respecto (?:a|de)|en comparaci[oó]n con)\b/i;
 
+/* ── LOS EJEMPLOS HIPOTÉTICOS (owner 2026-10-07, ensayos 4-5) ─────────────────────────────────────────────────────────────────────────────────────────────
+ * «Si me dice un crecimiento (por ejemplo +5 %)», «una meta de margen, como un 28 %», «usted me da un supuesto, por ejemplo "Lider crece 10 %"»: el anfitrión OFRECE a la persona un valor de muestra para que elija su supuesto; no afirma nada de la empresa. Una señal
+ * del idioma ANTES de la cifra, en su misma oración («por ejemplo», «digamos», «supongamos», «si me dice/da/indica…», «un supuesto/meta/escenario, como un…»). Solo se aplica cuando la cifra NO traza con lo entregado: «por ejemplo Easy, con 270 días» es una cifra real
+ * dicha como ejemplo y se juzga igual que cualquiera. */
+const _RX_SENAL_DE_EJEMPLO = /\b(por ejemplo|p\. ?ej\b|a modo de ejemplo|como ejemplo|digamos|supongamos|suponiendo|supon(?:ga|go|e)\b|imaginemos|imagina(?:ndo)?\b)/;
+const _RX_SI_ME_DA = /\bsi (?:usted |tu |ud\.? )?(?:me )?(?:dice|dices|dijera|dijeras|da|das|diera|dieras|indica|indicas|indicara|entrega|entregas|propone|propones|pasa|pasas|confirma|confirmas)\b/;
+const _RX_SUPUESTO_COMO = /\b(?:meta|supuesto|escenario|objetivo|cambio|variaci[oó]n|alza|baja|crecimiento)\b[^.;]{0,40}?,?\s+(?:como|tipo|digamos)\s+(?:un|una|el|la|de)?\s*[+\-−]?\s*$/;
+/* Una señal de ejemplo («por ejemplo», «digamos») sola NO basta: «por ejemplo, Easy tiene 270 días» es una cifra real dicha como ejemplo. Hace falta además que la oración (o la anterior del párrafo) sea una OFERTA a la persona para que dé su supuesto
+ * (supuesto · escenario · simular · meta · «me dice/da/indica» · «usted proponga»). Las otras dos señales («si me dice un crecimiento de…», «una meta de margen, como un 28 %») ya son una oferta por sí mismas. */
+const _RX_OFERTA = /\b(supuesto|supuestos|escenario|simula\w*|meta|metas|propon\w*|me (?:dice|dices|da|das|d[ea]n|indica|indicas|pasa|pasas|confirma|confirmas)|usted me|tu me|dime|digame)\b/;
+/** ¿la cifra `tok` está dicha como ejemplo hipotético que se le ofrece a la persona? `contexto`: la oración anterior del párrafo (donde suele estar la oferta). */
+export function esEjemploHipotetico(texto, tok, contexto = "") {
+  const antes = _sinAcento(String(texto).slice(0, tok.indice));
+  if (_RX_SI_ME_DA.test(antes) || _RX_SUPUESTO_COMO.test(antes)) return true;
+  return _RX_SENAL_DE_EJEMPLO.test(antes) && _RX_OFERTA.test(_sinAcento(`${contexto} ${String(texto).slice(0, tok.indice)}`));
+}
+
 /** los números del texto: en cifras Y en palabras («ocho», «cuatro millones», «tres días»), en orden de aparición (Contrato del Anfitrión: «en números o en palabras») */
 export function numerosDelTexto(texto) {
   return [...extraerNumeros(texto), ...extraerNumerosEnPalabras(texto)].sort((a, b) => a.indice - b.indice);
@@ -523,6 +592,17 @@ const _ESTADOS_DE_CONTEO = [
 ];
 const _UNIVERSO_DE_CONTEO = "(?:clientes?|cuentas?|skus?|productos?|bodegas?|marcas?|familias?|ellos|ellas)";
 const _VERBO_DE_CONTEO = "(?:estan|tienen|tiene|quedan|presentan|registran|figuran|aparecen|son|hay|deben|adeudan|esta)";
+/** las cuentas que nombra la cláusula de ESTA cifra: el trozo entre separadores (coma, punto y coma, dos puntos, paréntesis); si el trozo no nombra ninguna y está entre paréntesis, la que lo abre («Maipo ($16.4M)») */
+export function nombresDeLaClausula(texto, tok, hits) {
+  const t = String(texto);
+  let ini = 0, fin = t.length;
+  for (let i = tok.indice - 1; i >= 0; i--) if (",;:()".includes(t[i])) { ini = i + 1; break; }
+  for (let i = tok.fin; i < t.length; i++) if (",;:()".includes(t[i])) { fin = i; break; }
+  const dentro = hits.filter((h) => h.indice >= ini && h.indice < fin).map((h) => h.nombre);
+  if (dentro.length) return [...new Set(dentro)];
+  if (ini > 0 && t[ini - 1] === "(") { const antes = hits.filter((h) => h.indice < ini - 1 && ini - 1 - h.indice <= 60); if (antes.length) return [antes[antes.length - 1].nombre]; }
+  return [];
+}
 export function juzgarConteo({ tok, u, libro, base }) {
   if (!tok.sinUnidad || !tok.candidatos.length) return null;
   const n = tok.candidatos[0].valor;
@@ -531,6 +611,8 @@ export function juzgarConteo({ tok, u, libro, base }) {
   const antes = _sinAcento(t.slice(Math.max(0, tok.indice - 22), tok.indice));
   if (/(puesto|lugar|top|posicion|n[.º°]|numero|paso|opcion|version|entrega|turno|carga)\s?#?$/.test(antes) || /\bde\s+(?:los|las|esos|esas)\s*$/.test(antes)) return null;     // un puesto o el M de «de los M»: no es el conteo
   const despues = _sinAcento(t.slice(tok.fin, tok.fin + 90));
+  /* «los 13 clientes SUMAN $12.6M»: el número es el tamaño del conjunto que suma, no cuántos tienen un estado */
+  if (REGLAS.agregado && new RegExp(`^\\s*(?:${_UNIVERSO_DE_CONTEO}\\s+)?(?:suman|suma|totalizan|acumulan|concentran|representan|facturan|venden|compran|pesan|aportan)\\b`).test(despues)) return null;
   const deLosM = /^\s+de\s+(?:los|las|esos|esas)?\s*([a-z0-9]+(?:\s+y\s+[a-z]+)?)\b/.exec(despues);
   const directo = new RegExp(`^\\s*(?:${_UNIVERSO_DE_CONTEO}\\s+)?(?:\\w+\\s+){0,2}?${_VERBO_DE_CONTEO}\\b`).test(despues) || new RegExp(`^\\s*${_UNIVERSO_DE_CONTEO}\\b`).test(despues);
   if (!deLosM && !directo) return null;
@@ -563,7 +645,7 @@ export function juzgarConteo({ tok, u, libro, base }) {
 /* ── LAS RELACIONES EN PALABRAS: «la mitad», «un cuarto», «el doble», «casi duplica» ──────────────────────────────────────────────────────────────────────────────────────────────────────
  * Solo se juzgan con DOS cuentas nombradas y una cifra entregada de la misma métrica de cada una: la razón entre las dos tiene que caer en el rango que la casa fija para esa palabra (`COTAS_DE_PROPORCION`; un múltiplo a
  * secas ±15 %). Cae: verdad, pero no era un hecho de ADI (debió pedirse una participación) → fuera de contrato. No cae: `relacion_no_cierra`, error material. Sin dos cifras que comparar: no se juzga (va al juez). */
-export function juzgarRelacion({ rel, u, libro, ents, mets, base, personas }) {
+export function juzgarRelacion({ rel, u, libro, ents, mets, base, personas, hits = [] }) {
   if (ents.length !== 2) return null;
   const eq = (a, b) => _sinAcento(a) === _sinAcento(b);
   if ((personas || []).some((p) => _sinAcento(p.texto || "").includes(_sinAcento(rel.frase)))) return null;     // la dijo la persona
@@ -574,6 +656,22 @@ export function juzgarRelacion({ rel, u, libro, ents, mets, base, personas }) {
   };
   const [a, b] = [delaCuenta(ents[0]), delaCuenta(ents[1])];
   if (!a || !b || a.unidad !== b.unidad || !(a.valor > 0) || !(b.valor > 0)) return null;
+  /* «el cuarto, Sodimac» es el PUESTO (ordinal), no la fracción 1/4: no es una relación que juzgar. Ocupa su lugar en la numeración para que los ids de una revisión humana no se corran. */
+  if (rel.ordinal) return { ...base, tipo: "ordinal", token: rel.frase, unidad: "count", veredicto: "ordinal", material: false, motivo: "«el cuarto» es un ordinal (el puesto), no la fracción 1/4: no es una relación" };
+  /* UNA DESIGUALDAD («menos que la mitad de…», «más que el doble que…»): se juzga ESTRICTA contra el nominal y EN SENTIDO — el sujeto es la cuenta nombrada antes de la frase, la base la nombrada después. Sin los dos lados claros no se juzga (va al juez). */
+  if (rel.desigualdad) {
+    const pos = (e, f) => hits.filter((h) => eq(h.nombre, e) && f(h.indice)).map((h) => h.indice);
+    const antes = ents.map((e) => ({ e, i: Math.max(-1, ...pos(e, (x) => x < rel.indice)) })).filter((x) => x.i >= 0).sort((p, q) => q.i - p.i);
+    const despues = ents.map((e) => ({ e, i: Math.min(Infinity, ...pos(e, (x) => x >= rel.fin)) })).filter((x) => Number.isFinite(x.i)).sort((p, q) => p.i - q.i);
+    if (!antes.length || !despues.length || eq(antes[0].e, despues[0].e)) return null;
+    const [sujeto, baseDe] = [antes[0].e, despues[0].e].map((e) => (eq(e, ents[0]) ? a : b));
+    const razon = sujeto.valor / baseDe.valor;
+    const cumple = rel.desigualdad === "menor" ? razon < rel.nominal - 1e-9 : razon > rel.nominal + 1e-9;
+    const aBaseD = { ...base, tipo: "relacion", token: rel.frase, unidad: "count" };
+    const sentido = rel.desigualdad === "menor" ? "por debajo" : "por encima";
+    if (!cumple) return { ...aBaseD, veredicto: "relacion_no_cierra", material: true, motivo: `la relación no cierra: «${rel.frase}» pide que ${sujeto.entidades[0]} (${sujeto.texto}) quede ${sentido} de ${rel.nominal.toFixed(2)} veces ${baseDe.entidades[0]} (${baseDe.texto}), y la razón entregada es ${razon.toFixed(2)}`, confianza: "alta" };
+    return { ...aBaseD, veredicto: "traza", material: false, rescate: "relacion", motivo: `relación demostrable con lo entregado: ${sujeto.texto} (${sujeto.entidades[0]}) y ${baseDe.texto} (${baseDe.entidades[0]}) = razón ${razon.toFixed(2)}, ${sentido} de ${rel.nominal.toFixed(2)} («${rel.nombre}»)`, derivacion: { operacion: "participacion", operandos: [sujeto, baseDe].map((h) => ({ texto: h.texto, entidades: h.entidades, metrica: h.metrica, ref: h.ref || null, origen: h.origen || null })), descripcion: `${rel.frase} = ${sujeto.texto} ÷ ${baseDe.texto}` }, derivacionQueDebioPedirse: { operacion: "participacion", sobre: [sujeto.ref].filter(Boolean), base: baseDe.ref || null, resultado: razon.toFixed(2) } };
+  }
   const r = rel.tipo === "fraccion" ? Math.min(a.valor, b.valor) / Math.max(a.valor, b.valor) : Math.max(a.valor, b.valor) / Math.min(a.valor, b.valor);
   const cae = r >= rel.lo - 1e-9 && r <= rel.hi + 1e-9;
   const aBase = { ...base, tipo: "relacion", token: rel.frase, unidad: "count" };
@@ -623,12 +721,15 @@ export function rastrearTurno({ texto, persona = "", personaDelHilo = null, llam
   const benchmarkEnParrafo = new Set(unidades.filter((x) => _metricasDe(x.texto).has("benchmark")).map((x) => x.parrafo));
   const entidadesDeParrafo = new Map();      // parrafo → última lista de entidades vista
   const temaDeParrafo = new Map();           // parrafo → las cuentas con que abrió
-  for (const u of unidades) {
+  for (const [iu, u] of unidades.entries()) {
+    const previa = unidades[iu - 1];
+    const contextoDeOferta = previa && (previa.parrafo === u.parrafo || /:\s*$/.test(previa.texto)) ? previa.texto : "";
     const hits = buscarTodos(u.texto);
     const ents = [...new Set(hits.map((x) => x.nombre))];
     const prevEnts = entidadesDeParrafo.get(u.parrafo) || [];
     const entsAjenasALaPersona = ents.filter((e) => !entsDelHiloDeLaPersona.some((p) => _sinAcento(p) === _sinAcento(e)));      // («distribuidores de línea blanca»: la categoría que la persona nombró no es una cuenta que atribuya la cifra)
-    const colectivo = REGLAS.colectivo && !ents.length && /^[\s\-*•]*(el resto|los (otros|dem[aá]s|restantes)|las (otras|dem[aá]s|restantes))\b/i.test(u.texto);
+    /* un sujeto de GRUPO («el resto», «los demás», «los tres primeros clientes», «los 10 mayores») habla de un conjunto: no hereda la cuenta de la oración anterior */
+    const colectivo = REGLAS.colectivo && !ents.length && (/^[\s\-*•]*(el resto|los (otros|dem[aá]s|restantes)|las (otras|dem[aá]s|restantes))\b/i.test(u.texto) || (REGLAS.grupo && /^[\s\-*•]*(?:los|las)\s+(?:(?:\d+|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece)\s+)?(?:primer[oa]s|[uú]ltim[oa]s|principales|mayores|menores|mejores|peores|mas grandes|más grandes)\b/i.test(u.texto)));
     const dueñas = ents.length ? ents : colectivo ? [] : (REGLAS.tema && prevEnts.length ? [...new Set([...prevEnts, ...(temaDeParrafo.get(u.parrafo - 1) || [])])] : prevEnts);
     if (ents.length) entidadesDeParrafo.set(u.parrafo, ents);
     if (ents.length && !temaDeParrafo.has(u.parrafo)) temaDeParrafo.set(u.parrafo, ents);
@@ -636,7 +737,7 @@ export function rastrearTurno({ texto, persona = "", personaDelHilo = null, llam
     const eq = (a, b) => _sinAcento(a) === _sinAcento(b);
     /* las RELACIONES dichas con letras de esta oración («la mitad», «el doble», «casi duplica»): se juzgan contra las dos cuentas que la oración nombra */
     for (const relacion of relacionesEnPalabras(u.texto)) {
-      const j = juzgarRelacion({ rel: relacion, u, libro, ents, mets, base: { clase: 1, oracion: u.texto.trim().slice(0, 240) }, personas });
+      const j = juzgarRelacion({ rel: relacion, u, libro, ents, mets, base: { clase: 1, oracion: u.texto.trim().slice(0, 240) }, personas, hits });
       if (j) afirmaciones.push(j);
     }
     for (const tok of numerosDelTexto(u.texto)) {
@@ -652,7 +753,9 @@ export function rastrearTurno({ texto, persona = "", personaDelHilo = null, llam
         if (conteo) { afirmaciones.push(conteo); continue; }
         if (tok.enPalabras) { afirmaciones.push({ ...base, veredicto: "ignorado", motivo: "un número en palabras que no cuenta un universo ni un estado entregados: no se juzga (el diseño §3 lo deja al juez)", material: false }); continue; }
       }
-      const coinciden = libro.hechos.filter((h) => _coincide(tok, h) && (!h.deCatalogo || (h.metricas || []).some((m) => mets.has(m))));
+      /* un rango del catálogo (el mínimo y el máximo de un criterio que ADI deja declarar) se cita nombrando el criterio, en la misma oración o en la anterior del párrafo: «Piso de materialidad de cobranza: … Se mide en porcentaje, entre 0,1 % y 10 %» */
+      const parrafoDeLaCifra = _sinAcento(`${contextoDeOferta} ${u.texto}`);
+      const coinciden = libro.hechos.filter((h) => _coincide(tok, h) && (!h.deCatalogo || (h.metricas || []).some((m) => mets.has(m)) || (REGLAS.criterio_nombrado && h.criterio && parrafoDeLaCifra.includes(_sinAcento(h.criterio)))));
       const esEcoDePersona = numerosPersona.some((p) => p.unidad === tok.unidad && p.candidatos.some((a) => tok.candidatos.some((b) => Math.abs(a.valor - b.valor) <= Math.max(a.unc, b.unc) + 1e-9)));
       /* lo que la persona DECLARÓ: la oración no nombra una cuenta (es de la empresa) y la cifra la escribió la persona en una oración declarativa */
       const declaradoPorLaPersona = () => (REGLAS.persona && !tok.sinUnidad && !entsAjenasALaPersona.length) ? (dePersona.declarados.find((h) => _compatibles(h.unidad, tok.unidad) && _mismoValorExacto(tok, h)) || null) : null;
@@ -673,9 +776,11 @@ export function rastrearTurno({ texto, persona = "", personaDelHilo = null, llam
       const comoDerivada = (deriv) => ({ ...base, veredicto: "traza", material: false, derivacion: deriv, rescate: "derivacion", derivacionQueDebioPedirse: debioPedirse(deriv), motivo: `derivación aritmética demostrable: ${deriv.descripcion}` });
       const comoDeclarada = (h) => ({ ...base, veredicto: "traza", material: false, origen: h.origen, declaradoPor: "persona", rescate: "persona", motivo: `la cifra la declaró la persona (${h.origen}: «${h.texto}»): es suya, no una cifra de ADI` });
       const sinJuicio = (porQue) => ({ ...base, veredicto: "sin_unidad", material: false, rescate: "entero", motivo: `entero sin unidad (${porQue}): no tiene dueño ni métrica que juzgar; se lista, no se juzga` });
+      const comoEjemplo = () => ({ ...base, veredicto: "ejemplo", material: false, motivo: "un valor de muestra que el anfitrión le ofrece a la persona («por ejemplo +5 %», «si me dice un crecimiento de 10 %»): no afirma nada de la empresa" });
       if (!coinciden.length) {
         const decl = declaradoPorLaPersona();
         if (decl) { afirmaciones.push(comoDeclarada(decl)); continue; }
+        if (!tok.sinUnidad && REGLAS.ejemplo && esEjemploHipotetico(u.texto, tok, contextoDeOferta)) { afirmaciones.push(comoEjemplo()); continue; }
         if (tok.sinUnidad) { afirmaciones.push({ ...base, veredicto: esEcoDePersona ? "eco_persona" : "sin_unidad", material: false, motivo: "entero sin unidad que no coincide con ninguna cifra entregada: se lista, no se juzga" }); continue; }
         if (esEcoDePersona) { afirmaciones.push({ ...base, veredicto: "eco_persona", material: false, motivo: "la cifra la dijo la persona: no es una cifra de ADI (el supervisor juzga si el anfitrión la aceptó)" }); continue; }
         if (repetida) { afirmaciones.push({ ...base, veredicto: "traza", material: false, rescate: "derivacion", derivacionQueDebioPedirse: repetida.debioPedirse || null, motivo: `la misma cifra que el anfitrión derivó antes en este turno: ${repetida.descripcion}` }); continue; }
@@ -694,7 +799,9 @@ export function rastrearTurno({ texto, persona = "", personaDelHilo = null, llam
         const antesDelPrimero = tok.indice < primero;
         const trasComparador = _RX_COMPARADOR.test(u.texto.slice(primero, tok.indice));
         if (antesDelPrimero || trasComparador) {
-          const ctx = [...new Set([...prevEnts, ...entsDeLaPersona])].filter((c) => !ents.some((e) => eq(e, c)));
+          /* una viñeta que abre con la cifra («- Capital: $13K, contra $19K de Concepción») habla del tema con que abrió la lista (la oración anterior: «La más chica es Antofagasta:»), no solo de lo que su propio párrafo ya nombró */
+          const esViñeta = REGLAS.viñeta_tema && /^\s*(?:[-*•]|\d+[.)])\s/.test(u.texto) && !prevEnts.length;
+          const ctx = [...new Set([...prevEnts, ...entsDeLaPersona, ...(esViñeta ? (entidadesDeParrafo.get(u.parrafo - 1) || []) : [])])].filter((c) => !ents.some((e) => eq(e, c)));
           dueño = ctx.length ? coinciden.filter((h) => h.entidades.some((e) => ctx.some((c) => eq(c, e)))) : [];
           if (dueño.length) rescate = "contraparte";
         }
@@ -703,6 +810,7 @@ export function rastrearTurno({ texto, persona = "", personaDelHilo = null, llam
         if (tok.sinUnidad && REGLAS.entero) { afirmaciones.push(sinJuicio("el valor coincide solo con conteos de otras cuentas")); continue; }
         const decl = declaradoPorLaPersona();
         if (decl) { afirmaciones.push(comoDeclarada(decl)); continue; }
+        if (REGLAS.ejemplo && esEjemploHipotetico(u.texto, tok, contextoDeOferta)) { afirmaciones.push(comoEjemplo()); continue; }
         const deriv = intentarDerivacion({ estricta: true });
         if (deriv) { afirmaciones.push(comoDerivada(deriv)); continue; }
         afirmaciones.push({ ...base, veredicto: "dueno_distinto", material: true, motivo: `el valor está entregado, pero a otro dueño (${[...new Set(coinciden.flatMap((h) => h.entidades))].slice(0, 3).join(", ")}) y la oración habla de ${dueñas.join(", ")}`, dueñas });
@@ -710,17 +818,23 @@ export function rastrearTurno({ texto, persona = "", personaDelHilo = null, llam
       }
       // métrica
       const metricasDeLasCoincidentes = new Set(dueño.flatMap((h) => (h.metricas && h.metricas.length ? h.metricas : [h.metrica])).filter(Boolean));
-      const metsJuicio = _metricasParaJuicio(REGLAS.metrica ? _metricasDe(clausulaDe(u.texto, tok.indice)) : mets, tok.unidad);
+      const pegadas = metricasPegadasA(u.texto, tok);
+      const metsJuicio = _metricasParaJuicio(pegadas.size ? pegadas : (REGLAS.metrica ? _metricasDe(clausulaDe(u.texto, tok.indice)) : mets), tok.unidad);
       if (metsJuicio.size && metricasDeLasCoincidentes.size && ![...metricasDeLasCoincidentes].some((m) => metsJuicio.has(m))) {
         if (tok.sinUnidad && REGLAS.entero) { afirmaciones.push(sinJuicio("el valor coincide con un conteo de otra métrica")); continue; }
         const decl = declaradoPorLaPersona();
         if (decl) { afirmaciones.push(comoDeclarada(decl)); continue; }
+        if (REGLAS.ejemplo && esEjemploHipotetico(u.texto, tok, contextoDeOferta)) { afirmaciones.push(comoEjemplo()); continue; }
         const deriv = intentarDerivacion({ estricta: true });
         if (deriv) { afirmaciones.push(comoDerivada(deriv)); continue; }
         afirmaciones.push({ ...base, veredicto: "metrica_distinta", material: true, motivo: `la cifra existe pero es de ${[...metricasDeLasCoincidentes].join("/")} y la oración habla de ${[...metsJuicio].join("/")}`, confianza: "media" });
         continue;
       }
-      afirmaciones.push({ ...base, veredicto: "traza", material: false, origen: dueño[0].origen, hecho: { ref: dueño[0].ref || null, texto: dueño[0].texto, entidades: dueño[0].entidades }, ...(rescate ? { rescate } : {}) });
+      /* si el MISMO valor redondeado es de dos dueños, el dueño es el que nombra la cláusula de la cifra (o la cuenta que abre el paréntesis donde está: «Maipo ($16.4M)») */
+      const delaClausula = REGLAS.dueno_clausula ? nombresDeLaClausula(u.texto, tok, hits) : [];
+      const preferidos = delaClausula.length ? dueño.filter((h) => h.entidades.some((e) => delaClausula.some((d) => eq(d, e)))) : [];
+      const elegido = (preferidos.length ? preferidos : dueño)[0];
+      afirmaciones.push({ ...base, veredicto: "traza", material: false, origen: elegido.origen, hecho: { ref: elegido.ref || null, texto: elegido.texto, entidades: elegido.entidades }, ...(rescate ? { rescate } : {}) });
     }
   }
 
@@ -748,7 +862,9 @@ export function rastrearTurno({ texto, persona = "", personaDelHilo = null, llam
     for (const h of nombrados) {
       const rv = h.revalidacion;
       const dice = (lado) => { const v = valorImpreso(lado && lado.valor); return v ? numerosProsa.some((x) => _compatibles(x.unidad, v.unidad) && x.candidatos.some((c) => Math.abs(c.valor - v.valor) <= Math.max(c.unc, v.unc) + 1e-9)) : false; };
-      const sujetoDicho = _sinAcento(todaLaProsa).includes(_sinAcento(h.sujeto));
+      /* «Norvik − Teravolt» (la diferencia entre dos cuentas) se dice nombrando las dos, no necesariamente juntas ni con el signo: «Norvik pasó de… Teravolt pasó de… La diferencia entre ambos pasó de $12.3M a $11.4M» */
+      const partesDelSujeto = REGLAS.sujeto_compuesto ? String(h.sujeto).split(/\s+[−+÷×]\s+/).filter(Boolean) : [String(h.sujeto)];
+      const sujetoDicho = _sinAcento(todaLaProsa).includes(_sinAcento(h.sujeto)) || (partesDelSujeto.length > 1 && partesDelSujeto.every((p) => _sinAcento(todaLaProsa).includes(_sinAcento(p))));
       if (!sujetoDicho || !dice(rv.anterior) || !dice(rv.actual)) {
         afirmaciones.push({ clase: 2, tipo: "continuidad", token: h.id, oracion: `${h.sujeto} · ${h.metrica}`, veredicto: "cambio_no_avisado", material: true, motivo: `ADI nombró este cambio (antes ${rv.anterior && rv.anterior.valor} · ahora ${rv.actual && rv.actual.valor}) y la prosa no dice las dos cifras${sujetoDicho ? "" : " (ni nombra la cuenta)"}` });
       } else {

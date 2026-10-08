@@ -15,6 +15,8 @@
  *   8 · el libro de 16 KB con el caso más grande del demo (se MIDE y se informa: las derivaciones compiten con las Entregas por esos 16 KB);
  *  11 · ENSAYO 4 (owner 2026-10-07): un `D<k>` es operando (de `sobre`, `base` y la cifra de un conteo) con su linaje; la participación suma VARIOS numeradores; cada rechazo nuevo con su pedido; `retomar` revalida en
  *       cascada (y un libro adulterado con un ciclo no cuelga); la herramienta lo dice sin crecer.
+ * 12 · ENSAYO 5 (owner 2026-10-07): NINGUNA cifra sin id (el hilo de C01: el libro guarda en su forma compacta, sin pérdida, y si la base no admite más ADI LO DICE) · `derivar` acepta cifras de apoyo (`E<n>.e<k>`: el benchmark) con la
+ *       procedencia de cada lado · la operación nueva `razon` («cuántas veces es A respecto de B»). `_ADI_DISENO_CONTRATO_ANFITRION.md` §11.
  * CERO llamadas a un LLM · CERO red. Solo por `npm run gates:offline` o `node --import ./scripts/offline-guard.mjs _derivar_gate.mjs`. */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
@@ -27,8 +29,9 @@ import { compactarParaAnfitrion, ENTIDADES_DE_UN_UNIVERSO_MAX } from "./src/adi/
 import { OPERACIONES, OPERANDOS_MAX, MOTIVOS_DE_DERIVACION } from "./src/adi/capacidad/derivar.js";
 import { manejarPuerta, MCP_TOOLS, construirOpenApi } from "./src/adi/capacidad/puerta.js";
 import { crearAlmacenEnMemoria, ErrorDeAlmacen } from "./src/adi/continuidad/almacen.js";
-import { LIBRO_TOPE_BYTES, tamanoBytes } from "./src/adi/continuidad/libro.js";
-import { cifraDeHecho } from "./src/adi/continuidad/revalidar.js";
+import { LIBRO_TOPE_BYTES, tamanoBytes, comprimirLibro, expandirLibro, libroNuevo } from "./src/adi/continuidad/libro.js";
+import { cifraDeHecho, cifrasDeLaEntrega } from "./src/adi/continuidad/revalidar.js";
+import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
 import { formatoDeLaCasa } from "./src/adi/notario/hechos.js";
 import { makeAccessCode } from "./src/adi/llm/accessToken.js";
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
@@ -94,7 +97,7 @@ const noDeriva = async (h, T, nombre, pedido, motivo) => {
 /* ═══ 0 · LO CERRADO ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 H("0 · lo cerrado: cuatro operaciones (sin promedio), la cabecera de cuatro reglas, el tope de operandos");
 {
-  ok(jj(OPERACIONES) === jj(["suma", "diferencia", "participacion", "conteo"]), "★ las operaciones son EXACTAMENTE suma · diferencia · participacion · conteo (sin `promedio`, §8.3)");
+  ok(jj(OPERACIONES) === jj(["suma", "diferencia", "participacion", "conteo", "razon"]), "★ las operaciones son EXACTAMENTE suma · diferencia · participacion · conteo · razon (sin `promedio`, §8.3; la razón llegó con el ensayo 5)");
   ok(OPERANDOS_MAX === 40 && OPERANDOS_MAX === ENTIDADES_DE_UN_UNIVERSO_MAX, "el tope de operandos es lo que un universo lista a la vista (40)");
   ok(CABECERA_DE_USO.length === 4, "★ la cabecera de uso tiene CUATRO reglas");
   ok(CABECERA_DE_USO[0] === "Toda cifra empresarial que usted diga —en números o en palabras, incluidos totales, diferencias, porcentajes y conteos— debe ser un hecho que ADI le entregó en esta conversación. Si la cifra que necesita no está entre lo entregado, no la calcule ni la complete: pídasela a ADI (derivar, sobre identificadores ya entregados; o una consulta nueva). Redondear a lo impreso no es calcular.", "★ la regla 1 es el texto EXACTO del contrato (sin «con su identificador»)");
@@ -220,7 +223,9 @@ for (const { etiqueta, T } of EMPRESAS) {
     await noDeriva(h, T, "una participación sin base", { operacion: "participacion", sobre: [v0[0]] }, "faltan_operandos");
     await noDeriva(h, T, "una diferencia de tres cifras", { operacion: "diferencia", sobre: v0.slice(0, 3) }, "demasiados_operandos");
     await noDeriva(h, T, "41 operandos", { operacion: "suma", sobre: Array.from({ length: 41 }, (_, i) => `E1.h${i + 1}`) }, "demasiados_operandos");
-    for (const [n, id] of [["un id de apoyo (E1.e5)", "E1.e5"], ["un id de derivación mal escrito (D1x)", "D1x"], ["un universo (E1.u1)", "E1.u1"], ["un número", 42]]) await noDeriva(h, T, n, { operacion: "suma", sobre: [v0[0], id] }, "id_invalido");
+    for (const [n, id] of [["un id de derivación mal escrito (D1x)", "D1x"], ["un universo (E1.u1)", "E1.u1"], ["un número", 42]]) await noDeriva(h, T, n, { operacion: "suma", sobre: [v0[0], id] }, "id_invalido");
+    /* ensayo 5: un id de APOYO (E<n>.e<k>) ya no es un id inválido: si existe se deriva sobre él (sección 12); uno que la Entrega no tiene, no existe */
+    await noDeriva(h, T, "un id de apoyo que la Entrega no tiene (E1.e99)", { operacion: "suma", sobre: [v0[0], "E1.e99"] }, "id_inexistente");
     /* ensayo 4: una derivación SÍ es un operando válido; una que la conversación todavía no tiene, no existe (antes: id_invalido para cualquier «D<k>») */
     await noDeriva(h, T, "una derivación que la conversación no tiene (D77)", { operacion: "suma", sobre: [v0[0], "D77"] }, "id_inexistente");
     await noDeriva(h, T, "una Entrega que no existe", { operacion: "suma", sobre: [v0[0], "E9.h1"] }, "id_inexistente");
@@ -453,7 +458,7 @@ H("10 · el tope de 16 KB del libro con el caso más grande del demo");
   }
   console.log(`   · de los ${MUESTRA.length} encargos del catálogo, ${conFuera} traen cifras de fueraDelTexto (ahora con id en el libro); el libro de UNA Entrega más grande que se conserva entera: ${peor.bytes} B (${peor.id}: ${peor.hechos} hechos, ${peor.fuera} de fueraDelTexto); la que más trae: ${mayorFuera.n} (${mayorFuera.id}); Entregas únicas que el tope recorta: ${recortadas}; con las cifras de fueraDelTexto CON id: ${conId}, SIN id por el tope: ${sinId}`);
   ok(recortadas === 0 && mezcla === 0 && conId + sinId > 0, "★ ninguna Entrega única del catálogo se recorta por las cifras nuevas: las que no caben viajan SIN id, como siempre (el tope de 16 KB manda)", jj({ recortadas, conId, sinId, mezcla }));
-  ok(sinId > 0, "(control) el caso límite existe en el catálogo: hay Entregas cuyo fueraDelTexto NO cabe y degrada a «sin id»");
+  ok(sinId === 0 && conId > 0, "★ ensayo 5 · NINGUNA cifra de `fueraDelTexto` viaja sin id: las del catálogo entero caben en la forma guardada del libro (antes, el tope de 16 KB degradaba algunas a «sin id»)", jj({ conId, sinId }));
   ok(peor.bytes <= LIBRO_TOPE_BYTES && conFuera > 0, `★ ningún libro guardado excede ${LIBRO_TOPE_BYTES} B con las cifras de fueraDelTexto dentro (el más grande: ${peor.bytes} B)`, String(peor.bytes));
   globalThis.__recortadasConFuera = recortadas;
   /* (b) 24 derivaciones sobre las 13 ventas (13 conteos de 13 operandos + 11 sumas de 3): el libro con las derivaciones al tope */
@@ -633,6 +638,299 @@ H("11e · lo que ve el anfitrión: el esquema de la herramienta lo dice, corto")
   ok(/D<k>/.test(tool.inputSchema.properties.sobre.description) && /varias de la misma métrica/.test(tool.inputSchema.properties.sobre.description) && /una o varias cifras sobre una base/.test(tool.inputSchema.properties.operacion.description), "el esquema de «sobre» y de «operacion» dicen los dos permisos nuevos (D<k> y varios numeradores)");
   ok(MOTIVOS_DE_DERIVACION.includes("derivacion_no_encadenable") && MOTIVOS_DE_DERIVACION.length === new Set(MOTIVOS_DE_DERIVACION).size, "el motivo nuevo está en la lista cerrada (sin repetidos)");
   ok(JSON.stringify(tool).length < 2400, `la herramienta sigue corta (${JSON.stringify(tool).length} B): dice lo nuevo sin crecer`);
+}
+
+/* ═══ 12 · ENSAYO 5 (owner 2026-10-07): NINGUNA CIFRA SIN ID · APOYO Y PROCEDENCIA · LA RAZÓN ═══════════════════════════════════════════════════════════════════════════════
+ * Los casos reales del ensayo 5 (transcritos C01 1.5 · A03 1.5 · A01 1.4 / B01 1.3 / C02 1.2):
+ *   · C01|1|5: las dos cifras de Unimarc viajaron en `fueraDelTexto` SIN id (el libro de 16 KB no las pudo guardar), `derivar` rechazó sus ids de apoyo (`E4.e25`) y el anfitrión contó a mano;
+ *   · A03|1|5: «cuánto le falta a Makita para el benchmark» — el benchmark viaja con id de apoyo (`E3.e3`) y `derivar` solo aceptaba `E<n>.h<k>`: el anfitrión restó 30.1 − 26.1 por su cuenta;
+ *   · A01|1|4 · B01|1|3 · C02|1|2: «¿cuántas veces es una la otra?» — la participación se rechazó con `numerador_mayor_que_base` y el anfitrión declinó el múltiplo o lo dijo a ojo. */
+const bytesJson = (x) => new TextEncoder().encode(JSON.stringify(x)).length;
+const orden = (x) => (Array.isArray(x) ? x.map(orden) : x && typeof x === "object" ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, orden(x[k])])) : x);
+const mismoLibro = (a, b) => jj(orden(a)) === jj(orden(b));
+const nombresDe = (T, eje) => conTenantActivo(T.dataset, () => axisEntityNames(eje));
+const nombresDeClientes = (T) => nombresDe(T, "cliente"), marcasDe = (T) => nombresDe(T, "marca");
+const veces = (q) => `${q >= 1 ? (Math.round(q * 10) / 10).toFixed(1) : (Math.round(q * 100) / 100).toFixed(2)} veces`;
+const PARTE_MARCA = { id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "marca", universo: "negocio" };
+const PARTE_SALDOS = { id: "p4", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido", "dias_vencido"], eje: "cliente", universo: "negocio" };
+
+H("12 · ensayo 5: ninguna cifra sin id · el apoyo se deriva y lleva su procedencia · la razón «N veces»");
+for (const { etiqueta, T } of EMPRESAS) {
+  H(`── ${etiqueta} (ensayo 5) ───────────────────────────────────────────────────────────────────────────────────────────────────────────────`);
+  const reloj = () => "2026-10-07T12:00:00.000Z";
+
+  /* ── 12a · el hilo de C01: ventas del top 3 · ventas del negocio · ventas por marca · cobranza de las 13 cuentas ── */
+  H(`12a · C01|1|5: toda cifra que ADI entrega lleva un id que el libro conserva (${etiqueta})`);
+  const sA = crearAlmacenEnMemoria(); const AA = crearAcciones({ continuidad: sA, ahora: reloj });
+  conTenant(T);
+  let convA = null;
+  const turnos = [[{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: { top: { metrica: "ventas", k: 3, direccion: "mayor" } } }], [{ id: "p2", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], universo: "negocio" }], [{ ...PARTE_MARCA, id: "p3" }], [PARTE_SALDOS]];
+  const respA = [];
+  for (const partes of turnos) { const r = await AA.consultar({ tenant: T, encargo: E(partes, convA) }); convA = r.continuidad.conversacionId; respA.push(r); }
+  const cSal = compactarParaAnfitrion("consultar", respA[3]);
+  const libA = await sA.leerLibro(T.id, convA);
+  const guardados = new Set(); for (const e of libA.entregas) if (!e.recortada) { for (const h of cifrasDeLaEntrega(e)) guardados.add(h.id); for (const a of (e.apoyo || [])) guardados.add(a.id); }
+  const viajan = [...cSal.entrega.cifras, ...(((cSal.entrega.detalle || {}).fueraDelTexto) || []), ...(cSal.entrega.apoyo || [])];
+  ok(viajan.length > 0 && viajan.every((x) => typeof x.id === "string" && /^E4\./.test(x.id)), "★ TODA cifra que viaja (tabla · fueraDelTexto · apoyo) lleva su id", jj(viajan.filter((x) => !x.id)));
+  ok(viajan.every((x) => guardados.has(x.id)), "★ y cada id que viaja está en el libro de la conversación: `derivar` y `retomar` lo pueden resolver", jj(viajan.filter((x) => !guardados.has(x.id)).map((x) => x.id)));
+  const fueraA = ((cSal.entrega.detalle || {}).fueraDelTexto) || [];
+  ok(fueraA.length >= 2 && fueraA.every((x) => /^E4\.h\d+$/.test(x.id)), `★ el caso de C01: las cifras que el texto dejó fuera (${fueraA.map((x) => `${x.entidad} · ${x.metrica}`).join(", ")}) viajan CON id`, jj(fueraA));
+  ok(!(cSal.advertencias || []).length && !(cSal.continuidad || {}).entregasSinCifras, "y ninguna Entrega anterior perdió sus cifras: no hay nada que avisar");
+  ok(libA.entregas.every((e) => !e.recortada), "★ el hilo de cuatro Entregas se conserva ENTERO (antes, E1 quedaba recortada)", jj(libA.entregas.map((e) => [e.n, e.recortada])));
+  const antesB = bytesJson(libA), despuesB = tamanoBytes(libA);
+  console.log(`   · el libro del hilo de C01 (4 Entregas, ${libA.entregas.reduce((a, e) => a + (e.hechos || []).length, 0)} cifras + apoyo): ${antesB} B en la forma de antes → ${despuesB} B guardado (tope ${LIBRO_TOPE_BYTES} B)`);
+  ok(despuesB <= LIBRO_TOPE_BYTES && despuesB < antesB * 0.6, "★ la forma guardada pesa menos del 60 % de la de antes y cabe en el tope de la base", `${antesB} → ${despuesB}`);
+  /* derivar sobre TODAS las cuentas, incluidas las de fueraDelTexto: el conteo de C01 es de 13, no de 12 */
+  const venc = [...cSal.entrega.cifras, ...fueraA].filter((x) => x.entidad && x.metrica === "Saldo vencido");
+  const oSal = crudosDelCore(T, E([{ ...PARTE_SALDOS, id: "p1" }]));
+  const esperadoMora = venc.filter((x) => rawDe(oSal, "saldo_vencido", x.entidad) > 0).length;
+  const cuenta = await AA.derivar({ tenant: T, conversacionId: convA, operacion: "conteo", sobre: venc.map((x) => x.id), condicion: { op: ">", valor: 0 } });
+  ok(venc.length === 13 && cuenta.ok && cuenta.hecho.valor === `${esperadoMora} de 13`, `★ el conteo de cuentas con saldo vencido es «${esperadoMora} de 13» como UN hecho de ADI (el anfitrión de C01 lo dejó en 12 y completó Unimarc a mano)`, jj(cuenta).slice(0, 300));
+
+  /* ── 12b · la forma guardada es SIN pérdida ── */
+  H(`12b · la forma guardada del libro: sin pérdida, también con lo irregular (${etiqueta})`);
+  ok(mismoLibro(expandirLibro(JSON.parse(JSON.stringify(comprimirLibro(libA)))), libA), "★ expandir(comprimir(libro)) es EXACTAMENTE el libro (el hilo de C01, con apoyo y fuera del texto)");
+  {
+    const sRT = crearAlmacenEnMemoria();
+    await sRT.guardarLibro(T.id, libA);
+    ok(mismoLibro(await sRT.leerLibro(T.id, convA), libA) && bytesJson(await sRT.leerLibro(T.id, convA)) > despuesB, "y el almacén guarda comprimido y lee expandido: lo que lee es lo que escribió");
+  }
+  {
+    const irregular = clon(libA);
+    const e = irregular.entregas[3];
+    e.hechos[0].extra = "campo que la forma guardada no conoce";                         // una cifra con un campo ajeno: se guarda tal cual
+    e.hechos[1].rv.mas = [{ ref: "e9", metrica: "Margen", valor: "20%", raw: 20, unidad: "pct", clave: "margen", dueno: "X", procedencia: "medido" }];   // una fila ancha
+    e.hechos[2].id = "E9.h9";                                                           // un id que no es el de su lugar
+    e.hechos[3].valor = "§1 empieza con la marca de lo repetido";                      // un texto que empieza con «§»
+    e.hechos[4].metrica = "§§";
+    e.hechos.push({ sujeto: "sin rv", metrica: "Venta", valor: "$1M", unidad: null, periodo: null, origen: "medido", ref: null, id: `E${e.n}.h${e.hechos.length + 1}` });   // de antes del bloque 4: sin `rv`
+    e.apoyo = [...(e.apoyo || []), { id: `E${e.n}.e77` }, { id: `E${e.n}.e78`, rv: { raw: 1.5, unidad: "pct", clave: "benchmark", dueno: "negocio", procedencia: "estimacion_referencia", origenRef: "adi", premisa: true } }];
+    e.universos[0] = { ...e.universos[0], top: { metrica: "ventas", k: 3, direccion: "mayor" }, valido: false };
+    const ida = expandirLibro(JSON.parse(JSON.stringify(comprimirLibro(irregular))));
+    ok(mismoLibro(ida, irregular), "★ lo irregular (campo ajeno · fila ancha `mas` · id fuera de lugar · textos que empiezan con «§» · cifra sin `rv` · apoyo sin cifra · universo con `top`) también vuelve idéntico", jj(ida.entregas[3].hechos.slice(0, 2)).slice(0, 300));
+    ok(mismoLibro(expandirLibro(irregular), irregular) && mismoLibro(expandirLibro(libroNuevo({ conversacionId: "c" })), libroNuevo({ conversacionId: "c" })), "un libro ya expandido (o de antes de la forma guardada) se lee igual: nada que migrar");
+  }
+  {
+    /* un barrido: el primer libro de cada uno de los 532 encargos del catálogo sellado, y el de dos Entregas */
+    const MUESTRA = JSON.parse(fs.readFileSync(new URL("./fixtures/procedencia/muestra-v13-v40.json", import.meta.url), "utf8")).casos.filter((_, i) => i % 7 === 0);
+    let malos = 0, antes = 0, despues = 0, mayorAntes = 0, mayorDespues = 0;
+    for (const c of MUESTRA) {
+      const S = crearAlmacenEnMemoria(); const AX = crearAcciones({ continuidad: S });
+      const r = await AX.consultar({ tenant: T, encargo: c.encargo });
+      if (!r.ok || !r.continuidad) continue;
+      const L = await S.leerLibro(T.id, r.continuidad.conversacionId);
+      if (!mismoLibro(expandirLibro(JSON.parse(JSON.stringify(comprimirLibro(L)))), L)) malos += 1;
+      antes += bytesJson(L); despues += tamanoBytes(L); mayorAntes = Math.max(mayorAntes, bytesJson(L)); mayorDespues = Math.max(mayorDespues, tamanoBytes(L));
+    }
+    console.log(`   · ${MUESTRA.length} libros del catálogo sellado: ${Math.round(antes / MUESTRA.length)} B → ${Math.round(despues / MUESTRA.length)} B de media · el mayor ${mayorAntes} B → ${mayorDespues} B`);
+    ok(malos === 0 && despues < antes * 0.6, `★ ${MUESTRA.length} libros del catálogo: ninguno cambia al guardarse y pesan menos del 60 %`, jj({ malos, antes, despues }));
+    ok(mayorDespues <= LIBRO_TOPE_BYTES, `y el mayor guardado (${mayorDespues} B) cabe en el tope de la base`);
+  }
+
+  /* ── 12c · si el tope manda, se DICE (falla cerrado) ── */
+  H(`12c · si la base no admite más, ADI lo dice: nunca una cifra que el anfitrión lea y no pueda citar (${etiqueta})`);
+  {
+    /* (i) la memoria se llena: las Entregas más viejas ceden Y SE DICE en la respuesta que lo provocó */
+    const topeT = Math.floor(despuesB * 0.7);
+    const sT = crearAlmacenEnMemoria(); const AT = crearAcciones({ continuidad: sT, ahora: reloj, libroTope: topeT });
+    let conv = null, ultima = null, avisoVisto = null;
+    for (const partes of turnos) { ultima = await AT.consultar({ tenant: T, encargo: E(partes, conv) }); conv = ultima.continuidad.conversacionId; if ((ultima.continuidad.entregasSinCifras || []).length && !avisoVisto) avisoVisto = ultima; }
+    const LT = await sT.leerLibro(T.id, conv);
+    const recort = LT.entregas.filter((e) => e.recortada).map((e) => e.n);
+    ok(recort.length > 0 && tamanoBytes(LT) <= topeT, `con un tope de ${topeT} B (el 70 % de lo que pide el hilo) cedieron las más viejas (${recort.map((n) => "E" + n).join(", ")}) y el libro cabe (${tamanoBytes(LT)} B)`, jj(recort));
+    ok(Boolean(avisoVisto) && avisoVisto.continuidad.entregasSinCifras.length > 0 && (avisoVisto.advertencias || []).some((a) => /ya no conserv/.test(a) && avisoVisto.continuidad.entregasSinCifras.every((n) => a.includes(`E${n}`))), "★ la respuesta que provocó el recorte DICE cuáles Entregas ya no conservan sus cifras (continuidad.entregasSinCifras y una advertencia en palabras de negocio)", jj((avisoVisto || {}).advertencias));
+    const cT = compactarParaAnfitrion("consultar", avisoVisto);
+    ok((cT.advertencias || []).length > 0 && cT.continuidad.entregasSinCifras.length > 0, "y eso llega al anfitrión por la puerta (la respuesta compacta lo trae)");
+    const rr = await AT.derivar({ tenant: T, conversacionId: conv, operacion: "suma", sobre: [`E${recort[0]}.h1`, `E${recort[0]}.h2`] });
+    ok(rr.ok === false && rr.motivo === "entrega_recortada" && /se recortó por tamaño/.test(rr.detalle), "★ derivar sobre una cifra de una Entrega recortada se rechaza diciendo por qué (entrega_recortada)", jj(rr).slice(0, 300));
+    /* (ii) una derivación nueva también compite por el tope: si obliga a recortar una Entrega, lo dice en SU respuesta */
+    const sD = crearAlmacenEnMemoria(); const ADx = crearAcciones({ continuidad: sD, ahora: reloj });
+    let cv = null;
+    for (const partes of turnos.slice(0, 3)) { const x = await ADx.consultar({ tenant: T, encargo: E(partes, cv) }); cv = x.continuidad.conversacionId; }
+    const topeJusto = tamanoBytes(await sD.leerLibro(T.id, cv)) + 10;
+    const sD2 = crearAlmacenEnMemoria(); const AD2 = crearAcciones({ continuidad: sD2, ahora: reloj, libroTope: topeJusto });
+    let cv2 = null; for (const partes of turnos.slice(0, 3)) { const x = await AD2.consultar({ tenant: T, encargo: E(partes, cv2) }); cv2 = x.continuidad.conversacionId; }
+    const ultimas = (await sD2.leerLibro(T.id, cv2)).entregas.at(-1).hechos.slice(0, 2).map((h) => h.id);
+    const dEv = await AD2.derivar({ tenant: T, conversacionId: cv2, operacion: "suma", sobre: ultimas });
+    ok(dEv.ok && (dEv.continuidad.entregasSinCifras || []).length > 0 && (dEv.advertencias || []).some((x) => /ya no conserv/.test(x)), "★ una derivación que obliga a recortar una Entrega lo dice en SU respuesta (continuidad.entregasSinCifras y una advertencia)", jj({ c: dEv.continuidad, a: dEv.advertencias }));
+  }
+  {
+    /* (iii) las cifras de `fueraDelTexto` NO caben aunque ceda todo lo anterior: NO viajan (nunca sin id) y se dice cuántas son */
+    const sS = crearAlmacenEnMemoria(); const AS = crearAcciones({ continuidad: sS, ahora: reloj });
+    const rS = await AS.consultar({ tenant: T, encargo: E([PARTE_SALDOS]) });
+    const S1 = tamanoBytes(await sS.leerLibro(T.id, rS.continuidad.conversacionId));
+    const s2 = crearAlmacenEnMemoria(); const A2 = crearAcciones({ continuidad: s2, ahora: reloj, libroTope: S1 - 1 });
+    const r2 = await A2.consultar({ tenant: T, encargo: E([PARTE_SALDOS]) });
+    const c2 = compactarParaAnfitrion("consultar", r2);
+    const L2 = await s2.leerLibro(T.id, r2.continuidad.conversacionId);
+    const n1 = (((compactarParaAnfitrion("consultar", rS).entrega.detalle || {}).fueraDelTexto) || []).length;
+    ok(n1 >= 2 && L2.entregas[0].recortada === false && !((c2.entrega.detalle || {}).fueraDelTexto), "★ con un tope que no admite las cifras de «fuera del texto», la tabla se guarda y ESAS cifras NO viajan (nunca una cifra sin id)", jj({ n1, rec: L2.entregas[0].recortada, fz: (c2.entrega.detalle || {}).fueraDelTexto }));
+    ok((c2.entrega.detalle || {}).fueraNoCabe && c2.entrega.detalle.fueraNoCabe.n === n1 && (c2.advertencias || []).some((a) => /fuera del texto/.test(a)), "y se dice cuántas son y cómo pedirlas (detalle.fueraNoCabe y una advertencia)", jj((c2.entrega.detalle || {}).fueraNoCabe));
+    ok(c2.entrega.cifras.every((x) => L2.entregas[0].hechos.some((h) => h.id === x.id)), "las cifras de la tabla que sí viajan siguen todas en el libro");
+    /* (iv) la propia Entrega es más grande que el tope: sus cifras no quedaron guardadas, y se dice */
+    const s3 = crearAlmacenEnMemoria(); const A3 = crearAcciones({ continuidad: s3, ahora: reloj, libroTope: 300 });
+    const r3 = await A3.consultar({ tenant: T, encargo: E([PARTE_SALDOS]) });
+    ok(r3.continuidad.entregaSinCifras === 1 && (r3.advertencias || []).some((a) => /más grande de lo que la memoria/.test(a)) && !(((compactarParaAnfitrion("consultar", r3).entrega.detalle || {}).fueraDelTexto)), "★ una Entrega más grande que el tope entero lo dice (continuidad.entregaSinCifras y una advertencia) y no manda cifras de «fuera del texto»", jj((r3.advertencias || [])).slice(0, 300));
+  }
+
+  /* ── 12d · el apoyo se deriva, con su procedencia (A03|1|5) ── */
+  H(`12d · A03|1|5: «cuánto le falta al benchmark» es UN hecho de ADI, con la procedencia de cada lado (${etiqueta})`);
+  {
+    const sB = crearAlmacenEnMemoria(); const AB = crearAcciones({ continuidad: sB, ahora: reloj });
+    conTenant(T);
+    const r1 = await AB.consultar({ tenant: T, encargo: E([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", entidades: [{ nombre: nombresDeClientes(T)[0] }] }]) });
+    const convB = r1.continuidad.conversacionId;
+    const c1 = compactarParaAnfitrion("consultar", r1);
+    const bench = (c1.entrega.apoyo || []).find((a) => /Benchmark de margen/.test(a.hecho || ""));
+    const rM = await AB.consultar({ tenant: T, encargo: E([{ id: "p2", tema: "comercial", cierre: "cifra", conceptos: ["margen"], eje: "marca", entidades: [{ nombre: marcasDe(T)[0] }] }], convB) });
+    const cM = compactarParaAnfitrion("consultar", rM);
+    const margen = cM.entrega.cifras.find((x) => x.metrica === "Margen");
+    ok(Boolean(bench) && Boolean(margen) && /^E1\.e\d+$/.test(bench.id), `(armado) el benchmark viaja como apoyo con id (${bench && bench.id}: ${bench && bench.valor}) y hay un margen para compararlo (${margen && margen.id}: ${margen && margen.valor})`, jj({ bench, margen }));
+    const LB = await sB.leerLibro(T.id, convB);
+    ok((LB.entregas[0].apoyo || []).some((a) => a.id === bench.id && a.rv && a.rv.clave === "benchmark" && a.rv.unidad === "pct"), "★ el libro guarda la cifra de apoyo (crudo, unidad, métrica, dueño, procedencia) para poder derivar sobre ella");
+    const oMargen = crudosDelCore(T, E([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["margen"], eje: "marca" }]));
+    const benchRaw = LB.entregas[0].apoyo.find((a) => a.id === bench.id).rv.raw;
+    const margenRaw = rawDe(oMargen, "margen", margen.entidad);
+    const dif = await AB.derivar({ tenant: T, conversacionId: convB, operacion: "diferencia", sobre: [bench.id, margen.id] });
+    ok(dif.ok && dif.hecho.id.startsWith("D") && dif.hecho.procedencia === "derivado" && dif.hecho.valor === formatoDeLaCasa(benchRaw - margenRaw, "pp"), `★ «cuánto le falta al benchmark» (${bench.valor} − ${margen.valor}) es un hecho de ADI en puntos: ${dif.ok && dif.hecho.valor}`, jj(dif).slice(0, 500));
+    const difRev = await AB.derivar({ tenant: T, conversacionId: convB, operacion: "diferencia", sobre: [margen.id, bench.id] });
+    ok(difRev.ok && difRev.hecho.valor === formatoDeLaCasa(margenRaw - benchRaw, "pp") && /^-/.test(difRev.hecho.valor) === (margenRaw < benchRaw), "el orden manda: margen − benchmark conserva el signo (negativo = bajo el benchmark)", jj(difRev.hecho));
+    const porId = Object.fromEntries(dif.operandos.map((o) => [o.id, o]));
+    ok(porId[bench.id].procedencia === "referencia" && /declarado por la empresa/.test(porId[bench.id].origen) && porId[margen.id].procedencia === "medido", "★ la diferencia lleva las DOS procedencias: el margen es «medido» y el benchmark una «referencia, declarado por la empresa» (jamás un dato medido ni un objetivo)", jj(dif.operandos));
+    ok(Array.isArray(dif.hecho.procedencias) && dif.hecho.procedencias.includes("medido") && dif.hecho.procedencias.some((p) => /referencia, declarado por la empresa/.test(p)) && /declarado por la empresa/.test(dif.hecho.metrica), "y el hecho las resume, y el rótulo de la métrica dice de quién es la referencia", jj([dif.hecho.procedencias, dif.hecho.metrica]));
+    ok(dif.hecho.entidad === margen.entidad && !/negocio/.test(dif.hecho.entidad), "la cifra es de la cuenta contra la que se compara (la referencia no es una entidad)", jj(dif.hecho.entidad));
+    ok(!/objetivo|meta\b|oficio/i.test(jj(dif.hecho)) , "nunca se llama «objetivo» ni «referencia del oficio» a lo que no lo es", jj(dif.hecho));
+    const rep = await AB.derivar({ tenant: T, conversacionId: convB, operacion: "diferencia", sobre: [bench.id, margen.id] });
+    ok(rep.ok && rep.repetida === true && rep.hecho.id === dif.hecho.id && Array.isArray(rep.hecho.procedencias) && rep.hecho.procedencias.length === dif.hecho.procedencias.length, "idempotente: pedirla otra vez devuelve la misma D con las mismas procedencias");
+    /* el ORIGEN decide: sin benchmark declarado por la empresa, es el criterio general de ADI (nunca «declarado por la empresa») */
+    {
+      const ds = clon(T.dataset); if (ds.perfil) delete ds.perfil.benchmark;
+      const Tadi = { ...T, dataset: ds };
+      conTenant(Tadi);
+      const sX = crearAlmacenEnMemoria(); const AX = crearAcciones({ continuidad: sX, ahora: reloj });
+      const x1 = await AX.consultar({ tenant: Tadi, encargo: E([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", entidades: [{ nombre: nombresDeClientes(Tadi)[0] }] }]) });
+      const cx = x1.continuidad.conversacionId;
+      const bx = (compactarParaAnfitrion("consultar", x1).entrega.apoyo || []).find((a) => /Benchmark de margen/.test(a.hecho || ""));
+      const x2 = await AX.consultar({ tenant: Tadi, encargo: E([{ id: "p2", tema: "comercial", cierre: "cifra", conceptos: ["margen"], eje: "marca", entidades: [{ nombre: marcasDe(Tadi)[0] }] }], cx) });
+      const mx = compactarParaAnfitrion("consultar", x2).entrega.cifras.find((x) => x.metrica === "Margen");
+      if (bx && mx) {
+        const dx = await AX.derivar({ tenant: Tadi, conversacionId: cx, operacion: "diferencia", sobre: [bx.id, mx.id] });
+        const ref = dx.ok && dx.operandos.find((o) => o.id === bx.id);
+        ok(ref && ref.procedencia === "referencia" && /criterio general de ADI/.test(ref.origen) && !/declarado por la empresa/.test(ref.origen), "★ si el benchmark NO lo declaró la empresa, la procedencia dice «criterio general de ADI» — jamás «declarado por la empresa»", jj(dx).slice(0, 400));
+      } else console.log("   · (este dato no imprime el benchmark general en la Entrega de prueba: se omite el control del origen ADI)");
+      conTenant(T);
+    }
+    /* los rechazos: las reglas de siempre más una — la referencia se compara con SU métrica */
+    const vtas = c1.entrega.cifras.find((x) => x.metrica === "Venta");
+    await noDeriva({ A: AB, conv: convB }, T, "una referencia contra una métrica en dinero (unidades distintas)", { operacion: "diferencia", sobre: [bench.id, vtas.id] }, "unidades_distintas");
+    ok(MOTIVOS_DE_DERIVACION.includes("operando_no_positivo"), "el motivo nuevo (razón con una cifra no positiva) está en la lista cerrada");
+    const rCa = await AB.consultar({ tenant: T, encargo: E([{ id: "p3", tema: "comercial", cierre: "cifra", conceptos: ["carga"], eje: "cliente", entidades: [{ nombre: nombresDeClientes(T)[0] }] }], convB) });
+    const carga = compactarParaAnfitrion("consultar", rCa).entrega.cifras.find((x) => /Carga/.test(x.metrica || ""));
+    if (carga && carga.valor && /%/.test(carga.valor)) await noDeriva({ A: AB, conv: convB }, T, "el benchmark (de margen) contra la carga: otra métrica, aunque ambas sean %", { operacion: "diferencia", sobre: [bench.id, carga.id] }, "metricas_distintas");
+    else console.log("   · (la carga de esta cuenta no viaja como % en la Entrega de prueba: se omite el control de la referencia contra otra métrica)");
+    /* conteo contra la referencia */
+    const cnt = await AB.derivar({ tenant: T, conversacionId: convB, operacion: "conteo", sobre: [margen.id], condicion: { op: "<", valor: bench.id } });
+    ok(cnt.ok && cnt.hecho.valor === `${margenRaw < benchRaw ? 1 : 0} de 1` && cnt.condicion.referencia.procedencia === "referencia" && cnt.hecho.procedencias.length === 2, "★ «cuántos márgenes están bajo el benchmark» también es un hecho de ADI, con la procedencia de la referencia", jj(cnt).slice(0, 400));
+    /* un apoyo que ADI ya calculó (una comparación «A − B = C») o que no trae cifra exacta no es operando: la tabla trae sus operandos */
+    const sinCifra = (c1.entrega.apoyo || []).concat(cM.entrega.apoyo || []).find((a) => a.id !== bench.id);
+    if (sinCifra) {
+      const idSin = sinCifra.id; const nSin = Number(/^E(\d+)/.exec(idSin)[1]);
+      const rS = await AB.derivar({ tenant: T, conversacionId: convB, operacion: "suma", sobre: [idSin, nSin === 1 ? margen.id : vtas.id] });
+      ok(rS.ok === false && ["operando_sin_valor_exacto", "operando_no_medido", "unidades_distintas", "metricas_distintas", "operando_es_total"].includes(rS.motivo), `otra cifra de apoyo (${idSin}) tampoco se suma a ciegas: ${rS.motivo}`, jj(rS).slice(0, 300));
+    }
+    await noDeriva({ A: AB, conv: convB }, T, "un universo (E1.u1)", { operacion: "diferencia", sobre: [bench.id, "E1.u1"] }, "id_invalido");
+    /* retomar revalida el apoyo: con el mismo dato, igual; si el benchmark cambia, la D cambia y la diferencia la calcula ADI */
+    const r0 = await AB.retomar({ tenant: T, conversacionId: convB });
+    const eD = r0.hechos.find((x) => x.id === dif.hecho.id);
+    ok(eD && eD.estadoReverificacion === "igual", "★ retomar: con el mismo dato la diferencia contra el benchmark sigue «igual»", jj(eD).slice(0, 300));
+    ok(!r0.hechos.some((x) => /^E\d+\.e\d+/.test(x.id)), "las cifras de apoyo no se listan como filas de la tabla en retomar (solo sostienen las derivaciones)");
+    /* la empresa declara OTRO benchmark (criterio confirmado): la referencia con la que se entregó cambió → la diferencia no se afirma vigente (una referencia que cambia no es un cambio de lo medido) */
+    const nuevoBench = Math.round((benchRaw + 3) * 10) / 10;
+    const ap = await AB.aportarContexto({ tenant: T, conversacionId: convB, aportes: [{ clase: "criterio", concepto: "benchmark", valor: { raw: nuevoBench, unidad: "pct" } }] });
+    await AB.aportarContexto({ tenant: T, conversacionId: convB, confirmar: [ap.resultados[0].id] });
+    const r2 = await AB.retomar({ tenant: T, conversacionId: convB });
+    const eD2 = r2.hechos.find((x) => x.id === dif.hecho.id);
+    ok(eD2 && eD2.estadoReverificacion === "no_se_revalida" && eD2.revalidacion.anterior.valor === dif.hecho.valor && !eD2.revalidacion.actual, `★ si la empresa declara otro benchmark (${benchRaw} → ${nuevoBench}) la diferencia contra el benchmark de antes NO se afirma vigente (la referencia cambió)`, jj(eD2).slice(0, 500));
+    conTenant(T);
+  }
+
+  /* ── 12e · la razón: «cuántas veces es A respecto de B» ── */
+  H(`12e · A01|1|4 · B01|1|3 · C02|1|2: «cuántas veces es una la otra» es UN hecho de ADI (${etiqueta})`);
+  {
+    const sR = crearAlmacenEnMemoria(); const AR = crearAcciones({ continuidad: sR, ahora: reloj });
+    conTenant(T);
+    const rr1 = await AR.consultar({ tenant: T, encargo: E([PARTE_MARCA]) });
+    const convR = rr1.continuidad.conversacionId;
+    const cR = compactarParaAnfitrion("consultar", rr1);
+    const marcasV = cR.entrega.cifras.filter((x) => x.entidad && x.metrica === "Venta");
+    const oMarcas = crudosDelCore(T, E([PARTE_MARCA]));
+    const [a, b] = [marcasV[0], marcasV[1]];
+    const ra = rawDe(oMarcas, "ventas", a.entidad), rb = rawDe(oMarcas, "ventas", b.entidad);
+    const x = await AR.derivar({ tenant: T, conversacionId: convR, operacion: "razon", sobre: [a.id], base: b.id });
+    const esp = ra / rb;
+    ok(x.ok && x.hecho.operacion === "razon" && x.hecho.procedencia === "derivado" && x.hecho.valor === veces(esp), `★ ${a.entidad} ÷ ${b.entidad} = ${x.ok && x.hecho.valor} (A ÷ B sobre los crudos: ${esp.toFixed(4)})`, jj(x).slice(0, 400));
+    ok(/^\d+\.\d veces$/.test(x.hecho.valor) || /^0\.\d\d veces$/.test(x.hecho.valor), "el formato es «N veces» con la precisión de la casa (una decimal desde 1; dos por debajo)", x.hecho.valor);
+    ok(x.operandos.length === 1 && x.operandos[0].id === a.id && x.base.id === b.id, "el hecho trae el numerador y la base con sus valores", jj([x.operandos, x.base]));
+    const inv = await AR.derivar({ tenant: T, conversacionId: convR, operacion: "razon", sobre: [b.id], base: a.id });
+    ok(inv.ok && inv.hecho.id !== x.hecho.id && inv.hecho.valor === veces(rb / ra), `la razón inversa es otro hecho (el orden manda): ${inv.ok && inv.hecho.valor}`, jj(inv.hecho));
+    const rep = await AR.derivar({ tenant: T, conversacionId: convR, operacion: "razon", sobre: [a.id], base: b.id });
+    ok(rep.ok && rep.repetida === true && rep.hecho.id === x.hecho.id, "idempotente: la misma razón devuelve el mismo D");
+    /* el rechazo del ensayo: la participación de algo mayor que la base ahora enseña la razón */
+    const part = await AR.derivar({ tenant: T, conversacionId: convR, operacion: "participacion", sobre: [ra >= rb ? a.id : b.id], base: ra >= rb ? b.id : a.id });
+    ok(part.ok === false && part.motivo === "numerador_mayor_que_base" && /razon/.test(part.detalle), "★ lo que se rechazó en el ensayo (participación con numerador mayor que la base) dice ahora que lo que se busca es la operación «razon»", jj(part).slice(0, 300));
+    /* validaciones */
+    await noDeriva({ A: AR, conv: convR }, T, "la razón sin base", { operacion: "razon", sobre: [a.id] }, "faltan_operandos");
+    await noDeriva({ A: AR, conv: convR }, T, "la razón de dos cifras en `sobre`", { operacion: "razon", sobre: [a.id, b.id], base: marcasV[2].id }, "demasiados_operandos");
+    await noDeriva({ A: AR, conv: convR }, T, "la razón de una cifra consigo misma", { operacion: "razon", sobre: [a.id], base: a.id }, "operando_repetido");
+    await noDeriva({ A: AR, conv: convR }, T, "la razón de una Entrega que no existe", { operacion: "razon", sobre: ["E9.h1"], base: b.id }, "id_inexistente");
+    const totalDeMarcas = cR.entrega.cifras.find((c) => /total del listado completo/.test(c.metrica || ""));
+    if (totalDeMarcas) { const t = await AR.derivar({ tenant: T, conversacionId: convR, operacion: "razon", sobre: [totalDeMarcas.id], base: a.id }); ok(t.ok && /veces$/.test(t.hecho.valor), "el total de un listado SÍ puede ser numerador de una razón (cuántas veces es el total respecto de una marca)", jj(t).slice(0, 200)); }
+    /* otra métrica / unidad / negativa / cero */
+    const rCo = await AR.consultar({ tenant: T, encargo: E([{ id: "p2", tema: "comercial", cierre: "cifra", conceptos: ["margen"], eje: "marca", universo: "negocio" }], convR) });
+    const margenes = compactarParaAnfitrion("consultar", rCo).entrega.cifras.filter((c) => c.metrica === "Margen");
+    await noDeriva({ A: AR, conv: convR }, T, "una razón entre un monto y un porcentaje", { operacion: "razon", sobre: [a.id], base: margenes[0].id }, "unidades_distintas");
+    const dNeg = await AR.derivar({ tenant: T, conversacionId: convR, operacion: "diferencia", sobre: ra >= rb ? [b.id, a.id] : [a.id, b.id] });   // siempre negativa
+    ok(dNeg.ok && /^-/.test(dNeg.hecho.valor), "(armado) una diferencia negativa", jj(dNeg.hecho));
+    await noDeriva({ A: AR, conv: convR }, T, "una razón con una cifra negativa", { operacion: "razon", sobre: [dNeg.hecho.id], base: a.id }, "operando_no_positivo");
+    const sSal = crearAlmacenEnMemoria(); const ASal = crearAcciones({ continuidad: sSal, ahora: reloj });
+    const rSal = await ASal.consultar({ tenant: T, encargo: E([{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"], eje: "cliente", universo: "negocio" }]) });
+    const cSl = compactarParaAnfitrion("consultar", rSal);
+    const sal = [...cSl.entrega.cifras, ...(((cSl.entrega.detalle || {}).fueraDelTexto) || [])].filter((c) => c.entidad && c.metrica === "Saldo vencido");
+    const oSl = crudosDelCore(T, E([{ ...PARTE_SALDOS, id: "p1", conceptos: ["saldo_vencido"] }]));
+    const cero = sal.find((c) => rawDe(oSl, "saldo_vencido", c.entidad) === 0), pos = sal.find((c) => rawDe(oSl, "saldo_vencido", c.entidad) > 0);
+    if (cero && pos) {
+      const hh = { A: ASal, conv: rSal.continuidad.conversacionId };
+      await noDeriva(hh, T, "una razón sobre una base en cero", { operacion: "razon", sobre: [pos.id], base: cero.id }, "operando_no_positivo");
+      await noDeriva(hh, T, "una razón de una cifra en cero", { operacion: "razon", sobre: [cero.id], base: pos.id }, "operando_no_positivo");
+    } else console.log("   · (este dato no tiene saldos en cero: se omiten los controles de cero)");
+    /* retomar: igual / cambio, con el texto «veces» (la razón entre dos CLIENTES: el dato de un cliente cambia) */
+    const hc = await hilo(T, PASOS_COMERCIAL);
+    const vc = delMetrica(hc.ventas, "Venta");
+    const oVc = crudosDelCore(T, E([PARTE(["ventas"], "comercial")]));
+    const xc = await derivar(hc, { operacion: "razon", sobre: [vc[0].id], base: vc[1].id }, T);
+    ok(xc.ok && xc.hecho.valor === veces(rawDe(oVc, "ventas", vc[0].entidad) / rawDe(oVc, "ventas", vc[1].entidad)), `(armado) ${vc[0].entidad} ÷ ${vc[1].entidad} = ${xc.ok && xc.hecho.valor}`, jj(xc).slice(0, 300));
+    const r0 = await hc.A.retomar({ tenant: T, conversacionId: hc.conv });
+    ok(r0.hechos.find((h) => h.id === xc.hecho.id).estadoReverificacion === "igual", "retomar: con el mismo dato la razón sigue «igual»");
+    const ds2 = clon(T.dataset);
+    const filaV = (ds2.clientesVentas || []).find((m) => m.nombre === vc[0].entidad);
+    if (filaV && filaV.actual != null) filaV.actual *= 0.5;
+    const T2 = { ...T, dataset: ds2, version: 2 }; conTenant(T2);
+    const oHoy = crudosDelCore(T2, E([PARTE(["ventas"], "comercial")]));
+    const r2 = await hc.A.retomar({ tenant: T2, conversacionId: hc.conv });
+    const e2 = r2.hechos.find((h) => h.id === xc.hecho.id);
+    const espHoy = rawDe(oHoy, "ventas", vc[0].entidad) / rawDe(oHoy, "ventas", vc[1].entidad);
+    ok(e2.estadoReverificacion === "cambio" && e2.revalidacion.actual.valor === veces(espHoy) && Math.abs(e2.revalidacion.actual.raw - espHoy) < 1e-9 && /veces$/.test(e2.revalidacion.diferencia.texto), `★ si cambia el dato, la razón CAMBIA (${xc.hecho.valor} → ${e2.revalidacion && e2.revalidacion.actual && e2.revalidacion.actual.valor}) y la diferencia está en «veces»`, jj(e2).slice(0, 400));
+    conTenant(T);
+  }
+}
+
+H("12g · lo que ve el anfitrión: la herramienta dice lo nuevo, corto");
+{
+  const tool = MCP_TOOLS.find((t) => t.name === "derivar");
+  ok(/E<n>\.e<k>/.test(tool.description) && /benchmark/.test(tool.description) && /razón/.test(tool.description) && /use consultar\.$/.test(tool.description), "★ la descripción dice que acepta cifras de apoyo (E<n>.e<k>, como el benchmark) y la razón («cuántas veces»), y sigue terminando en «use consultar.»");
+  ok(tool.inputSchema.properties.operacion.enum.includes("razon") && /razon/.test(tool.inputSchema.properties.base.description) && /E<n>\.e<k>/.test(tool.inputSchema.properties.sobre.description), "el esquema: la operación `razon`, la base de la razón y los ids de apoyo");
+  ok(JSON.stringify(tool).length < 2400, `la herramienta sigue corta (${JSON.stringify(tool).length} B < 2400 B)`);
+  ok(MOTIVOS_DE_DERIVACION.length === new Set(MOTIVOS_DE_DERIVACION).size, "la lista cerrada de motivos no tiene repetidos");
 }
 
 H("CERO RED");

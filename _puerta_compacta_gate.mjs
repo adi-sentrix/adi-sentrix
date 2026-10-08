@@ -229,7 +229,11 @@ H("5 · retomar con la respuesta compacta: los mismos ids, valores y revalidacio
     const rl = await AL.retomar({ tenant: TENANT, conversacionId: c2 });
     const rlc = compactarParaAnfitrion("retomar", rl);
     console.log(`   · conversación de ${k} consultas: retomar completa ${kb(bytes(rl))} → compacta ${kb(bytes(rlc))} (${rlc.hechos.length} cifras) · la consulta más pesada de la conversación: ${kb(mayor)}`);
-    ok(bytes(rlc) <= REFERENCIA_DE_TAMANO_BYTES && mayor <= REFERENCIA_DE_TAMANO_BYTES, `en una conversación de ${k} consultas, retomar compacta (${kb(bytes(rlc))}) y la consulta más pesada (${kb(mayor)}) caben en la referencia`);
+    /* ensayo 5 (owner 2026-10-07: «0 errores materiales»): el libro ahora guarda en su forma compacta y CONSERVA todas las cifras que entregó (antes cedía las más viejas: esta conversación retomaba ~50 cifras, hoy ~100), así que retomar
+     * lista más cifras y pesa más. La referencia de 20 KB se calibró con ~50 cifras (la conversación de 6 Entregas de arriba: 12.9 KB); la consulta más pesada sigue bajo la referencia tal cual, y retomar se mide por
+     * lo que conserva: la referencia por cada 50 cifras. */
+    const referenciaDeRetomar = REFERENCIA_DE_TAMANO_BYTES * Math.max(1, rlc.hechos.length / 50);
+    ok(mayor <= REFERENCIA_DE_TAMANO_BYTES && bytes(rlc) <= referenciaDeRetomar, `en una conversación de ${k} consultas, la consulta más pesada (${kb(mayor)}) cabe en la referencia y retomar compacta (${kb(bytes(rlc))}, ${rlc.hechos.length} cifras conservadas) en la referencia por cada 50 cifras (${kb(referenciaDeRetomar)})`);
   }
 
   // DATOS QUE CAMBIAN (otra versión de carga): las dos cifras, calculadas por ADI, viajan en `revalidacion`

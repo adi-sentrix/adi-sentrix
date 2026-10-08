@@ -882,6 +882,8 @@ function _verdadDeLoFalso(H, h, I, libro) {
 
 /* ── VALIDACIÓN DE ESQUEMA (v3.1 · pieza 2): el hecho tipado tiene la forma que el protocolo enseña, o no entra al libro ── */
 const _ENUM = { orden_forma: ["max", "min", "puesto", "topk", "comparativo"], direccion: ["mayor", "menor", "peor", "mejor"], relacion_forma: ["veces", "fraccion", "parte", "mayor", "menor", "igual", "diferencia"], variacion_dir: ["sube", "baja"], agregado: ["suma", "participacion", "promedio"], op: ["suma", "diferencia", "cociente", "pp", "resta", "diferencia_pp", "division", "ratio", "producto", "variacion_relativa", "veces", "proporcion", "total", "sumar", "restar"], sobre: ["filtro", "eje"] };   // top.sobre (contrato §7.3·8): "filtro" (default, dentro de estados/filtros ya aplicados) · "eje" (sobre el eje entero)
+export const DIRECCIONES_DE_TOP = Object.freeze(_ENUM.direccion.slice());   // exportadas (ensayo 5): lo que un universo `top` admite, para documentarlo con la misma lista que lo valida
+export const SOBRE_DE_TOP = Object.freeze(_ENUM.sobre.slice());
 const _entero = (x) => Number.isFinite(+x) && Math.floor(+x) === +x;
 const _esNegado = (e) => /^\s*no[ _]+\S/i.test(String(e == null ? "" : e));
 const _sinNo = (e) => (typeof e === "string" ? e.replace(/^\s*no[ _]+/i, "") : e);
@@ -945,7 +947,7 @@ export function validarUniverso(u, I, sujeto = null) {
   if (sujeto && typeof sujeto === "string" && sujeto !== "negocio") { const es = _ejeDeEntidad(I, sujeto); if (es && es !== eje) return `el sujeto «${sujeto}» es de ${es} y el universo es de ${eje}`; }
   return null;
 }
-const EJES_VALIDOS = ["cliente", "sku", "marca", "familia", "bodega", "canal", "mes"];
+export const EJES_VALIDOS = ["cliente", "sku", "marca", "familia", "bodega", "canal", "mes"];   // exportada (ensayo 5): `capacidad/ensenar.js` documenta los universos válidos con la MISMA lista que los valida
 const _GENERICAS = new Set(["deuda", "saldo", "deuda total", "saldos", "monto", "cifra", "valor"]);
 const _claveEstricta = (m) => { const s = normalizar(String(m || "")); if (!s || _GENERICAS.has(s)) return null; const k = claveDeMetrica(m); return k && metricaPorClave(k) ? k : null; };
 /* las referencias de la casa y la familia de métricas que comparan: una referencia de otra familia no es un filtro */

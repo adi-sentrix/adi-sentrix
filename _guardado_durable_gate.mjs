@@ -38,7 +38,7 @@ import { crearAcciones } from "./src/adi/capacidad/acciones.js";
 import { conTenantActivo } from "./src/adi/capacidad/aislamiento.js";
 import { crearAlmacenEnMemoria, verificarAlmacen, ErrorDeAlmacen, esErrorDeAlmacen } from "./src/adi/continuidad/almacen.js";
 import * as EMP from "./src/adi/continuidad/empresa.js";
-import { libroNuevo, registrarEntrega, ORIGEN_LIBRO } from "./src/adi/continuidad/libro.js";
+import { libroNuevo, registrarEntrega, ORIGEN_LIBRO, expandirLibro, comprimirLibro } from "./src/adi/continuidad/libro.js";
 import { colasAbiertas } from "./src/adi/continuidad/serializar.js";
 import { crearAlmacenSupabase } from "./src/adi/continuidad/almacenSupabase.js";
 import { crearClienteRest } from "./src/data/supabaseRest.js";
@@ -101,7 +101,7 @@ const MARCADORES = Object.fromEntries(EMPRESAS.map((E) => [E.id, [E.nombre, E.et
 const CIFRAS = Object.fromEntries(EMPRESAS.map((E) => [E.id, new Set(ENTIDADES.map((e) => ESPERADO[E.id][e].valor))]));
 const cifrasAjenasEnLibros = (db) => {
   const v = [];
-  for (const E of EMPRESAS) for (const c of db.filasDeEmpresa(E.id).conversaciones) for (const en of ((c.estado && c.estado.entregas) || [])) for (const x of (en.hechos || [])) if (!CIFRAS[E.id].has(x.valor)) v.push({ empresa: E.id, hilo: c.hilo_id, cifra: x.valor });
+  for (const E of EMPRESAS) for (const c of db.filasDeEmpresa(E.id).conversaciones) for (const en of ((c.estado && expandirLibro(c.estado).entregas) || [])) for (const x of (en.hechos || [])) if (!CIFRAS[E.id].has(x.valor)) v.push({ empresa: E.id, hilo: c.hilo_id, cifra: x.valor });
   return v;
 };
 {
@@ -397,7 +397,7 @@ H("4 · llamadas cruzadas de la misma conversación o empresa: ninguna Entrega s
   const cid = r1.continuidad.conversacionId;
   const N = 5;
   const res = await Promise.all(ENTIDADES.slice(0, N).map(async (ent) => (await h.accionesDe(E)).consultar({ tenant: h.tenantDe(E), encargo: G.encargoDeVentas(ent, cid) })));
-  const libro = h.db.filasDeEmpresa(E.id).conversaciones.find((c) => c.hilo_id === cid).estado;
+  const libro = expandirLibro(h.db.filasDeEmpresa(E.id).conversaciones.find((c) => c.hilo_id === cid).estado);   // la base guarda la forma compacta del libro (`libro.js:comprimirLibro`): se lee expandida, como la lee el almacén
   const turnos = res.map((r) => r.continuidad.estadoVigente.turno).sort((a, b) => a - b);
   ok(res.every((r) => r.ok), `${N} consultas SIMULTÁNEAS de la misma conversación responden bien`);
   ok(JSON.stringify(turnos) === JSON.stringify([2, 3, 4, 5, 6]) && libro.entregas.length === N + 1, "★ cada una tomó SU turno (2…6) y el libro guardó las seis Entregas — ninguna se perdió", JSON.stringify({ turnos, entregas: libro.entregas.length }));
@@ -470,7 +470,7 @@ let hijoOk = false;
   // — la huella es SENSIBLE: tocar un dato guardado la cambia y el control lo ve —
   const alterado = JSON.parse(estadoJson);
   const fila = alterado.conversaciones.find((c) => c.estado && c.estado.entregas && c.estado.entregas.length);
-  fila.estado.entregas[0].hechos[0].valor = "$999.9M";
+  { const L = expandirLibro(fila.estado); L.entregas[0].hechos[0].valor = "$999.9M"; fila.estado = comprimirLibro(L); }   // el libro se guarda en su forma compacta: se altera expandido y se vuelve a guardar igual
   const ent3 = await armarEntornoDoble({ estadoJson: JSON.stringify(alterado) });
   const despuesAlterado = await G.faseDespues({ llamar: ent3.llamar, empresas: EMPRESAS_DEL_GUION, antes, leerHuellas: ent3.leerHuellas });
   const cmpAlt = G.compararAntesDespues({ antes, despues: despuesAlterado, empresas: EMPRESAS_DEL_GUION });

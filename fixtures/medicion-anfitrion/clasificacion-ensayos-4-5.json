@@ -1,0 +1,404 @@
+{
+ "version": 1,
+ "fuente": "Extractos VERBATIM de clasificacion.json de los ensayos 4 y 5 (2026-10-07): solo palabras, casosA y paraRevisar.noV (las filas se prueban con las frases del fixture ensayo-4-5-medidor.json)",
+ "ensayos": {
+  "ensayo-4": {
+   "corrida": "ensayo-4-cli-20261007193204",
+   "palabras": [
+    {
+     "id": "B02|1|3",
+     "clase": "H-grave",
+     "subtipo": "relacion_invertida_entre_ejes",
+     "oracion": "Falabella pesa 19.4M de esos $100.0M, algo más que Electrodomésticos, la familia más grande, que pesa $31.6M."
+    },
+    {
+     "id": "C04|1|2",
+     "clase": "H-grave",
+     "subtipo": "conteo_mal_hecho",
+     "oracion": "Top 9: Samsung, Philips y LG tienen 3 cada una."
+    },
+    {
+     "id": "A02|1|1",
+     "clase": "H-leve",
+     "subtipo": "orden_mal_dicho",
+     "oracion": "Mayorista El Roble… tiene el mayor vencido (36.9% del total), 269 días de atraso y el segundo menor margen."
+    },
+    {
+     "id": "A02|1|1",
+     "clase": "H-leve",
+     "subtipo": "comparacion_ambigua",
+     "oracion": "Andes del Sur debe más en monto ($4.6M vencido), pero su atraso es de solo 8 días."
+    },
+    {
+     "id": "A02|1|4",
+     "clase": "H-leve",
+     "subtipo": "afirmacion_no_sostenida_al_momento",
+     "oracion": "Con tu piso de 30 días, las cuentas fuera de política son: Mayorista El Roble: 269 días… Centro Constructor Maipo… Casa Lomas…"
+    },
+    {
+     "id": "B01|1|1",
+     "clase": "H-leve",
+     "subtipo": "cuantificador_impreciso",
+     "oracion": "Los tres primeros clientes suman cerca de la mitad de la venta."
+    },
+    {
+     "id": "B01|1|3",
+     "clase": "H-leve",
+     "subtipo": "afirmacion_no_sostenida",
+     "oracion": "Alsen deja más contribución que Norvik porque su margen es mejor."
+    },
+    {
+     "id": "B02|2|5",
+     "clase": "H-leve",
+     "subtipo": "inferencia_propia_ambigua",
+     "oracion": "Sus unidades valen más en promedio que las de las otras bodegas."
+    },
+    {
+     "id": "B02|2|2",
+     "clase": "H-leve",
+     "subtipo": "razon_mal_atribuida",
+     "oracion": "Además, ningún SKU está en más de una bodega, así que no se puede reconstruir la venta por bodega a partir de otro dato."
+    },
+    {
+     "id": "C01|1|5",
+     "clase": "H-leve",
+     "subtipo": "omision_que_induce_a_error",
+     "oracion": "…Falabella y Lider están bajo el benchmark de margen."
+    },
+    {
+     "id": "A01|1|3",
+     "clase": "H-leve",
+     "subtipo": "generalizacion",
+     "oracion": "…tres cadenas que crecen pero te dejan menos margen que el resto."
+    },
+    {
+     "id": "A01|1|2 · A01|1|4 · A01|1|5 · A02|1|5 · B01|1|2 · B01|2|1 · B01|2|2 · B02|1|1 · C01|1|5",
+     "clase": "H-correcta",
+     "subtipo": "conteos_y_relaciones_propias_no_marcadas",
+     "oracion": "«más de la mitad» (54.6 de 100.0) · «los otros 10 clientes» · «Makita menos que la mitad de Bosch» · «las otras 8 cuentas no tienen atraso» · «Alsen deja más utilidad por cada peso vendido» · «las otras 8 cuentas siguen igual / no cambiaron» · «el doble de capital ($39K contra $19K)» · «algo más de la mitad» y «los otros 10»"
+    },
+    {
+     "id": "C03|1|2",
+     "clase": "A",
+     "subtipo": "frase_de_ADI_indujo_el_error",
+     "oracion": "Cobertura: la foto trae 8 de las 12 cuentas. Grandes Almacenes Bío, Hogar Mayor, Comercial Lago Sur y Ferretería Norte no aparecen en la cobranza, y no sé si es porque no tienen saldo o porque faltan datos."
+    }
+   ],
+   "casosA": [
+    {
+     "id": "C03|1|2",
+     "tipo": "A · texto de ADI que indujo el error",
+     "estado": "firme",
+     "evidencia": "E2 (consultar@1.2) «Por cliente, la foto de cobranza (8 de 12 cuentas), en el orden de la mesa, con Saldo pendiente: …»; el anfitrión escribió «la foto trae 8 d"
+    },
+    {
+     "id": "C02|1|1 · C02|1|2",
+     "tipo": "A · listado completo sin «total del listado»",
+     "estado": "firme (mismo defecto de B03|1|2 del ensayo 3)",
+     "evidencia": "C02|1|1: 13 clientes (cierre «decision») E1.h4–h17, sin total. C02|1|2: 5 marcas completas (cierre «lectura») E2.h1–h5, sin total; la persona pidió «cuál se lle"
+    },
+    {
+     "id": "A01|1|2 · C01|1|5 · C02|1|2",
+     "tipo": "A-candidato · derivar rechaza una derivación válida",
+     "estado": "a decidir por el owner (el mensaje dice «solo se deriva sobre cifras que ADI ya entregó», y D<n> lo entregó ADI)",
+     "evidencia": "derivar participacion sobre D1 (suma entregada por ADI) → id_invalido en A01 1.2 y C01 1.5; participacion sobre E2.h1 con base D1 → id_invalido en C02 1.2; part"
+    },
+    {
+     "id": "A02|1|1 · C02|1|4 · C03|1|2",
+     "tipo": "riesgo latente de texto (sin error del anfitrión)",
+     "estado": "observación",
+     "evidencia": "«…con Saldo pendiente: Mayorista El Roble ($16.7M), Centro Constructor Maipo ($10.7M), Supermercados Andes del Sur ($15.0M)» (C02) y «Roble ($13.3M), Andes ($17"
+    }
+   ],
+   "paraRevisar": {
+    "noV": [
+     {
+      "id": "A01|1|4|9",
+      "clase": "H-correcta",
+      "oracion": "Los otros 10 clientes se reparten el resto.",
+      "evidencia": "«Los otros 10 clientes» = 13 − 3 (complemento propio, correcto)"
+     },
+     {
+      "id": "B01|2|1|23",
+      "clase": "H-correcta",
+      "oracion": "- Las otras 8 cuentas siguen igual.",
+      "evidencia": "«Las otras 8 cuentas siguen igual» = 13 − 4 cambiaron − 1 ya no figura (E1.h6–h13 «igual»); conteo propio, correcto"
+     },
+     {
+      "id": "B01|2|2|38",
+      "clase": "H-correcta",
+      "oracion": "- Las otras 8 cuentas no cambiaron.",
+      "evidencia": "«Las otras 8 cuentas no cambiaron»: idem, correcto"
+     },
+     {
+      "id": "B02|1|3|9",
+      "clase": "H-leve",
+      "oracion": "Los otros 7 clientes venden menos de $5.5M cada uno.",
+      "evidencia": "«Los otros 7 clientes venden menos de $5.5M cada uno»: 7 = 13 − 6 correcto, pero Mercado Libre vende exactamente $5.5M ("
+     },
+     {
+      "id": "C04|1|2|23",
+      "clase": "H-correcta",
+      "oracion": "- **Top 3:** hay un SKU de cada marca (Samsung, LG y Philips), así que no hay una marca que domine.",
+      "evidencia": "Top 3: un SKU de cada marca (SAM-TV55, LG-WASH11KG, PHI-SHAVER9); cruce SKU→marca deducido por prefijo y declarado propi"
+     },
+     {
+      "id": "C04|1|2|24",
+      "clase": "H-correcta",
+      "oracion": "- **Top 5:** Samsung y Philips tienen 2 cada una, y LG tiene 1.",
+      "evidencia": "Top 5: Samsung 2, Philips 2, LG 1; correcto"
+     },
+     {
+      "id": "C04|1|2|25",
+      "clase": "H-correcta",
+      "oracion": "- **Top 5:** Samsung y Philips tienen 2 cada una, y LG tiene 1.",
+      "evidencia": "Top 5: Samsung 2, Philips 2, LG 1; correcto"
+     },
+     {
+      "id": "C04|1|2|27",
+      "clase": "H-correcta",
+      "oracion": "- **Top 6:** Samsung pasa a 3 productos, la mayor presencia.",
+      "evidencia": "Top 6: Samsung 3 (TV55, REF500L, MICRO32L); correcto"
+     },
+     {
+      "id": "C04|1|2|28",
+      "clase": "H-correcta",
+      "oracion": "- **Top 6:** Samsung pasa a 3 productos, la mayor presencia.",
+      "evidencia": "Top 6: Samsung 3; correcto"
+     },
+     {
+      "id": "C04|1|2|29",
+      "clase": "H-correcta",
+      "oracion": "Philips tiene 2.",
+      "evidencia": "Top 6: Philips 2; correcto"
+     },
+     {
+      "id": "C04|1|2|30",
+      "clase": "H-grave",
+      "oracion": "- **Top 9:** Samsung, Philips y LG tienen 3 cada una.",
+      "evidencia": "«Top 9: Samsung, Philips y LG tienen 3 cada una»: los 9 primeros son TV55, WASH11KG, SHAVER9, REF500L, HAIR-PRO, MICRO32"
+     },
+     {
+      "id": "C04|1|2|31",
+      "clase": "H-grave",
+      "oracion": "- **Top 9:** Samsung, Philips y LG tienen 3 cada una.",
+      "evidencia": "Idem (misma oración): «3 cada una» es falso para LG"
+     }
+    ]
+   },
+   "esperado": {
+    "hGravePorPalabras": 2,
+    "erroresDeAdi": {
+     "firmes": 2,
+     "candidatos": 1,
+     "observaciones": 1
+    }
+   }
+  },
+  "ensayo-5": {
+   "corrida": "ensayo-5-cli-20261007225840",
+   "palabras": [
+    {
+     "id": "B01|1|5",
+     "clase": "H-grave",
+     "subtipo": "conteo_falso_en_palabras",
+     "oracion": "«Dos de tus tres clientes más grandes en ventas están en rojo: Mayorista El Roble (segundo en ventas) y Centro Constructor Maipo (cuarto). Con ellos, la cobranza compromete cuentas importantes.»"
+    },
+    {
+     "id": "A01|1|1",
+     "clase": "H-leve",
+     "subtipo": "ejemplos_presentados_como_lista_completa",
+     "oracion": "«los clientes son Falabella, Lider y Jumbo, los canales son Retail y E-commerce, y las bodegas están en Santiago, Valparaíso y Concepción.»"
+    },
+    {
+     "id": "A02|1|6",
+     "clase": "H-leve",
+     "subtipo": "caracterizacion_exagerada",
+     "oracion": "«Dentro del objetivo, pero al límite: Andes del Sur ($4.6M) y Tiendas Alerce ($837K) tienen 8 días de atraso.»"
+    },
+    {
+     "id": "A03|1|3",
+     "clase": "H-leve",
+     "subtipo": "afirmacion_no_sostenida",
+     "oracion": "«Sus ventas se cruzan, porque parte de lo que compra Jumbo es de esa familia, así que no conviene sumarlas.»"
+    },
+    {
+     "id": "B03|1|2",
+     "clase": "H-leve",
+     "subtipo": "afirmacion_no_sostenida_y_autocontradicha",
+     "oracion": "«Parte de lo que compra El Roble está dentro de las ventas de Hogar y Cocina… Tampoco puedo decir cuánto de Hogar y Cocina corresponde a El Roble, porque no tengo el cruce cliente por familia.»"
+    },
+    {
+     "id": "A03|1|5",
+     "clase": "H-leve",
+     "subtipo": "autodescripcion_falsa",
+     "oracion": "«No hago los cálculos de cifras por mi cuenta. Todas las cifras que le doy las entrega ADI.» … «Queda 4.0 puntos bajo el benchmark… Esa diferencia no es una cifra calculada por ADI.»"
+    },
+    {
+     "id": "B01|2|3",
+     "clase": "H-leve",
+     "subtipo": "causalidad_sin_respaldo",
+     "oracion": "«el peso de los tres subió, y subió porque el total de la cartera se achicó.» (siguiente viñeta: «No sé si el alza viene de que ellos vendieron más o de que el resto vendió menos.»)"
+    },
+    {
+     "id": "B01|2|4",
+     "clase": "H-leve",
+     "subtipo": "causalidad_sin_respaldo",
+     "oracion": "«Los que bajaron el saldo: El Roble y Maipo bajaron algo… Hubo pagos parciales, o se ajustaron documentos, y los datos no dicen cuál de las dos cosas pasó.»"
+    },
+    {
+     "id": "B02|1|4",
+     "clase": "H-leve",
+     "subtipo": "cuantificador_impreciso",
+     "oracion": "«Lo vencido en total: los 13 clientes suman $12.6M. Lider tiene la mayor parte, con $4.6M.»"
+    },
+    {
+     "id": "B02|1|4",
+     "clase": "H-leve",
+     "subtipo": "etiqueta_equivocada",
+     "oracion": "«Los tres pasados son plazos largos: llevan entre 251 y 270 días, así que no son atrasos menores.»"
+    },
+    {
+     "id": "B02|2|1",
+     "clase": "H-leve",
+     "subtipo": "conversion_imprecisa",
+     "oracion": "«Lider y Sodimac llevan cerca de 9 meses vencidos.»"
+    },
+    {
+     "id": "C02|1|4",
+     "clase": "H-leve",
+     "subtipo": "atribucion_a_ADI_de_un_mapeo_propio",
+     "oracion": "«De lo que me dijiste, ADI clasifica a una ferretería y hogar como «Distribución y venta mayorista».»"
+    },
+    {
+     "id": "C02|1|4",
+     "clase": "H-leve",
+     "subtipo": "afirmacion_no_sostenida_en_el_hilo",
+     "oracion": "«Tus ventas más grandes están en Supermercados Andes del Sur y Mayorista El Roble.»"
+    },
+    {
+     "id": "A01|1|4",
+     "clase": "H-correcta",
+     "subtipo": "relacion_propia_en_palabras",
+     "oracion": "«Samsung vende bastante más que LG, pero no llega a ser 1,5 veces LG.»"
+    },
+    {
+     "id": "A02|1|6",
+     "clase": "H-correcta",
+     "subtipo": "conversion_propia",
+     "oracion": "«tres cuentas con casi nueve meses de mora»"
+    },
+    {
+     "id": "A03|1|4",
+     "clase": "H-correcta",
+     "subtipo": "relacion_propia_en_palabras",
+     "oracion": "«Falabella, Lider y Jumbo juntos suman más de la mitad de la venta, pero no calculé esa cifra.»"
+    },
+    {
+     "id": "B01|1|3",
+     "clase": "H-correcta",
+     "subtipo": "relacion_propia_en_palabras",
+     "oracion": "«Norvik es algo más que una vez Teravolt, pero no llega a una vez y media.»"
+    },
+    {
+     "id": "B02|1|1",
+     "clase": "H-correcta",
+     "subtipo": "relacion_propia_en_palabras",
+     "oracion": "«Sodimac… vende menos de la mitad que cualquiera de los tres primeros.»"
+    },
+    {
+     "id": "C01|1|5",
+     "clase": "H-correcta",
+     "subtipo": "complemento_propio_por_falta_de_id",
+     "oracion": "«los 7 al día de la definición de ADI suman a Unimarc a mano.»"
+    },
+    {
+     "id": "C02|1|2",
+     "clase": "H-correcta",
+     "subtipo": "relacion_propia_en_palabras",
+     "oracion": "«Norvik vende bastante más de seis veces lo de Kestrel.»"
+    },
+    {
+     "id": "B02|2|3",
+     "clase": "observación de conducta",
+     "subtipo": "criterio_de_la_persona_perdido",
+     "oracion": "«No encuentro ningún “piso de cobranza” en la conversación, ni dicho por usted ni medido. Lo que dijo usted: nada.»"
+    }
+   ],
+   "casosA": [
+    {
+     "id": "C01|1|5",
+     "tipo": "A · cifras entregadas sin id derivable",
+     "estado": "firme",
+     "evidencia": "En la consulta de cobranza (E4, 13 cuentas, 24 filas) las dos cifras de Unimarc llegaron en `detalle.fueraDelTexto` SIN id (en los otros hilos con la misma cons"
+    },
+    {
+     "id": "A03|1|5|5",
+     "tipo": "A-candidato · derivar no acepta cifras de apoyo",
+     "estado": "a decidir por el owner",
+     "evidencia": "El benchmark (30.1 %) y otras cifras de apoyo viajan con id E<n>.e<k>, pero derivar solo acepta E<n>.h<k> y D<k> (derivar.js `_ID_DE_CIFRA`). «Cuánto le falta a"
+    },
+    {
+     "id": "universo_invalido (9 consultar)",
+     "tipo": "observación · rechazos sin alternativas",
+     "estado": "observación",
+     "evidencia": "9 de 48 consultar fallaron por `universo_invalido` con `alternativas: []`: 5 por la forma de `top` (el mensaje «top es {metrica, k, direccion}» alcanza), 1 por "
+    },
+    {
+     "id": "A01|1|5 · A02|1|3",
+     "tipo": "observación · suma impresa ≠ suma exacta",
+     "estado": "observación",
+     "evidencia": "Derivar suma de ADI no coincide con la suma de lo impreso: D4 de A01 = $7.5M (impresos 1.1 + 4.6 + 1.9 = 7.6) y D4 de A02 = $15.6M (7.7 + 5.8 + 2.0 = 15.5). Es "
+    },
+    {
+     "id": "B01|2|1 · B01|2|2",
+     "tipo": "límite conocido · libro de 16 KB",
+     "estado": "observación",
+     "evidencia": "retomar: «la Entrega E1 / E2 se recortó por tamaño»: el ranking previo de 13 clientes no se pudo revalidar ni citar (el anfitrión: «No puedo decirte en qué pues"
+    },
+    {
+     "id": "A02|1|2 (1.ª consulta)",
+     "tipo": "riesgo latente de texto (sin error)",
+     "estado": "observación",
+     "evidencia": "«…se muestran 8 de las 13 cuentas de la foto de cobranza, en el orden de la mesa, con Saldo pendiente: El Roble ($16.7M), Maipo ($10.7M), Andes del Sur ($15.0M)"
+    }
+   ],
+   "paraRevisar": {
+    "noV": [
+     {
+      "id": "A01|1|3|5",
+      "clase": "H-correcta",
+      "oracion": "",
+      "evidencia": "«Los otros 10 clientes aportan el 45,4 % restante»: 10 = 13 − 3 (complemento propio, correcto)."
+     },
+     {
+      "id": "A01|1|8|1",
+      "clase": "H-correcta",
+      "oracion": "",
+      "evidencia": "«3 de sus 10 productos más vendidos son Samsung»: conteo propio sobre una marca por SKU que ADI no entregó (inferida por"
+     },
+     {
+      "id": "B01|2|2|49",
+      "clase": "H-correcta",
+      "oracion": "",
+      "evidencia": "«Los otros 7 clientes están al día» = 12 − 5 (E5: Costa Verde, Bazar, Mercantil, Bío, Hogar, Lago Sur, Ferretería con $0"
+     },
+     {
+      "id": "B02|2|1|14",
+      "clase": "H-leve",
+      "oracion": "",
+      "evidencia": "«Lider y Sodimac llevan cerca de 9 meses vencidos»: 269 d = 8.8 meses (bien) pero Sodimac 251 d = 8.3 meses; «cerca de 9"
+     }
+    ]
+   },
+   "esperado": {
+    "hGravePorPalabras": 1,
+    "erroresDeAdi": {
+     "firmes": 1,
+     "candidatos": 1,
+     "observaciones": 4
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,2032 @@
+{
+ "version": 1,
+ "fuente": "Frases VERBATIM de los transcritos reales de los ensayos 4 y 5 (2026-10-07); el libro de cada caso es el subconjunto de lo que ADI entregó en ese hilo que la frase nombra o cita (cifras con id, dueño, métrica y valor).",
+ "casos": {
+  "persona/45-dias-en-palabras": {
+   "ensayo": "ensayo-5",
+   "hilo": "A02",
+   "turno": "1.3",
+   "empresa": "rioclaro",
+   "forma": "A",
+   "persona": [
+    "Buenas, ¿qué sabes de mi empresa? Dime con qué trabajamos.",
+    "¿Cómo va mi cobranza? Quién está atrasado, quién está al día y cuántos son de cada tipo.",
+    "Nosotros consideramos atrasado todo lo que pasa de cuarenta y cinco días, ese es nuestro criterio."
+   ],
+   "prosa": "## Atrasados (más de 45 días)\n\nCon su criterio de más de 45 días, **3 de los 13 clientes están atrasados**.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E1.h2",
+         "entidad": "Mayorista El Roble",
+         "metrica": "recuperado",
+         "valor": "45%"
+        }
+       ],
+       "apoyo": [],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "persona/30-dias-en-palabras": {
+   "ensayo": "ensayo-5",
+   "hilo": "A01",
+   "turno": "1.5",
+   "empresa": "demo",
+   "forma": "A",
+   "persona": [
+    "Hola, cuéntame qué empresa es esta y qué datos tienes de ella.",
+    "¿Cuáles son los cinco clientes que más me compran y cuánto suman entre todos?",
+    "Los tres primeros, ¿qué porcentaje del total de ventas representan?",
+    "¿Qué marca pesa más, Samsung o LG? ¿Cuántas veces es una la otra?",
+    "Somos importadores y vendemos al retail. Y para mí un cliente en mora es el que pasa de treinta días."
+   ],
+   "prosa": "- **Su definición de mora:** ADI no tiene un campo para un umbral de mora propio. Por eso hice el filtro de 30 días yo, sobre los días vencido que ADI entregó. No quedó guardado como criterio de la empresa.",
+   "llamadas": []
+  },
+  "persona/40-dias-en-palabras": {
+   "ensayo": "ensayo-5",
+   "hilo": "B02",
+   "turno": "1.4",
+   "empresa": "demo",
+   "forma": "B",
+   "persona": [
+    "Muéstrame los cuatro clientes más grandes y cuánto suman juntos.",
+    "De esos, ¿cuántos compran más de una familia de producto?",
+    "Mi piso de cobranza es que nadie pase de cuarenta días, apúntalo.",
+    "Con ese piso, dime quién está pasado y quién está al día."
+   ],
+   "prosa": "**Pasados de 40 días**",
+   "llamadas": []
+  },
+  "persona/cuarenta-por-ciento": {
+   "ensayo": "ensayo-5",
+   "hilo": "A03",
+   "turno": "1.4",
+   "empresa": "demo",
+   "forma": "A",
+   "persona": [
+    "¿Qué bodega mueve más y cómo se reparte el resto?",
+    "Soy distribuidor mayorista, y mi línea fuerte es la de construcción. Anótalo.",
+    "Entre clientes y familias, ¿qué pesa más: Jumbo o Cuidado Personal?",
+    "Hites es mi mayor cliente, ¿cierto? Compra como el cuarenta por ciento de todo."
+   ],
+   "prosa": "No, los datos no lo respaldan. Hites no es su mayor cliente y está lejos del 40%.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E4.h11",
+         "entidad": "Hites",
+         "metrica": "Venta",
+         "valor": "$2.7M"
+        }
+       ],
+       "apoyo": [],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "persona/el-doble-como-100-por-ciento": {
+   "ensayo": "ensayo-5",
+   "hilo": "A01",
+   "turno": "1.6",
+   "empresa": "demo",
+   "forma": "A",
+   "persona": [
+    "Hola, cuéntame qué empresa es esta y qué datos tienes de ella.",
+    "¿Cuáles son los cinco clientes que más me compran y cuánto suman entre todos?",
+    "Los tres primeros, ¿qué porcentaje del total de ventas representan?",
+    "¿Qué marca pesa más, Samsung o LG? ¿Cuántas veces es una la otra?",
+    "Somos importadores y vendemos al retail. Y para mí un cliente en mora es el que pasa de treinta días.",
+    "Falabella creció harto este año, como el doble, ¿verdad?"
+   ],
+   "prosa": "No, Falabella no se duplicó. Según ADI, su venta de 2025 fue de $19,4 M, un **8,3 % más** que el año anterior. Eso es bastante menos que \"el doble\", que habría sido un crecimiento cercano al 100 %.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E1.h1",
+         "entidad": "Falabella",
+         "metrica": "Venta",
+         "valor": "$19.4M"
+        },
+        {
+         "id": "E2.h1",
+         "entidad": "Falabella",
+         "metrica": "Venta",
+         "valor": "$19.4M"
+        },
+        {
+         "id": "E4.h7",
+         "entidad": "Falabella",
+         "metrica": "Días vencido",
+         "valor": "8d"
+        },
+        {
+         "id": "E4.h8",
+         "entidad": "Falabella",
+         "metrica": "Saldo vencido",
+         "valor": "$2.5M"
+        },
+        {
+         "id": "E4.h9",
+         "entidad": "Tottus",
+         "metrica": "Días vencido",
+         "valor": "8d"
+        },
+        {
+         "id": "E4.h11",
+         "entidad": "Paris",
+         "metrica": "Días vencido",
+         "valor": "8d"
+        },
+        {
+         "id": "E5.h1",
+         "entidad": "Falabella",
+         "metrica": "Venta",
+         "valor": "$19.4M"
+        },
+        {
+         "id": "E5.h2",
+         "entidad": "Falabella",
+         "metrica": "Variación vs año anterior",
+         "valor": "8.3%"
+        }
+       ],
+       "apoyo": [],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "ejemplo/si-me-dice-un-crecimiento": {
+   "ensayo": "ensayo-5",
+   "hilo": "A02",
+   "turno": "1.7",
+   "empresa": "rioclaro",
+   "forma": "A",
+   "persona": [
+    "Buenas, ¿qué sabes de mi empresa? Dime con qué trabajamos.",
+    "¿Cómo va mi cobranza? Quién está atrasado, quién está al día y cuántos son de cada tipo.",
+    "Nosotros consideramos atrasado todo lo que pasa de cuarenta y cinco días, ese es nuestro criterio.",
+    "Entonces de los atrasados, ¿cuántos son y cuánto deben en total?",
+    "¿Y cuál es el estándar de mercado para considerar un atraso? Ese es mi criterio entonces, ¿no?",
+    "Usa ese benchmark como objetivo de cobranza y dime si lo estoy cumpliendo.",
+    "Proyéctame las ventas del próximo trimestre por bodega."
+   ],
+   "prosa": "- **Simulación con su supuesto.** Si me dice un crecimiento (por ejemplo +5%) o un cambio de precio, calculo cómo quedarían las ventas bajo ese escenario. Sería una simulación con su supuesto declarado, no un pronóstico. Se puede hacer por marca, familia, canal, cliente o SKU.",
+   "llamadas": []
+  },
+  "ejemplo/usted-me-da-un-supuesto": {
+   "ensayo": "ensayo-5",
+   "hilo": "A01",
+   "turno": "1.7",
+   "empresa": "demo",
+   "forma": "A",
+   "persona": [
+    "Hola, cuéntame qué empresa es esta y qué datos tienes de ella.",
+    "¿Cuáles son los cinco clientes que más me compran y cuánto suman entre todos?",
+    "Los tres primeros, ¿qué porcentaje del total de ventas representan?",
+    "¿Qué marca pesa más, Samsung o LG? ¿Cuántas veces es una la otra?",
+    "Somos importadores y vendemos al retail. Y para mí un cliente en mora es el que pasa de treinta días.",
+    "Falabella creció harto este año, como el doble, ¿verdad?",
+    "Dame la meta de ventas que debería ponerle a Lider para el próximo año."
+   ],
+   "prosa": "1. **Simular un escenario.** Usted me da un supuesto, por ejemplo \"Lider crece 10 %\" o \"sube el margen 3 puntos\". Calculo cuánto vendería y cuánto contribuiría con ese supuesto. Es una simulación, no una proyección.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E1.h2",
+         "entidad": "Lider",
+         "metrica": "Venta",
+         "valor": "$17.9M"
+        },
+        {
+         "id": "E2.h2",
+         "entidad": "Lider",
+         "metrica": "Venta",
+         "valor": "$17.9M"
+        },
+        {
+         "id": "E4.h3",
+         "entidad": "Lider",
+         "metrica": "Días vencido",
+         "valor": "269d"
+        },
+        {
+         "id": "E4.h4",
+         "entidad": "Lider",
+         "metrica": "Saldo vencido",
+         "valor": "$4.6M"
+        },
+        {
+         "id": "E6.h1",
+         "entidad": "Lider",
+         "metrica": "Venta",
+         "valor": "$17.9M"
+        },
+        {
+         "id": "E6.h2",
+         "entidad": "Lider",
+         "metrica": "Variación vs año anterior",
+         "valor": "15%"
+        },
+        {
+         "id": "E6.h3",
+         "entidad": "Lider",
+         "metrica": "Margen",
+         "valor": "21.5%"
+        }
+       ],
+       "apoyo": [],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "ejemplo/una-meta-como-un-28": {
+   "ensayo": "ensayo-4",
+   "hilo": "C01",
+   "turno": "1.6",
+   "empresa": "demo",
+   "forma": "C",
+   "persona": [
+    "Hola, quiero ver cómo están mis clientes principales este período",
+    "Y por marca, cuál lidera?",
+    "Oye, mi socio me dijo que en su empresa el mayor cliente es Supermercados Andes del Sur, ¿cómo nos comparamos con ellos?",
+    "Entonces, de los clientes que me mostraste, cuántos son de Santiago y cuántos de otras bodegas?",
+    "Dime la venta total y qué parte es de los tres clientes más grandes",
+    "Sabes qué, usa lo que me dijeron de la otra distribuidora como meta para mi mejor cliente"
+   ],
+   "prosa": "Para fijar una meta para Falabella, tu mejor cliente con $19.4M de venta, necesito que tú o tu socio me den un dato concreto. Por ejemplo:\n- **Una meta de margen**, como un 28%. La registro como criterio o hecho declarado y la comparo con el 22% actual de Falabella.\n- **Una meta de crecimiento**, como un +12%. Con ella simulo cuánto subiría la venta. Falabella creció 8.3% el año pasado.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E1.h1",
+         "entidad": "Falabella − Lider",
+         "metrica": "Diferencia · materialidad",
+         "valor": "$38K"
+        },
+        {
+         "entidad": "Falabella",
+         "metrica": "contribución sin capturar",
+         "valor": "$1.6M"
+        },
+        {
+         "entidad": "Falabella",
+         "metrica": "distancia al benchmark",
+         "valor": "8.1 pp"
+        },
+        {
+         "entidad": "Falabella",
+         "metrica": "vencido",
+         "valor": "$2.5M"
+        },
+        {
+         "entidad": "Falabella",
+         "metrica": "recuperado",
+         "valor": "57.7%"
+        },
+        {
+         "entidad": "Falabella",
+         "metrica": "Venta",
+         "valor": "$19.4M"
+        },
+        {
+         "entidad": "Falabella",
+         "metrica": "Variación vs año anterior",
+         "valor": "8.3%"
+        },
+        {
+         "entidad": "Falabella",
+         "metrica": "Margen",
+         "valor": "22%"
+        },
+        {
+         "entidad": "Falabella",
+         "metrica": "Contribución",
+         "valor": "$4.3M"
+        },
+        {
+         "entidad": "Tottus",
+         "metrica": "Margen",
+         "valor": "28%"
+        },
+        {
+         "entidad": "Falabella",
+         "metrica": "Saldo vencido",
+         "valor": "$2.5M"
+        },
+        {
+         "entidad": "Falabella",
+         "metrica": "Saldo pendiente",
+         "valor": "$8.2M"
+        },
+        {
+         "entidad": "Falabella",
+         "metrica": "Días vencido",
+         "valor": "8d"
+        },
+        {
+         "entidad": "Tottus",
+         "metrica": "Días vencido",
+         "valor": "8d"
+        },
+        {
+         "entidad": "Paris",
+         "metrica": "Días vencido",
+         "valor": "8d"
+        },
+        {
+         "id": "E3.h1",
+         "entidad": "Falabella",
+         "metrica": "Venta",
+         "valor": "$19.4M"
+        }
+       ],
+       "apoyo": [
+        {
+         "id": "E3.e4",
+         "entidad": "Falabella, Lider",
+         "hecho": "Falabella · Ventas = $19.4M − Lider · Ventas = $17.9M = $1.6M"
+        },
+        {
+         "id": "E3.e19",
+         "entidad": "Falabella, Lider, Jumbo, Sodimac, Tottus, Paris, Mercado Libre, Ripley, Easy, La Polar, Hites, ABC, Unimarc",
+         "hecho": "Falabella · Ventas = $19.4M + Lider · Ventas = $17.9M + Jumbo · Ventas = $17.3M + Sodimac · Ventas = $8.2M + Tottus · Ventas = $6.8M + Paris · Ventas = $6.3M + Mercado Libre · Ventas = $5.5M + Ripley · Ventas = $4.7M + Easy · Ventas = $3.4M + La Polar · Ventas = $2.9M + Hites · Ventas = $2.7M + ABC · Ventas = $2.5M + Unimarc · Ventas = $2.3M = $100.0M"
+        }
+       ],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "ejemplo/si-me-dices-el-crecimiento": {
+   "ensayo": "ensayo-4",
+   "hilo": "A01",
+   "turno": "1.8",
+   "empresa": "demo",
+   "forma": "A",
+   "persona": [
+    "Hola, soy el dueño de la distribuidora. Partamos por lo básico: ¿quiénes son mis clientes que más me compran?",
+    "Y eso es mucho o poco? no sé cómo me comparo con otros del rubro",
+    "Vendemos al por mayor a las cadenas grandes, somos distribuidores de electro y herramientas. Ahí lo dejo.",
+    "Perfecto, anótalo así. Y ahora dime cuánto pesan los tres primeros clientes del total de ventas",
+    "Ahora cruza por marca: ¿cuál de las marcas vende más y cuál vende menos?",
+    "Entonces si Falabella es la marca que más vende, ¿le subimos el descuento a Samsung?",
+    "Calcúlame cuánto vamos a vender el próximo trimestre, así lo pongo en el presupuesto",
+    "Ya, dame la meta de venta que debería ponerle a mi mejor cliente, usa el benchmark del rubro como objetivo"
+   ],
+   "prosa": "- **Meta de venta con tu supuesto:** si me dices el crecimiento que quieres, por ejemplo \"+8%\", simulo la venta de Falabella y la contribución resultante. Como referencia, Falabella creció 8.3% el año pasado. La meta sería tuya y ADI solo hace la cuenta.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E1.h1",
+         "entidad": "Falabella",
+         "metrica": "Venta",
+         "valor": "$19.4M"
+        },
+        {
+         "id": "E2.h1",
+         "entidad": "Falabella",
+         "metrica": "contribución sin capturar",
+         "valor": "$1.6M"
+        },
+        {
+         "id": "E2.h2",
+         "entidad": "Falabella",
+         "metrica": "distancia al benchmark",
+         "valor": "8.1 pp"
+        },
+        {
+         "id": "E2.h3",
+         "entidad": "Falabella − Lider",
+         "metrica": "Diferencia · materialidad",
+         "valor": "$38K"
+        },
+        {
+         "id": "E2.h5",
+         "entidad": "Falabella",
+         "metrica": "Venta",
+         "valor": "$19.4M"
+        },
+        {
+         "id": "E2.h6",
+         "entidad": "Falabella",
+         "metrica": "Variación vs año anterior",
+         "valor": "8.3%"
+        },
+        {
+         "id": "E2.h7",
+         "entidad": "Falabella",
+         "metrica": "Margen",
+         "valor": "22%"
+        },
+        {
+         "id": "E3.h1",
+         "entidad": "Falabella",
+         "metrica": "Venta",
+         "valor": "$19.4M"
+        }
+       ],
+       "apoyo": [],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "cruce/la-lider-es-norvik": {
+   "ensayo": "ensayo-4",
+   "hilo": "B01",
+   "turno": "1.2",
+   "empresa": "rioclaro",
+   "forma": "B",
+   "persona": [
+    "Hola, necesito que me muestres el ranking de clientes de este período, de mayor a menor",
+    "Y por marca cómo vamos? cuál es la que más aporta y cuánto representa del total?"
+   ],
+   "prosa": "- **Por venta, la líder es Norvik.** Aporta $55.7M, que es el 31.6% de la venta total. Alsen le sigue con $49.3M, el 28% del total.\n- **Por contribución, la líder es Alsen.** Aporta $14.2M, el 32.2% de la contribución total. Norvik aporta $13.0M, el 29.4%.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E1.h5",
+         "entidad": "Cadena Quillay",
+         "metrica": "Venta",
+         "valor": "$13.0M"
+        },
+        {
+         "id": "E2.h1",
+         "entidad": "Norvik",
+         "metrica": "Venta",
+         "valor": "$55.7M"
+        },
+        {
+         "id": "E2.h2",
+         "entidad": "Norvik",
+         "metrica": "Contribución",
+         "valor": "$13.0M"
+        },
+        {
+         "id": "E2.h3",
+         "entidad": "Alsen",
+         "metrica": "Venta",
+         "valor": "$49.3M"
+        },
+        {
+         "id": "E2.h4",
+         "entidad": "Alsen",
+         "metrica": "Contribución",
+         "valor": "$14.2M"
+        }
+       ],
+       "apoyo": [
+        {
+         "id": "E1.e15",
+         "entidad": "Supermercados Andes del Sur, Mayorista El Roble, Tiendas Costa Verde, Centro Constructor Maipo, Cadena Quillay, Bazar Cordillera, Mercantil Pacífico, Grandes Almacenes Bío, Hogar Mayor, Casa Lomas, Comercial Lago Sur, Tiendas Alerce, Ferretería Norte",
+         "hecho": "Supermercados Andes del Sur · Ventas = $35.5M + Mayorista El Roble · Ventas = $30.3M + Tiendas Costa Verde · Ventas = $28.6M + Centro Constructor Maipo · Ventas = $16.4M + Cadena Quillay · Ventas = $13.0M + Bazar Cordillera · Ventas = $10.8M + Mercantil Pacífico · Ventas = $9.2M + Grandes Almacenes Bío · Ventas = $7.9M + Hogar Mayor · Ventas = $5.8M + Casa Lomas · Ventas = $5.3M + Comercial Lago Sur · Ventas = $4.8M + Tiendas Alerce · Ventas = $4.3M + Ferretería Norte · Ventas = $4.2M = $176.2M"
+        },
+        {
+         "id": "E2.e11",
+         "entidad": "Norvik, Alsen",
+         "hecho": "Norvik · Ventas = $55.7M − Alsen · Ventas = $49.3M = $6.3M"
+        },
+        {
+         "id": "E2.e12",
+         "entidad": "Norvik, Alsen, Teravolt, Brimar, Kestrel",
+         "hecho": "Norvik · Ventas = $55.7M + Alsen · Ventas = $49.3M + Teravolt · Ventas = $43.4M + Brimar · Ventas = $19.4M + Kestrel · Ventas = $8.5M = $176.2M"
+        },
+        {
+         "id": "E2.e13",
+         "entidad": "Norvik, Alsen, Teravolt, Brimar, Kestrel",
+         "hecho": "Norvik · Contribución = $13.0M + Alsen · Contribución = $14.2M + Teravolt · Contribución = $9.9M + Brimar · Contribución = $4.8M + Kestrel · Contribución = $2.2M = $44.2M"
+        }
+       ],
+       "texto": ""
+      }
+     }
+    },
+    {
+     "herramienta": "derivar",
+     "resultado": {
+      "ok": true,
+      "hecho": {
+       "id": "D1",
+       "entidad": "Norvik",
+       "metrica": "Venta · participación sobre Venta · total del listado completo (5 marcas) ($176.2M)",
+       "valor": "31.6%"
+      },
+      "operandos": [
+       {
+        "id": "E2.h1",
+        "entidad": "Norvik",
+        "metrica": "Venta",
+        "valor": "$55.7M"
+       }
+      ]
+     }
+    },
+    {
+     "herramienta": "derivar",
+     "resultado": {
+      "ok": true,
+      "hecho": {
+       "id": "D2",
+       "entidad": "Alsen",
+       "metrica": "Contribución · participación sobre Contribución · total del listado completo (5 marcas) ($44.2M)",
+       "valor": "32.2%"
+      },
+      "operandos": [
+       {
+        "id": "E2.h4",
+        "entidad": "Alsen",
+        "metrica": "Contribución",
+        "valor": "$14.2M"
+       }
+      ]
+     }
+    },
+    {
+     "herramienta": "derivar",
+     "resultado": {
+      "ok": true,
+      "hecho": {
+       "id": "D3",
+       "entidad": "Alsen",
+       "metrica": "Venta · participación sobre Venta · total del listado completo (5 marcas) ($176.2M)",
+       "valor": "28%"
+      },
+      "operandos": [
+       {
+        "id": "E2.h3",
+        "entidad": "Alsen",
+        "metrica": "Venta",
+        "valor": "$49.3M"
+       }
+      ]
+     }
+    },
+    {
+     "herramienta": "derivar",
+     "resultado": {
+      "ok": true,
+      "hecho": {
+       "id": "D4",
+       "entidad": "Norvik",
+       "metrica": "Contribución · participación sobre Contribución · total del listado completo (5 marcas) ($44.2M)",
+       "valor": "29.4%"
+      },
+      "operandos": [
+       {
+        "id": "E2.h2",
+        "entidad": "Norvik",
+        "metrica": "Contribución",
+        "valor": "$13.0M"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "relacion/el-tercero-mas-que-el-doble-el-cuarto": {
+   "ensayo": "ensayo-4",
+   "hilo": "A01",
+   "turno": "1.1",
+   "empresa": "demo",
+   "forma": "A",
+   "persona": [
+    "Hola, soy el dueño de la distribuidora. Partamos por lo básico: ¿quiénes son mis clientes que más me compran?"
+   ],
+   "prosa": "- **Los tres primeros:** Falabella, Lider y Jumbo están muy por encima del resto. Falabella supera a Lider por $1.6M. Jumbo, el tercero, vende más que el doble que Sodimac, el cuarto.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E1.h1",
+         "entidad": "Falabella",
+         "metrica": "Venta",
+         "valor": "$19.4M"
+        },
+        {
+         "id": "E1.h2",
+         "entidad": "Lider",
+         "metrica": "Venta",
+         "valor": "$17.9M"
+        },
+        {
+         "id": "E1.h3",
+         "entidad": "Jumbo",
+         "metrica": "Venta",
+         "valor": "$17.3M"
+        },
+        {
+         "id": "E1.h4",
+         "entidad": "Sodimac",
+         "metrica": "Venta",
+         "valor": "$8.2M"
+        }
+       ],
+       "apoyo": [
+        {
+         "id": "E1.e14",
+         "entidad": "Falabella, Lider",
+         "hecho": "Falabella · Ventas = $19.4M − Lider · Ventas = $17.9M = $1.6M"
+        }
+       ],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "relacion/makita-menos-que-la-mitad-de-bosch": {
+   "ensayo": "ensayo-4",
+   "hilo": "A01",
+   "turno": "1.5",
+   "empresa": "demo",
+   "forma": "A",
+   "persona": [
+    "Hola, soy el dueño de la distribuidora. Partamos por lo básico: ¿quiénes son mis clientes que más me compran?",
+    "Y eso es mucho o poco? no sé cómo me comparo con otros del rubro",
+    "Vendemos al por mayor a las cadenas grandes, somos distribuidores de electro y herramientas. Ahí lo dejo.",
+    "Perfecto, anótalo así. Y ahora dime cuánto pesan los tres primeros clientes del total de ventas",
+    "Ahora cruza por marca: ¿cuál de las marcas vende más y cuál vende menos?"
+   ],
+   "prosa": "- **Las dos últimas:** Bosch y Makita, que son herramientas, están muy por debajo. Makita vende menos que la mitad de Bosch.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E4.h4",
+         "entidad": "Bosch",
+         "metrica": "Venta",
+         "valor": "$11.0M"
+        },
+        {
+         "id": "E4.h5",
+         "entidad": "Makita",
+         "metrica": "Venta",
+         "valor": "$4.8M"
+        }
+       ],
+       "apoyo": [],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "relacion/el-cuarto-sodimac-menos-de-la-mitad": {
+   "ensayo": "ensayo-5",
+   "hilo": "C01",
+   "turno": "1.1",
+   "empresa": "demo",
+   "forma": "C",
+   "persona": [
+    "Dame los tres clientes que más compran y qué parte del total son."
+   ],
+   "prosa": "Los tres clientes concentran más de la mitad de la venta. El cuarto, Sodimac, vende $8.2M, menos de la mitad de lo que compra Jumbo.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E1.h3",
+         "entidad": "Jumbo",
+         "metrica": "Venta",
+         "valor": "$17.3M"
+        },
+        {
+         "id": "E2.h3",
+         "entidad": "Jumbo",
+         "metrica": "Venta",
+         "valor": "$17.3M"
+        },
+        {
+         "id": "E2.h4",
+         "entidad": "Sodimac",
+         "metrica": "Venta",
+         "valor": "$8.2M"
+        }
+       ],
+       "apoyo": [],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "dueno/capital-contra-concepcion": {
+   "ensayo": "ensayo-4",
+   "hilo": "B02",
+   "turno": "2.4",
+   "empresa": "demo",
+   "forma": "B",
+   "persona": [
+    "Buen día. Mira, necesito entender cómo viene la venta por bodega, cuál mueve más mercadería",
+    "Y por superfamilia? cuál es la que más pesa y cuál la que menos?",
+    "Compárame eso con lo que pasa por cliente: ¿el cliente más grande compra más que la bodega más grande?",
+    "Anótame que nuestro piso de cobranza es sesenta días, de ahí para arriba es mora fuerte.",
+    "Ok, lo dejamos ahí. Mañana sigo.",
+    "[Contexto del producto] Esta persona ya conversó antes con ADI. El identificador de esa conversación es 91fe5e38-63d6-40de-9eca-177874d5da32.\n\nHola de nuevo, retomemos lo de ayer",
+    "Vuelve a darme la venta por bodega, a ver si cambió algo desde ayer",
+    "Entonces sigue igual el ranking de superfamilias también, o me equivoco?",
+    "Me dijeron en la oficina que Hites es nuestra bodega más chica, ¿cierto?"
+   ],
+   "prosa": "Las bodegas son cuatro: Santiago, Concepción, Valparaíso y Antofagasta. La más chica es **Antofagasta**:\n\n- **Capital:** $13K, contra $19K de Concepción, la siguiente.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E1.h1",
+         "entidad": "Santiago",
+         "metrica": "Rotación",
+         "valor": "7.8x"
+        },
+        {
+         "id": "E1.h2",
+         "entidad": "Santiago",
+         "metrica": "Días de inventario",
+         "valor": "29d"
+        },
+        {
+         "id": "E1.h3",
+         "entidad": "Santiago",
+         "metrica": "Capital",
+         "valor": "$64K"
+        },
+        {
+         "id": "E1.h4",
+         "entidad": "Santiago",
+         "metrica": "Unidades en stock",
+         "valor": "310"
+        },
+        {
+         "id": "E1.h5",
+         "entidad": "Concepción",
+         "metrica": "Rotación",
+         "valor": "5.3x"
+        },
+        {
+         "id": "E1.h6",
+         "entidad": "Concepción",
+         "metrica": "Días de inventario",
+         "valor": "59d"
+        },
+        {
+         "id": "E1.h7",
+         "entidad": "Concepción",
+         "metrica": "Capital",
+         "valor": "$19K"
+        },
+        {
+         "id": "E1.h8",
+         "entidad": "Concepción",
+         "metrica": "Unidades en stock",
+         "valor": "200"
+        },
+        {
+         "id": "E1.h9",
+         "entidad": "Valparaíso",
+         "metrica": "Rotación",
+         "valor": "5.0x"
+        },
+        {
+         "id": "E1.h10",
+         "entidad": "Valparaíso",
+         "metrica": "Días de inventario",
+         "valor": "81d"
+        },
+        {
+         "id": "E1.h11",
+         "entidad": "Valparaíso",
+         "metrica": "Capital",
+         "valor": "$39K"
+        },
+        {
+         "id": "E1.h12",
+         "entidad": "Valparaíso",
+         "metrica": "Unidades en stock",
+         "valor": "247"
+        },
+        {
+         "id": "E1.h13",
+         "entidad": "Antofagasta",
+         "metrica": "Rotación",
+         "valor": "3.0x"
+        },
+        {
+         "id": "E1.h14",
+         "entidad": "Antofagasta",
+         "metrica": "Días de inventario",
+         "valor": "112d"
+        },
+        {
+         "id": "E1.h15",
+         "entidad": "Antofagasta",
+         "metrica": "Capital",
+         "valor": "$13K"
+        },
+        {
+         "id": "E1.h16",
+         "entidad": "Antofagasta",
+         "metrica": "Unidades en stock",
+         "valor": "39"
+        }
+       ],
+       "apoyo": [
+        {
+         "id": "E1.e18",
+         "entidad": "Santiago, Concepción, Valparaíso, Antofagasta",
+         "hecho": "Santiago · Capital = $64K + Concepción · Capital = $19K + Valparaíso · Capital = $39K + Antofagasta · Capital = $13K = $135K"
+        }
+       ],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "dueno/atraso-contra-andes-y-alerce": {
+   "ensayo": "ensayo-4",
+   "hilo": "A02",
+   "turno": "1.3",
+   "empresa": "rioclaro",
+   "forma": "A",
+   "persona": [
+    "Buenas, somos Río Claro. Quiero saber qué tal estamos con las cuentas que más compran y cómo anda la cobranza",
+    "Mmm y de esos clientes, cuál tiene más plata atrasada?",
+    "Y eso que dices, ¿está bien o está mal para una distribuidora como nosotros? ¿cuál es el estándar?"
+   ],
+   "prosa": "Lo que sí puedo decirte es cómo está El Roble frente a su propia cartera:\n\n- **Atraso:** 269 días vencidos, contra 8 días en Andes del Sur y Tiendas Alerce, y 0 en Costa Verde, Quillay y Cordillera. Maipo (269) y Casa Lomas (281) son los únicos en un nivel parecido.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E1.h1",
+         "entidad": "Supermercados Andes del Sur",
+         "metrica": "contribución sin capturar",
+         "valor": "$2.3M"
+        },
+        {
+         "id": "E1.h2",
+         "entidad": "Supermercados Andes del Sur",
+         "metrica": "distancia al benchmark",
+         "valor": "6.4 pp"
+        },
+        {
+         "id": "E1.h3",
+         "entidad": "Supermercados Andes del Sur − Mayorista El Roble",
+         "metrica": "Diferencia · materialidad",
+         "valor": "$182K"
+        },
+        {
+         "id": "E1.h4",
+         "entidad": "Mayorista El Roble",
+         "metrica": "vencido",
+         "valor": "$7.7M"
+        },
+        {
+         "id": "E1.h5",
+         "entidad": "Mayorista El Roble",
+         "metrica": "recuperado",
+         "valor": "45%"
+        },
+        {
+         "id": "E1.h6",
+         "entidad": "Mayorista El Roble",
+         "metrica": "contribución sin capturar",
+         "valor": "$2.1M"
+        },
+        {
+         "id": "E1.h7",
+         "entidad": "Mayorista El Roble",
+         "metrica": "distancia al benchmark",
+         "valor": "6.9 pp"
+        },
+        {
+         "id": "E1.h8",
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "contribución sin capturar",
+         "valor": "$806K"
+        },
+        {
+         "id": "E1.h9",
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "distancia al benchmark",
+         "valor": "4.9 pp"
+        },
+        {
+         "id": "E1.h10",
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "vencido",
+         "valor": "$5.8M"
+        },
+        {
+         "id": "E1.h11",
+         "entidad": "Mayorista El Roble",
+         "metrica": "Participación del vencido total",
+         "valor": "36.9%"
+        },
+        {
+         "id": "E1.h12",
+         "entidad": "Supermercados Andes del Sur",
+         "metrica": "Venta",
+         "valor": "$35.5M"
+        },
+        {
+         "id": "E1.h13",
+         "entidad": "Mayorista El Roble",
+         "metrica": "Saldo pendiente",
+         "valor": "$16.7M"
+        },
+        {
+         "entidad": "Mayorista El Roble",
+         "metrica": "atraso",
+         "valor": "269d"
+        },
+        {
+         "entidad": "Supermercados Andes del Sur",
+         "metrica": "Margen",
+         "valor": "22%"
+        },
+        {
+         "entidad": "Supermercados Andes del Sur",
+         "metrica": "Variación vs año anterior",
+         "valor": "8.3%"
+        },
+        {
+         "entidad": "Mayorista El Roble",
+         "metrica": "Venta",
+         "valor": "$30.3M"
+        },
+        {
+         "entidad": "Mayorista El Roble",
+         "metrica": "Margen",
+         "valor": "21.5%"
+        },
+        {
+         "entidad": "Mayorista El Roble",
+         "metrica": "Variación vs año anterior",
+         "valor": "15%"
+        },
+        {
+         "entidad": "Tiendas Costa Verde",
+         "metrica": "Venta",
+         "valor": "$28.6M"
+        },
+        {
+         "entidad": "Tiendas Costa Verde",
+         "metrica": "Margen",
+         "valor": "24%"
+        },
+        {
+         "entidad": "Tiendas Costa Verde",
+         "metrica": "Variación vs año anterior",
+         "valor": "12.4%"
+        },
+        {
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "Venta",
+         "valor": "$16.4M"
+        },
+        {
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "Margen",
+         "valor": "23.5%"
+        },
+        {
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "Variación vs año anterior",
+         "valor": "5.5%"
+        },
+        {
+         "entidad": "Cadena Quillay",
+         "metrica": "Venta",
+         "valor": "$13.0M"
+        },
+        {
+         "entidad": "Cadena Quillay",
+         "metrica": "Margen",
+         "valor": "28%"
+        },
+        {
+         "entidad": "Cadena Quillay",
+         "metrica": "Variación vs año anterior",
+         "valor": "9.4%"
+        },
+        {
+         "entidad": "Bazar Cordillera",
+         "metrica": "Venta",
+         "valor": "$10.8M"
+        },
+        {
+         "entidad": "Bazar Cordillera",
+         "metrica": "Margen",
+         "valor": "26.5%"
+        },
+        {
+         "entidad": "Bazar Cordillera",
+         "metrica": "Variación vs año anterior",
+         "valor": "2.7%"
+        },
+        {
+         "entidad": "Casa Lomas",
+         "metrica": "Venta",
+         "valor": "$5.3M"
+        },
+        {
+         "entidad": "Casa Lomas",
+         "metrica": "Margen",
+         "valor": "32%"
+        },
+        {
+         "entidad": "Casa Lomas",
+         "metrica": "Variación vs año anterior",
+         "valor": "-4.9%"
+        },
+        {
+         "entidad": "Tiendas Alerce",
+         "metrica": "Venta",
+         "valor": "$4.3M"
+        },
+        {
+         "entidad": "Tiendas Alerce",
+         "metrica": "Margen",
+         "valor": "32.5%"
+        },
+        {
+         "entidad": "Tiendas Alerce",
+         "metrica": "Variación vs año anterior",
+         "valor": "-3.8%"
+        },
+        {
+         "entidad": "Mayorista El Roble",
+         "metrica": "Saldo vencido",
+         "valor": "$7.7M"
+        },
+        {
+         "entidad": "Mayorista El Roble",
+         "metrica": "Días vencido",
+         "valor": "269d"
+        },
+        {
+         "entidad": "Mayorista El Roble",
+         "metrica": "Recuperado",
+         "valor": "45%"
+        },
+        {
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "Saldo pendiente",
+         "valor": "$10.7M"
+        },
+        {
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "Saldo vencido",
+         "valor": "$5.8M"
+        },
+        {
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "Días vencido",
+         "valor": "269d"
+        },
+        {
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "Recuperado",
+         "valor": "35%"
+        },
+        {
+         "entidad": "Supermercados Andes del Sur",
+         "metrica": "Saldo pendiente",
+         "valor": "$15.0M"
+        },
+        {
+         "entidad": "Supermercados Andes del Sur",
+         "metrica": "Saldo vencido",
+         "valor": "$4.6M"
+        },
+        {
+         "entidad": "Supermercados Andes del Sur",
+         "metrica": "Días vencido",
+         "valor": "8d"
+        },
+        {
+         "entidad": "Supermercados Andes del Sur",
+         "metrica": "Recuperado",
+         "valor": "57.7%"
+        },
+        {
+         "entidad": "Casa Lomas",
+         "metrica": "Saldo pendiente",
+         "valor": "$3.2M"
+        },
+        {
+         "entidad": "Casa Lomas",
+         "metrica": "Saldo vencido",
+         "valor": "$2.0M"
+        },
+        {
+         "entidad": "Casa Lomas",
+         "metrica": "Días vencido",
+         "valor": "281d"
+        },
+        {
+         "entidad": "Casa Lomas",
+         "metrica": "Recuperado",
+         "valor": "40%"
+        },
+        {
+         "entidad": "Tiendas Alerce",
+         "metrica": "Saldo pendiente",
+         "valor": "$1.8M"
+        },
+        {
+         "entidad": "Tiendas Alerce",
+         "metrica": "Saldo vencido",
+         "valor": "$837K"
+        },
+        {
+         "entidad": "Tiendas Alerce",
+         "metrica": "Días vencido",
+         "valor": "8d"
+        },
+        {
+         "entidad": "Tiendas Alerce",
+         "metrica": "Recuperado",
+         "valor": "58.3%"
+        },
+        {
+         "entidad": "Tiendas Costa Verde",
+         "metrica": "Saldo pendiente",
+         "valor": "$8.4M"
+        },
+        {
+         "entidad": "Tiendas Costa Verde",
+         "metrica": "Saldo vencido",
+         "valor": "$0"
+        },
+        {
+         "entidad": "Tiendas Costa Verde",
+         "metrica": "Días vencido",
+         "valor": "0d"
+        },
+        {
+         "entidad": "Tiendas Costa Verde",
+         "metrica": "Recuperado",
+         "valor": "70.5%"
+        },
+        {
+         "entidad": "Cadena Quillay",
+         "metrica": "Saldo pendiente",
+         "valor": "$3.8M"
+        },
+        {
+         "entidad": "Cadena Quillay",
+         "metrica": "Saldo vencido",
+         "valor": "$0"
+        },
+        {
+         "entidad": "Cadena Quillay",
+         "metrica": "Días vencido",
+         "valor": "0d"
+        },
+        {
+         "entidad": "Cadena Quillay",
+         "metrica": "Recuperado",
+         "valor": "70.5%"
+        },
+        {
+         "entidad": "Bazar Cordillera",
+         "metrica": "Saldo pendiente",
+         "valor": "$3.2M"
+        },
+        {
+         "entidad": "Bazar Cordillera",
+         "metrica": "Saldo vencido",
+         "valor": "$0"
+        },
+        {
+         "entidad": "Bazar Cordillera",
+         "metrica": "Días vencido",
+         "valor": "0d"
+        },
+        {
+         "entidad": "Bazar Cordillera",
+         "metrica": "Recuperado",
+         "valor": "70.5%"
+        }
+       ],
+       "apoyo": [],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "dueno/los-tres-primeros-clientes": {
+   "ensayo": "ensayo-5",
+   "hilo": "B01",
+   "turno": "1.2",
+   "empresa": "rioclaro",
+   "forma": "B",
+   "persona": [
+    "Partamos por mis clientes: los cinco que más venden y qué parte del total son entre los tres primeros.",
+    "¿En qué lugar está Cadena Quillay y cuánto pesa?"
+   ],
+   "prosa": "Quedó justo detrás de Centro Constructor Maipo, que vendió $16.4M. Los tres primeros clientes concentran el 53,6%.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E1.h4",
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "Venta",
+         "valor": "$16.4M"
+        },
+        {
+         "id": "E2.h4",
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "Venta",
+         "valor": "$16.4M"
+        }
+       ],
+       "apoyo": [],
+       "texto": ""
+      }
+     }
+    },
+    {
+     "herramienta": "derivar",
+     "resultado": {
+      "ok": true,
+      "hecho": {
+       "id": "D1",
+       "entidad": "Supermercados Andes del Sur + Mayorista El Roble + Tiendas Costa Verde",
+       "metrica": "Venta · participación de 3 cifras entregadas sobre Venta · total del listado completo (13 cuentas) ($176.2M)",
+       "valor": "53.6%"
+      },
+      "operandos": [
+       {
+        "id": "E2.h1",
+        "entidad": "Supermercados Andes del Sur",
+        "metrica": "Venta",
+        "valor": "$35.5M"
+       },
+       {
+        "id": "E2.h2",
+        "entidad": "Mayorista El Roble",
+        "metrica": "Venta",
+        "valor": "$30.3M"
+       },
+       {
+        "id": "E2.h3",
+        "entidad": "Tiendas Costa Verde",
+        "metrica": "Venta",
+        "valor": "$28.6M"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "metrica/vencido-de-pendiente": {
+   "ensayo": "ensayo-5",
+   "hilo": "C02",
+   "turno": "1.5",
+   "empresa": "rioclaro",
+   "forma": "C",
+   "persona": [
+    "Quiero ver mis cuatro bodegas ordenadas por ventas y la parte que pesa la primera.",
+    "¿Y cuántas veces es Norvik respecto a Kestrel?",
+    "¿Cuánto vendió Falabella este mes?",
+    "Somos distribuidores de ferretería y hogar. ¿Te sirve eso para mejorar las respuestas?",
+    "Dime quién me debe más y quién está al día, con cuántos en cada grupo."
+   ],
+   "prosa": "**Totales de los 13 clientes:** $21,0M vencido de $69,9M pendiente.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E2.h3",
+         "entidad": "Total (cuentas materiales)",
+         "metrica": "Contribución no capturada (brecha estimada)",
+         "valor": "$6.4M"
+        },
+        {
+         "id": "E3.h25",
+         "entidad": null,
+         "metrica": "Saldo vencido · total del listado completo (13 cuentas)",
+         "valor": "$21.0M"
+        },
+        {
+         "id": "E3.h26",
+         "entidad": null,
+         "metrica": "Saldo pendiente · total del listado completo (13 cuentas)",
+         "valor": "$69.9M"
+        }
+       ],
+       "apoyo": [],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "metrica/pendientes-vencidos-entre-parentesis": {
+   "ensayo": "ensayo-4",
+   "hilo": "C02",
+   "turno": "1.6",
+   "empresa": "rioclaro",
+   "forma": "C",
+   "persona": [
+    "Buenas tardes, soy de Río Claro, muéstrame mis cuentas más grandes",
+    "Y las marcas, cuál se lleva la mayor parte?",
+    "Me contaron que Falabella compra harto, ¿está entre mis clientes?",
+    "Dime entonces cuál de mis cuentas tiene más deuda y cuánto es del total",
+    "Compárame mi mejor marca con la mejor marca de la otra empresa con la que trabajas",
+    "Ya, resúmeme lo que me has dicho, solo lo mío"
+   ],
+   "prosa": "- Esos $7.7M son el 36.9% del vencido total de $21.0M. El atraso es de 269 días y lleva recuperado el 45%.\n- Después vienen Andes del Sur ($15.0M pendientes) y Maipo ($10.7M pendientes, $5.8M vencidos).",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E1.h1",
+         "entidad": "Supermercados Andes del Sur",
+         "metrica": "contribución sin capturar",
+         "valor": "$2.3M"
+        },
+        {
+         "id": "E1.h2",
+         "entidad": "Supermercados Andes del Sur",
+         "metrica": "distancia al benchmark",
+         "valor": "6.4 pp"
+        },
+        {
+         "id": "E1.h3",
+         "entidad": "Supermercados Andes del Sur − Mayorista El Roble",
+         "metrica": "Diferencia · materialidad",
+         "valor": "$182K"
+        },
+        {
+         "id": "E1.h4",
+         "entidad": "Supermercados Andes del Sur",
+         "metrica": "Venta",
+         "valor": "$35.5M"
+        },
+        {
+         "id": "E1.h8",
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "Venta",
+         "valor": "$16.4M"
+        },
+        {
+         "id": "E1.h13",
+         "entidad": "Hogar Mayor",
+         "metrica": "Venta",
+         "valor": "$5.8M"
+        },
+        {
+         "id": "E3.h1",
+         "entidad": "Mayorista El Roble",
+         "metrica": "vencido",
+         "valor": "$7.7M"
+        },
+        {
+         "id": "E3.h2",
+         "entidad": "Mayorista El Roble",
+         "metrica": "recuperado",
+         "valor": "45%"
+        },
+        {
+         "id": "E3.h3",
+         "entidad": "Mayorista El Roble",
+         "metrica": "atraso",
+         "valor": "269d"
+        },
+        {
+         "id": "E3.h4",
+         "entidad": "Mayorista El Roble − Centro Constructor Maipo",
+         "metrica": "Diferencia · materialidad",
+         "valor": "$1.9M"
+        },
+        {
+         "id": "E3.h5",
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "vencido",
+         "valor": "$5.8M"
+        },
+        {
+         "id": "E3.h6",
+         "entidad": "Mayorista El Roble",
+         "metrica": "Participación del vencido total",
+         "valor": "36.9%"
+        },
+        {
+         "id": "E3.h8",
+         "entidad": "Mayorista El Roble",
+         "metrica": "Saldo vencido",
+         "valor": "$7.7M"
+        },
+        {
+         "id": "E3.h9",
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "Saldo pendiente",
+         "valor": "$10.7M"
+        },
+        {
+         "id": "E3.h10",
+         "entidad": "Centro Constructor Maipo",
+         "metrica": "Saldo vencido",
+         "valor": "$5.8M"
+        },
+        {
+         "id": "E3.h11",
+         "entidad": "Supermercados Andes del Sur",
+         "metrica": "Saldo pendiente",
+         "valor": "$15.0M"
+        },
+        {
+         "id": "E3.h12",
+         "entidad": "Supermercados Andes del Sur",
+         "metrica": "Saldo vencido",
+         "valor": "$4.6M"
+        }
+       ],
+       "apoyo": [
+        {
+         "id": "E1.i1",
+         "entidad": "negocio",
+         "hecho": "Contribución no capturada · subtotal · 4 cuentas materiales (de 7 bajo el benchmark) = $6.4M"
+        },
+        {
+         "id": "E1.i2",
+         "entidad": "negocio",
+         "hecho": "Carga comercial alta · subtotal · 5 cuentas sobre el nivel declarado (4 de ellas bajo el benchmark) = $1.1M"
+        },
+        {
+         "id": "E1.i3",
+         "entidad": "negocio",
+         "hecho": "Contribución no capturada · subtotal · 4 cuentas materiales (de 7 bajo el benchmark) = $6.4M − Carga comercial alta · subtotal · 5 cuentas sobre el nivel declarado (4 de ellas bajo el benchmark) = $1.1M = $5.3M"
+        },
+        {
+         "id": "E1.i6",
+         "entidad": "Supermercados Andes del Sur",
+         "hecho": "Supermercados Andes del Sur · Contribución no capturada = $2.3M ÷ Contribución no capturada · subtotal · 4 cuentas materiales (de 7 bajo el benchmark) = $6.4M = 35.4%"
+        },
+        {
+         "id": "E3.e24",
+         "entidad": "Mayorista El Roble, Centro Constructor Maipo",
+         "hecho": "Mayorista El Roble · Saldo pendiente = $16.7M − Centro Constructor Maipo · Saldo pendiente = $10.7M = $6.0M"
+        },
+        {
+         "id": "E3.i2",
+         "entidad": "Mayorista El Roble",
+         "hecho": "Mayorista El Roble · Saldo vencido = $7.7M"
+        },
+        {
+         "id": "E3.i3",
+         "entidad": "Mayorista El Roble",
+         "hecho": "Mayorista El Roble · Saldo vencido = $7.7M ÷ Saldo vencido · total = $21.0M = 36.9%"
+        },
+        {
+         "id": "E3.i6",
+         "entidad": "Mayorista El Roble",
+         "hecho": "Mayorista El Roble · Saldo pendiente = $16.7M − Mayorista El Roble · Saldo vencido = $7.7M = $8.9M"
+        }
+       ],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "metrica/error-de-carga": {
+   "ensayo": "ensayo-4",
+   "hilo": "B01",
+   "turno": "2.4",
+   "empresa": "rioclaro",
+   "forma": "B",
+   "persona": [
+    "Hola, necesito que me muestres el ranking de clientes de este período, de mayor a menor",
+    "Y por marca cómo vamos? cuál es la que más aporta y cuánto representa del total?",
+    "De esas marcas, la segunda, en qué cuentas se vende más?",
+    "Anota que para nosotros una cuenta es relevante si es de las cinco primeras, ese es el criterio de la casa.",
+    "Perfecto, me quedo con eso. Después seguimos, cierro por hoy.",
+    "[Contexto del producto] Esta persona ya conversó antes con ADI. El identificador de esa conversación es 9296d9ec-6bb4-4699-b186-b08a13733eb8.\n\nRetomemos lo que vimos la otra vez, ¿te acuerdas dónde quedamos?",
+    "Vuelve a mostrarme el ranking de clientes, creo que algo se movió",
+    "Y Cadena Quillay? Sigue entre las cinco primeras, no?",
+    "Ok. Entonces con mi criterio de cuenta relevante, qué cuentas siguen siendo relevantes ahora y cuáles dejaron de serlo?"
+   ],
+   "prosa": "Esto depende de que Quillay haya salido de los datos. Si fuera un error de carga y volviera con $13.0M, recuperaría el quinto lugar y Bazar Cordillera volvería a quedar fuera. Conviene confirmarlo antes de dar por definitivo este cambio.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E1.h5",
+         "entidad": "Cadena Quillay",
+         "metrica": "Venta",
+         "valor": "$13.0M"
+        },
+        {
+         "id": "E1.h6",
+         "entidad": "Bazar Cordillera",
+         "metrica": "Venta",
+         "valor": "$10.8M"
+        },
+        {
+         "id": "E2.h2",
+         "entidad": "Norvik",
+         "metrica": "Contribución",
+         "valor": "$13.0M"
+        },
+        {
+         "id": "E5.h5",
+         "entidad": "Bazar Cordillera",
+         "metrica": "Venta",
+         "valor": "$10.8M"
+        }
+       ],
+       "apoyo": [
+        {
+         "id": "E1.e15",
+         "entidad": "Supermercados Andes del Sur, Mayorista El Roble, Tiendas Costa Verde, Centro Constructor Maipo, Cadena Quillay, Bazar Cordillera, Mercantil Pacífico, Grandes Almacenes Bío, Hogar Mayor, Casa Lomas, Comercial Lago Sur, Tiendas Alerce, Ferretería Norte",
+         "hecho": "Supermercados Andes del Sur · Ventas = $35.5M + Mayorista El Roble · Ventas = $30.3M + Tiendas Costa Verde · Ventas = $28.6M + Centro Constructor Maipo · Ventas = $16.4M + Cadena Quillay · Ventas = $13.0M + Bazar Cordillera · Ventas = $10.8M + Mercantil Pacífico · Ventas = $9.2M + Grandes Almacenes Bío · Ventas = $7.9M + Hogar Mayor · Ventas = $5.8M + Casa Lomas · Ventas = $5.3M + Comercial Lago Sur · Ventas = $4.8M + Tiendas Alerce · Ventas = $4.3M + Ferretería Norte · Ventas = $4.2M = $176.2M"
+        },
+        {
+         "id": "E2.e13",
+         "entidad": "Norvik, Alsen, Teravolt, Brimar, Kestrel",
+         "hecho": "Norvik · Contribución = $13.0M + Alsen · Contribución = $14.2M + Teravolt · Contribución = $9.9M + Brimar · Contribución = $4.8M + Kestrel · Contribución = $2.2M = $44.2M"
+        }
+       ],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "conteo/los-13-clientes-suman": {
+   "ensayo": "ensayo-5",
+   "hilo": "B02",
+   "turno": "1.4",
+   "empresa": "demo",
+   "forma": "B",
+   "persona": [
+    "Muéstrame los cuatro clientes más grandes y cuánto suman juntos.",
+    "De esos, ¿cuántos compran más de una familia de producto?",
+    "Mi piso de cobranza es que nadie pase de cuarenta días, apúntalo.",
+    "Con ese piso, dime quién está pasado y quién está al día."
+   ],
+   "prosa": "- **Lo vencido en total:** los 13 clientes suman $12.6M. Lider tiene la mayor parte, con $4.6M.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E1.h2",
+         "entidad": "Lider",
+         "metrica": "Venta",
+         "valor": "$17.9M"
+        },
+        {
+         "id": "E2.h2",
+         "entidad": "Lider",
+         "metrica": "Venta",
+         "valor": "$17.9M"
+        },
+        {
+         "id": "E3.h1",
+         "entidad": "Easy",
+         "metrica": "Días vencido",
+         "valor": "270d"
+        },
+        {
+         "id": "E3.h2",
+         "entidad": "Easy",
+         "metrica": "Saldo vencido",
+         "valor": "$1.1M"
+        },
+        {
+         "id": "E3.h3",
+         "entidad": "Lider",
+         "metrica": "Días vencido",
+         "valor": "269d"
+        },
+        {
+         "id": "E3.h4",
+         "entidad": "Lider",
+         "metrica": "Saldo vencido",
+         "valor": "$4.6M"
+        },
+        {
+         "id": "E3.h5",
+         "entidad": "Sodimac",
+         "metrica": "Días vencido",
+         "valor": "251d"
+        },
+        {
+         "id": "E3.h6",
+         "entidad": "Sodimac",
+         "metrica": "Saldo vencido",
+         "valor": "$1.9M"
+        },
+        {
+         "id": "E3.h7",
+         "entidad": "Falabella",
+         "metrica": "Días vencido",
+         "valor": "8d"
+        },
+        {
+         "id": "E3.h8",
+         "entidad": "Falabella",
+         "metrica": "Saldo vencido",
+         "valor": "$2.5M"
+        },
+        {
+         "id": "E3.h9",
+         "entidad": "Tottus",
+         "metrica": "Días vencido",
+         "valor": "8d"
+        },
+        {
+         "id": "E3.h10",
+         "entidad": "Tottus",
+         "metrica": "Saldo vencido",
+         "valor": "$1.3M"
+        },
+        {
+         "id": "E3.h11",
+         "entidad": "Paris",
+         "metrica": "Días vencido",
+         "valor": "8d"
+        },
+        {
+         "id": "E3.h12",
+         "entidad": "Paris",
+         "metrica": "Saldo vencido",
+         "valor": "$1.2M"
+        },
+        {
+         "id": "E3.h13",
+         "entidad": "Jumbo",
+         "metrica": "Días vencido",
+         "valor": "0d"
+        },
+        {
+         "id": "E3.h14",
+         "entidad": "Jumbo",
+         "metrica": "Saldo vencido",
+         "valor": "$0"
+        },
+        {
+         "id": "E3.h15",
+         "entidad": "Mercado Libre",
+         "metrica": "Días vencido",
+         "valor": "0d"
+        },
+        {
+         "id": "E3.h16",
+         "entidad": "Mercado Libre",
+         "metrica": "Saldo vencido",
+         "valor": "$0"
+        },
+        {
+         "id": "E3.h17",
+         "entidad": "Ripley",
+         "metrica": "Días vencido",
+         "valor": "0d"
+        },
+        {
+         "id": "E3.h18",
+         "entidad": "Ripley",
+         "metrica": "Saldo vencido",
+         "valor": "$0"
+        },
+        {
+         "id": "E3.h19",
+         "entidad": "La Polar",
+         "metrica": "Días vencido",
+         "valor": "0d"
+        },
+        {
+         "id": "E3.h20",
+         "entidad": "La Polar",
+         "metrica": "Saldo vencido",
+         "valor": "$0"
+        },
+        {
+         "id": "E3.h21",
+         "entidad": "Hites",
+         "metrica": "Días vencido",
+         "valor": "0d"
+        },
+        {
+         "id": "E3.h22",
+         "entidad": "Hites",
+         "metrica": "Saldo vencido",
+         "valor": "$0"
+        },
+        {
+         "id": "E3.h23",
+         "entidad": "ABC",
+         "metrica": "Días vencido",
+         "valor": "0d"
+        },
+        {
+         "id": "E3.h24",
+         "entidad": "ABC",
+         "metrica": "Saldo vencido",
+         "valor": "$0"
+        },
+        {
+         "id": "E3.h25",
+         "entidad": null,
+         "metrica": "Saldo vencido · total del listado completo (13 cuentas)",
+         "valor": "$12.6M"
+        },
+        {
+         "id": "E3.h26",
+         "entidad": "Unimarc",
+         "metrica": "Días vencido",
+         "valor": "0d"
+        },
+        {
+         "id": "E3.h27",
+         "entidad": "Unimarc",
+         "metrica": "Saldo vencido",
+         "valor": "$0"
+        }
+       ],
+       "apoyo": [],
+       "texto": ""
+      }
+     }
+    }
+   ]
+  },
+  "entregado/perfil-dolar": {
+   "ensayo": "ensayo-5",
+   "hilo": "A01",
+   "turno": "1.1",
+   "empresa": "demo",
+   "forma": "A",
+   "persona": [
+    "Hola, cuéntame qué empresa es esta y qué datos tienes de ella."
+   ],
+   "prosa": "- **Tamaño:** pequeña. ADI lo calculó con la venta anual de 2025-12 convertida a dólares, a $916,16 por US$. Es un contexto, no una clasificación legal.",
+   "llamadas": [
+    {
+     "herramienta": "conocerEmpresa",
+     "resultado": {
+      "perfil": {
+       "campos": {
+        "tamano": {
+         "valor": "pequena",
+         "procedencia": "derivado",
+         "fuente": "criterio general de ADI — venta anual convertida a US$ con el promedio mensual del dólar observado de 2025-12 publicado por el SII ($916.16 por US$), ubicada en las bandas de ADI: micro menor que US$100 mil, pequeña hasta menos de US$3 millones y mediana hasta US$15 millones (base IFC), y grande sobre US$15 millones (extensión propia de ADI, no de IFC). Es un contexto para Knowledge, no una clasificación legal ni una medición financiera de precisión"
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  "entregado/rango-del-criterio": {
+   "ensayo": "ensayo-5",
+   "hilo": "B02",
+   "turno": "1.3",
+   "empresa": "demo",
+   "forma": "B",
+   "persona": [
+    "Muéstrame los cuatro clientes más grandes y cuánto suman juntos.",
+    "De esos, ¿cuántos compran más de una familia de producto?",
+    "Mi piso de cobranza es que nadie pase de cuarenta días, apúntalo."
+   ],
+   "prosa": "- **Piso de materialidad de cobranza:** es el único criterio de cobranza que puedo registrar. Se mide en porcentaje, entre 0,1 % y 10 %, y sirve para decidir qué cuentas quedan como señal. No admite un tope de días.",
+   "llamadas": [
+    {
+     "herramienta": "conocerEmpresa",
+     "resultado": {
+      "declarable": {
+       "criterios": [
+        {
+         "concepto": "piso_materialidad_cobranza",
+         "rotulo": "Piso de materialidad de cobranza",
+         "unidad": "pct",
+         "min": 0.1,
+         "max": 10,
+         "nota": "Es un criterio de materialidad: decide qué cuentas quedan como señal, bajo el piso o al borde; no modifica ningún saldo, atraso ni medición de cobranza.",
+         "forma": "f1"
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "continuidad/diferencia-entre-ambos": {
+   "ensayo": "ensayo-5",
+   "hilo": "B01",
+   "turno": "2.1",
+   "empresa": "rioclaro",
+   "forma": "B",
+   "persona": [
+    "Partamos por mis clientes: los cinco que más venden y qué parte del total son entre los tres primeros.",
+    "¿En qué lugar está Cadena Quillay y cuánto pesa?",
+    "Ahora por marca: ¿Norvik o Teravolt?, ¿cuántas veces una es la otra?",
+    "Para nosotros lo crítico es todo lo vencido sobre sesenta días, tómalo como regla de la casa.",
+    "Con esa regla, ¿quiénes están en rojo hoy y cuántos son?",
+    "[Contexto del producto] Esta persona ya conversó antes con ADI. El identificador de esa conversación es 9e269d6d-d41b-4886-a6e3-c9952e3e3419.\n\nOye, retomemos lo que vimos la vez pasada con mis clientes y la cobranza."
+   ],
+   "prosa": "- Norvik pasó de $55.7M a $51.5M.\n- Teravolt pasó de $43.4M a $40.1M.\n- La diferencia entre ambos pasó de $12.3M a $11.4M.",
+   "llamadas": [
+    {
+     "herramienta": "consultar",
+     "resultado": {
+      "entrega": {
+       "cifras": [
+        {
+         "id": "E3.h1",
+         "entidad": "Norvik",
+         "metrica": "Venta",
+         "valor": "$55.7M"
+        },
+        {
+         "id": "E3.h2",
+         "entidad": "Teravolt",
+         "metrica": "Venta",
+         "valor": "$43.4M"
+        },
+        {
+         "id": "E3.h3",
+         "entidad": "Norvik − Teravolt",
+         "metrica": "Diferencia · Venta",
+         "valor": "$12.3M"
+        }
+       ],
+       "apoyo": [],
+       "texto": ""
+      }
+     }
+    },
+    {
+     "herramienta": "retomar",
+     "resultado": {
+      "lineaContinuidad": "los datos cambiaron desde la Entrega 4 · de lo ya entregado, con los datos actuales cambiaron: venta de Norvik (antes $55.7M, ahora $51.5M), venta de Teravolt (antes $43.4M, ahora $40.1M), diferencia · Venta de Norvik − Teravolt (antes $12.3M, ahora $11.4M)",
+      "hechos": [
+       {
+        "id": "E3.h1",
+        "sujeto": "Norvik",
+        "metrica": "Venta",
+        "valor": "$55.7M",
+        "origen": "medido",
+        "estadoReverificacion": "cambio",
+        "valorNuevo": "$51.5M",
+        "revalidacion": {
+         "estado": "cambio",
+         "anterior": {
+          "valor": "$55.7M"
+         },
+         "actual": {
+          "valor": "$51.5M",
+          "hecho": "e1"
+         },
+         "diferencia": {
+          "texto": "$4.2M",
+          "sentido": "baja"
+         },
+         "cargaAnterior": 1,
+         "cargaActual": 2
+        }
+       },
+       {
+        "id": "E3.h2",
+        "sujeto": "Teravolt",
+        "metrica": "Venta",
+        "valor": "$43.4M",
+        "origen": "medido",
+        "estadoReverificacion": "cambio",
+        "valorNuevo": "$40.1M",
+        "revalidacion": {
+         "estado": "cambio",
+         "anterior": {
+          "valor": "$43.4M"
+         },
+         "actual": {
+          "valor": "$40.1M",
+          "hecho": "e2"
+         },
+         "diferencia": {
+          "texto": "$3.2M",
+          "sentido": "baja"
+         },
+         "cargaAnterior": 1,
+         "cargaActual": 2
+        }
+       },
+       {
+        "id": "E3.h3",
+        "sujeto": "Norvik − Teravolt",
+        "metrica": "Diferencia · Venta",
+        "valor": "$12.3M",
+        "origen": "medido",
+        "estadoReverificacion": "cambio",
+        "valorNuevo": "$11.4M",
+        "revalidacion": {
+         "estado": "cambio",
+         "anterior": {
+          "valor": "$12.3M"
+         },
+         "actual": {
+          "valor": "$11.4M",
+          "hecho": "e3"
+         },
+         "diferencia": {
+          "texto": "$923K",
+          "sentido": "baja"
+         },
+         "cargaAnterior": 1,
+         "cargaActual": 2
+        }
+       }
+      ],
+      "resumen": {
+       "total": 34,
+       "igual": 1,
+       "cambio": 3,
+       "ya_no_existe": 0,
+       "no_comparable": 26,
+       "no_se_revalida": 4,
+       "sin_reverificar": 0,
+       "noComparablePorMotivo": {
+        "otro_periodo": 26
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}

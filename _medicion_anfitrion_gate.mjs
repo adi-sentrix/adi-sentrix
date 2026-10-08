@@ -442,8 +442,12 @@ seccion("F3 · el rastreo tras el clasificador del ensayo 2 (143 falsas alarmas 
   sigue(con2("B03", "2.5", "$150K de capital en Lampa y Rancagua", "$140K de capital en Lampa y Rancagua"), "2.5", /^\$140K/, "«$140K»: 115 + 35 es 150", ["no_traza", "dueno_distinto", "metrica_distinta"], /de capital en Lampa/);
   caso("derivacion", "B02", "1.5", /^\$8\.0M/, "caso real B02 1.5 · «unos $8.0M ($3.8M Lider y $4.2M Jumbo)»: la suma de las dos cifras que la misma oración cita (aunque $8.0M coincida por azar con la contribución de otra cuenta)");
   sigue(con2("B02", "1.5", "entre las dos dejan unos $8.0M ($3.8M Lider y $4.2M Jumbo)", "Jumbo deja unos $8.0M"), "1.5", /^\$8\.0M/, "«Jumbo deja unos $8.0M»: sin las dos cifras citadas en la oración, el $8.0M que coincide por azar con otra cuenta (Electrodomésticos) sigue siendo `dueno_distinto`", ["dueno_distinto"], /Jumbo deja/);
-  sigue(hilo2("B02"), "2.5", /^(2|4) pp/, "los ejemplos «subir el margen de Falabella y Lider 2 pp o 4 pp» NO se rescatan con una resta casual (4 = 22% − 18%): son cifras que nadie entregó");
-  sigue(hilo2("A01"), "1.5", /^30 %/, "«por ejemplo 22 %, 25 % o 30 %»: el «30 %» no se rescata ni con el 30.1 (se cita a su precisión) ni con 15 + 15");
+  /* (2026-10-07) estos dos eran los casos de «el ejemplo no se rescata con una resta casual»: hoy son EJEMPLOS HIPOTÉTICOS que el anfitrión le ofrece a la persona (no afirman nada de la empresa: veredicto `ejemplo`); la carnada original
+   * sigue en pie en su variante sin la oferta («Ya subió el margen…», «hoy están en 22 %, 25 % o 30 %»): ahí SON cifras que nadie entregó y no se rescatan ni con una resta ni con el 30.1 */
+  sigue(hilo2("B02"), "2.5", /^(2|4) pp/, "los ejemplos «subir el margen de Falabella y Lider 2 pp o 4 pp» son EJEMPLOS HIPOTÉTICOS (se le ofrecen a la persona): ni se marcan ni se rescatan con una resta casual", ["ejemplo"]);
+  sigue(con2("B02", "2.5", "Por ejemplo, subir el margen de Falabella y Lider 2 pp o 4 pp", "Ya subió el margen de Falabella y Lider 2 pp o 4 pp"), "2.5", /^(2|4) pp/, "dichos como un HECHO («Ya subió el margen… 2 pp o 4 pp»), no se rescatan con una resta casual (4 = 22% − 18%): son cifras que nadie entregó");
+  sigue(hilo2("A01"), "1.5", /^30 %/, "«por ejemplo 22 %, 25 % o 30 %»: es un ejemplo hipotético de vara que se le ofrece a la persona", ["ejemplo"]);
+  sigue(con2("A01", "1.5", "por ejemplo 22 %, 25 % o 30 %", "hoy están en 22 %, 25 % o 30 %"), "1.5", /^30 %/, "«hoy están en 22 %, 25 % o 30 %»: el «30 %» no se rescata ni con el 30.1 (se cita a su precisión) ni con 15 + 15");
   // — la contraparte que el hilo ya nombró, y el sujeto colectivo y el tema
   caso("contraparte", "C02", "1.4", /^(24\.0%|\$10\.5M)$/, "caso real C02 1.4 · «Norvik … (24.2% frente a 24.0%) … ($14.3M frente a $10.5M)»: tras «frente a» la cifra es de la contraparte que la persona nombró (Teravolt)");
   sigue(con2("C02", "1.4", "(24.2% frente a 24.0%)", "(24.0% frente a 24.2%)"), "1.4", /^24\.0%$/, "invertida («24.0% frente a 24.2%»): la primera cifra es de Teravolt, no de Norvik", ["dueno_distinto"]);
@@ -627,7 +631,9 @@ seccion("F4 · el contrato del anfitrión: tres casos por cifra, números en pal
     const fuera = informe([`Cadena Quillay vendió ${venta}.`, `${cap(wd(nV))} de los 13 clientes tienen saldo vencido.`].slice(0, 1));
     const hilosF = [{ hiloId: "H", forma: "A", empresa: "rioclaro", turnos: [{ sesion: 1, turno: 1, persona: "¿cómo va la cobranza?", textoEnviado: "¿cómo va la cobranza?", texto: `${cap(wd(nV))} de los 13 clientes tienen saldo vencido.`, llamadas: LL(rV, rS) }] }];
     const infF = calcularInforme({ manifiesto, cierre: { ...cierre, turnosPlaneados: 1, turnosHechos: 1 }, hilos: hilosF, juez: juez(1), revision: null });
-    ok(infF.verdad.real.pct === 100 && infF.contrato.fueraDeContrato.total === 1 && infF.contrato.cumplimientoPct === 0 && infF.veredicto === "NO PASA" && infF.erroresMateriales.length === 0, "★ un `fuera_de_contrato` CORRECTO no cuenta como falso (verdad 100 %) pero rompe el 100 % de cumplimiento: NO PASA", `${infF.veredicto} · ${infF.porQue}`);
+    ok(infF.verdad.real.pct === 100 && infF.contrato.fueraDeContrato.total === 1 && infF.contrato.cumplimientoPct === 0 && infF.erroresMateriales.length === 0 && infF.veredictoDetallado.criterios.cumplimientoDelContrato.informativo === true && infF.veredicto === "PASA", "★ un `fuera_de_contrato` CORRECTO no cuenta como falso (verdad 100 %) y rompe el cumplimiento (0 %), que desde el 2026-10-07 es INFORMATIVO: ya no decide (PASA)", `${infF.veredicto} · ${infF.porQue}`);
+    { const infF100 = calcularInforme({ manifiesto, cierre: { ...cierre, turnosPlaneados: 1, turnosHechos: 1 }, hilos: hilosF, juez: juez(1), revision: null, parametros: { umbralDeCumplimientoPct: 100 } });
+      ok(infF100.veredicto === "NO PASA" && infF100.veredictoDetallado.criterios.cumplimientoDelContrato.cumple === false, "…pero con el umbral como PARÁMETRO (100 %) vuelve a decidir: NO PASA", `${infF100.veredicto} · ${infF100.porQue}`); }
     ok(infF.contrato.fueraDeContrato.derivables.length === 1 && infF.contrato.fueraDeContrato.derivables[0].derivacionQueDebioPedirse.operacion === "conteo" && /debió pedir derivar conteo/.test(informeEnMarkdown(infF)), "el informe trae, por cada fuera de contrato, la derivación exacta que debió pedirse", jsn(infF.contrato.fueraDeContrato.derivables).slice(0, 300));
     ok(informeEnMarkdown(infF).includes("## El contrato del anfitrión") && informeEnMarkdown(infF).includes("## Errores de ADI · 0") && informeEnMarkdown(infF).includes("## Fuera de contrato (correctas) · 1"), "el informe en texto trae el bloque del contrato, los errores de ADI y lo fuera de contrato");
     // error_adi: la cifra y la frase son verdaderas, pero el hecho faltó: NO PASA
@@ -644,9 +650,210 @@ seccion("F4 · el contrato del anfitrión: tres casos por cifra, números en pal
     const infR = calcularInforme({ manifiesto, cierre: { ...cierre, turnosPlaneados: 1, turnosHechos: 1 }, hilos: hilosI(["Cadena Quillay vendió $99.9M este año."]), juez: juez(1), revision: { decisiones: { "H|1|1|1": { veredicto: "verdadera", nota: "la cifra sí era de la entrega" } } } });
     ok(infR.fallasDelMedidor.length === 1 && infR.contrato.hechoDeAdi === 1 && infR.veredicto === "PASA", "la persona revierte una falsa de la máquina: falla del medidor, cuenta como hecho de ADI → PASA");
     // la regla escrita
-    ok(/cumplimiento del contrato = 100 %/.test(REGLA_DE_CIERRE) && /0 errores de ADI/.test(REGLA_DE_CIERRE) && /0 errores materiales del anfitrión/.test(REGLA_DE_CIERRE) && /0 cruces entre empresas/.test(REGLA_DE_CIERRE) && !/verdad ≥ 99/.test(REGLA_DE_CIERRE), "★ `REGLA_DE_CIERRE` es la nueva: cumplimiento 100 % · 0 errores de ADI · 0 materiales · 0 cruces (el % de verdad se informa, ya no decide)");
+    ok(/0 errores de ADI/.test(REGLA_DE_CIERRE) && /1 error material del anfitrión cada 500 afirmaciones/.test(REGLA_DE_CIERRE) && /0 cruces entre empresas/.test(REGLA_DE_CIERRE) && !/verdad ≥ 99/.test(REGLA_DE_CIERRE) && !/cumplimiento del contrato = 100 %/.test(REGLA_DE_CIERRE), "★ `REGLA_DE_CIERRE`: 0 errores de ADI · ≤ 1 error material del anfitrión cada 500 afirmaciones · 0 cruces (el cumplimiento del contrato y el % de verdad se informan; ya no deciden — ver F5)");
     ok(/Úsela|una afirmación cuantificada sin número/i.test(PROMPT_DEL_JUEZ) && /todos, ninguno, el único, la mayoría/.test(PROMPT_DEL_JUEZ) && /material si nombra una cuenta o una cifra/.test(PROMPT_DEL_JUEZ), "★ el juez trae la línea de clase 4: «una afirmación cuantificada sin número —todos, ninguno, el único, la mayoría— debe sostenerse en hechos entregados…»");
     void trio; void fuera;
+  }
+}
+
+/* ═════ F5 · EL MEDIDOR TRAS LOS ENSAYOS 4 Y 5 Y LA REGLA DE CIERRE DEL 2026-10-07 ═══════════════════════════════════════════════════════════════════
+ * Los ensayos 4 y 5 marcaron 18 y 51 «errores materiales» (y 2 «cruces»); la lectura humana (`clasificacion.json`) encontró 1-2 reales por ensayo: el resto eran fallas del MEDIDOR. Cada patrón se cerró con una regla de `rastreo.mjs`
+ * (`REGLAS`) y acá cada una tiene (a) la FRASE REAL del ensayo (`fixtures/medicion-anfitrion/ensayo-4-5-medidor.json`: verbatim de los transcritos, con el libro de lo que ADI entregó en ese hilo) que pasa a no-marca, (b) la prueba ROJA de que
+ * sin la regla vuelve a marcarse y (c) la CARNADA: la variante falsa del mismo caso que sigue marcada. Y la regla de cierre nueva: ADI 0 errores · anfitrión ≤ 1 error material cada 500 afirmaciones empresariales y sin patrón sistemático ·
+ * 0 cruces · el cumplimiento del contrato informativo (el umbral es un parámetro); el veredicto consume `clasificacion.json`. */
+seccion("F5 · el medidor tras los ensayos 4-5 y la regla de cierre del 2026-10-07");
+{
+  const { REGLAS, esEjemploHipotetico, nombresDeLaClausula } = await import(D + "rastreo.mjs");
+  const { REGLA_DE_CIERRE } = await import(D + "informe.mjs");
+  const { REGLAS_DE_PALABRAS, relacionesEnPalabras } = await import(D + "numerosEnPalabras.mjs");
+  const { leerClasificacion, familiaDeError, patronesSistematicos, limiteDeErrores, PARAMETROS_DE_CIERRE } = await import(D + "clasificacion.mjs");
+  const FXM = JSON.parse(fs.readFileSync(new URL("./fixtures/medicion-anfitrion/ensayo-4-5-medidor.json", import.meta.url), "utf8")).casos;
+  const FXC = JSON.parse(fs.readFileSync(new URL("./fixtures/medicion-anfitrion/clasificacion-ensayos-4-5.json", import.meta.url), "utf8")).ensayos;
+  const jsn = (x) => JSON.stringify(x);
+  const FALSOS = new Set(["no_traza", "dueno_distinto", "metrica_distinta", "conteo_no_cierra", "relacion_no_cierra", "cambio_no_avisado"]);
+  /* el hilo de un caso: las oraciones de la persona antes y la prosa real en el último turno (con el libro reducido de ese hilo); `cambia` = [[de, a]] para fabricar la variante falsa */
+  const hiloDe = (id, cambia = []) => {
+    const c = FXM[id];
+    let prosa = c.prosa;
+    for (const [de, a] of cambia) { if (!prosa.includes(de)) throw new Error(`la prosa de ${id} ya no trae «${de}»`); prosa = prosa.split(de).join(a); }
+    const turnos = c.persona.map((p, i) => ({ sesion: 1, turno: i + 1, persona: p, textoEnviado: p, texto: i === c.persona.length - 1 ? prosa : "", llamadas: i === c.persona.length - 1 ? JSON.parse(JSON.stringify(c.llamadas)) : [] }));
+    return { hiloId: "M", forma: c.forma, empresa: c.empresa, turnos };
+  };
+  const ultimo = (h) => rastrearHilo(h)[h.turnos.length - 1];
+  const toks = (h, rx) => ultimo(h).afirmaciones.filter((a) => a.clase === 1 && a.veredicto !== "ignorado" && rx.test(a.token));
+  const vs = (h, rx) => toks(h, rx).map((a) => a.veredicto);
+  const sinR = (obj, regla, f) => { obj[regla] = false; try { return f(); } finally { obj[regla] = true; } };
+  const noMarca = (xs) => xs.length > 0 && xs.every((x) => !FALSOS.has(x));
+  const marca = (xs) => xs.length > 0 && xs.every((x) => FALSOS.has(x));
+  const rojo = (obj, regla, id, rx, msg, cambia = [], antes = marca) => {
+    const con = vs(hiloDe(id, cambia), rx), sin = sinR(obj, regla, () => vs(hiloDe(id, cambia), rx));
+    ok(noMarca(con), `★ ${msg}: ya no se marca`, jsn(con));
+    ok(antes(sin), `   y sin la regla «${regla}» vuelve a marcarse (la regla es la que lo rescata)`, jsn(sin));
+  };
+  const sigue = (id, rx, msg, cambia, esperados = [...FALSOS]) => { const x = vs(hiloDe(id, cambia), rx); ok(x.length > 0 && x.every((y) => esperados.includes(y)), `★ CARNADA · ${msg}`, jsn(x)); };
+
+  // ── (a) los números de la PERSONA, en cifras o con letras («cuarenta y cinco días», «treinta», «cuarenta por ciento»)
+  rojo(REGLAS, "persona_palabras", "persona/45-dias-en-palabras", /^45 días$/, "caso real A02 1.3 (ensayo 5) · la persona dijo «cuarenta y cinco días»; «Con su criterio de más de 45 días» es SU número");
+  { const r = toks(hiloDe("persona/45-dias-en-palabras"), /^45 días$/); ok(r.length === 2 && r.every((a) => a.declaradoPor === "persona" && /^persona@1\.\d+$/.test(a.origen)), "…y queda registrada como DE LA PERSONA, con su origen", jsn(r.map((a) => [a.veredicto, a.declaradoPor, a.origen]))); }
+  rojo(REGLAS, "persona_palabras", "persona/30-dias-en-palabras", /^30 días$/, "caso real A01 1.5 (ensayo 5) · «treinta días»");
+  rojo(REGLAS, "persona_palabras", "persona/40-dias-en-palabras", /^40 días$/, "caso real B02 1.4 (ensayo 5) · «cuarenta días» (dicho en el turno 1.3)");
+  rojo(REGLAS, "persona_palabras", "persona/cuarenta-por-ciento", /^40%$/, "caso real A03 1.4 (ensayo 5) · «el cuarenta por ciento»");
+  rojo(REGLAS, "persona_palabras", "persona/el-doble-como-100-por-ciento", /^100 %$/, "caso real A01 1.6 (ensayo 5) · la persona dijo «como el doble»; el anfitrión lo traduce a «cercano al 100 %»");
+  ok(vs(hiloDe("persona/el-doble-como-100-por-ciento"), /^100 %$/).join() === "eco_persona", "…y es el eco de la persona (para revisar), no una cifra de ADI ni una inventada");
+  sigue("persona/45-dias-en-palabras", /^50 días$/, "«50 días»: la persona dijo cuarenta y cinco, no cincuenta", [["más de 45 días", "más de 50 días"]], ["no_traza", "dueno_distinto", "metrica_distinta"]);
+  { const x = toks(hiloDe("persona/45-dias-en-palabras", [["Con su criterio de más de 45 días, **3 de los 13 clientes están atrasados**.", "Mayorista El Roble lleva 45 días de atraso."]]), /^45 días$/).filter((a) => /El Roble lleva/.test(a.oracion)).map((a) => a.veredicto);
+    ok(x.length === 1 && x[0] !== "traza", "★ CARNADA · «Mayorista El Roble lleva 45 días»: el 45 es de la persona, no de una cuenta que la oración nombra (queda sin trazar o como eco, nunca como cifra de ADI)", jsn(x)); }
+
+  // ── (b) los ejemplos hipotéticos que se le ofrecen a la persona
+  rojo(REGLAS, "ejemplo", "ejemplo/si-me-dice-un-crecimiento", /^\+?5%$/, "caso real A02 1.7 (ensayo 5) · «Si me dice un crecimiento (por ejemplo +5%)»");
+  ok(vs(hiloDe("ejemplo/si-me-dice-un-crecimiento"), /^\+?5%$/).join() === "ejemplo", "…y es un `ejemplo`, no una afirmación sobre la empresa");
+  rojo(REGLAS, "ejemplo", "ejemplo/usted-me-da-un-supuesto", /^(10 %|3 puntos)$/, "caso real A01 1.7 (ensayo 5) · «Usted me da un supuesto, por ejemplo «Lider crece 10 %» o «sube el margen 3 puntos»");
+  rojo(REGLAS, "ejemplo", "ejemplo/una-meta-como-un-28", /^(28%|\+?12%)$/, "caso real C01 1.6 (ensayo 4) · «Una meta de margen, como un 28%» / «como un +12%» (28% es de Tottus: antes se leía como `dueno_distinto`)");
+  ok(noMarca(vs(hiloDe("ejemplo/una-meta-como-un-28"), /^(22%|8\.3%|\$19\.4M)$/)) && vs(hiloDe("ejemplo/una-meta-como-un-28"), /^22%$/).join() === "traza", "…y las cifras REALES de las mismas oraciones («el 22% actual de Falabella», «creció 8.3%») siguen trazando");
+  rojo(REGLAS, "ejemplo", "ejemplo/si-me-dices-el-crecimiento", /^\+?8%$/, "caso real A01 1.8 (ensayo 4) · «si me dices el crecimiento que quieres, por ejemplo «+8%»");
+  { const r = ultimo(hiloBase("Por ejemplo, Cadena Quillay vendió $99.9M este año.")); ok(r.afirmaciones.some((a) => /^\$99\.9M$/.test(a.token) && a.veredicto === "no_traza"), "★ CARNADA · «Por ejemplo, Cadena Quillay vendió $99.9M»: sin una oferta de supuesto a la persona, «por ejemplo» no esconde una cifra inventada", jsn(r.afirmaciones.map((a) => [a.token, a.veredicto]))); }
+  ok(esEjemploHipotetico("Si me dice un crecimiento de 10%, lo calculo.", { indice: 36 }) && !esEjemploHipotetico("Cadena Quillay creció 10% este año.", { indice: 22 }), "la señal es del idioma: «si me dice un crecimiento de 10%» es un ejemplo; «Cadena Quillay creció 10%» no");
+
+  // ── (c) «la líder» (sustantivo común) no es el cliente «Lider» de la otra empresa
+  { const con = ultimo(hiloDe("cruce/la-lider-es-norvik")).cruces.length, sin = sinR(REGLAS, "grafia", () => ultimo(hiloDe("cruce/la-lider-es-norvik")).cruces.length);
+    ok(con === 0 && sin === 2, "★ caso real B01 1.2 (ensayo 4) · «Por venta, la líder es Norvik… la líder es Alsen»: 0 cruces (sin la regla, los 2 «cruces» falsos del ensayo)", `${con}/${sin}`);
+    const masMal = (extra) => ultimo(hiloDe("cruce/la-lider-es-norvik", [["Alsen le sigue", `${extra} Alsen le sigue`]])).cruces.map((c) => c.nombre);
+    ok(masMal("Lider vendió más.").length === 1, "★ CARNADA · el nombre real «Lider» (mayúscula, sin acento) sigue siendo un cruce", jsn(masMal("Lider vendió más.")));
+    ok(masMal("LIDER vendió más.").length === 1 && masMal("Falabella vendió más.").length === 1, "★ CARNADA · «LIDER» y «Falabella» siguen siendo cruces", jsn([masMal("LIDER vendió más."), masMal("Falabella vendió más.")]));
+    ok(masMal("Valparaíso y Valparaiso se parecen.").length === 2, "★ CARNADA · un nombre con acento en la lista de la casa («Valparaíso») y sin acento («Valparaiso») siguen siendo cruces", jsn(masMal("Valparaíso y Valparaiso se parecen.")));
+    ok(masMal("Una líder del mercado, otra Líder más.").length === 0, "«una líder» y «Líder» con acento son el sustantivo, aunque abran la oración", jsn(masMal("Una líder del mercado, otra Líder más."))); }
+
+  // ── (d) «el cuarto» es un ORDINAL; «menos que la mitad» es una desigualdad ESTRICTA
+  { const h = hiloDe("relacion/el-tercero-mas-que-el-doble-el-cuarto");
+    const rel = (x) => x.afirmaciones.filter((a) => a.tipo === "relacion" || a.tipo === "ordinal");
+    const con = rel(ultimo(h)), sin = sinR(REGLAS_DE_PALABRAS, "ordinal", () => rel(ultimo(h)));
+    ok(con.length === 2 && con.some((a) => a.veredicto === "ordinal") && con.every((a) => !FALSOS.has(a.veredicto)) && sin.some((a) => a.veredicto === "relacion_no_cierra"), "★ caso real A01 1.1 (ensayo 4) · «Jumbo, el tercero, vende más que el doble que Sodimac, el cuarto»: «el cuarto» es el puesto (ordinal), no 1/4 — y «más que el doble» se juzga y cierra (17.3/8.2 = 2.11)", jsn([con.map((a) => a.veredicto), sin.map((a) => a.veredicto)]));
+    ok(con.find((a) => a.veredicto === "traza").caso === "fuera_de_contrato", "…la relación que cierra es VERDAD pero la calculó el anfitrión: fuera de contrato"); }
+  { const h = hiloDe("relacion/makita-menos-que-la-mitad-de-bosch"), rel = (x) => x.afirmaciones.filter((a) => a.tipo === "relacion");
+    const con = rel(ultimo(h)), sin = sinR(REGLAS_DE_PALABRAS, "desigualdad", () => rel(ultimo(h)));
+    ok(con.length === 1 && con[0].veredicto === "traza" && sin.length === 1 && sin[0].veredicto === "relacion_no_cierra", "★ caso real A01 1.5 (ensayo 4) · «Makita vende menos que la mitad de Bosch» ($4.8M / $11.0M = 0.44 < 0.5): verdadera; leída como «es la mitad» (rango 45-55 %) se marcaba", jsn([con.map((a) => a.veredicto), sin.map((a) => a.veredicto)]));
+    const val = (cambia) => rel(ultimo(hiloDe("relacion/makita-menos-que-la-mitad-de-bosch", cambia))).map((a) => a.veredicto).join();
+    ok(val([["Makita vende menos que la mitad de Bosch", "Bosch vende menos que la mitad de Makita"]]) === "relacion_no_cierra", "★ CARNADA · la dirección importa: «Bosch vende menos que la mitad de Makita» es falso aunque la razón sea 0.44", val([["Makita vende menos que la mitad de Bosch", "Bosch vende menos que la mitad de Makita"]]));
+    ok(val([["Makita vende menos que la mitad de Bosch", "Makita vende menos que un cuarto de Bosch"]]) === "relacion_no_cierra", "★ CARNADA · «menos que un cuarto de Bosch» (0.44 > 0.25) sigue marcándose", val([["Makita vende menos que la mitad de Bosch", "Makita vende menos que un cuarto de Bosch"]]));
+    ok(val([["menos que la mitad de Bosch", "más que la mitad de Bosch"]]) === "relacion_no_cierra", "★ CARNADA · «más que la mitad» con 0.44 es falso", val([["menos que la mitad de Bosch", "más que la mitad de Bosch"]])); }
+  { const h = hiloDe("relacion/el-cuarto-sodimac-menos-de-la-mitad"), rel = (x) => x.afirmaciones.filter((a) => a.tipo === "relacion" || a.tipo === "ordinal");
+    const con = rel(ultimo(h)), sin = sinR(REGLAS_DE_PALABRAS, "ordinal", () => sinR(REGLAS_DE_PALABRAS, "desigualdad", () => rel(ultimo(h))));
+    ok(con.every((a) => !FALSOS.has(a.veredicto)) && sin.some((a) => a.veredicto === "relacion_no_cierra"), "★ caso real C01 1.1 (ensayo 5) · «El cuarto, Sodimac, vende $8.2M, menos de la mitad de lo que compra Jumbo»: verdadera (8.2/17.3 = 0.47)", jsn([con.map((a) => a.veredicto), sin.map((a) => a.veredicto)]));
+    const cambia = [["menos de la mitad de lo que compra Jumbo", "un cuarto de lo que compra Jumbo"]];
+    ok(rel(ultimo(hiloDe("relacion/el-cuarto-sodimac-menos-de-la-mitad", cambia))).some((a) => a.veredicto === "relacion_no_cierra"), "★ CARNADA · «un cuarto de lo que compra Jumbo» (0.47 fuera de 20-30 %) sigue marcándose: «un cuarto» SÍ es la fracción"); }
+  { const r = (t) => relacionesEnPalabras(t).map((x) => [x.tipo, x.frase]);
+    ok(jsn(r("Sodimac, el cuarto, vende poco.")) === jsn([["ordinal", "el cuarto"]]) && r("Es el cuarto de la venta.").some((x) => x[0] === "fraccion") && r("Es el cuarto del total.").some((x) => x[0] === "fraccion") && r("Es el cuarto de los 13 clientes.").every((x) => x[0] === "ordinal") && r("Aporta un cuarto de la venta.").some((x) => x[0] === "fraccion"), "«el cuarto» es ordinal salvo «el cuarto de la/del …»; «el cuarto de los 13 clientes» es el puesto; «un cuarto» es siempre la fracción", jsn([r("Sodimac, el cuarto, vende poco."), r("Es el cuarto de los 13 clientes.")]));
+    ok(relacionesEnPalabras("Vende más que el doble que Sodimac.").some((x) => x.desigualdad === "mayor" && x.nominal === 2) && relacionesEnPalabras("Vende menos del doble.").some((x) => x.desigualdad === "menor") && relacionesEnPalabras("Vende el doble.").every((x) => !x.desigualdad), "«más que el doble» / «menos del doble» son desigualdades; «el doble» a secas no"); }
+
+  // ── (e) el dueño de la CLÁUSULA y el tema de la lista
+  rojo(REGLAS, "viñeta_tema", "dueno/capital-contra-concepcion", /^\$13K$/, "caso real B02 2.4 (ensayo 4) · «La más chica es Antofagasta: … - Capital: $13K, contra $19K de Concepción»: la viñeta abre con la cifra del tema de la lista");
+  sigue("dueno/capital-contra-concepcion", /^\$13K$/, "si la lista habla de Valparaíso, los $13K de Antofagasta NO son de Valparaíso: `dueno_distinto`", [["La más chica es **Antofagasta**:", "La más chica es **Valparaíso**:"]], ["dueno_distinto"]);
+  rojo(REGLAS, "viñeta_tema", "dueno/atraso-contra-andes-y-alerce", /^269 días$/, "caso real A02 1.3 (ensayo 4) · «cómo está El Roble: … - Atraso: 269 días vencidos, contra 8 días en Andes del Sur y Tiendas Alerce»");
+  sigue("dueno/atraso-contra-andes-y-alerce", /^269 días$/, "si el tema de la lista es Casa Lomas (281d), los 269 días de El Roble no son suyos", [["es cómo está El Roble frente", "es cómo está Casa Lomas frente"]], ["dueno_distinto"]);
+  rojo(REGLAS, "grupo", "dueno/los-tres-primeros-clientes", /^53,6%$/, "caso real B01 1.2 (ensayo 5) · «Los tres primeros clientes concentran el 53,6%» (D1 = suma de tres cuentas; la oración anterior nombraba a Maipo y Quillay)");
+  sigue("dueno/los-tres-primeros-clientes", /^53,6%$/, "«Cadena Quillay concentra el 53,6%» NO es de Quillay", [["Los tres primeros clientes concentran", "Cadena Quillay concentra"]], ["dueno_distinto"]);
+  { const cifras = [{ id: "E1.h1", entidad: "Mayorista El Roble", metrica: "Venta", valor: "$8.0M" }, { id: "E1.h2", entidad: "Tiendas Alerce", metrica: "Venta", valor: "$8.0M" }];
+    const llamadas = [{ herramienta: "consultar", args: {}, resultado: { entrega: { cifras, texto: "" } } }];
+    const de = (reglaOn) => { const f = () => ultimo(hiloBase("Tiendas Alerce ($8.0M) y Mayorista El Roble ($8.0M) venden lo mismo.", "¿cuánto venden?", llamadas)).afirmaciones.filter((a) => /^\$8\.0M$/.test(a.token)).map((a) => a.hecho.entidades.join()); return reglaOn ? f() : sinR(REGLAS, "dueno_clausula", f); };
+    ok(jsn(de(true)) === jsn(["Tiendas Alerce", "Mayorista El Roble"]) && jsn(de(false)) === jsn(["Mayorista El Roble", "Mayorista El Roble"]), "★ (e) el MISMO valor redondeado es de dos dueños: cada cifra se atribuye a la cuenta de SU cláusula («Tiendas Alerce ($8.0M)»); sin la regla las dos quedaban de la primera de la lista", jsn([de(true), de(false)]));
+    const h = { hiloId: "X", forma: "A", empresa: "rioclaro", turnos: [{ sesion: 1, turno: 1, persona: "p", textoEnviado: "p", texto: "Tiendas Alerce ($8.0M) y Mayorista El Roble ($8.0M).", llamadas }] };
+    const hits = [{ nombre: "Tiendas Alerce", indice: 0 }, { nombre: "Mayorista El Roble", indice: 24 }];
+    ok(jsn(nombresDeLaClausula("Tiendas Alerce ($8.0M) y Mayorista El Roble ($8.0M).", { indice: 16, fin: 21 }, hits)) === jsn(["Tiendas Alerce"]) && jsn(nombresDeLaClausula("Mayorista El Roble: $8.0M, y más.", { indice: 20, fin: 25 }, [{ nombre: "Mayorista El Roble", indice: 0 }])) === jsn([]), "la cláusula de una cifra es el trozo entre separadores; entre paréntesis, la cuenta que lo abre", jsn(h.turnos.length)); }
+
+  // ── la métrica PEGADA a la cifra, el fallo de carga, el conjunto que suma
+  rojo(REGLAS, "metrica_pegada", "metrica/vencido-de-pendiente", /^\$69,9M$/, "caso real C02 1.5 (ensayo 5) · «$21,0M vencido de $69,9M pendiente»: cada cifra lleva la métrica que la oración le pega");
+  sigue("metrica/vencido-de-pendiente", /^\$(21,0|69,9)M$/, "las etiquetas cambiadas («$21,0M pendiente de $69,9M vencido») son un error de métrica", [["$21,0M vencido de $69,9M pendiente", "$21,0M pendiente de $69,9M vencido"]], ["metrica_distinta"]);
+  rojo(REGLAS, "metrica_pegada", "metrica/pendientes-vencidos-entre-parentesis", /^\$(15\.0|10\.7)M$/, "caso real C02 1.6 (ensayo 4) · «Andes del Sur ($15.0M pendientes) y Maipo ($10.7M pendientes, $5.8M vencidos)»");
+  sigue("metrica/pendientes-vencidos-entre-parentesis", /^\$15\.0M$/, "«Andes del Sur ($15.0M vencidos)» es de otra métrica (son pendientes)", [["Andes del Sur ($15.0M pendientes)", "Andes del Sur ($15.0M vencidos)"]], ["metrica_distinta"]);
+  rojo(REGLAS, "fallo_de_carga", "metrica/error-de-carga", /^\$13\.0M$/, "caso real B01 2.4 (ensayo 4) · «Si fuera un error de carga y volviera con $13.0M»: un fallo de carga de datos no es la carga comercial");
+  sigue("metrica/error-de-carga", /^\$13\.0M$/, "«la carga comercial de Quillay volvería con $13.0M» SÍ nombra la métrica carga (y los $13.0M son venta)", [["Si fuera un error de carga y volviera con $13.0M", "Si la carga comercial de Quillay volviera con $13.0M"]], ["metrica_distinta"]);
+  { const c = (h) => ultimo(h).afirmaciones.filter((a) => a.tipo === "conteo" || (a.token === "13"));
+    const con = c(hiloDe("conteo/los-13-clientes-suman")), sin = sinR(REGLAS, "agregado", () => c(hiloDe("conteo/los-13-clientes-suman")));
+    ok(con.every((a) => !FALSOS.has(a.veredicto)) && sin.some((a) => a.veredicto === "conteo_no_cierra"), "★ caso real B02 1.4 (ensayo 5) · «los 13 clientes suman $12.6M»: el 13 es el tamaño del conjunto que suma, no cuántos tienen vencido", jsn([con.map((a) => a.veredicto), sin.map((a) => a.veredicto)])); }
+
+  // ── lo entregado como dato (perfil, rango de un criterio) y la diferencia entre dos cuentas
+  rojo(REGLAS, "perfil", "entregado/perfil-dolar", /^\$916,16$/, "caso real A01 1.1 (ensayo 5) · «a $916,16 por US$»: el perfil que ADI entrega trae esa conversión");
+  sigue("entregado/perfil-dolar", /^\$15\.5M$/, "«$15.5M» no se absorbe por la banda «US$15 millones» del perfil (lo entregado se cita a su precisión)", [["Es un contexto", "Su venta anual es $15.5M. Es un contexto"]], ["no_traza"]);
+  rojo(REGLAS, "criterio_nombrado", "entregado/rango-del-criterio", /^(0,1 %|10 %)$/, "caso real B02 1.3 (ensayo 5) · «Piso de materialidad de cobranza: … Se mide en porcentaje, entre 0,1 % y 10 %»: el rango del criterio, nombrado en la misma viñeta");
+  sigue("entregado/rango-del-criterio", /^(0,1 %|10 %)$/, "si la viñeta no nombra el criterio, el «0,1 % y 10 %» no tiene de dónde salir", [["Piso de materialidad de cobranza", "Otro criterio cualquiera"]], ["no_traza"]);
+  { const c = (h) => ultimo(h).afirmaciones.filter((a) => a.tipo === "continuidad").map((a) => a.veredicto).join();
+    const con = c(hiloDe("continuidad/diferencia-entre-ambos")), sin = sinR(REGLAS, "sujeto_compuesto", () => c(hiloDe("continuidad/diferencia-entre-ambos")));
+    ok(!con.includes("cambio_no_avisado") && sin.includes("cambio_no_avisado"), "★ caso real B01 2.1 (ensayo 5) · «La diferencia entre ambos pasó de $12.3M a $11.4M» (tras nombrar a Norvik y Teravolt): el cambio «Norvik − Teravolt» SÍ se avisó", jsn([con, sin]));
+    ok(c(hiloDe("continuidad/diferencia-entre-ambos", [["a $11.4M", "a $11.9M"]])).includes("cambio_no_avisado"), "★ CARNADA · con «$11.9M» en vez de la cifra actual ($11.4M) el cambio NO se avisó"); }
+
+  // ── la clasificación humana: su formato, sus hallazgos en palabras, los errores de ADI y el patrón sistemático
+  for (const [e, esp] of [["ensayo-4", { hallazgos: 27, firmes: 2, candidatos: 1, hGrave: 2 }], ["ensayo-5", { hallazgos: 24, firmes: 1, candidatos: 1, hGrave: 1 }]]) {
+    const c = leerClasificacion(FXC[e]);
+    ok(c.hallazgos.length === esp.hallazgos && c.casosAdi.filter((k) => k.estado === "firme").length === esp.firmes && c.casosAdi.filter((k) => k.estado === "candidato").length === esp.candidatos && c.hallazgos.filter((h) => h.clase === "H-grave").length === esp.hGrave && esp.hGrave === FXC[e].esperado.hGravePorPalabras, `★ ${e}: la clasificación real se lee: ${esp.hallazgos} hallazgos en palabras (las celdas de la misma oración son UNO), ${esp.firmes} error(es) firme(s) de ADI, ${esp.candidatos} candidato, ${esp.hGrave} H-grave (= hGravePorPalabras de la persona)`, jsn([c.hallazgos.length, c.casosAdi.map((k) => k.estado), c.hallazgos.filter((h) => h.clase === "H-grave").map((h) => h.turnoId)]));
+  }
+  ok(familiaDeError("conteo_falso_en_palabras") === "conteo" && familiaDeError("conteo_mal_hecho") === "conteo" && familiaDeError("relacion_invertida_entre_ejes") === "relación o razón entre cifras" && familiaDeError("dueno_distinto") === "dueño distinto" && familiaDeError("metrica_distinta") === "métrica distinta" && familiaDeError("algo_nuevo") === "algo_nuevo", "las familias de error: conteo (en palabras o mal hecho) · relación invertida · dueño distinto · métrica distinta; lo no conocido es su propia familia");
+  { const e = (id, familia, hilo) => ({ id, familia, hilo, oracion: id });
+    ok(patronesSistematicos([e("a", "conteo", "A01"), e("b", "conteo", "B02")]).length === 1 && patronesSistematicos([e("a", "conteo", "A01"), e("b", "dueño distinto", "A01")]).length === 0 && patronesSistematicos([e("a", "conteo", "A01"), e("b", "conteo", "A01"), e("c", "métrica distinta", "C01")], { minRepeticiones: 3 }).length === 0, "★ patrón sistemático: la MISMA familia en 2 o más errores distintos (en un hilo o en varios); familias distintas no son patrón; el mínimo es un parámetro");
+    ok(limiteDeErrores(499) === 0 && limiteDeErrores(500) === 1 && limiteDeErrores(999) === 1 && limiteDeErrores(1000) === 2 && limiteDeErrores(0) === 0 && PARAMETROS_DE_CIERRE.afirmacionesPorError === 500, "★ límite = piso de N ÷ 500 (N < 500 → 0; 500 → 1; 999 → 1; 1000 → 2)"); }
+
+  // ── el informe: la regla partida (ADI · anfitrión por 500 · patrón · cruces · contrato informativo)
+  {
+    const manifiesto = { corridaId: "f5", tipo: "oficial", via: "api", modelo: "m", corpus: { corpusId: "c1", sha256: "x", juguete: false }, hashes: { instruccion: "i", herramientas: "h" }, sello: { ok: true } };
+    const cierreF5 = (n) => ({ turnosPlaneados: n, turnosHechos: n, motivo: "completa", consumo: { sinConteoPct: 0, modelosSinPrecio: [] } });
+    const juezF5 = (n) => ({ turnos: Object.fromEntries(Array.from({ length: n }, (_, k) => [`H|1|${k + 1}`, { ok: true, afirmaciones: [], naturalidad: null }])) });
+    const lineas = (n, base = `Cadena Quillay vendió ${venta}.`) => Array.from({ length: n }, () => base).join("\n");
+    const informeF5 = (textos, o = {}) => calcularInforme({ manifiesto, cierre: cierreF5(textos.length), hilos: [{ hiloId: "H", forma: "A", empresa: "rioclaro", turnos: textos.map((tx, k) => ({ sesion: 1, turno: k + 1, persona: "¿cuánto vendió Cadena Quillay?", textoEnviado: "¿cuánto vendió Cadena Quillay?", texto: tx, llamadas: [{ herramienta: "consultar", args: {}, resultado: E1 }] })) }], juez: o.sinJuez ? null : juezF5(textos.length), revision: o.revision || null, clasificacion: o.clasificacion || null, parametros: o.parametros || {} });
+    const MALA = "Cadena Quillay vendió $99.9M este año.";      // no_traza
+    const OTRO = "Casa Lomas vendió $13.0M este año.";         // dueno_distinto (la cifra existe, pero no es de Casa Lomas)
+
+    // N < 500: el límite es 0 y se dice
+    const chico = informeF5([`${lineas(40)}\n${MALA}`]);
+    ok(chico.veredicto === "NO PASA" && chico.veredictoDetallado.criterios.anfitrion.limite === 0 && chico.veredictoDetallado.criterios.anfitrion.errores === 1 && /N = 41 < 500/.test(chico.veredictoDetallado.criterios.anfitrion.nota) && /con N = 41 < 500 el límite es 0/.test(informeEnMarkdown(chico)), "★ el borde N < 500: con 41 afirmaciones el límite es 0 y un solo error material reprueba — el informe LO DICE (lectura literal de «máximo 1 cada 500»)", `${chico.veredicto} · ${chico.porQue}`);
+    // N ≥ 500: un error se tolera
+    const medio = informeF5([`${lineas(520)}\n${MALA}`]);
+    ok(medio.veredictoDetallado.criterios.anfitrion.afirmaciones === 521 && medio.veredictoDetallado.criterios.anfitrion.limite === 1 && medio.veredictoDetallado.criterios.anfitrion.errores === 1 && medio.veredicto === "PASA" && medio.provisional === true, "★ 521 afirmaciones y 1 error material: dentro del límite (1) → PASA (PROVISIONAL: sin la clasificación humana)", `${medio.veredicto} · ${medio.porQue}`);
+    ok(medio.veredictoDetallado.criterios.anfitrion.tasaPor500 === 0.96 && /Veredicto: PASA \(PROVISIONAL\)/.test(informeEnMarkdown(medio)) && /## Veredicto de cierre \(regla del 2026-10-07\)/.test(informeEnMarkdown(medio)) && /tasa de errores del anfitrión \| 0\.96 por 500/.test(informeEnMarkdown(medio)), "la tasa por 500 y el veredicto provisional se imprimen", String(informeEnMarkdown(medio)).slice(0, 400));
+    // dos errores sobre 521: pasa el límite
+    const dos = informeF5([`${lineas(520)}\n${MALA}\n${OTRO}`]);
+    ok(dos.veredicto === "NO PASA" && dos.veredictoDetallado.criterios.anfitrion.cumple === false, "2 errores materiales sobre 521 afirmaciones superan el límite (1): NO PASA", `${dos.veredicto} · ${dos.porQue}`);
+    // N ≥ 1000: dos errores caben; pero de la MISMA familia son un patrón sistemático
+    const mil = (...malas) => informeF5([`${lineas(1010)}\n${malas.join("\n")}`]);
+    const mismoTipo = mil(MALA, "Cadena Quillay vendió $98.8M este año.");
+    ok(mismoTipo.veredictoDetallado.criterios.anfitrion.limite === 2 && mismoTipo.veredictoDetallado.criterios.anfitrion.cumple === true && mismoTipo.veredictoDetallado.criterios.patron.sistematico === true && mismoTipo.veredicto === "NO PASA" && /patrón sistemático: cifra sin respaldo ×2/.test(mismoTipo.porQue), "★ dos errores de la MISMA familia (cifra sin respaldo ×2) caben en el límite (2 sobre 1.012) pero son un patrón sistemático: NO PASA", `${mismoTipo.veredicto} · ${mismoTipo.porQue}`);
+    const distintos = mil(MALA, OTRO);
+    ok(distintos.veredictoDetallado.criterios.patron.sistematico === false && distintos.veredicto === "PASA", "dos errores de familias distintas (cifra sin respaldo · dueño distinto) dentro del límite, sin patrón → PASA", `${distintos.veredicto} · ${distintos.porQue}`);
+    // los cruces siguen duros
+    const cruce = informeF5([`${lineas(520)}\nFalabella vendió ${venta}.`]);
+    ok(cruce.veredicto === "NO PASA" && cruce.veredictoDetallado.criterios.cruces.n === 1 && /1 cruce\(s\) entre empresas/.test(cruce.porQue), "★ un cruce entre empresas reprueba aunque no haya errores de cifra (0 cruces es duro)", `${cruce.veredicto} · ${cruce.porQue}`);
+    // el cumplimiento del contrato es informativo (parámetro)
+    const nV = filasE1.find((f) => f.metrica === "Venta").valor;
+    const calc = informeF5([`Cadena Quillay vendió ${nV}.`, "Cadena Quillay vendió el doble que Casa Lomas."].slice(0, 1));
+    ok(calc.veredictoDetallado.criterios.cumplimientoDelContrato.informativo === true && calc.veredictoDetallado.criterios.cumplimientoDelContrato.cumple === null, "el cumplimiento del contrato se informa y por defecto NO decide (informativo)");
+    // …y con un umbral como parámetro, decide
+    const conUmbral = informeF5([`${lineas(520)}`], { parametros: { umbralDeCumplimientoPct: 100.5 } });
+    ok(conUmbral.veredicto === "NO PASA" && conUmbral.veredictoDetallado.criterios.cumplimientoDelContrato.cumple === false && /cumplimiento del contrato 100 % < umbral 100\.5 %/.test(conUmbral.porQue), "con `umbralDeCumplimientoPct` el cumplimiento sí decide (parámetro, no regla fija)", `${conUmbral.veredicto} · ${conUmbral.porQue}`);
+    // la persona y los ejemplos no son afirmaciones empresariales
+    const hP = [hiloDe("persona/45-dias-en-palabras"), hiloDe("ejemplo/si-me-dice-un-crecimiento")];
+    const infP = calcularInforme({ manifiesto, cierre: cierreF5(2), hilos: hP.map((h, i) => ({ ...h, hiloId: i ? "E" : "P" })), juez: null, revision: null, clasificacion: { filas: [] } });
+    ok(infP.declaradasPorLaPersona.length === 2 && infP.ejemplosHipoteticos.length === 1 && infP.veredictoDetallado.afirmacionesEmpresariales.excluidas.dichasPorLaPersona === 2 && infP.veredictoDetallado.afirmacionesEmpresariales.excluidas.ejemplosHipoteticos === 1 && infP.erroresMateriales.length === 0 && infP.contrato.cifras === infP.contrato.hechoDeAdi + infP.contrato.fueraDeContrato.total + infP.contrato.erroresMateriales && /## Ejemplos hipotéticos/.test(informeEnMarkdown(infP)), "★ las cifras de la PERSONA y los ejemplos hipotéticos quedan FUERA del denominador (se listan aparte, con su origen) y no son errores", jsn([infP.declaradasPorLaPersona.length, infP.ejemplosHipoteticos.length, infP.erroresMateriales.length]));
+    // la clasificación humana manda: H-grave cuenta, V es falla del medidor, H-leve no es material, los errores de ADI duros
+    const base = [`${lineas(520)}\n${MALA}\n${OTRO}\nCadena Quillay vendió $77.7M este año.`];
+    const idDe = (k) => `H|1|1|${k}`;
+    const cl = (filas, extra = {}) => ({ filas, ...extra });
+    const infC = informeF5(base, { clasificacion: cl([{ id: idDe(521), clase: "V", subtipo: "falla_del_medidor" }, { id: idDe(522), clase: "H-leve", subtipo: "umbral_redondeado" }, { id: idDe(523), clase: "H-grave", subtipo: "cifra_inventada" }]) });
+    ok(infC.provisional === false && infC.fallasDelMedidor.length === 1 && infC.veredictoDetallado.criterios.anfitrion.errores === 1 && infC.veredictoDetallado.criterios.anfitrion.afirmaciones === 523 && infC.veredicto === "PASA", "★ `clasificacion.json` manda: V = falla del medidor (no cuenta), H-leve = falsa pero inmaterial, H-grave = error material (1 sobre 523 afirmaciones) → PASA no provisional", `${infC.veredicto} · prov ${infC.provisional} · ${infC.porQue}`);
+    const palabras = { palabras: [{ id: "H|1|1", clase: "H-grave", subtipo: "conteo_falso_en_palabras", oracion: "Dos de tus tres clientes más grandes están en rojo." }, { id: "H|1|2 · H|1|3", clase: "H-correcta", subtipo: "relacion_propia_en_palabras", oracion: "" }] };
+    const infW = informeF5([`${lineas(520)}`, "x", "y"], { clasificacion: cl([], palabras) });
+    ok(infW.veredictoDetallado.afirmacionesEmpresariales.delasPalabras === 3 && infW.veredictoDetallado.criterios.anfitrion.errores === 1 && infW.veredictoDetallado.criterios.anfitrion.afirmaciones === 523 && infW.veredictoDetallado.erroresDelAnfitrion[0].familia === "conteo", "★ los hallazgos EN PALABRAS de la persona (lo que el rastreo no ve) suman al denominador (3) y el H-grave cuenta como error (familia: conteo)", jsn(infW.veredictoDetallado.afirmacionesEmpresariales));
+    const adiFirme = informeF5([`${lineas(520)}`], { clasificacion: cl([], { casosA: [{ id: "H|1|1", tipo: "A · cifras entregadas sin id derivable", estado: "firme", evidencia: "x" }] }) });
+    ok(adiFirme.veredicto === "NO PASA" && adiFirme.erroresDeAdi.length === 1 && adiFirme.veredictoDetallado.criterios.adi.cumple === false && /1 error\(es\) de ADI/.test(adiFirme.porQue), "★ un error de ADI «firme» de la clasificación reprueba (0 es duro), aunque el anfitrión esté impecable", `${adiFirme.veredicto} · ${adiFirme.porQue}`);
+    const adiCand = informeF5([`${lineas(520)}`], { clasificacion: cl([], { casosA: [{ id: "H|1|2", tipo: "A-candidato · derivar rechaza una derivación válida", estado: "a decidir por el owner", evidencia: "x" }] }) });
+    ok(adiCand.veredicto === "NO CONCLUYENTE" && adiCand.veredictoDetallado.criterios.adi.candidatos === 1 && /candidato\(s\) a error de ADI sin decidir/.test(adiCand.porQue), "un CANDIDATO a error de ADI sin decidir deja el veredicto en NO CONCLUYENTE (no PASA hasta que el owner decida)", `${adiCand.veredicto} · ${adiCand.porQue}`);
+    const levesRep = informeF5([`${lineas(520)}`], { clasificacion: cl([], { palabras: [{ id: "H|1|1", clase: "H-leve", subtipo: "causalidad_sin_respaldo", oracion: "a" }, { id: "H|1|2", clase: "H-leve", subtipo: "causalidad_sin_respaldo", oracion: "b" }] }) });
+    ok(levesRep.veredicto === "PASA" && levesRep.veredictoDetallado.criterios.patron.levesRepetidos.length === 1 && levesRep.veredictoDetallado.criterios.patron.sistematico === false, "los errores LEVES repetidos se informan pero no cuentan para el patrón (por defecto)", `${levesRep.veredicto}`);
+    const levesRep2 = informeF5([`${lineas(520)}`], { clasificacion: cl([], { palabras: [{ id: "H|1|1", clase: "H-leve", subtipo: "causalidad_sin_respaldo", oracion: "a" }, { id: "H|1|2", clase: "H-leve", subtipo: "causalidad_sin_respaldo", oracion: "b" }] }), parametros: { incluirLevesEnElPatron: true } });
+    ok(levesRep2.veredicto === "NO PASA" && levesRep2.veredictoDetallado.criterios.patron.sistematico === true, "…y con `incluirLevesEnElPatron` sí cuentan (parámetro)", `${levesRep2.veredicto}`);
+    // provisional vs revisado, y el cierre de etapa
+    ok(informeF5([`${lineas(520)}`]).provisional === true && informeF5([`${lineas(520)}`], { clasificacion: cl([]) }).provisional === false && informeF5([`${lineas(520)}`], { revision: { decisiones: { "H|1|1|1": { veredicto: "verdadera" } } } }).provisional === false, "★ sin `clasificacion.json` ni `revision.json` el veredicto es PROVISIONAL; con cualquiera de los dos, no");
+    const a = informeF5([`${lineas(520)}`], { clasificacion: cl([]) }), b = informeF5([`${lineas(520)}`]);
+    const ofi = (i, corpusId, sha) => ({ ...i, tipo: "oficial", modelo: "m", via: "api", corpus: { corpusId, sha256: sha } });
+    ok(cierreDeEtapa([ofi(a, "c1", "x"), ofi(a, "c2", "y")]).pasa === true && cierreDeEtapa([ofi(a, "c1", "x"), ofi(b, "c2", "y")]).pasa === false && /PROVISIONAL/.test(cierreDeEtapa([ofi(a, "c1", "x"), ofi(b, "c2", "y")]).motivo), "★ `cierreDeEtapa`: dos corridas oficiales que PASAN y están revisadas; una PROVISIONAL no cierra la etapa");
+    ok(/a lo más 1 error material del anfitrión cada 500 afirmaciones empresariales/.test(REGLA_DE_CIERRE) && /N < 500 el límite es 0/.test(REGLA_DE_CIERRE) && /ningún patrón sistemático repetido/.test(REGLA_DE_CIERRE) && /0 errores de ADI/.test(REGLA_DE_CIERRE) && /0 cruces entre empresas: duro/.test(REGLA_DE_CIERRE) && /umbral del cumplimiento es un parámetro/.test(REGLA_DE_CIERRE) && !/0 errores materiales del anfitrión/.test(REGLA_DE_CIERRE) && /PROVISIONAL/.test(REGLA_DE_CIERRE), "★ `REGLA_DE_CIERRE` es la del 2026-10-07: ADI 0 · anfitrión ≤ 1 cada 500 y sin patrón · 0 cruces · cumplimiento informativo (parámetro) · veredicto provisional sin revisión humana");
   }
 }
 
