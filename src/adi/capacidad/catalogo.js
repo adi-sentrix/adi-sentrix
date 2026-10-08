@@ -33,7 +33,7 @@ import { CRITERIOS } from "../agente/prioridadIntegrada.js";
 import { definicionesDeEstados } from "../notario/estados.js";
 import {
   CIERRES, USAR_VALORES, PROFUNDIDAD_VALORES, TIPOS_DE_PREMISA,
-  ejesConProductor,
+  ejesConProductor, EJES,
 } from "../encargo/esquema.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
 import {
@@ -42,6 +42,7 @@ import {
 import { periodoDeclaradoDe } from "../../config/contract/bandaTamano.js";
 import { monedaDelNegocio } from "../../config/moneda.js";
 import { guiaDeUniverso } from "./ensenar.js";
+import { validarEncargo } from "../encargo/validar.js";   // SOLO para preguntarle al validador dónde corre cada supuesto (la misma tabla que decide, nunca una copia)
 import { getTenantData } from "../../data/tenantStore.js";
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
 import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";
@@ -49,15 +50,16 @@ import { buildMesaFlujo } from "../sentrix/mesaFlujo.js";
 const _porClave = new Map(CLAVES_DE_METRICA.map((m) => [m.clave, m]));
 
 /* ── VERIFICACIÓN DE PRODUCTOR (el candado del corte) ────────────────────────────────────────────────────────
- * Un concepto es servible si tiene ≥1 eje con productor, O si es una REFERENCIA de la casa (se cita, no se
- * ordena — `notario/lexico.js:referencia:true`), O si es un ESCALAR DEL NEGOCIO sin eje de entidad propio
- * (`notario/lexico.js:negocio:true` — hoy solo `margen_promedio`; `esquema.js` ya lo documenta como productor
- * residual `[]` A PROPÓSITO, no como un hueco). Cualquier OTRA clave sin eje y sin ninguna de estas dos marcas es
- * una entrada sin productor de verdad: el gate la caza (carnada de escalabilidad, ver `_capacidad_gate.mjs`). */
+ * Un concepto se OFRECE para consultar solo si `consultar` lo puede responder: tiene ≥1 eje con productor. Una REFERENCIA de la casa (el benchmark, el nivel de carga, el piso de rotación… — `notario/lexico.js:referencia:true`) y un
+ * ESCALAR DEL NEGOCIO sin eje de entidad propio (`negocio:true` — hoy `margen_promedio`) NO se piden como concepto: `esquema.js` los declara con productor `[]` A PROPÓSITO (se citan en el Marco o en la comparación de una Entrega,
+ * con su origen), y `consultar` los rechaza con `concepto_sin_productor`. Hasta el ensayo 6 el catálogo los listaba entre los conceptos (A01|1|4: `margen_promedio` ofrecido, `consultar` lo rechazó): ahora viajan APARTE, en
+ * `temas[].referencias`, diciendo lo que son. Cualquier otra clave sin eje es una entrada sin productor de verdad: el gate la caza (carnada de escalabilidad y recorrido del catálogo, `_capacidad_gate.mjs`). */
 function _conceptoServible(clave) {
-  const m = _porClave.get(clave);
-  if (m && (m.referencia || m.negocio)) return true;
   return ejesConProductor(clave).length > 0;
+}
+function _esReferenciaOEscalar(clave) {
+  const m = _porClave.get(clave);
+  return Boolean(m && (m.referencia || m.negocio)) && ejesConProductor(clave).length === 0;
 }
 
 /* Las 4 rutas fijas de `entrega/componer.js` son el productor REAL de `lectura`/`decision` por tema (contrato
@@ -104,6 +106,46 @@ function _cierresDelTema(temaId) {
   };
 }
 
+/* ── LO QUE SE PUEDE DEFINIR ──────────────────────────────────────────────────────────────────────────────────
+ * `cierre: definicion` responde con la definición CURADA del glosario (`defineConcept`): un id que el glosario no resuelve no tiene qué responder. El catálogo ofrece SOLO los que la herramienta resuelve (ensayo 6: `ventas_anterior`,
+ * `markup`, `variacion`, `vs_presupuesto_usd`, `umbral_materialidad`, `unidades_stock`… se ofrecían y la consulta volvía vacía). Es la MISMA función que corre la consulta, no una lista aparte. */
+function _definible(id) {
+  const t = _TOOL("defineConcept");
+  if (!t) return false;
+  try { const r = t({ concept: id }); return Boolean(r && r.coverage && r.coverage.supported); } catch { return false; }
+}
+
+/* ── DÓNDE CORRE CADA SUPUESTO ────────────────────────────────────────────────────────────────────────────────
+ * `supuestosAdmitidos` listaba los siete tipos de `ASSUMPTIONS` (la FORMA del supuesto), pero no todos corren: el de inventario (`inventory`) no tiene productor en ningún tema, y los demás corren solo en ciertos temas y ejes (carga: solo
+ * cuentas; costo: producto, cuenta, marca y familia; libre: solo producto, en Inventario). Se le PREGUNTA al validador del Encargo —la misma tabla que decide, nunca una copia— con un encargo mínimo por (tipo, tema, alcance) y se publica
+ * dónde corre; el tipo que no corre en ningún lugar no se ofrece. Puro (el validador no toca la red); lee los nombres de las entidades del tenant ACTIVO. */
+function _alcancesDeSupuestos(tipos, temasActivos) {
+  const ejemplo = {};
+  for (const e of EJES) { const ns = axisEntityNames(e); if (ns.length) ejemplo[e] = ns[0]; }
+  const out = {};
+  for (const s of tipos) {
+    const porTema = {};
+    for (const tema of temasActivos) {
+      const ejes = [];
+      for (const alc of ["negocio", ...Object.keys(ejemplo)]) {
+        const alcance = alc === "negocio" ? "negocio" : { eje: alc, nombre: ejemplo[alc] };
+        const encargo = {
+          version: "encargo/v1",
+          supuestos: [{ id: "s1", tipo: s.tipo, valor: 5, unidad: (s.unidades || [])[0], alcance }],
+          partes: [{ id: "p1", tema, cierre: "simulacion", supuestos: ["s1"], ...(alc === "negocio" ? {} : { entidades: [{ nombre: ejemplo[alc], eje: alc }] }) }],
+        };
+        let R = null;
+        try { R = validarEncargo(encargo, {}); } catch { R = null; }
+        const parte = R && Array.isArray(R.partes) ? R.partes[0] : null;
+        if (parte && parte.estado !== "no_resuelta" && !(R.noResuelto || []).some((n) => n.campo === "supuesto")) ejes.push(alc);
+      }
+      if (ejes.length) porTema[tema] = ejes;
+    }
+    out[s.tipo] = porTema;
+  }
+  return out;
+}
+
 /* ── EL CATÁLOGO ──────────────────────────────────────────────────────────────────────────────────────────────
  * construirCatalogo() → sin argumentos: lee el tenant ACTIVO (la misma singleton que usa el resto del Core,
  * `data/tenantStore.js`) SOLO para los tres campos que dependen de qué archivo se cargó — período vigente por
@@ -139,6 +181,11 @@ export function construirCatalogo({ registro = DOMINIOS_REGISTRO } = {}) {
           ejes: ejesConProductor(clave),
         };
       });
+    /* las referencias y escalares del negocio del tema: se CITAN, no se piden (su valor llega dentro de la Entrega que las usa, con su origen; `cierre: definicion` explica qué son) */
+    const referencias = (d.metricas || []).filter(_esReferenciaOEscalar).map((clave) => {
+      const m = _porClave.get(clave);
+      return { clave, rotulo: m ? m.nombre : clave, unidad: m ? m.unidad : null, tipo: m && m.referencia ? "referencia" : "escalar del negocio", nota: "no se pide como concepto: se cita en la Entrega que la usa, con su origen" };
+    });
     return {
       id: d.id,
       nombre: d.nombre,
@@ -146,6 +193,7 @@ export function construirCatalogo({ registro = DOMINIOS_REGISTRO } = {}) {
       sujeto: d.sujeto,
       estado: d.estado,               // "activo" | "ausente"
       conceptos,
+      ...(referencias.length ? { referencias } : {}),
       lentes: d.lentes || [],
       cierres,
       ausencia: d.ausencia || null,   // solo temas ausentes (tesorería): {id, que, alternativa}
@@ -175,9 +223,11 @@ export function construirCatalogo({ registro = DOMINIOS_REGISTRO } = {}) {
   const definiciones = CALCULOS.map((c) => ({ id: c.id, que: c.que, formula: c.formula, fuente: c.fuente }));
   const noCalcula = BLOQUEADOS.map((b) => ({ id: b.id, que: b.que, porque: b.porque, paraAbrirlo: b.paraAbrirlo }));
   const ausencias = AUSENCIAS_DEL_DATO.map((a) => ({ id: a.id, tipo: a.tipo, dominio: a.dominio, texto: a.texto }));
-  const supuestosAdmitidos = Object.entries(ASSUMPTIONS).map(([tipo, def]) => ({
+  const supuestosDeLaForma = Object.entries(ASSUMPTIONS).map(([tipo, def]) => ({
     tipo, nombre: def.label, unidades: def.units, perturba: def.perturbs,
   }));
+  const alcancesDeSupuestos = _alcancesDeSupuestos(supuestosDeLaForma, temas.filter((t) => t.estado === "activo" && t.cierres.simulacion).map((t) => t.id));
+  const supuestosAdmitidos = supuestosDeLaForma.filter((s) => Object.keys(alcancesDeSupuestos[s.tipo] || {}).length).map((s) => ({ ...s, alcances: alcancesDeSupuestos[s.tipo] }));
   const criterios = Object.entries(CRITERIOS).map(([lente, def]) => ({
     lente, nombre: def.nombre, dicho: def.dicho, tema: def.dominio || null,
   }));
@@ -185,7 +235,7 @@ export function construirCatalogo({ registro = DOMINIOS_REGISTRO } = {}) {
   const conceptosDeDefinicion = [
     ...Object.keys(CONCEPT_DEFS).map((id) => ({ id, rotulo: (CONCEPT_DEFS[id] && CONCEPT_DEFS[id].aka) || id })),
     ...CLAVES_DE_METRICA.map((m) => ({ id: m.clave, rotulo: m.nombre })),
-  ];
+  ].filter((c) => _definible(c.id));
 
   return {
     version: "capacidad/v1",

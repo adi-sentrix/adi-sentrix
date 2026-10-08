@@ -87,7 +87,8 @@ import {
   libroNuevo, emitirConversacionId, detectarCambioVersion, registrarEntrega, LIBRO_TOPE_BYTES,
   actualizarCriterio, agregarSupuestoVivo, registrarPremisa, registrarHechoAportado, registrarDerivacion, derivacionesDe,
 } from "../continuidad/libro.js";
-import { validarDerivacion, calcularDerivacion, derivacionParaElLibro, respuestaDeLaDerivacion, cifrasDeLosOperandos, llaveDeDerivacion } from "./derivar.js";
+import { validarDerivacion, calcularDerivacion, derivacionParaElLibro, respuestaDeLaDerivacion, cifrasDeLosOperandos, llaveDeDerivacion, describirDerivacion } from "./derivar.js";
+import { textoDeUniversoDeLaCifra, universoDeBodegaDe } from "./universoDeLasCifras.js";
 import { estadoVigenteDe, eventosDeContinuidad, lineaDeContinuidad } from "../continuidad/estadoVigente.js";
 import { retomar as reverificarConversacion } from "../continuidad/retomar.js";
 import { cifraDeHecho, referenciasDe, revalidarEntrega, reverificadorDe, encargoParaElLibro } from "../continuidad/revalidar.js";
@@ -96,6 +97,7 @@ import { serializarPorClave } from "../continuidad/serializar.js";
 import { conTenantActivo } from "./aislamiento.js";
 import { recorrerApoyo, apoyoParaElLibro, hechosQueYaViajan } from "./apoyo.js";
 import { ensenarRechazos } from "./ensenar.js";
+import { separarVentaPorBodega, resolucionDeLoRechazado } from "./leyDeBodega.js";
 
 /* ── LA CABECERA DE USO (plan v2, Etapa 3 · «una cabecera de USO para el LLM») ───────────────────────────────────
  * Viaja en CADA `consultar(...)`. Cuatro reglas, en el vocabulario de negocio del contrato (nunca "boleta" ni
@@ -115,7 +117,7 @@ export const CABECERA_DE_USO = Object.freeze([
  * Viaja en CADA `retomar(...)`, en el mismo vocabulario de negocio que `CABECERA_DE_USO` (nunca «boleta», «fig» ni un nombre interno): lo entregado antes se cita tal como se dijo; si una
  * cifra cambió se dicen las dos; lo que no se pudo comparar o no se midió no se afirma como vigente; y no se recalcula sobre el texto. */
 export const CABECERA_DE_RETOMAR = Object.freeze([
-  "Lo entregado antes se cita tal como se dijo: no se reescribe ni se corrige sobre el texto. Si algo cambió, se dice que cambió con los datos actuales — no que antes estuviera mal.",
+  "Lo entregado antes se cita tal como se dijo: no se reescribe ni se corrige sobre el texto. Si algo cambió, se dice que cambió con los datos actuales — no que antes estuviera mal. Cada cifra derivada (D<k>) trae su `descripcion` —qué es y de qué cifras sale— y cada cifra de un conjunto acotado (los 3 de mayor venta, los clientes en mora) trae su `universo`: se citan con esa descripción, no con otra lectura de los identificadores.",
   "Si una cifra cambió, se dicen las dos —la de antes y la de ahora— con los datos de su momento; la diferencia ya viene calculada por ADI, no se recalcula ni se estima a mano.",
   "Lo marcado «no_comparable» (otro período, otra moneda, otra unidad, otra referencia o una cuenta que ya no figura en el ranking), «no_se_revalida» (un supuesto, un declarado, un documento) o «sin_reverificar» no se afirma como vigente ni como cambiado: se dice por qué, con las palabras del motivo.",
   "La línea de continuidad es lo único que se dice sin que la persona lo pida, y solo si pasó algo; nombra hasta tres cambios y cuántos más hay. El detalle de cada cifra está en `hechos` por si lo pide (`E1.h3.2` es la segunda cifra de la fila `E1.h3`).",
@@ -131,6 +133,18 @@ export function avisosDeLaMemoria({ perdidas = [], sinGuardar = false, fueraNoCa
   if (fueraNoCabe) out.push(`${fueraNoCabe} ${fueraNoCabe === 1 ? "cifra" : "cifras"} de «fuera del texto» no se incluyen: no caben en la memoria de la conversación y ADI no entrega una cifra que no pueda citar después. Pídalas con una consulta acotada (detalle.comoPedirlo).`);
   return out;
 }
+
+/* ── EL UNIVERSO DE UNA CIFRA ENTREGADA (ensayo 6, owner 2026-10-08): el conjunto acotado del que sale (los 3 de mayor venta, los clientes en mora) viaja con ella — para describir una derivación y para `retomar` ──
+ * `mapa`: Map id → { entidad, … } (cómo se entregó cada cifra); devuelve el mismo mapa con `universo` donde la cifra sale de un conjunto acotado. Las derivaciones (`D<k>`) se explican solas y no llevan universo. */
+function _conUniverso(mapa, libro) {
+  for (const [id, o] of mapa) {
+    if (!o || /^D\d+$/.test(String(id))) continue;
+    const t = textoDeUniversoDeLaCifra(libro, id, o.entidad != null ? o.entidad : null);
+    if (t) mapa.set(id, { ...o, universo: t });
+  }
+  return mapa;
+}
+const _idsDeUnaDerivacion = (d) => [...(Array.isArray(d.sobre) ? d.sobre : []), ...(d.base ? [d.base] : []), ...(d.condicion && typeof d.condicion.valor === "string" ? [d.condicion.valor] : [])];
 
 /* ── validar la FORMA del tenant inyectado — SIN tocar el estado global del Core (eso es `conTenantActivo`) ────── */
 function _validarTenant(tenant) {
@@ -449,7 +463,11 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         // el benchmark declarado pisa también el benchmark embebido por fila del dato (la vara de la empresa, como C.2): lo limpia el siguiente `initTenant` (el de `conTenantActivo` al salir)
         if (benchmarkDeclarado) setBenchmarkOverride(benchmarkDeclarado.valor);
         // `libro: libroLeido` = la cita `contexto: E1` se resuelve contra lo que ESTA conversación ya entregó (bloque 3)
-        const resolucion = validarEncargo(encargo, { libro: libroLeido });
+        /* LA VENTA NO SE ABRE POR BODEGA (ensayo 6, owner 2026-10-08, `leyDeBodega.js`): una parte que pide una métrica comercial sobre algo definido por bodega no corre y se rechaza con su razón; las demás siguen (encargo intacto si ninguna viola la ley) */
+        const ley = separarVentaPorBodega(encargo);
+        let resolucion;
+        if (ley.rechazos.length && !(ley.encargo.partes || []).length) resolucion = resolucionDeLoRechazado(ley);
+        else { resolucion = validarEncargo(ley.encargo, { libro: libroLeido }); if (ley.rechazos.length) resolucion = { ...resolucion, noResuelto: [...ley.rechazos, ...resolucion.noResuelto] }; }
         /* FAMILIA 5 (§7.3·48d): `componerEntrega` ya pasa TODA la Entrega por `verificarEntrega` antes de que salga (`entrega/componer.js:servirConGarantia`): el invariante del universo propio (§7.3·17) la declina entera, y una oración que el verificador rechaza se retira y se declara. Acá no se audita por segunda vez (era la tercera copia de la regla 18). */
         const salida = componerEntrega(resolucion);
         // lo declarado al lado de lo medido de la MISMA métrica y la MISMA entidad (la Entrega ya compuesta no se toca)
@@ -817,6 +835,18 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
     // 4 · armar la respuesta
     const r = reverificarConversacion(libro, { versionIdActual: versionIdActivo, reverificar: reverificadorDe(resultados), lenguajeDeNegocio: true });
 
+    /* QUÉ ES CADA CIFRA (ensayo 6, owner 2026-10-08): un anfitrión nuevo que retoma lee los hechos sin haber visto cómo se pidieron. Una derivación (`D<k>`) trae su descripción —la operación y los dueños de las cifras— y una cifra de un conjunto acotado
+     * (los 3 de mayor venta, los clientes en mora, el total de un listado filtrado) trae el texto de su universo. Sale de lo que el libro ya guarda; el valor y el resto del hecho no cambian. */
+    r.hechos = r.hechos.map((h) => {
+      if (h.derivada) {
+        const d = (libro.derivaciones || []).find((x) => x && x.id === h.id);
+        const descripcion = d ? describirDerivacion(d, _conUniverso(cifrasDeLosOperandos(libro, _idsDeUnaDerivacion(d)), libro)) : "";
+        return descripcion ? { ...h, descripcion } : h;
+      }
+      const universo = textoDeUniversoDeLaCifra(libro, h.id, h.sujeto != null ? h.sujeto : null);
+      return universo ? { ...h, universo } : h;
+    });
+
     // lo que NO se pudo revalidar, y por qué (nada de esto es un cambio: es lo que el anfitrión no debe afirmar como vigente)
     const advertencias = [];
     const sinVerificar = new Map();
@@ -859,14 +889,16 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       try { libro = await store.leerLibro(tenantId, conversacionId); }
       catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: CABECERA_DE_USO }; throw e; }
       const pedido = { conversacionId, operacion, sobre, base, condicion };
-      const v = validarDerivacion(libro, pedido, { tenantId });
+      /* la venta no se abre por bodega: una cifra comercial que sale de un universo definido por bodega no entra a un agregado (`derivar.js`; el origen lo dicen los universos del libro) */
+      const deBodega = (h) => { const e = ((libro && libro.entregas) || []).find((x) => x && x.n === h.entregaN); return e ? universoDeBodegaDe(e, h.entidad != null ? h.entidad : null) : null; };
+      const v = validarDerivacion(libro, pedido, { tenantId, deBodega });
       if (!v.ok) return { ok: false, motivo: v.motivo, detalle: v.detalle, ...(v.ids ? { ids: v.ids } : {}), uso: CABECERA_DE_USO };
 
       const llave = llaveDeDerivacion({ operacion: v.operacion, sobre: v.operandos.map((x) => x.id), base: v.base ? v.base.id : null, condicion: v.condicion });
       const previa = derivacionesDe(libro).find((d) => llaveDeDerivacion(d) === llave);
       if (previa) {
         const ids = [...previa.sobre, ...(previa.base ? [previa.base] : []), ...(previa.condicion && typeof previa.condicion.valor === "string" ? [previa.condicion.valor] : [])];
-        return { ok: true, conversacionId, ...respuestaDeLaDerivacion(previa, cifrasDeLosOperandos(libro, ids)), repetida: true, continuidad: { conversacionId, guardada: true }, uso: CABECERA_DE_USO };
+        return { ok: true, conversacionId, ...respuestaDeLaDerivacion(previa, _conUniverso(cifrasDeLosOperandos(libro, ids), libro)), repetida: true, continuidad: { conversacionId, guardada: true }, uso: CABECERA_DE_USO };
       }
 
       const c = calcularDerivacion(v);
@@ -878,7 +910,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       try { await store.guardarLibro(tenantId, nuevo); }
       catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: CABECERA_DE_USO }; throw e; }
       const d = nuevo.derivaciones[nuevo.derivaciones.length - 1];
-      const operandosPorId = new Map([...v.operandos, ...(v.base ? [v.base] : []), ...(v.referencia ? [v.referencia] : [])].map((x) => [x.id, x]));
+      const operandosPorId = _conUniverso(new Map([...v.operandos, ...(v.base ? [v.base] : []), ...(v.referencia ? [v.referencia] : [])].map((x) => [x.id, x])), nuevo);
       return { ok: true, conversacionId, ...respuestaDeLaDerivacion(d, operandosPorId), repetida: false, continuidad: { conversacionId, guardada: true, ...(perdidas.length ? { entregasSinCifras: perdidas } : {}) }, ...(avisos.length ? { advertencias: avisos } : {}), uso: CABECERA_DE_USO };
     };
     return serializarPorClave(`libro|${tenantId}|${conversacionId}`, trabajo);

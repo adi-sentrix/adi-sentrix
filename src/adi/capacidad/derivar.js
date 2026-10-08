@@ -23,6 +23,10 @@
  * otra; y el hecho que sale lleva la procedencia de cada lado (lo medido y la referencia, con DE QUIÉN es: «declarado por la empresa» o «criterio general de ADI»), nunca una referencia presentada como criterio de la
  * empresa; (2) una quinta operación, `razon`: «cuántas veces es A respecto de B» (A ÷ B, misma métrica, misma unidad, ambas positivas; «2.3 veces»).
  *
+ * ENSAYO 6 (owner 2026-10-08; `_ADI_DISENO_CONTRATO_ANFITRION.md` §12): (1) la VENTA NO SE ABRE POR BODEGA — `derivar` rechaza (`venta_por_bodega`) un agregado de métricas comerciales cuyas cifras salen de un universo definido por bodega
+ * (la suma de «los SKU de Lampa» no es «la venta de Lampa»): el origen lo dice quien llama (`opciones.deBodega`, `universoDeLasCifras.js`, desde los universos del libro); (2) cada derivación lleva su DESCRIPCIÓN (`describirDerivacion`): qué operación es
+ * y de qué cifras — para que quien la lee sin haberla pedido (`retomar`, otro anfitrión) no la confunda con otro conjunto.
+ *
  * DECISIONES QUE EL DISEÑO NO CUBRÍA (la opción conservadora, a revisión del owner): (a) un TOTAL DEL LISTADO (`deListado`) no entra a una suma ni a un conteo —sumaría dos veces lo que ya contiene— pero sí a una
  * diferencia o a una participación, como numerador o COMO BASE (total − top-3 · una fila ÷ su total · los 3 primeros ÷ su total): `operando_es_total`; (b) una participación no se calcula con un numerador o una base NEGATIVOS: `operando_negativo`; (c) una diferencia o
  * participación entre métricas distintas exige el MISMO dueño («Saldo pendiente − Saldo vencido» de una cuenta): dos métricas y dos dueños a la vez no es una cifra del negocio — `metricas_distintas`; (d) el conteo de
@@ -33,6 +37,7 @@ import { metricaPorClave, metricaDeClave, CLAVES_DE_METRICA } from "../notario/l
 import { normalizar } from "../notario/afirmacion.js";
 import { cifrasDeApoyo } from "./apoyo.js";
 import { etiquetaDeProcedencia, ORIGEN } from "../../config/businessPolicy.js";
+import { esMetricaComercial, textoDeLaLey, MOTIVO_VENTA_POR_BODEGA } from "./universoDeBodega.js";   // la hoja pura de la ley «la venta no se abre por bodega» (no importa nada del Core)
 
 export const OPERACIONES = Object.freeze(["suma", "diferencia", "participacion", "conteo", "razon"]);
 export const OPERADORES = Object.freeze([">", ">=", "<", "<=", "="]);
@@ -44,7 +49,7 @@ export const MOTIVOS_DE_DERIVACION = Object.freeze([
   "id_invalido", "id_inexistente", "entrega_recortada",
   "operando_sin_valor_exacto", "operando_no_medido", "operando_repetido", "operando_es_total", "operando_negativo",
   "unidades_distintas", "metricas_distintas", "metrica_no_aditiva", "operando_no_positivo",
-  "otro_periodo", "otra_moneda", "otra_carga",
+  "otro_periodo", "otra_moneda", "otra_carga", MOTIVO_VENTA_POR_BODEGA,
   "base_cero", "numerador_mayor_que_base", "unidad_no_participable", "condicion_invalida",
 ]);
 const _PROCEDENCIAS_ADMITIDAS = new Set(["medido", "derivado", "estimacion_referencia"]);   /* una brecha también se suma; un supuesto o una propuesta no */
@@ -269,7 +274,7 @@ export function aritmeticaDeDerivacion(operacion, { sobre = [], base = null, con
 /** validarDerivacion(libro, pedido, { tenantId? }) → { ok:true, operacion, operandos, base, condicion, contexto } | { ok:false, motivo, detalle, ids? }
  *  pedido = { conversacionId, operacion, sobre:[id], base?:id, condicion?:{op, valor: número | id} } · `libro` = el libro de la conversación (o null: no existe). Puro: no escribe nada. Cada rechazo trae su motivo cerrado
  *  (`MOTIVOS_DE_DERIVACION`) y una frase de negocio. */
-export function validarDerivacion(libro, pedido, { tenantId = null } = {}) {
+export function validarDerivacion(libro, pedido, { tenantId = null, deBodega = null } = {}) {
   const p = pedido && typeof pedido === "object" ? pedido : {};
   if (!p.conversacionId || typeof p.conversacionId !== "string") return _rechazo("falta_conversacion", "falta conversacionId: derivar se hace sobre cifras entregadas en una conversación con ADI");
   if (!libro) return _rechazo("conversacion_inexistente", "no existe una conversación con ese id: derive sobre cifras entregadas en una conversación abierta con consultar");
@@ -299,6 +304,18 @@ export function validarDerivacion(libro, pedido, { tenantId = null } = {}) {
     if (typeof c.valor === "string") { const r = _resolverId(libro, indice, c.valor); if (!r.ok) return r; referencia = r.op; condicion = { op: c.op, valor: r.op.id }; }
     else if (_finito(c.valor)) condicion = { op: c.op, valor: c.valor };
     else return _rechazo("condicion_invalida", "el «valor» de la condición debe ser un número o el identificador de una cifra entregada");
+  }
+
+  /* LA VENTA NO SE ABRE POR BODEGA (ensayo 6): ningún agregado de una métrica COMERCIAL sobre cifras que salen de un universo definido por bodega — ni directas ni a través del linaje de una derivación. `deBodega(hoja)` (lo pone quien tiene los universos del libro) dice
+   * { bodegas } si la cifra sale solo de universos de bodega; sin ese verificador la regla no corre (derivar.js no sabe de universos). */
+  if (typeof deBodega === "function") {
+    const malas = [], bodegas = [];
+    for (const x of referencia ? todos.concat([referencia]) : todos) for (const h of _hojasDe(x)) {
+      if (h.derivada || h.esReferencia || !esMetricaComercial(h.clave)) continue;
+      const r = deBodega(h);
+      if (r) { malas.push(h.id); for (const b of (r.bodegas || [])) if (!bodegas.includes(b)) bodegas.push(b); }
+    }
+    if (malas.length) return _rechazo(MOTIVO_VENTA_POR_BODEGA, textoDeLaLey({ bodegas, enDerivacion: true }), [...new Set(malas)]);
   }
 
   /* los operandos entre sí */
@@ -434,6 +451,50 @@ export function derivacionParaElLibro(pedido, v, c) {
   };
 }
 
+/* ═══ 5b · LA DESCRIPCIÓN DE UNA DERIVACIÓN ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+ * Qué ES la cifra, en una línea de negocio: la operación, la métrica y los dueños de los operandos («Venta: suma de RC-0377, RC-0633 y RC-0415»; «Venta: participación de A, B y C (los 3 de mayor venta) sobre total del listado completo (13 clientes)»).
+ * Sale SOLO de lo que el libro ya guarda (la derivación y las cifras que la sostienen) — no se guarda aparte (el tope de 16 KB es de la base) y no cambia el valor: el anfitrión que la lee sin haberla pedido sabe de qué conjunto es.
+ * Una cifra derivada de otra se nombra por su id (`D1`): su descripción viaja en el mismo `retomar`. */
+const _TOPE_NOMBRES = 6;
+const _enumerar = (xs) => {
+  if (xs.length <= 1) return xs.join("");
+  const ver = xs.length <= _TOPE_NOMBRES ? xs : [...xs.slice(0, _TOPE_NOMBRES - 1), `${xs.length - (_TOPE_NOMBRES - 1)} más`];
+  return `${ver.slice(0, -1).join(", ")} y ${ver[ver.length - 1]}`;
+};
+function _rotuloDeOperando(id, o) {
+  if (_ID_DE_DERIVACION.test(String(id)) || !o) return String(id);
+  if (o.entidad) return String(o.entidad);
+  const m = String(o.metrica || "");   // un total no tiene dueño: «Venta · total del listado completo (13 clientes)» → «total del listado completo (13 clientes)»
+  const i = m.indexOf(" · ");
+  return i >= 0 ? m.slice(i + 3) : (m || String(id));
+}
+const _CORTE_DE_DESCRIPCION = 240;
+/* la unidad de una cifra según cómo se imprimió («$23.4M» dinero · «28.4%» porcentaje · «12d» días · «2.3x» razón · «3.1pp» puntos · lo demás, una cantidad): la derivación guarda la condición de un conteo en la escala del crudo, no la unidad de los operandos */
+const _unidadDeLoImpreso = (v) => { const t = String(v == null ? "" : v).trim(); return /pp$/.test(t) ? "pp" : /%$/.test(t) ? "pct" : /^[-+−]?\$/.test(t) ? "money" : /\d\s?(d|días?)$/.test(t) ? "days" : /\dx$/.test(t) ? "ratio" : "count"; };
+/** describirDerivacion(d, operandosPorId) → string · `operandosPorId`: Map id → { entidad, metrica, valor, universo? } (cómo se entregó cada cifra; `universo` = el conjunto acotado del que sale, si lo hay) */
+export function describirDerivacion(d, operandosPorId) {
+  if (!d || !Array.isArray(d.sobre)) return "";
+  const O = operandosPorId instanceof Map ? operandosPorId : new Map();
+  const rot = (id) => _rotuloDeOperando(id, O.get(id));
+  const M = String(d.metrica || "").split(" · ")[0];
+  const nombres = d.sobre.map(rot);
+  /* el conjunto del que salen los operandos, cuando todos salen del mismo conjunto acotado (los que son derivaciones se explican solos) */
+  const universos = [...new Set(d.sobre.filter((id) => !_ID_DE_DERIVACION.test(String(id))).map((id) => (O.get(id) || {}).universo || ""))];
+  const nota = universos.length === 1 && universos[0] && d.sobre.every((id) => !_ID_DE_DERIVACION.test(String(id)) && (O.get(id) || {}).universo) ? ` (${universos[0]})` : "";
+  const encadenada = Array.isArray(d.linaje) && d.linaje.length ? ` (${d.linaje.length} cifras entregadas en total)` : "";
+  let t = "";
+  if (d.operacion === "suma") t = `${M}: suma de ${_enumerar(nombres)}${nota}${encadenada}`;
+  else if (d.operacion === "diferencia") t = `${M}: ${nombres[0]} menos ${nombres[1]}`;
+  else if (d.operacion === "participacion") t = `${M}: participación de ${_enumerar(nombres)}${nota} sobre ${rot(d.base)}`;
+  else if (d.operacion === "razon") t = `${M}: cuántas veces es ${nombres[0]} respecto de ${rot(d.base)}`;
+  else if (d.operacion === "conteo") {
+    const c = d.condicion || {};
+    const ref = typeof c.valor === "string" ? rot(c.valor) : (_finito(c.valor) ? formatoDeLaCasa(c.valor, _unidadDeLoImpreso((O.get(d.sobre[0]) || {}).valor)) : "");
+    t = `${M}: cuántas de las ${d.sobre.length} cifras (${_enumerar(nombres)}) son ${_FRASE_DE_OPERADOR[c.op] || c.op} ${ref}`.trim();
+  }
+  return t.length > _CORTE_DE_DESCRIPCION ? `${t.slice(0, _CORTE_DE_DESCRIPCION - 1)}…` : t;
+}
+
 /** respuestaDeLaDerivacion(d, opciones) → { hecho, operandos, base?, condicion?, cumplen?, noCumplen? } · la forma que viaja al anfitrión, de la derivación guardada y de las cifras que la sostienen (`operandosPorId`: Map id → {entidad, metrica, valor}). */
 export function respuestaDeLaDerivacion(d, operandosPorId) {
   /* la procedencia de cada lado, cuando la derivación la guardó (hay una referencia o una estimación contra una referencia): lo medido es «medido»; la referencia, «referencia» con de quién es */
@@ -446,7 +507,7 @@ export function respuestaDeLaDerivacion(d, operandosPorId) {
   };
   const r = d.resultado || {};
   const out = {
-    hecho: { id: d.id, operacion: d.operacion, sobre: d.sobre.slice(), ...(d.base ? { base: d.base } : {}), ...(Array.isArray(d.linaje) && d.linaje.length ? { linaje: d.linaje.slice() } : {}), ...(d.entidad != null ? { entidad: d.entidad } : {}), metrica: d.metrica, valor: r.texto, procedencia: "derivado", ...(procs.size ? { procedencias: [...new Set([...procs.values()].map(rotulo))] } : {}) },
+    hecho: { id: d.id, operacion: d.operacion, sobre: d.sobre.slice(), ...(d.base ? { base: d.base } : {}), ...(Array.isArray(d.linaje) && d.linaje.length ? { linaje: d.linaje.slice() } : {}), ...(d.entidad != null ? { entidad: d.entidad } : {}), metrica: d.metrica, valor: r.texto, procedencia: "derivado", descripcion: describirDerivacion(d, operandosPorId), ...(procs.size ? { procedencias: [...new Set([...procs.values()].map(rotulo))] } : {}) },
     operandos: d.sobre.map(pos),
   };
   if (d.base) out.base = pos(d.base);

@@ -17,20 +17,21 @@
  *       cascada (y un libro adulterado con un ciclo no cuelga); la herramienta lo dice sin crecer.
  * 12 · ENSAYO 5 (owner 2026-10-07): NINGUNA cifra sin id (el hilo de C01: el libro guarda en su forma compacta, sin pérdida, y si la base no admite más ADI LO DICE) · `derivar` acepta cifras de apoyo (`E<n>.e<k>`: el benchmark) con la
  *       procedencia de cada lado · la operación nueva `razon` («cuántas veces es A respecto de B»). `_ADI_DISENO_CONTRATO_ANFITRION.md` §11.
+ * 13 · ENSAYO 6 (owner 2026-10-08): `derivar` NO ARMA VENTA POR BODEGA (el libro de antes del ensayo: la suma de «los SKU de Lampa» se rechaza, también a través del linaje) y CADA DERIVACIÓN DICE QUÉ ES (`descripcion` en `derivar` y en `retomar`, con el `universo` de las cifras de un conjunto acotado). `_ADI_DISENO_CONTRATO_ANFITRION.md` §12.
  * CERO llamadas a un LLM · CERO red. Solo por `npm run gates:offline` o `node --import ./scripts/offline-guard.mjs _derivar_gate.mjs`. */
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { validarEncargo } from "./src/adi/encargo/validar.js";
 import { componerEntrega } from "./src/adi/entrega/componer.js";
-import { crearAcciones, CABECERA_DE_USO } from "./src/adi/capacidad/acciones.js";
+import { crearAcciones, CABECERA_DE_USO, _hechosDeLaEntrega } from "./src/adi/capacidad/acciones.js";
 import { conTenantActivo } from "./src/adi/capacidad/aislamiento.js";
 import { compactarParaAnfitrion, ENTIDADES_DE_UN_UNIVERSO_MAX } from "./src/adi/capacidad/compacto.js";
-import { OPERACIONES, OPERANDOS_MAX, MOTIVOS_DE_DERIVACION } from "./src/adi/capacidad/derivar.js";
+import { OPERACIONES, OPERANDOS_MAX, MOTIVOS_DE_DERIVACION, validarDerivacion, calcularDerivacion, derivacionParaElLibro } from "./src/adi/capacidad/derivar.js";
 import { manejarPuerta, MCP_TOOLS, construirOpenApi } from "./src/adi/capacidad/puerta.js";
 import { crearAlmacenEnMemoria, ErrorDeAlmacen } from "./src/adi/continuidad/almacen.js";
-import { LIBRO_TOPE_BYTES, tamanoBytes, comprimirLibro, expandirLibro, libroNuevo } from "./src/adi/continuidad/libro.js";
-import { cifraDeHecho, cifrasDeLaEntrega } from "./src/adi/continuidad/revalidar.js";
+import { LIBRO_TOPE_BYTES, tamanoBytes, comprimirLibro, expandirLibro, libroNuevo, registrarEntrega, registrarDerivacion } from "./src/adi/continuidad/libro.js";
+import { cifraDeHecho, cifrasDeLaEntrega, encargoParaElLibro } from "./src/adi/continuidad/revalidar.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
 import { formatoDeLaCasa } from "./src/adi/notario/hechos.js";
 import { makeAccessCode } from "./src/adi/llm/accessToken.js";
@@ -931,6 +932,166 @@ H("12g · lo que ve el anfitrión: la herramienta dice lo nuevo, corto");
   ok(tool.inputSchema.properties.operacion.enum.includes("razon") && /razon/.test(tool.inputSchema.properties.base.description) && /E<n>\.e<k>/.test(tool.inputSchema.properties.sobre.description), "el esquema: la operación `razon`, la base de la razón y los ids de apoyo");
   ok(JSON.stringify(tool).length < 2400, `la herramienta sigue corta (${JSON.stringify(tool).length} B < 2400 B)`);
   ok(MOTIVOS_DE_DERIVACION.length === new Set(MOTIVOS_DE_DERIVACION).size, "la lista cerrada de motivos no tiene repetidos");
+}
+
+/* ═══ 13 · ENSAYO 6 (owner 2026-10-08) · `derivar` NO ARMA VENTA POR BODEGA, Y CADA DERIVACIÓN DICE QUÉ ES ════════════════════════════════════════════════════════════════════
+ * B03: el anfitrión sumó los SKU de cada bodega con `derivar` (D1–D4) y escribió «Lampa vende $97.6M… 11.5 veces Calama»; en la sesión 2, `retomar` devolvió D1–D8 como números pelados y un anfitrión nuevo leyó D1 como «los cinco primeros
+ * códigos» (5 errores). Dos cierres: (1) `derivar` rechaza (`venta_por_bodega`) un agregado de métricas comerciales cuyas cifras salen de un universo definido por bodega —también a través del linaje de otra derivación—;
+ * (2) cada derivación lleva su DESCRIPCIÓN (qué operación, de qué cifras, de qué conjunto) en `derivar` y en `retomar`, y cada cifra de un conjunto acotado lleva su `universo`. */
+const nombresDeBodega = (T) => conTenantActivo(T.dataset, () => axisEntityNames("bodega"));
+/* lo que `consultar` guardaba ANTES de la ley (los libros que ya existen): el Core directo, la Entrega con sus universos y el Encargo con que se entregó */
+async function libroDeAntes(T, encargo, store) {
+  const { res, sal } = conTenantActivo(T.dataset, () => { const res = validarEncargo(encargo, {}); return { res, sal: componerEntrega(res) }; });
+  let libro = libroNuevo({ versionId: T.version, empresaId: T.id });
+  const hechos = _hechosDeLaEntrega(sal.entrega);
+  libro = registrarEntrega(libro, { versionId: T.version, temas: sal.entrega.temasCubiertos || [], entidades: [...new Set(hechos.filter((h) => !h.fuera).map((h) => h.sujeto).filter(Boolean))], cierre: "cifra", hechos, universos: sal.entrega.universos || [], entregadaEn: "2026-10-05T12:00:00.000Z", periodo: sal.entrega.marco.periodo || null, revalidable: true, encargo: encargoParaElLibro(res.encargo), referencias: { criterios: [], marco: null }, moneda: sal.entrega.marco.moneda || null });
+  await store.guardarLibro(T.id, libro);
+  return libro;
+}
+const textoLey = (inv) => `La venta no se abre por bodega: el dato no dice qué bodega despachó cada venta, y tampoco su margen, contribución ni unidades. Sumar o comparar las ventas de los productos de una bodega no da la venta de esa bodega, así que no se arma. Puedo darle ${inv}, o derivar sobre la venta de los productos que usted nombre.`;
+const lista = (xs) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+
+for (const { etiqueta, T } of EMPRESAS) {
+  H(`13 · derivar no arma venta por bodega; cada derivación dice qué es (${etiqueta})`);
+  conTenant(T);
+  const bods = nombresDeBodega(T);
+  const [b1, b2] = bods;
+  const B03 = bods.map((b, i) => ({ id: `p${i + 1}`, tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "sku", universo: { eje: "sku", bodega: b } }));
+  const store = crearAlmacenEnMemoria();
+  const A = crearAcciones({ continuidad: store, ahora: () => "2026-10-05T12:00:00.000Z" });
+  const libro0 = await libroDeAntes(T, E(B03), store);
+  const conv = libro0.conversacionId;
+  const hechos = libro0.entregas[0].hechos;
+  const skusDe = (u) => libro0.entregas[0].universos.find((x) => x.id === u).entidades;
+  const idsDe = (u) => skusDe(u).map((s) => hechos.find((h) => h.sujeto === s).id);
+  const [ids1, ids2] = [idsDe("p1"), idsDe("p2")];
+  ok(ids1.length >= 2 && ids2.length >= 1, `(armado) el libro de ANTES trae las cifras de venta de los SKU de ${b1} (${ids1.length}) y de ${b2} (${ids2.length}) — el libro del ensayo 6`);
+  const d = (pedido) => A.derivar({ tenant: T, conversacionId: conv, ...pedido });
+
+  /* 13a · LOS CINCO TIPOS DE AGREGADO sobre cifras de universos de bodega se rechazan, con la razón y los ids */
+  const matriz = [
+    ["suma de los SKU de una bodega (D1 del ensayo)", { operacion: "suma", sobre: ids1 }],
+    ["suma entre bodegas", { operacion: "suma", sobre: [ids1[0], ids2[0]] }],
+    ["diferencia entre dos bodegas (D6 del ensayo)", { operacion: "diferencia", sobre: [ids1[0], ids2[0]] }],
+    ["participación de una bodega sobre el total (D7 del ensayo)", { operacion: "participacion", sobre: [ids1[0]], base: ids2[0] }],
+    ["razón entre dos bodegas (D8 del ensayo)", { operacion: "razon", sobre: [ids1[0]], base: ids2[0] }],
+    ["conteo de SKU de una bodega sobre un umbral", { operacion: "conteo", sobre: ids1, condicion: { op: ">", valor: ids2[0] } }],
+  ];
+  for (const [nombre, pedido] of matriz) {
+    const r = await d(pedido);
+    ok(r.ok === false && r.motivo === "venta_por_bodega" && MOTIVOS_DE_DERIVACION.includes(r.motivo) && Array.isArray(r.ids) && r.ids.length >= 1 && Array.isArray(r.uso), `★ ${nombre}: se rechaza con «venta_por_bodega», los ids y la cabecera de uso`, jj(r).slice(0, 300));
+    const involucradas = [...pedido.sobre, ...(pedido.base ? [pedido.base] : []), ...(pedido.condicion && typeof pedido.condicion.valor === "string" ? [pedido.condicion.valor] : [])];
+    const bodegasDeLoPedido = bods.filter((b, i) => idsDe(`p${i + 1}`).some((x) => involucradas.includes(x)));
+    ok(r.detalle === textoLey(`el inventario de ${lista(bodegasDeLoPedido)}`), `   y la razón es la de negocio, con la(s) bodega(s) de las cifras pedidas (${lista(bodegasDeLoPedido)}): ofrece lo que sí se puede`, r.detalle);
+  }
+  const rUna = await d({ operacion: "suma", sobre: ids1 });
+  ok(rUna.detalle === textoLey(`el inventario de ${b1}`) && !/\d/.test(rUna.detalle), "★ la razón de la suma de los SKU de UNA bodega es EXACTAMENTE: «La venta no se abre por bodega… Sumar o comparar las ventas de los productos de una bodega no da la venta de esa bodega, así que no se arma. Puedo darle el inventario de <bodega>, o derivar sobre la venta de los productos que usted nombre.»", rUna.detalle);
+  ok(((await store.leerLibro(T.id, conv)).derivaciones || []).length === 0, "   y nada se guardó: el rechazo no consume un D<k>");
+
+  /* 13b · A TRAVÉS DEL LINAJE: una derivación que ya existe (los libros de antes) no es una puerta lateral */
+  let L = await store.leerLibro(T.id, conv);
+  const pura = (pedido) => { const v = validarDerivacion(L, { conversacionId: conv, ...pedido }, { tenantId: T.id }); const c = calcularDerivacion(v); L = registrarDerivacion(L, derivacionParaElLibro(pedido, v, c)); return L.derivaciones[L.derivaciones.length - 1].id; };
+  const D1 = pura({ operacion: "suma", sobre: ids1 }), D2 = pura({ operacion: "suma", sobre: ids2 });
+  await store.guardarLibro(T.id, L);
+  const rD = await d({ operacion: "diferencia", sobre: [D1, D2] });
+  ok(rD.ok === false && rD.motivo === "venta_por_bodega" && rD.ids.every((x) => /^E\d+\.h\d+$/.test(x)), "★ restar dos derivaciones heredadas de universos de bodega se rechaza también (a través del linaje): los ids que nombra son las cifras de origen", jj(rD).slice(0, 300));
+  const rP = await d({ operacion: "participacion", sobre: [D1], base: D2 });
+  ok(rP.ok === false && rP.motivo === "venta_por_bodega", "…y una participación entre ellas");
+
+  /* 13c · CONTROLES: lo que SÍ se deriva — el inventario de la bodega, la venta de los productos que el usuario nombra, la venta de un eje sin acotar */
+  const rInv = await A.consultar({ tenant: T, encargo: E([{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital"], eje: "sku", universo: { eje: "sku", bodega: b1 } }], conv) });
+  const capital = (rInv.entrega.json.cifras.filas || []).map((f, i) => ({ f, i })).filter(({ f }) => f.valores["Métrica"] === "Capital");
+  const nE2 = rInv.continuidad.estadoVigente.turno;
+  const idsCap = capital.map(({ i }) => `E${nE2}.h${i + 1}`);
+  const xInv = idsCap.length >= 2 ? await d({ operacion: "suma", sobre: idsCap }) : { ok: true };
+  ok(xInv.ok === true, `★ control · el INVENTARIO de los SKU de ${b1} sí se suma (la bodega es inventario): ${xInv.ok && xInv.hecho ? xInv.hecho.valor : "(sin dos SKU con capital)"}`, jj(xInv).slice(0, 300));
+  const nombrados = skusDe("p2").slice(0, 2);   // SKU que SON de una bodega: nombrarlos es pedir su venta, no la de la bodega
+  const rNom = await A.consultar({ tenant: T, encargo: E([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "sku", entidades: nombrados.map((nombre) => ({ nombre, eje: "sku" })) }], conv) });
+  const nE3 = rNom.continuidad.estadoVigente.turno;
+  const xNom = await d({ operacion: "suma", sobre: [`E${nE3}.h1`, `E${nE3}.h2`] });
+  ok(xNom.ok === true && /^D\d+$/.test(xNom.hecho.id), "★ control · la venta de los productos que el usuario NOMBRA sí se suma (aunque sean los mismos SKU de la bodega: nombrarlos es pedir su venta, no la de la bodega)", jj(xNom).slice(0, 300));
+  const rMezcla = await d({ operacion: "suma", sobre: [`E${nE3}.h1`, ids1[0]] });
+  ok(rMezcla.ok === false && rMezcla.motivo === "venta_por_bodega" && rMezcla.ids.includes(ids1[0]) && !rMezcla.ids.includes(`E${nE3}.h1`), "…pero mezclar una de esas con una cifra que salió de la bodega se rechaza, y nombra solo la cifra de la bodega", jj(rMezcla).slice(0, 300));
+  const libroSinAcotar = await libroDeAntes(T, E([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "sku" }, { ...B03[0], id: "p2" }]), crearAlmacenEnMemoria());
+  const sinAcotar = crearAlmacenEnMemoria(); await sinAcotar.guardarLibro(T.id, libroSinAcotar);
+  const Asa = crearAcciones({ continuidad: sinAcotar });
+  const hSA = libroSinAcotar.entregas[0].hechos;
+  const xSA = await Asa.derivar({ tenant: T, conversacionId: libroSinAcotar.conversacionId, operacion: "suma", sobre: [hSA[0].id, hSA[1].id] });
+  ok(xSA.ok === true, "…y una cifra que está TAMBIÉN en un listado sin acotar no se bloquea (su venta no depende del conjunto de la bodega: la regla solo corta lo que sale únicamente de universos de bodega)", jj(xSA).slice(0, 300));
+  const xCli = await (async () => { const h = await hilo(T, PASOS_COMERCIAL); const v = delMetrica(h.ventas, "Venta"); return derivar(h, { operacion: "suma", sobre: [v[0].id, v[1].id] }, T); })();
+  ok(xCli.ok === true, "control · la venta por cliente se deriva como siempre");
+
+  /* 13d · LA DESCRIPCIÓN de cada derivación: qué es, de qué cifras sale */
+  const h = await hilo(T, PASOS_COMERCIAL);
+  conTenant(T);
+  const vv = delMetrica(h.ventas, "Venta"), ent = (x) => x.entidad;
+  const tot = totalDe(h.ventas, "Venta");
+  const ds = [];
+  const sum3 = await derivar(h, { operacion: "suma", sobre: vv.slice(0, 3).map((x) => x.id) }, T);
+  ok(sum3.ok && sum3.hecho.descripcion === `Venta: suma de ${lista(vv.slice(0, 3).map(ent))}`, `★ suma → «${sum3.ok && sum3.hecho.descripcion}»`, jj(sum3).slice(0, 300));
+  const dif = await derivar(h, { operacion: "diferencia", sobre: [vv[0].id, vv[1].id] }, T);
+  ok(dif.ok && dif.hecho.descripcion === `Venta: ${ent(vv[0])} menos ${ent(vv[1])}`, `★ diferencia → «${dif.ok && dif.hecho.descripcion}»`);
+  const par = tot ? await derivar(h, { operacion: "participacion", sobre: vv.slice(0, 3).map((x) => x.id), base: tot.id }, T) : { ok: true, hecho: { descripcion: "" } };
+  ok(par.ok && (!tot || (par.hecho.descripcion.startsWith(`Venta: participación de ${lista(vv.slice(0, 3).map(ent))} sobre total del listado completo (`) && /\)$/.test(par.hecho.descripcion))), `★ participación → «${par.ok && par.hecho.descripcion}» (los numeradores y la base: el total del listado)`);
+  const raz = await derivar(h, { operacion: "razon", sobre: [vv[0].id], base: vv[1].id }, T);
+  ok(raz.ok && raz.hecho.descripcion === `Venta: cuántas veces es ${ent(vv[0])} respecto de ${ent(vv[1])}`, `★ razón → «${raz.ok && raz.hecho.descripcion}»`);
+  const cont = await derivar(h, { operacion: "conteo", sobre: vv.slice(0, 4).map((x) => x.id), condicion: { op: ">", valor: 0 } }, T);
+  ok(cont.ok && /^Venta: cuántas de las 4 cifras \(.+\) son mayores que \$0$/.test(cont.hecho.descripcion), `★ conteo → «${cont.ok && cont.hecho.descripcion}»`);
+  const enc = await derivar(h, { operacion: "diferencia", sobre: [sum3.hecho.id, vv[3].id] }, T);
+  ok(enc.ok && enc.hecho.descripcion === `Venta: ${sum3.hecho.id} menos ${ent(vv[3])}`, `   encadenada → «${enc.ok && enc.hecho.descripcion}» (la derivación se nombra por su id; su descripción viaja en el mismo retomar)`);
+  const enc2 = await derivar(h, { operacion: "suma", sobre: [sum3.hecho.id, vv[3].id] }, T);
+  ok(enc2.ok && enc2.hecho.descripcion === `Venta: suma de ${sum3.hecho.id} y ${ent(vv[3])} (4 cifras entregadas en total)`, `   una suma que encadena dice cuántas cifras entregadas contiene → «${enc2.ok && enc2.hecho.descripcion}»`);
+  const muchas = await derivar(h, { operacion: "suma", sobre: vv.map((x) => x.id) }, T);
+  ok(muchas.ok && muchas.hecho.descripcion.length <= 240 && (vv.length <= 6 || / y \d+ más$/.test(muchas.hecho.descripcion)), `   una suma de ${vv.length} cifras no desborda (${muchas.ok && muchas.hecho.descripcion.length} caracteres: nombra las primeras y dice cuántas más)`, muchas.ok && muchas.hecho.descripcion);
+  const repetida = await derivar(h, { operacion: "suma", sobre: vv.slice(0, 3).map((x) => x.id) }, T);
+  ok(repetida.repetida === true && repetida.hecho.descripcion === sum3.hecho.descripcion, "   y la derivación repetida (idempotente) devuelve la MISMA descripción");
+  ok(Object.keys(sum3.hecho).filter((k) => !["id", "operacion", "sobre", "entidad", "metrica", "valor", "procedencia", "descripcion", "linaje", "base", "procedencias"].includes(k)).length === 0, "   el hecho no trae nada más que la descripción (la forma de siempre: valor, entidad y métrica no cambian)", jj(sum3.hecho));
+
+  /* 13e · RETOMAR: la descripción y el universo viajan con cada cifra */
+  const r1 = await h.A.retomar({ tenant: T, conversacionId: h.conv });
+  const comp = compactarParaAnfitrion("retomar", r1);
+  const dD = (x) => comp.hechos.find((y) => y.id === x);
+  ok(dD(sum3.hecho.id).descripcion === sum3.hecho.descripcion && dD(par.hecho.id).descripcion === par.hecho.descripcion && dD(enc2.hecho.id).descripcion === enc2.hecho.descripcion, "★ `retomar` devuelve CADA derivación con la descripción que `derivar` le dio (también por la respuesta compacta que ve el anfitrión)");
+  const todasLasD = comp.hechos.filter((x) => x.origen === "derivado" && /^D\d+$/.test(x.id));
+  ok(todasLasD.length >= 6 && todasLasD.every((x) => typeof x.descripcion === "string" && x.descripcion.length > 10 && x.descripcion.length <= 240), `★ NINGUNA derivación sale pelada: las ${todasLasD.length} traen su descripción (≤ 240 caracteres; la más larga ${Math.max(...todasLasD.map((x) => x.descripcion.length))})`);
+  ok(comp.hechos.filter((x) => /^E/.test(x.id)).every((x) => x.universo === undefined), "una cifra de un listado SIN acotar no trae `universo` (su significado no depende del conjunto)");
+  /* un conjunto ACOTADO (los 3 de mayor venta): sus cifras y lo derivado de ellas dicen de qué conjunto son */
+  const top = await h.A.consultar({ tenant: T, encargo: E([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: { eje: "cliente", top: { metrica: "ventas", k: 3, direccion: "mayor" } } }], h.conv) });
+  const nT = top.continuidad.estadoVigente.turno;
+  const idsTop = top.entrega.json.cifras.filas.map((f, i) => ({ f, i })).filter(({ f }) => f.valores["Métrica"] === "Venta").map(({ i }) => `E${nT}.h${i + 1}`);
+  const sTop = await derivar(h, { operacion: "suma", sobre: idsTop }, T);
+  ok(idsTop.length === 3 && sTop.ok && sTop.hecho.descripcion === `Venta: suma de ${lista(top.entrega.json.cifras.filas.filter((f) => f.valores["Métrica"] === "Venta").map((f) => f.valores["Entidad / grupo"]))} (los 3 de mayor venta)`, `★ la suma de los 3 primeros dice que son «los 3 de mayor venta»: «${sTop.ok && sTop.hecho.descripcion}»`, jj(sTop).slice(0, 300));
+  const r2 = await h.A.retomar({ tenant: T, conversacionId: h.conv });
+  const c2 = compactarParaAnfitrion("retomar", r2);
+  ok(idsTop.every((id) => (c2.hechos.find((x) => x.id === id) || {}).universo === "los 3 de mayor venta"), "★ y las cifras de ese conjunto vuelven con `universo: «los 3 de mayor venta»` en `retomar`");
+  ok(c2.hechos.find((x) => x.id === sTop.hecho.id).descripcion === sTop.hecho.descripcion, "   y la derivación, con la misma descripción");
+
+  /* 13f · EL CASO DEL ENSAYO, PUNTA A PUNTA: lo que lee un anfitrión NUEVO en la sesión 2 (D1–D8 del libro de antes) */
+  L = await store.leerLibro(T.id, conv);   // el libro de verdad (con lo que se agregó en 13c): se sigue desde ahí
+  const D3 = pura({ operacion: "suma", sobre: ids1 });
+  const baseLegada = ids1.concat(ids2);
+  const D4 = pura({ operacion: "suma", sobre: baseLegada });
+  const D5 = pura({ operacion: "participacion", sobre: [D3], base: D4 });
+  await store.guardarLibro(T.id, L);
+  const rr = compactarParaAnfitrion("retomar", await A.retomar({ tenant: T, conversacionId: conv }));
+  const d3 = rr.hechos.find((x) => x.id === D3), d5 = rr.hechos.find((x) => x.id === D5);
+  ok(skusDe("p1").every((s) => d3.descripcion.includes(s)) && d3.descripcion.endsWith(`(los SKU de ${b1})`) && !/primer/.test(d3.descripcion), `★ B03|2: la suma de los SKU de ${b1} se lee como lo que es — «${d3.descripcion}» — nombra cada código y su conjunto («los SKU de ${b1}»), y no se confunde con «los primeros»`);
+  ok(d5.descripcion === `Venta: participación de ${D3} sobre ${D4}`, `   y la participación nombra sus dos derivaciones: «${d5.descripcion}» (cuyas descripciones viajan en el mismo retomar)`);
+  ok(rr.hechos.filter((x) => x.id === "E1.h1")[0].universo === `los SKU de ${b1}`, `   y la cifra de un SKU de la bodega trae su conjunto («los SKU de ${b1}»)`);
+  const bytesCon = JSON.stringify(rr).length, bytesSin = JSON.stringify({ ...rr, hechos: rr.hechos.map(({ descripcion, universo, ...x }) => x) }).length;
+  ok(bytesCon < 20 * 1024 && (bytesCon - bytesSin) / (rr.hechos.length || 1) < 130, `el costo es chico: retomar de este hilo pesa ${(bytesCon / 1024).toFixed(1)} KB (+${bytesCon - bytesSin} B por ${rr.hechos.length} hechos: ${((bytesCon - bytesSin) / rr.hechos.length).toFixed(0)} B por hecho)`);
+  console.log(`   · ${etiqueta}: descripciones — ${todasLasD.slice(0, 3).map((x) => `${x.id} «${x.descripcion}»`).join(" · ")}`);
+}
+
+H("13 · estático y esquema");
+{
+  const src = (f) => fs.readFileSync(f, "utf8");
+  const der = sinComentarios(src("./src/adi/capacidad/derivar.js")), uni = sinComentarios(src("./src/adi/capacidad/universoDeBodega.js")), cif = sinComentarios(src("./src/adi/capacidad/universoDeLasCifras.js")), acc = src("./src/adi/capacidad/acciones.js");
+  ok(MOTIVOS_DE_DERIVACION.includes("venta_por_bodega") && MOTIVOS_DE_DERIVACION.length === new Set(MOTIVOS_DE_DERIVACION).size, "★ el motivo `venta_por_bodega` está en la lista cerrada de la derivación (sin repetidos)");
+  ok(!/from\s+["'][^"']*\/(entrega|encargo)\//.test(uni) && !/node:/.test(uni) && !/from\s+["'][^"']*\/entrega\//.test(cif) && !/node:/.test(cif), "la mitad pura de la ley (`universoDeBodega.js`) no importa nada de `entrega/` ni `encargo/`, y `universoDeLasCifras.js` nada de `entrega/` (ni `node:*`): corren en edge");
+  ok(/validarDerivacion\(libro, pedido, \{ tenantId, deBodega \}\)/.test(acc) && /deBodega\(h\)/.test(der), "`acciones.js:derivar` le pasa a `validarDerivacion` el origen de cada cifra (los universos del libro) y `derivar.js` lo consulta por cada cifra de origen");
+  const tool = MCP_TOOLS.find((t) => t.name === "derivar");
+  ok(JSON.stringify(tool).length < 2400, `la herramienta «derivar» sigue corta (${JSON.stringify(tool).length} B < 2400 B)`);
 }
 
 H("CERO RED");

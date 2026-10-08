@@ -31,6 +31,7 @@ import { crearAlmacenEnMemoria, ErrorDeAlmacen } from "./src/adi/continuidad/alm
 import { LIBRO_TOPE_BYTES, tamanoBytes } from "./src/adi/continuidad/libro.js";
 import { cifraDeHecho, llaveDeCifra, revalidarEntrega, elegirCambiosANombrar, cifrasDeLaEntrega, ESTADOS_DE_REVALIDACION, CAMBIOS_NOMBRADOS_MAX } from "./src/adi/continuidad/revalidar.js";
 import { formatoDeLaCasa } from "./src/adi/notario/hechos.js";
+import { compactarParaAnfitrion } from "./src/adi/capacidad/compacto.js";
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -442,6 +443,50 @@ H("8 · revalidarEntrega (los estados y sus reglas duras) y elegirCambiosANombra
   const repetida = elegirCambiosANombrar([c("a", 0, "money", 5, 0, { dedup: "venta de Lider|1|2" }), c("b", 1, "money", 5, 1, { dedup: "venta de Lider|1|2" }), c("c", 2, "money", 5, 2, { dedup: "otra" })]);
   ok(repetida.ordenados.map((x) => x.id).join(",") === "a,c" && repetida.adicionales === 0, "la misma cifra cambiada en dos Entregas se nombra UNA vez");
   ok(elegirCambiosANombrar([]).nombrados.length === 0 && elegirCambiosANombrar(null).adicionales === 0 && elegirCambiosANombrar([c("a", 0, "money", 1, 0)], { max: 0 }).adicionales === 1, "bordes: nada que nombrar, entrada vacía, max 0");
+}
+
+/* ═══ 10 · ENSAYO 6 (owner 2026-10-08): RETOMAR DICE QUÉ ES CADA CIFRA ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+ * B03 sesión 2: `retomar` entregó D1–D8 como números pelados (sin el conjunto del que salían) y un anfitrión nuevo leyó D1 —la suma de los SKU de una bodega— como «los cinco primeros códigos»: 5 errores materiales.
+ * Ahora cada derivación vuelve con su `descripcion` (la operación y los dueños de las cifras) y cada cifra de un conjunto acotado, con su `universo`. */
+H("10 · retomar dice qué es cada cifra: la descripción de cada derivación y el universo de un conjunto acotado");
+{
+  const tenant = T(TENANT_DEMO, 1);
+  const A = crearAcciones({ continuidad: crearAlmacenEnMemoria(), ahora: reloj });
+  const lista = (xs) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+  const r1 = await A.consultar({ tenant, encargo: { version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: { eje: "cliente", top: { metrica: "ventas", k: 3, direccion: "mayor" } } }] } });
+  const conv = r1.continuidad.conversacionId;
+  const filasV = r1.entrega.json.cifras.filas.map((f, i) => ({ f, id: `E1.h${i + 1}` })).filter(({ f }) => f.valores["Métrica"] === "Venta");
+  const ids = filasV.map((x) => x.id), nombres = filasV.map((x) => x.f.valores["Entidad / grupo"]);
+  const r2 = await A.consultar({ tenant, encargo: { ...ENC.ventasTodos, conversacionId: conv } });
+  const cifrasE2 = compactarParaAnfitrion("consultar", r2).entrega.cifras;
+  const total = cifrasE2.find((c) => /total del listado completo/.test(c.metrica || ""));
+  ok(ids.length === 3 && Boolean(total), "(armado) E1 = los 3 clientes de mayor venta (universo acotado) y E2 = el listado completo con su total");
+  const d1 = await A.derivar({ tenant, conversacionId: conv, operacion: "suma", sobre: ids });
+  const d2 = await A.derivar({ tenant, conversacionId: conv, operacion: "diferencia", sobre: [ids[0], ids[1]] });
+  const d3 = await A.derivar({ tenant, conversacionId: conv, operacion: "participacion", sobre: ids, base: total.id });
+  const d4 = await A.derivar({ tenant, conversacionId: conv, operacion: "razon", sobre: [ids[0]], base: ids[2] });
+  const ret = await A.retomar({ tenant, conversacionId: conv });
+  const de = (r, id) => r.hechos.find((h) => h.id === id);
+  const ESP = {
+    [d1.hecho.id]: `Venta: suma de ${lista(nombres)} (los 3 de mayor venta)`,
+    [d2.hecho.id]: `Venta: ${nombres[0]} menos ${nombres[1]}`,
+    [d4.hecho.id]: `Venta: cuántas veces es ${nombres[0]} respecto de ${nombres[2]}`,
+  };
+  for (const [id, esperado] of Object.entries(ESP)) ok(de(ret, id).descripcion === esperado, `★ ${id} vuelve con su descripción: «${esperado}»`, de(ret, id).descripcion);
+  ok(de(ret, d3.hecho.id).descripcion.startsWith(`Venta: participación de ${lista(nombres)} (los 3 de mayor venta) sobre total del listado completo (`), `★ ${d3.hecho.id}: «${de(ret, d3.hecho.id).descripcion}» — los 3 numeradores, su conjunto y la base (el total del listado)`);
+  const derivadas = ret.hechos.filter((h) => h.derivada);
+  ok(derivadas.length === 4 && derivadas.every((h) => typeof h.descripcion === "string" && h.descripcion.length > 10 && h.descripcion.length <= 240), "★ NINGUNA cifra derivada sale pelada de retomar (4 de 4 con descripción de a lo más 240 caracteres)");
+  ok(ids.every((id) => de(ret, id).universo === "los 3 de mayor venta"), "★ las 3 cifras del conjunto acotado vuelven con `universo: «los 3 de mayor venta»`");
+  ok(ret.hechos.filter((h) => /^E2\./.test(h.id)).every((h) => h.universo === undefined), "…y las del listado sin acotar no llevan universo (su significado no depende del conjunto)");
+  const comp = compactarParaAnfitrion("retomar", ret);
+  ok(derivadas.every((h) => comp.hechos.find((x) => x.id === h.id).descripcion === h.descripcion) && ids.every((id) => comp.hechos.find((x) => x.id === id).universo === "los 3 de mayor venta"), "★ y lo mismo llega por la respuesta compacta que ve el anfitrión");
+  const sin = (r) => r.hechos.filter((h) => /^D[0-9]+$/.test(h.id)).every((h) => typeof h.descripcion === "string" && h.descripcion.length > 10);
+  const pelada = { ...comp, hechos: comp.hechos.map(({ descripcion, ...x }) => x) };
+  ok(sin(comp) && !sin(pelada), "CARNADA «retomar vuelve a devolver las derivaciones sin descripción» → el candado se pone ROJO");
+  const sinUniv = { ...comp, hechos: comp.hechos.map(({ universo, ...x }) => x) };
+  ok(ids.every((id) => comp.hechos.find((x) => x.id === id).universo) && !ids.every((id) => sinUniv.hechos.find((x) => x.id === id).universo), "CARNADA «retomar vuelve a devolver las cifras de un conjunto acotado sin su universo» → ROJO");
+  ok(CABECERA_DE_RETOMAR.length === 4 && /descripcion/.test(CABECERA_DE_RETOMAR[0]) && /universo/.test(CABECERA_DE_RETOMAR[0]), "la cabecera de uso de `retomar` (siguen siendo cuatro reglas) le dice al anfitrión que cite cada cifra derivada y cada conjunto acotado con su descripción");
+  console.log(`   · retomar de este hilo: ${ret.hechos.length} hechos, ${(JSON.stringify(comp).length / 1024).toFixed(1)} KB compacta (las descripciones suman ${derivadas.reduce((n, h) => n + h.descripcion.length, 0)} caracteres)`);
 }
 
 /* ═══ 9 · AUDITORÍAS DE CÓDIGO ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */

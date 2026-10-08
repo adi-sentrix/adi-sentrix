@@ -16,6 +16,8 @@
  *       misma costura de escalabilidad que `_registro_de_dominios_gate.mjs`), sin tocar el registro real.
  *   5 · tenant inyectado: `conocerEmpresa`/`consultar`/`aportarContexto`/`retomar` con un tenant SIN `dataset` se
  *       declaran (`ok:false`), nunca lanzan — y nunca tocan el tenant activo del proceso.
+ *   8 · ENSAYO 6 (owner 2026-10-08): LA VENTA NO SE ABRE POR BODEGA — `consultar` rechaza (`venta_por_bodega`) toda métrica comercial sobre un universo definido por bodega o agrupada por bodega, con la razón de negocio y lo que SÍ se puede; el inventario por bodega sigue permitido; el agente ya cumple la misma ley.
+ *   9 · ENSAYO 6: EL CATÁLOGO ES COHERENTE CON `consultar` — un recorrido llama a `consultar` por cada concepto × eje × cierre, definición, tipo de supuesto, lente, estado y conjunto que el catálogo ofrece (demo y no-demo), y cada defecto de ANTES reconstruido lo pone en rojo.
  *   7 · ENSAYO 5: UN RECHAZO ENSEÑA — el catálogo documenta `universo` (con ejemplos que valen) y cada rechazo de `consultar` (los `universo_invalido` del ensayo, la entidad inexistente, cada motivo del contrato) trae alternativas.
  *
  * CERO llamadas a un LLM · CERO red. Solo por `npm run gates:offline` o
@@ -33,6 +35,13 @@ import { ensenarRechazos } from "./src/adi/capacidad/ensenar.js";
 import { validarUniverso, CAMPOS_UNIVERSO } from "./src/adi/notario/hechos.js";
 import { estadosValidosPara } from "./src/adi/notario/estados.js";
 import { MOTIVOS } from "./src/adi/encargo/esquema.js";
+import { separarVentaPorBodega } from "./src/adi/capacidad/leyDeBodega.js";
+import { validarEncargo } from "./src/adi/encargo/validar.js";
+import { componerEntrega } from "./src/adi/entrega/componer.js";
+import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
+import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
+import { mapaDelDato } from "./src/adi/agente/mapaDelDato.js";
+import { packRenombrado, EMPRESA_NO_DEMO } from "./scripts/medicion-anfitrion/empresa-no-demo.mjs";
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -276,6 +285,210 @@ H("7 · un rechazo enseña: el catálogo documenta el universo y cada rechazo de
   /* el formato inválido (forma antes que valor) también enseña */
   const rF = await consultar({ tenant: TENANT, encargo: { version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: { a: 1 } }] } });
   ok(rF.ok === false && rF.noResuelto.length > 0 && rF.noResuelto.every((n) => n.alternativas.length > 0), "un `formato_invalido` también trae alternativas (la forma esperada)", JSON.stringify(rF.noResuelto).slice(0, 300));
+}
+
+/* ═══ 8 · ENSAYO 6 (owner 2026-10-08) · LA VENTA NO SE ABRE POR BODEGA: `consultar` lo rechaza con una razón que enseña ═════════════════════════════════════════════════════════════
+ * B03 pidió «ventas por bodega»: `consultar` aceptó el universo «los SKU de Lampa» para una métrica comercial y el anfitrión escribió «Lampa vende $97.6M… 11.5 veces Calama». Decisión del owner (opción A): se RECHAZA, con la razón en
+ * palabras de negocio y lo que SÍ se puede. El inventario por bodega sigue permitido; nada de esto toca el Core (`encargo/*`, `entrega/*`). Sobre el demo Y la empresa no-demo. */
+const PACK_RC = packRenombrado({ version: 1 });
+const MUNDOS = [
+  { etiqueta: "demo", T: { id: "demo", nombre: "ADI Demo", dataset: TENANT_DEMO, version: 1, sello: null }, bodegas: ["Santiago", "Valparaíso", "Concepción", "Antofagasta"] },
+  { etiqueta: "no-demo", T: { id: EMPRESA_NO_DEMO.id, nombre: EMPRESA_NO_DEMO.nombre, dataset: PACK_RC, version: 1, sello: null }, bodegas: ["Lampa", "Quilpué", "Rancagua", "Calama"] },
+];
+const E1 = (partes, extra = {}) => ({ version: "encargo/v1", partes, ...extra });
+const filasDeVenta = (r) => (r && r.entrega && r.entrega.json && r.entrega.json.cifras ? r.entrega.json.cifras.filas : []).filter((f) => f.valores && f.valores["Métrica"] === "Venta" && f.valores["Tema"] === "comercial");
+const textoDeLaLey = (inv) => `La venta no se abre por bodega: el dato no dice qué bodega despachó cada venta, y tampoco su margen, contribución ni unidades. Puedo darle ${inv}, o la venta de los productos que usted nombre.`;
+
+for (const M of MUNDOS) {
+  H(`8 · la venta no se abre por bodega (${M.etiqueta})`);
+  const A = crearAcciones();
+  const consultarM = (partes, extra) => A.consultar({ tenant: M.T, encargo: E1(partes, extra) });
+  const [b1, b2] = M.bodegas;
+
+  /* 8a · EL CASO DEL ENSAYO: B03|1|1 tal cual lo mandó el anfitrión (una parte por bodega, universo `{eje:sku, bodega}`) */
+  const b03 = M.bodegas.map((b, i) => ({ id: `p${i + 1}`, tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "sku", universo: { eje: "sku", bodega: b } }));
+  const r03 = await consultarM(b03);
+  ok(r03.ok === false && r03.entrega === null, "★ B03|1|1: «ventas por bodega» (una parte por bodega, universo {sku, bodega}) NO entrega nada — antes entregaba los SKU de cada bodega sin ningún límite", JSON.stringify(r03).slice(0, 300));
+  ok(r03.noResuelto.length === 4 && r03.noResuelto.every((n, i) => n.motivo === "venta_por_bodega" && n.parte === `p${i + 1}` && n.campo === "universo"), "…cada parte rechazada con su motivo (`venta_por_bodega`) y su parte", JSON.stringify(r03.noResuelto.map((n) => [n.parte, n.motivo, n.campo])));
+  ok(r03.noResuelto.every((n, i) => n.detalle === textoDeLaLey(`el inventario de ${M.bodegas[i]}`)), "★ la razón es EXACTAMENTE la de negocio: «La venta no se abre por bodega: el dato no dice qué bodega despachó cada venta… Puedo darle el inventario de <bodega>, o la venta de los productos que usted nombre»", r03.noResuelto[0] && r03.noResuelto[0].detalle);
+  ok(r03.noResuelto.every((n) => !/\d/.test(n.detalle)) && !/boleta|\bfig\b|motor|sistema/i.test(r03.noResuelto[0].detalle), "…en palabras de negocio, sin una cifra ni jerga");
+  const alt = r03.noResuelto[0].alternativas;
+  ok(alt.map((a) => a.tipo).join() === "inventario_por_bodega,venta_por_producto,ejes_de_la_venta", "★ enseña (ensenar.js): el inventario por bodega, la venta por producto y los ejes donde la venta sí se abre", alt.map((a) => a.tipo).join());
+  ok(alt[0].tema === "inventario" && alt[0].eje === "bodega" && alt[0].bodegas.join() === b1 && alt[0].conceptos.includes("capital") && !alt[0].conceptos.includes("ventas"), "   inventario_por_bodega: la bodega pedida y los conceptos con cifras por bodega (capital sí, ventas no)", JSON.stringify(alt[0]));
+  ok(alt[1].tema === "comercial" && alt[1].eje === "sku" && alt[1].conceptos.join() === "ventas", "   venta_por_producto: el concepto que pidió, por producto (nombrando los productos)", JSON.stringify(alt[1]));
+  ok(alt[2].validos.includes("cliente") && alt[2].validos.includes("sku") && !alt[2].validos.includes("bodega"), "   ejes_de_la_venta: los ejes donde la venta existe (la bodega no está)", JSON.stringify(alt[2]));
+  ok(JSON.stringify(r03.noResuelto[0]).length < 1500, `   y todo es compacto (${JSON.stringify(r03.noResuelto[0]).length} B por rechazo)`);
+  ok(JSON.stringify(compactarParaAnfitrion("consultar", r03)) === JSON.stringify(r03), "   y viaja igual al anfitrión (una consulta sin Entrega ya es chica)");
+  /* lo que ofrece VALE: el inventario de la bodega y la venta de los productos que nombre se responden */
+  const rInv = await consultarM([{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: alt[0].conceptos.slice(0, 2), eje: "sku", universo: { eje: "sku", bodega: b1 } }]);
+  ok(rInv.ok === true && rInv.noResuelto.length === 0 && filasDeVenta(rInv).length === 0, "★ lo que ofrece vale: «el inventario de <bodega>» se responde (sin una fila de venta)", JSON.stringify(rInv.noResuelto).slice(0, 200));
+  const skus = conTenantActivo(M.T.dataset, () => axisEntityNames("sku")).slice(0, 2);
+  const rProd = await consultarM([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "sku", entidades: skus.map((nombre) => ({ nombre, eje: "sku" })) }]);
+  ok(rProd.ok === true && rProd.noResuelto.length === 0 && filasDeVenta(rProd).length === 2, "…y «la venta de los productos que usted nombre» también (las dos ventas por SKU)", JSON.stringify(rProd.noResuelto).slice(0, 200));
+
+  /* 8b · QUÉ PETICIONES LA DISPARAN: toda métrica comercial sobre algo definido por bodega, o agrupada por bodega */
+  const P = (o) => ({ id: "p1", tema: "comercial", cierre: "cifra", ...o });
+  const dispara = [
+    ["venta agrupada por bodega (eje bodega)", [P({ conceptos: ["ventas"], eje: "bodega" })], "eje"],
+    ["venta de una bodega nombrada, sin eje", [P({ conceptos: ["ventas"], entidades: [{ nombre: b1 }] })], "entidad"],
+    ["margen de una bodega nombrada, con eje", [P({ conceptos: ["margen"], entidades: [{ nombre: b1, eje: "bodega" }] })], "entidad"],
+    ["comparar la venta de dos bodegas", [P({ cierre: "comparacion", conceptos: ["ventas"], entidades: [{ nombre: b1, eje: "bodega" }, { nombre: b2, eje: "bodega" }] })], "entidad"],
+    ["lectura comercial de una bodega (sin conceptos)", [P({ cierre: "lectura", entidades: [{ nombre: b1, eje: "bodega" }] })], "entidad"],
+    ["lectura comercial de los SKU de dos bodegas", [P({ cierre: "lectura", eje: "sku", universo: { eje: "sku", bodega: [b1, b2] } })], "universo"],
+    ["contribución de los SKU fuera de una bodega (excluir.bodega)", [P({ conceptos: ["contribucion"], eje: "sku", universo: { eje: "sku", excluir: { bodega: b1 } } })], "universo"],
+    ["unidades vendidas con una unión de bodegas", [P({ conceptos: ["unidades"], eje: "sku", universo: { eje: "sku", union: [{ bodega: b1 }, { bodega: b2 }] } })], "universo"],
+    ["carga comercial de los SKU de una bodega", [P({ conceptos: ["carga"], eje: "sku", universo: { eje: "sku", bodega: b1 } })], "universo"],
+    ["inventario recortado por venta dentro de una bodega (top por ventas)", [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital"], eje: "sku", universo: { eje: "sku", bodega: b1, top: { metrica: "ventas", k: 2, direccion: "mayor" } } }], "universo"],
+    ["inventario filtrado por margen dentro de una bodega", [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital"], eje: "sku", universo: { eje: "sku", bodega: b1, filtros: [{ metrica: "margen", op: ">", valor: 20 }] } }], "universo"],
+    ["una simulación de venta de una bodega", [P({ cierre: "simulacion", supuestos: ["s1"], entidades: [{ nombre: b1, eje: "bodega" }] })], "entidad", { supuestos: [{ id: "s1", tipo: "growth", valor: 5, unidad: "pct", alcance: { eje: "bodega", nombre: b1 } }] }],
+  ];
+  for (const [nombre, partes, campo, extra] of dispara) {
+    const r = await consultarM(partes, extra);
+    ok(r.ok === false && r.entrega === null && r.noResuelto.some((n) => n.motivo === "venta_por_bodega" && n.campo === campo && n.alternativas.length === 3), `★ se rechaza con la razón: ${nombre}`, JSON.stringify(r.noResuelto.map((n) => [n.motivo, n.campo])).slice(0, 300));
+  }
+  ok((await consultarM([P({ conceptos: ["ventas"], entidades: [{ nombre: b1, eje: "bodega" }, { nombre: b2, eje: "bodega" }] })])).noResuelto[0].detalle === textoDeLaLey(`el inventario de ${b1} y ${b2}`), "con dos bodegas nombradas, la razón ofrece el inventario de las dos");
+  ok((await consultarM([P({ conceptos: ["ventas"], eje: "bodega" })])).noResuelto[0].detalle === textoDeLaLey("el inventario por bodega"), "sin una bodega nombrada (agrupada por bodega), ofrece «el inventario por bodega»");
+
+  /* 8c · LO QUE SIGUE PERMITIDO (control): el inventario por bodega, la venta sin bodega, definir un concepto */
+  const permitido = [
+    ["inventario de los SKU de una bodega", [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital", "rotacion"], eje: "sku", universo: { eje: "sku", bodega: b1 } }]],
+    ["inventario agrupado por bodega", [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital", "rotacion"], eje: "bodega" }]],
+    ["inventario de una bodega nombrada", [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital"], entidades: [{ nombre: b1, eje: "bodega" }] }]],
+    ["inventario de los SKU sin venta de una bodega (estado)", [{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["capital"], eje: "sku", universo: { eje: "sku", bodega: b1, estados: ["sin venta"] } }]],
+    ["la venta por SKU, sin bodega", [P({ conceptos: ["ventas"], eje: "sku" })]],
+    ["la venta por cliente", [P({ conceptos: ["ventas"], eje: "cliente" })]],
+    ["definir «venta» aunque se hable de bodegas", [P({ cierre: "definicion", concepto: "ventas", eje: "bodega" })]],
+  ];
+  for (const [nombre, partes] of permitido) {
+    const r = await consultarM(partes);
+    ok(!r.noResuelto.some((n) => n.motivo === "venta_por_bodega") && (r.ok === true || nombre.startsWith("definir")), `control · sigue permitido: ${nombre}`, JSON.stringify(r.noResuelto.map((n) => [n.motivo, n.campo])).slice(0, 300));
+  }
+
+  /* 8d · UNA PARTE RECHAZADA NO ANULA A LAS DEMÁS (nunca sustitución por vecino) y no deja rastro en la Entrega */
+  const rMix = await consultarM([b03[0], { id: "p2", tema: "inventario", cierre: "cifra", conceptos: ["capital"], eje: "bodega" }]);
+  ok(rMix.ok === true && rMix.noResuelto[0].motivo === "venta_por_bodega" && rMix.noResuelto[0].parte === "p1" && filasDeVenta(rMix).length === 0, "★ de dos partes, la de venta × bodega se rechaza y la de inventario corre (sin una sola fila de venta en la Entrega)", JSON.stringify(rMix.noResuelto.map((n) => [n.parte, n.motivo])));
+  ok(rMix.entrega.json.universos.every((u) => !/^p1/.test(u.id)) && !/Venta/.test(rMix.entrega.texto.split("**Cifras.**")[1] || ""), "   y la parte rechazada no deja universo ni cifra en la Entrega");
+  const libroMix = await A.consultar({ tenant: M.T, encargo: E1([b03[0], { id: "p2", tema: "inventario", cierre: "cifra", conceptos: ["capital"], eje: "bodega" }]) });
+  ok(libroMix.continuidad && libroMix.continuidad.guardada === true, "   y la conversación se guarda igual (lo rechazado no rompe la continuidad)");
+  /* una parte con conceptos comerciales E inventario: corre con el inventario y declara los comerciales */
+  const rParcial = await consultarM([{ id: "p1", tema: "inventario", cierre: "cifra", conceptos: ["unidades_stock", "contribucion"], eje: "bodega", entidades: [{ nombre: b1, eje: "bodega" }] }]);
+  const nrP = rParcial.noResuelto.find((n) => n.motivo === "venta_por_bodega");
+  ok(rParcial.ok === true && nrP && nrP.campo === "concepto" && nrP.valor === "contribucion" && rParcial.entrega.json.cifras.filas.some((f) => f.valores["Métrica"] === "Unidades en stock") && filasDeVenta(rParcial).length === 0, "★ lo válido corre y lo inválido se declara: de «unidades en stock» + «contribución» de una bodega, sirve el stock y rechaza la contribución", JSON.stringify(rParcial.noResuelto.map((n) => [n.motivo, n.campo, n.valor])));
+  /* un supuesto que solo citaba la parte rechazada se va con ella (no queda «sin productor» por una parte que ya no existe) */
+  const rSup = await consultarM([P({ cierre: "simulacion", supuestos: ["s1"], entidades: [{ nombre: b1, eje: "bodega" }] }), { id: "p2", tema: "inventario", cierre: "cifra", conceptos: ["capital"], eje: "bodega" }], { supuestos: [{ id: "s1", tipo: "growth", valor: 5, unidad: "pct", alcance: { eje: "bodega", nombre: b1 } }] });
+  ok(rSup.noResuelto.length === 1 && rSup.noResuelto[0].motivo === "venta_por_bodega", "   y el supuesto que solo citaba esa parte no deja un segundo rechazo ruidoso", JSON.stringify(rSup.noResuelto.map((n) => [n.motivo, n.campo])));
+
+  /* 8e · CARNADA: sin la ley, el defecto ENTREGA venta de los SKU de la bodega (la misma pregunta por el Core directo) — el predicado muerde */
+  const sinLey = conTenantActivo(M.T.dataset, () => componerEntrega(validarEncargo(E1([b03[0]]), {})));
+  ok(sinLey.ok === true && sinLey.entrega.cifras.filas.filter((f) => f.valores["Métrica"] === "Venta").length >= 2, "CARNADA «el Core directo, sin la ley» → entrega la venta de los SKU de la bodega (el defecto del ensayo 6): el predicado `filasDeVenta` lo caza", String(sinLey.ok));
+  ok(filasDeVenta(await consultarM([b03[0]])).length === 0, "…y por `consultar` ya no hay ninguna");
+}
+
+H("8 · la ley, en frío: forma de lo que deja pasar y de lo que no");
+{
+  initTenant(TENANT_DEMO);
+  const sano = E1([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente" }]);
+  const l = conTenantActivo(TENANT_DEMO, () => separarVentaPorBodega(sano));
+  ok(l.encargo === sano && l.rechazos.length === 0, "★ un encargo sin venta × bodega pasa IDÉNTICO (la misma referencia de objeto: los 532 sellados no se tocan por esto)");
+  const raizRota = { ...E1([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "bodega" }]), campoAjeno: 1 };
+  const l2 = conTenantActivo(TENANT_DEMO, () => separarVentaPorBodega(raizRota));
+  ok(l2.encargo === raizRota && l2.rechazos.length === 0, "una raíz inválida (campo ajeno) se deja pasar entera: ese rechazo es del validador, con su motivo de siempre");
+  const siete = E1(Array.from({ length: 7 }, (_, i) => ({ id: `p${i + 1}`, tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "bodega" })));
+  ok(conTenantActivo(TENANT_DEMO, () => separarVentaPorBodega(siete)).encargo === siete, "…y también un encargo con más partes que el tope (`partes_tope` lo dice el validador)");
+  ok(MOTIVOS.indexOf("venta_por_bodega") === -1, "el motivo es de ESTA capa (como `formato_invalido`): la lista cerrada de MOTIVOS del contrato del Encargo no se toca");
+  /* el agente (el chat de la app) ya cumple la misma ley: ni la herramienta de consulta ni el mapa del dato abren la venta por bodega */
+  const q1 = conTenantActivo(TENANT_DEMO, () => TOOLS.queryMetric({ metric: "ventas", dimension: "bodega" }));
+  const q2 = conTenantActivo(TENANT_DEMO, () => TOOLS.queryMetric({ metric: "ventas", dimension: "sku", filters: { bodega: "Santiago" } }));
+  const q3 = conTenantActivo(TENANT_DEMO, () => TOOLS.queryMetric({ metric: "margen", dimension: "bodega" }));
+  ok(q1.coverage.supported === false && q2.coverage.supported === false && q3.coverage.supported === false && q1.boleta.length === 0 && q2.boleta.length === 0, "★ el AGENTE (src/adi/agente): la consulta de venta o margen por bodega declina (sin una sola cifra)");
+  const mapa = JSON.stringify(conTenantActivo(TENANT_DEMO, () => mapaDelDato()));
+  ok(/bodega: SOLO inventario/.test(mapa) && /sin venta ni margen/.test(mapa), "…y el mapa del dato del agente dice el límite: «bodega: SOLO inventario… sin venta ni margen»");
+  const importaComponer = fs.readdirSync("src/adi/agente").filter((f) => f.endsWith(".js")).filter((f) => /from\s+["'][^"']*entrega\/componer\.js["']/.test(fs.readFileSync(`src/adi/agente/${f}`, "utf8")));
+  ok(importaComponer.length === 0, "★ el camino de la app no usa el compositor de la Entrega (`entrega/componer.js`): la venta por bodega por universo es solo del Encargo del Complemento, que ya la rechaza", importaComponer.join(", "));
+}
+
+/* ═══ 9 · EL CATÁLOGO ES COHERENTE CON `consultar` (ensayo 6, owner 2026-10-08): TODO LO QUE OFRECE SE PUEDE RESPONDER ═══════════════════════════════════════════════════════════════
+ * A01|1|4 pidió `margen_promedio` (ofrecido por el catálogo como concepto del negocio) y `consultar` volvió `concepto_sin_productor`. Este recorrido camina la OFERTA del catálogo y llama a `consultar` por cada combinación —concepto × eje × cierre (cifra ·
+ * lectura · decisión · comparación), cada id de definición, cada tipo de supuesto en cada lugar donde dice que corre, cada lente de criterio, cada estado y conjunto de universo—: si algo ofrecido no se responde, el recorrido lo nombra. Así no vuelve a desviarse. */
+async function recorrerOferta(A, T, catalogo) {
+  const malas = [];
+  const probar = async (etiqueta, partes, extra) => {
+    let r; try { r = await A.consultar({ tenant: T, encargo: E1(partes, extra) }); } catch (e) { malas.push(`${etiqueta}: lanzó ${e && e.message}`); return false; }
+    const ok1 = r.ok === true && (r.noResuelto || []).length === 0;
+    if (!ok1) malas.push(`${etiqueta} → ${r.ok ? "ok" : "no ok"} ${(r.noResuelto || []).map((n) => `${n.campo}:${n.motivo}`).join(",")}`);
+    return ok1;
+  };
+  const ejemplos = Object.fromEntries((catalogo.ejes || []).map((e) => [e.eje, e.ejemplos || []]));
+  for (const t of catalogo.temas) {
+    if (t.estado !== "activo") continue;
+    for (const c of t.conceptos) {
+      const ejes = c.ejes && c.ejes.length ? c.ejes : [null];
+      for (const eje of ejes) {
+        const base = { tema: t.id, conceptos: [c.clave], ...(eje ? { eje } : {}) };
+        for (const cierre of ["cifra", "lectura", "decision"]) if (t.cierres[cierre] === true) await probar(`${t.id}/${c.clave}/${eje || "sin eje"}/${cierre}`, [{ id: "p1", ...base, cierre }]);
+        if (t.cierres.comparacion === true) {
+          const ex = eje ? ejemplos[eje] || [] : [];
+          if (ex.length < 2) malas.push(`${t.id}/${c.clave}/${eje || "sin eje"}/comparacion: el catálogo no trae dos ejemplos del eje para comparar`);
+          else await probar(`${t.id}/${c.clave}/${eje}/comparacion`, [{ id: "p1", ...base, cierre: "comparacion", entidades: ex.slice(0, 2).map((nombre) => ({ nombre, eje })) }]);
+        }
+      }
+    }
+  }
+  const definibles = (catalogo.conceptosDeDefinicion || []).map((x) => x.id);
+  for (const id of [...new Set(definibles)]) await probar(`definicion/${id}`, [{ id: "p1", tema: "comercial", cierre: "definicion", concepto: id }]);
+  for (const s of catalogo.supuestosAdmitidos || []) {
+    for (const [tema, ejes] of Object.entries(s.alcances || {})) for (const eje of ejes) {
+      if (eje === "negocio") { await probar(`supuesto ${s.tipo}/${tema}/negocio`, [{ id: "p1", tema, cierre: "simulacion", supuestos: ["s1"] }], { supuestos: [{ id: "s1", tipo: s.tipo, valor: 5, unidad: (s.unidades || [])[0], alcance: "negocio" }] }); continue; }
+      /* corre para AL MENOS una entidad del eje (una simulación libre de inventario solo corre en un SKU con capital detenido) */
+      const nombres = conTenantActivo(T.dataset, () => axisEntityNames(eje));
+      let corrio = false;
+      for (const nombre of nombres) {
+        const r = await A.consultar({ tenant: T, encargo: E1([{ id: "p1", tema, cierre: "simulacion", supuestos: ["s1"], entidades: [{ nombre, eje }] }], { supuestos: [{ id: "s1", tipo: s.tipo, valor: 5, unidad: (s.unidades || [])[0], alcance: { eje, nombre } }] }) });
+        if (r.ok === true && (r.noResuelto || []).length === 0) { corrio = true; break; }
+      }
+      if (!corrio) malas.push(`supuesto ${s.tipo}/${tema}/${eje} → ninguna entidad del eje lo responde`);
+    }
+  }
+  for (const c of catalogo.criterios || []) await probar(`criterio/${c.lente}`, [{ id: "p1", tema: c.tema || "comercial", cierre: "lectura" }], { criterio: { lente: c.lente } });
+  const u = catalogo.universo || {};
+  const temasProbables = ["comercial", "inventario", "cobranza"];
+  const algunTema = async (etiqueta, mk) => { let corrio = false; for (const tema of temasProbables) { const r = await A.consultar({ tenant: T, encargo: E1([mk(tema)]) }); if (r.ok === true && (r.noResuelto || []).length === 0) { corrio = true; break; } } if (!corrio) malas.push(`${etiqueta} → ningún tema lo responde`); };
+  for (const [eje, estados] of Object.entries(u.estados || {})) for (const e of estados) await algunTema(`estado ${eje}/${e}`, (tema) => ({ id: "p1", tema, cierre: "lectura", eje, universo: { eje, estados: [e] } }));
+  for (const [eje, conjuntos] of Object.entries(u.conjuntos || {})) for (const cj of conjuntos) await algunTema(`conjunto ${eje}/${cj}`, (tema) => ({ id: "p1", tema, cierre: "lectura", eje, universo: { eje, base: cj } }));
+  return malas;
+}
+
+for (const M of MUNDOS) {
+  H(`9 · el catálogo no ofrece nada que consultar no responda (${M.etiqueta})`);
+  const A = crearAcciones();
+  const cat = (await A.conocerEmpresa({ tenant: M.T })).catalogo;
+  const nOferta = cat.temas.filter((t) => t.estado === "activo").reduce((n, t) => n + t.conceptos.reduce((m, c) => m + Math.max(1, c.ejes.length), 0), 0);
+  const malas = await recorrerOferta(A, M.T, cat);
+  ok(malas.length === 0, `★ cada combinación que el catálogo ofrece se responde (${nOferta} concepto×eje × sus cierres, ${cat.conceptosDeDefinicion.length} definiciones, ${cat.supuestosAdmitidos.length} tipos de supuesto con sus lugares, ${cat.criterios.length} lentes, estados y conjuntos)`, malas.slice(0, 6).join("\n      "));
+  /* lo que ya no se ofrece como concepto viaja APARTE, diciendo lo que es, y consultar sigue rechazándolo (la verdad no cambia: solo deja de prometerse) */
+  const todas = cat.temas.flatMap((t) => (t.referencias || []).map((r) => ({ tema: t.id, ...r })));
+  ok(["margen_promedio", "benchmark", "nivel_carga", "umbral_materialidad", "piso_rotacion", "techo_cobertura"].every((k) => todas.some((r) => r.clave === k)) && cat.temas.every((t) => !t.conceptos.some((c) => (t.referencias || []).some((r) => r.clave === c.clave))), "★ el benchmark, el nivel de carga, el piso, el techo y el margen promedio del negocio viajan en `temas[].referencias` (se CITAN, no se piden) y ya no están entre los `conceptos`", JSON.stringify(todas.map((r) => r.clave)));
+  for (const r of todas) {
+    const x = await A.consultar({ tenant: M.T, encargo: E1([{ id: "p1", tema: r.tema, cierre: "cifra", conceptos: [r.clave] }]) });
+    ok(x.noResuelto.some((n) => n.motivo === "concepto_sin_productor"), `   «${r.clave}»: consultar sigue sin tener productor (por eso no se ofrece)`);
+  }
+  ok(!cat.supuestosAdmitidos.some((s) => s.tipo === "inventory") && cat.supuestosAdmitidos.every((s) => Object.keys(s.alcances).length > 0), "★ el supuesto de inventario (sin productor en ningún tema) ya no se ofrece, y cada tipo ofrecido dice DÓNDE corre (tema · ejes)", JSON.stringify(cat.supuestosAdmitidos.map((s) => [s.tipo, s.alcances])).slice(0, 400));
+  ok(cat.supuestosAdmitidos.find((s) => s.tipo === "carga").alcances.comercial.join() === "cliente" && cat.supuestosAdmitidos.find((s) => s.tipo === "custom").alcances.inventario.join() === "sku", "   (carga: solo cuentas · libre: solo producto, en Inventario — lo que el validador decide)");
+  ok(["ventas_anterior", "markup", "variacion", "variacion_usd", "vs_presupuesto_usd", "umbral_materialidad", "unidades_stock"].every((id) => !cat.conceptosDeDefinicion.some((x) => x.id === id)) && ["ventas", "margen", "capital", "saldo_vencido"].every((id) => cat.conceptosDeDefinicion.some((x) => x.id === id)), "★ los ids que el glosario no define dejan de ofrecerse como definición (y los que sí, siguen)");
+
+  /* CARNADAS: el catálogo de ANTES (lo que el recorrido tiene que cazar) — cada defecto reconstruido, solo él, pone el recorrido en ROJO */
+  const minimo = (parche) => ({ temas: [], ejes: cat.ejes, conceptosDeDefinicion: [], supuestosAdmitidos: [], criterios: [], universo: {}, ...parche });
+  const temaComercial = (conceptos) => ({ id: "comercial", estado: "activo", cierres: cat.temas.find((t) => t.id === "comercial").cierres, conceptos });
+  const m1 = await recorrerOferta(A, M.T, minimo({ temas: [temaComercial([{ clave: "margen_promedio", rotulo: "Margen promedio", unidad: "pct", referencia: false, negocio: true, ejes: [] }])] }));
+  ok(m1.some((x) => /margen_promedio/.test(x)), "CARNADA «el catálogo vuelve a ofrecer `margen_promedio` como concepto» → el recorrido lo nombra (concepto_sin_productor)", m1.join(" | ").slice(0, 300));
+  const m2 = await recorrerOferta(A, M.T, minimo({ conceptosDeDefinicion: [{ id: "markup", rotulo: "Markup sobre costo" }, { id: "unidades_stock", rotulo: "Unidades en stock" }, { id: "ventas", rotulo: "Venta" }] }));
+  ok(m2.some((x) => /definicion\/markup/.test(x)) && m2.some((x) => /definicion\/unidades_stock/.test(x)), "CARNADA «se vuelve a ofrecer la definición de `markup` y `unidades_stock`» → el recorrido las nombra (no hay definición curada)", m2.join(" | ").slice(0, 300));
+  const m3 = await recorrerOferta(A, M.T, minimo({ supuestosAdmitidos: [{ tipo: "inventory", nombre: "Cambio de inventario", unidades: ["days", "pct"], perturba: "doh", alcances: { inventario: ["sku"] } }] }));
+  ok(m3.some((x) => /supuesto inventory/.test(x)), "CARNADA «se vuelve a ofrecer el supuesto de inventario» → el recorrido lo nombra (ninguna entidad lo responde)", m3.join(" | ").slice(0, 300));
+  const m4 = await recorrerOferta(A, M.T, minimo({ temas: [temaComercial([{ clave: "ventas", rotulo: "Venta", unidad: "money", referencia: false, negocio: false, ejes: ["cliente", "bodega"] }])] }));
+  const m5 = await recorrerOferta(A, M.T, minimo({ temas: [temaComercial([{ clave: "ventas", rotulo: "Venta", unidad: "money", referencia: false, negocio: false, ejes: ["cliente"] }])] }));
+  ok(m5.length === 0, "…y el control: la misma mini-oferta SIN la bodega pasa limpia (el recorrido no inventa rojos)", m5.join(" | ").slice(0, 200));
+  ok(m4.some((x) => /comercial\/ventas\/bodega/.test(x)), "CARNADA «el catálogo ofrece la venta por bodega» → el recorrido la nombra (la ley de la bodega)", m4.join(" | ").slice(0, 300));
 }
 
 console.log(`\n── _capacidad_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);

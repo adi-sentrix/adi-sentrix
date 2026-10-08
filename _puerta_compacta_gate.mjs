@@ -256,6 +256,25 @@ H("5 · retomar con la respuesta compacta: los mismos ids, valores y revalidacio
     "cambia el estado de la revalidación": (c) => { const k = clon(c); const h = k.hechos.find((x) => x.revalidacion); h.revalidacion.estado = "igual"; h.estadoReverificacion = "igual"; return k; },
   };
   for (const [nombre, mutar] of Object.entries(MUT_RET)) ok(!mismo(hSolo(mutar(rtc)), hSolo(rt)), `★ CARNADA retomar «${nombre}»: la comparación se pone roja`);
+
+  /* ENSAYO 6 (owner 2026-10-08): la descripción de una derivación y el universo de una cifra de un conjunto acotado VIAJAN al anfitrión (B03 sesión 2: D1 sin su conjunto se leyó como «los cinco primeros códigos») */
+  {
+    const A3 = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
+    const r3 = await A3.consultar({ tenant: TENANT, encargo: { version: "encargo/v1", partes: [{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: { eje: "cliente", top: { metrica: "ventas", k: 3, direccion: "mayor" } } }] } });
+    const c3 = r3.continuidad.conversacionId;
+    const ids3 = compactarParaAnfitrion("consultar", r3).entrega.cifras.filter((c) => c.metrica === "Venta").map((c) => c.id);
+    await A3.derivar({ tenant: TENANT, conversacionId: c3, operacion: "suma", sobre: ids3 });
+    const rt3 = await A3.retomar({ tenant: TENANT, conversacionId: c3 });
+    const rc3 = compactarParaAnfitrion("retomar", rt3);
+    const ctx = (x) => x.hechos.map((h) => [h.id, h.descripcion ?? null, h.universo ?? null]);
+    ok(mismo(ctx(rc3), ctx(rt3)) && rc3.hechos.some((h) => h.descripcion) && rc3.hechos.filter((h) => h.universo === "los 3 de mayor venta").length === 3, "★ retomar compacta: la descripción de cada derivación y el universo de cada cifra de un conjunto acotado viajan idénticos a lo calculado");
+    const MUT_CTX = {
+      "pierde la descripción": (c) => { const k = clon(c); for (const h of k.hechos) delete h.descripcion; return k; },
+      "pierde el universo": (c) => { const k = clon(c); for (const h of k.hechos) delete h.universo; return k; },
+      "cambia el universo de una cifra": (c) => { const k = clon(c); const h = k.hechos.find((x) => x.universo); h.universo = "los 13 clientes"; return k; },
+    };
+    for (const [nombre, mutar] of Object.entries(MUT_CTX)) ok(!mismo(ctx(mutar(rc3)), ctx(rt3)), `★ CARNADA retomar «${nombre}»: la comparación se pone roja`);
+  }
 }
 
 H("5 · conocerEmpresa compacta: conserva todo salvo lo que es solo mecanismo (lista cerrada)");

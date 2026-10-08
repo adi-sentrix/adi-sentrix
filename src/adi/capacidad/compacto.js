@@ -190,7 +190,7 @@ function _compactarRevalidacion(rv) {
 function _compactarRetomar(s) {
   if (!s || typeof s !== "object" || s.ok === false) return s;
   const hechos = (Array.isArray(s.hechos) ? s.hechos : []).map((h) => _soloConValor({
-    id: h.id, sujeto: h.sujeto, metrica: h.metrica, valor: h.valor, origen: h.origen, ...(Array.isArray(h.sobre) ? { sobre: h.sobre } : {}),
+    id: h.id, sujeto: h.sujeto, metrica: h.metrica, valor: h.valor, origen: h.origen, ...(Array.isArray(h.sobre) ? { sobre: h.sobre } : {}), ...(h.descripcion ? { descripcion: h.descripcion } : {}), ...(h.universo ? { universo: h.universo } : {}),
     estadoReverificacion: h.estadoReverificacion, ...(h.valorNuevo != null ? { valorNuevo: h.valorNuevo } : {}), revalidacion: _compactarRevalidacion(h.revalidacion),
   }));
   const entregas = (Array.isArray(s.entregas) ? s.entregas : []).map((e) => _soloConValor(Object.fromEntries(Object.entries(e || {}).map(([k, v]) => [k, Array.isArray(v) && !v.length ? null : v]))));

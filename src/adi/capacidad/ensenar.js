@@ -9,7 +9,7 @@ import { CAMPOS_UNIVERSO, EJES_VALIDOS, DIRECCIONES_DE_TOP, SOBRE_DE_TOP } from 
 import { estadosValidosPara } from "../notario/estados.js";
 import { CONJUNTOS_DE_LA_CASA } from "../notario/conjuntosDeLaCasa.js";
 import { OPS } from "../notario/lexico.js";
-import { axisEntityNames } from "../oracle/entityIndex.js";
+import { axisEntityNames, resolveCanonical } from "../oracle/entityIndex.js";
 import { DOMINIOS_REGISTRO, idsActivos } from "../../config/contract/dominios.js";
 import { ASSUMPTIONS } from "../../config/contract/assumptionRegistry.js";
 import { CRITERIOS } from "../agente/prioridadIntegrada.js";
@@ -49,14 +49,14 @@ export function guiaDeUniverso() {
       no_estados: "[estado, …] — las que NO están en esos estados",
       filtros: `[{ metrica, op, valor }] — metrica: un concepto con cifras en ese eje; op: ${OPS.join(" · ")}; valor: un número (con «entre»: [desde, hasta])`,
       base: "el nombre de un conjunto de la casa (los de «conjuntos» para el eje)",
-      bodega: "solo con eje sku: el nombre de una bodega",
+      bodega: "solo con eje sku y solo para el inventario (capital, días de inventario, rotación, unidades en stock): la venta no se abre por bodega — pida la venta por cliente, marca, familia, producto o canal, o nombre los productos",
       excluir: "{ entidades?, conjuntos?, estados?, top?, bodega? } — lo que se saca del universo",
       union: "[universo, …] — varios universos del MISMO eje, cada uno restringiendo algo",
     },
     estados,
     conjuntos,
     ejemplos: [_EJEMPLO_DE_TOP(eC), estadoDeC ? { eje: eC, estados: [estadoDeC] } : null, metricaDeFiltro ? { eje: eC, filtros: [{ metrica: metricaDeFiltro, op: ">", valor: _N }] } : null].filter(Boolean),
-    limite: "Un universo no se acota por la marca, la familia o el canal de otro eje (los SKU no se filtran por marca): pida el eje marca, familia o canal, o nombre las entidades.",
+    limite: "Un universo no se acota por la marca, la familia o el canal de otro eje (los SKU no se filtran por marca): pida el eje marca, familia o canal, o nombre las entidades. Y la venta, el margen, la contribución y las unidades vendidas no se abren por bodega: el dato no dice qué bodega despachó cada venta (la bodega solo tiene inventario).",
   };
 }
 
@@ -87,6 +87,19 @@ function _alternativasDeUniverso(valor, ejeDeLaParte) {
 
 /* ── LAS ENTIDADES DE UN EJE ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
 const _entidadesDe = (eje) => { const ns = axisEntityNames(eje); return { tipo: "entidades_del_eje", eje, n: ns.length, ...(ns.length <= NOMBRES_MAX ? { nombres: ns.slice() } : { ejemplos: ns.slice(0, 3) }) }; };
+
+/* ── LA VENTA NO SE ABRE POR BODEGA (ensayo 6, owner 2026-10-08): lo que SÍ se puede ──────────────────────────────────────────────────────────────────────────────────────────────── */
+/* el inventario de esa bodega (con las métricas que el dato publica por bodega), la venta de los productos que el usuario nombre (los conceptos pedidos que tienen cifras por SKU) y los ejes donde la venta sí se abre */
+function _alternativasDeVentaPorBodega(nr) {
+  const todas = axisEntityNames("bodega");
+  const pedidas = (Array.isArray(nr.bodegas) ? nr.bodegas : []).map((n) => resolveCanonical("bodega", n)).filter(Boolean);
+  const pedidos = (Array.isArray(nr.conceptos) ? nr.conceptos : []).filter((k) => ejesConProductor(k).includes("sku"));
+  return [
+    { tipo: "inventario_por_bodega", tema: "inventario", eje: "bodega", conceptos: metricasDelEje("bodega"), bodegas: _unicos(pedidas.length ? pedidas : todas).slice(0, NOMBRES_MAX), nota: "el inventario sí se abre por bodega" },
+    { tipo: "venta_por_producto", tema: "comercial", eje: "sku", conceptos: pedidos.length ? pedidos : ["ventas"], nota: "nombre los productos (entidades con eje sku) o pida el eje sku entero, sin bodega" },
+    { tipo: "ejes_de_la_venta", validos: EJES.filter((e) => ejesConProductor("ventas").includes(e)) },
+  ];
+}
 
 /* ── LA TABLA: motivo → sus alternativas (solo cuando vienen vacías) ─────────────────────────────────────────────────────────────────────────────────────────────────────────── */
 const _TEMAS = () => idsActivos();
@@ -127,6 +140,7 @@ function _alternativasDe(nr, { parte, libro }) {
     case "periodo_mal_formado": case "periodo_no_disponible": return [{ tipo: "periodo", tipos: ["vigente", "mes", "rango"], forma: "{ tipo: vigente } · { tipo: mes, valor: AAAA-MM } · { tipo: rango, valor: { desde, hasta } } (fechas AAAA-MM-DD; mes y rango solo con una entidad puntual que tenga serie real)" }];
     case "criterio_desconocido": case "criterio_tesoreria": return [{ tipo: "criterios", lentes: Object.keys(CRITERIOS) }];
     case "formato_invalido": return nr.esperado ? [{ tipo: "forma", campo: nr.campo, esperado: nr.esperado }] : [];
+    case "venta_por_bodega": return _alternativasDeVentaPorBodega(nr);
     default: return [];
   }
 }
