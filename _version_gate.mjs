@@ -31,8 +31,8 @@ const ok = (cond, label, detalle) => {
 
 const notas = fs.readFileSync(path.join(root, "_VERSIONES.md"), "utf8");
 const apiSrc = fs.readFileSync(path.join(root, "api", "version.js"), "utf8");
-const FORMATO = /^\d+\.\d+$/;
-const _tieneNota = (v) => new RegExp(`^##\\s+${v.replace(".", "\\.")}\\s`, "m").test(notas);
+const FORMATO = /^\d+\.\d+(\.\d+)?$/;   // N.M · y N.M.P para un parche (hotfix 2.31.1: arreglo puntual sobre producción, sin el trabajo pendiente de dev)
+const _tieneNota = (v) => new RegExp(`^##\\s+${v.replaceAll(".", "\\.")}\\s`, "m").test(notas);
 
 console.log("═".repeat(100));
 console.log("EL VERSIONADO · número · nota · fuente única");
@@ -46,9 +46,9 @@ ok(_tieneNota(ADI_VERSION), `la versión declarada ${ADI_VERSION} TIENE su nota 
 ok(_tieneNota(ADI_VERSION_DESPLEGADA), `la versión desplegada ${ADI_VERSION_DESPLEGADA} también tiene su nota`);
 
 // la desplegada no puede ir POR DELANTE de la declarada: sería decir que producción tiene algo que la rama no
-const _num = (v) => v.split(".").map(Number);
-const [dM, dm] = _num(ADI_VERSION), [pM, pm] = _num(ADI_VERSION_DESPLEGADA);
-ok(pM < dM || (pM === dM && pm <= dm),
+const _num = (v) => { const [M, m, p] = v.split(".").map(Number); return [M, m, p || 0]; };
+const _mayor = (a, b) => { const x = _num(a), y = _num(b); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i]; return false; };
+ok(!_mayor(ADI_VERSION_DESPLEGADA, ADI_VERSION),
   `la desplegada (${ADI_VERSION_DESPLEGADA}) no va por delante de la declarada (${ADI_VERSION})`);
 
 /* ⚠️ LA NOTA NO PUEDE DECIR «PRODUCCIÓN» DE ALGO QUE NO ESTÁ EN PRODUCCIÓN — y esto se agrega porque pasó
@@ -63,9 +63,8 @@ ok(pM < dM || (pM === dM && pm <= dm),
  * No se puede preguntar a producción desde acá —este gate corre sin red, a propósito— pero sí se puede exigir
  * COHERENCIA INTERNA: lo que el repo afirma de sí mismo tiene que cerrar. Si una nota dice «producción», esa
  * versión no puede ir por delante de la que el repo declara desplegada. */
-const _enc = [...notas.matchAll(/^## (\d+\.\d+)\s*—\s*(.*)$/gm)].map((m) => ({ v: m[1], txt: m[2] }));
+const _enc = [...notas.matchAll(/^## (\d+\.\d+(?:\.\d+)?)\s*—\s*(.*)$/gm)].map((m) => ({ v: m[1], txt: m[2] }));
 ok(_enc.length > 0, `_VERSIONES.md tiene encabezados legibles (${_enc.length})`);
-const _mayor = (a, b) => { const [aM, am] = _num(a), [bM, bm] = _num(b); return aM > bM || (aM === bM && am > bm); };
 const _mentirosas = _enc.filter((e) => /producci[óo]n/i.test(e.txt) && _mayor(e.v, ADI_VERSION_DESPLEGADA));
 ok(_mentirosas.length === 0,
   `ninguna nota se declara en producción por delante de la desplegada (${ADI_VERSION_DESPLEGADA})`,
@@ -88,7 +87,7 @@ ok(/version:\s*ADI_VERSION\b/.test(apiSrc), "…y lo sirve desde ahí, sin escri
 ok(!/version:\s*["'`]\d+\.\d+["'`]/.test(apiSrc), "…y no hay ningún número de versión escrito a mano en el endpoint");
 
 // una nota por número, sin duplicados
-const declaradas = [...notas.matchAll(/^##\s+(\d+\.\d+)\s/gm)].map((m) => m[1]);
+const declaradas = [...notas.matchAll(/^##\s+(\d+\.\d+(?:\.\d+)?)\s/gm)].map((m) => m[1]);
 ok(declaradas.length === new Set(declaradas).size,
   `no hay dos notas para el mismo número (${declaradas.join(" · ") || "ninguna"})`);
 ok(declaradas.length >= 1, "hay al menos una versión con nota escrita");

@@ -901,7 +901,15 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
   if (costModel && costModel.tipo === "variable_total" && typeof raw.costo === "number") {
     // costo escala SOLO con volumen (variable_total) — el precio no mueve el costo unitario ni las unidades.
     const costoActual = raw.costo, costoNuevo = costoActual * factorVolumen;
-    const contribActual = ventaActual - costoActual, contribNueva = ventaNueva - costoNuevo;
+    // ACCIONES COMERCIALES (hotfix v2.31.1 · owner 2026-10-09). La contribución publicada de la fila es
+    // venta − costo − acciones: en el eje cliente el costo guardado YA las incluye (acciones = 0), pero en marca /
+    // familia / SKU el costo NO (en la base cruda marca/familia, y siempre en SKU). Restar solo el costo inflaba
+    // la contribución y el margen —aun el «Margen actual»— frente al que publica el resto del producto. Se derivan
+    // de la identidad de la propia fila (nada hardcodeado). Con precio nuevo conservan su % de la venta (escalan con
+    // la venta: precio × volumen); main no trae ningún campo que las declare como MONTO FIJO, así que rige solo ese %.
+    const accionesActual = typeof raw.contribucion === "number" ? ventaActual - costoActual - raw.contribucion : 0;
+    const accionesNueva = accionesActual * factorPrecio * factorVolumen;
+    const contribActual = ventaActual - costoActual - accionesActual, contribNueva = ventaNueva - costoNuevo - accionesNueva;
     const margenActual = ventaActual ? +((contribActual / ventaActual) * 100).toFixed(1) : null;
     const margenNuevo = ventaNueva ? +((contribNueva / ventaNueva) * 100).toFixed(1) : null;
     facts.costModelAutorizado = true;
@@ -912,7 +920,7 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
       fig(`${entity} · Costo actual`, _moneyK(costoActual), { unit: "money", raw: costoActual * _fxT(), source: "actual", context: _ctx }),
       fig(`${entity} · Costo supuesto`, _moneyK(costoNuevo), { unit: "money", raw: costoNuevo * _fxT(), source: "computed", formula: `costo × (1${volumenVar.pct >= 0 ? "+" : ""}${volumenVar.pct}%)`, context: _ctx }),
       fig(`${entity} · Contribución actual`, _moneyK(contribActual), { unit: "money", raw: contribActual * _fxT(), source: "actual", context: _ctx }),
-      fig(`${entity} · Contribución supuesta`, _moneyK(contribNueva), { unit: "money", raw: contribNueva * _fxT(), mandatory: true, source: "computed", formula: "venta supuesta − costo supuesto", context: _ctx }),
+      fig(`${entity} · Contribución supuesta`, _moneyK(contribNueva), { unit: "money", raw: contribNueva * _fxT(), mandatory: true, source: "computed", formula: "venta supuesta − costo supuesto − acciones comerciales supuestas (su % de la venta no cambia)", context: _ctx }),
       fig(`${entity} · Margen actual`, `${margenActual}%`, { unit: "pct", raw: margenActual, source: "actual", context: _ctx }),
       fig(`${entity} · Margen supuesto`, `${margenNuevo}%`, { unit: "pct", raw: margenNuevo, mandatory: true, source: "computed", formula: "contribución supuesta / venta supuesta × 100", context: _ctx }),
     );
