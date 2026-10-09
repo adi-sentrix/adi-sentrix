@@ -324,6 +324,23 @@ anclas con una lista cerrada, RENDERIZA (ningún dígito servido lo escribió el
 
 ---
 
+## 2.31.1 — producción · tag `v2.31.1`
+
+**Parche: la simulación de precio y volumen ya descuenta las acciones comerciales.** Al simular «subo el precio X % y el
+volumen cambia Y %» sobre una marca, una familia o un SKU, la contribución y el margen salían inflados: la cuenta restaba
+solo el costo, y en esos ejes el costo no incluye las acciones comerciales (en el eje cliente sí). Peor, el «Margen actual»
+de la simulación tampoco coincidía con el margen que el resto del producto publica (SKU SAM-TV55: 23,0 % contra 18,5 %; en la
+base cruda del demo, Samsung 28,6 % contra 24,2 %). Arreglo directo desde la 2.31 (no trae el trabajo pendiente de `dev`).
+
+- **Las acciones comerciales salen de la propia fila:** venta − costo − contribución publicada. Si cambia el precio conservan su
+  % de la venta (escalan con ella); el volumen escala venta, costo y acciones por igual. La empresa no tiene hoy dónde declararlas
+  como monto fijo, así que rige solo la regla del porcentaje. «Margen actual» ahora es el publicado.
+- **Una sola función cambia** (`simulateGeneral`, solo con modelo de costo declarado o fijado en la conversación). El eje cliente
+  no se mueve un decimal; la boleta sigue en 10 cifras. El modo sin modelo de costo (solo ventas) no se toca.
+- Candado nuevo `_hotfix_sim_acciones_gate`: margen actual igual al publicado, identidad venta = costo + acciones + contribución y
+  acciones/venta constante, en cliente, marca, familia y SKU, en los cuatro escenarios. `_version_gate` acepta ahora el número de
+  parche (N.M.P).
+
 ## 2.31 — producción · tag `v2.31`
 
 **La escala de los montos la declara la empresa en cada carga.** En «Tus datos», una planilla con los montos escritos en
