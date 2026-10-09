@@ -12,7 +12,7 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 2.31.1 — lista para desplegar · tag `v2.31.1`
+## 2.31.1 — producción · tag `v2.31.1`
 
 **Parche: la simulación de precio y volumen ya descuenta las acciones comerciales.** Al simular «subo el precio X % y el
 volumen cambia Y %» sobre una marca, una familia o un SKU, la contribución y el margen salían inflados: la cuenta restaba
