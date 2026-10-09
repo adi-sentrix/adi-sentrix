@@ -58,7 +58,7 @@ export function guiaDeUniverso() {
     conjuntos,
     ejemplos: [_EJEMPLO_DE_TOP(eC), estadoDeC ? { eje: eC, estados: [estadoDeC] } : null, metricaDeFiltro ? { eje: eC, filtros: [{ metrica: metricaDeFiltro, op: ">", valor: _N }] } : null].filter(Boolean),
     extremo: {
-      texto: "El mayor, el menor, el que más creció o el más grave sobre el total se le pide a ADI: un top de 1 por esa métrica (direccion: mayor · menor · peor · mejor), calculado sobre el universo completo del eje. Una lista parcial (marcada «parcial» en la Entrega) no autoriza a afirmar el orden del total. La relación entre dos órdenes (¿los de mayor venta son los de menor margen?) también se le pide: derivar con operacion «coincidencia».",
+      texto: "Se le pide a ADI, sobre el universo completo del eje: el mayor, el menor, el que más creció o el más grave (un top de 1 por esa métrica; direccion: mayor · menor · peor · mejor); la relación entre dos órdenes (derivar con operacion «coincidencia»); y qué elementos cumplen una condición (consultar con universo { eje, filtros }, ver «ejemplos»: responde «k de N» con los nombres; el conteo de derivar cuenta solo lo que usted indique). Una lista parcial (marcada «parcial» en la Entrega) no autoriza a afirmar ninguno de los tres.",
       ejemplo: eC && metricasDelEje(eC)[0] ? { eje: eC, top: { metrica: metricasDelEje(eC)[0], k: _UNO, direccion: DIRECCIONES_DE_TOP[0] } } : null,
     },
     limite: "Un universo no se acota por la marca, la familia o el canal de otro eje (los SKU no se filtran por marca): pida el eje marca, familia o canal, o nombre las entidades. Y la venta, el margen, la contribución y las unidades vendidas no se abren por bodega: el dato no dice qué bodega despachó cada venta (la bodega solo tiene inventario).",

@@ -106,7 +106,7 @@ export function imprimirEnsayo(a, deps = {}) {
   L.push("", "4) tras un corte, el primer turno de la sesión lleva ESTE preámbulo (hash " + huellaDelPreambulo().slice(0, 16) + "…):", `   ${PREAMBULO_DE_RETOMA}`);
   L.push("", `5) variables QUITADAS del entorno del hijo (para que use la suscripción y no gaste API): ${cmd.quitadas.length ? cmd.quitadas.join(", ") : "(ninguna estaba presente)"}`);
   L.push("   puestas (best-effort, el chequeo de limpieza es la garantía): " + ["CLAUDE_CODE_DISABLE_AUTO_MEMORY", "DISABLE_AUTOUPDATER", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "CLAUDE_CODE_DISABLE_CLAUDE_MDS"].join(", "));
-  L.push("", "6) chequeo de limpieza (limpieza.mjs): si el stream muestra CUALQUIER herramienta o instrucción ajena a las 4 acciones de ADI, la corrida se ANULA.");
+  L.push("", "6) chequeo de limpieza (limpieza.mjs): si el stream muestra CUALQUIER herramienta o instrucción ajena a las 4 acciones de ADI, la corrida se ANULA. Única excepción (observación, no anula): el nombre de una acción de ADI sin su prefijo que el CLI rechazó sin ejecutar.");
   L.push("   ⚠️ `--system-prompt-file` NO figura en `claude --help` 2.1.286 (solo `--system-prompt`): por eso el comando usa `--system-prompt` con el texto. `--prompt-modo=archivo` lo cambia.");
   L.push(`   claude: ${claudeBin}${deps.version ? ` · versión ${deps.version}` : ""}`);
   return { codigo: 0, comando: formatearComando(cmd), cmd, texto: L.join("\n") };
@@ -258,7 +258,7 @@ async function correrHiloCli(h, ctx) {
     const cierreProc = await proc.cerrar();
     // ── EL CHEQUEO DE LIMPIEZA: una sola infracción ANULA la corrida
     const lim = chequearLimpieza({ eventos: proc.eventos(), enviados: proc.enviados(), modelo: ctx.modelo, dirTrabajo });
-    ctx.limpieza.push({ hilo: h.id, sesion: si + 1, limpia: lim.limpia, hallazgos: lim.hallazgos });
+    ctx.limpieza.push({ hilo: h.id, sesion: si + 1, limpia: lim.limpia, hallazgos: lim.hallazgos, observaciones: lim.observaciones || [] });
     if (!ctx.residuos && lim.residuos) ctx.residuos = { init: lim.residuos };
     _escribir(join(dirSes, "limpieza.json"), { ...lim, salidaDelProceso: cierreProc });
     if (!lim.limpia) { S.anulado = true; S.incompleto = true; ctx.parada = { motivo: "anulada_por_limpieza", hallazgos: lim.hallazgos }; return S; }

@@ -12,7 +12,7 @@
  * universo. `n` es el TURNO en que se registró esa Entrega — nunca se reasigna, ni siquiera cuando el libro
  * recorta las más viejas (recortar cambia el CONTENIDO de la entrada, nunca su número).
  *
- * TOPES (decisión técnica del supervisor, ajustable tras medir — §7.6 del contrato de encargo): 16 KB por libro,
+ * TOPES (decisión técnica del supervisor, ajustable tras medir — §7.6 del contrato de encargo): 64 KB por libro (16 KB hasta el ensayo 11; owner 2026-10-09, migración 016),
  * ≤ 12 Entregas, ≤ 3 supuestos vivos (= `SUPUESTOS_USUARIO_MAX`, `oracle/conversationScope.js` /
  * `encargo/esquema.js`). Al pasarse el tope, se recorta lo MÁS VIEJO — nunca las premisas ni el criterio vigente
  * (ley del owner, textual, corte 5 de `_ADI_DISENO_FLUJO_V2.md` §F): una Entrega recortada queda como esqueleto
@@ -30,14 +30,16 @@
  *     `prioridad` (la de su fila de Cifras: con ella se elige qué nombra la línea de continuidad) y `deSupuesto`;
  *   · por libro: `empresaId` (la empresa que lo creó — además de la llave del almacén, un libro de otra empresa se rechaza por su propio dato).
  * `retomar` NO escribe el libro: el pasado no se reescribe.
- * EL TOPE SE MIDIÓ Y SIGUE EN 16 KB: lo nuevo agrega ~145 bytes por hecho (`rv`) y ~0,25 KB por Entrega (el Encargo y las referencias): un hilo de cuatro Entregas con 27 hechos pasó de 6,5 KB a 11,8 KB (+80 %), así que un hilo largo esqueletiza antes
- * sus Entregas más viejas —se declaran «recortada» y no se revalidan—. Subir el tope no es un cambio de constante: la base lo exige (migración 015: `check pg_column_size(estado) <= 16384`
- * y la guarda de `adi_guardar_estado_conversacion`), y las migraciones se tocan con una migración nueva, a decisión del owner. Por eso `rv` va compacto (`titular:"medido"` y `tipo:"ref"` no se escriben).
+ * EL TOPE SE MIDIÓ: lo nuevo agrega ~145 bytes por hecho (`rv`) y ~0,25 KB por Entrega (el Encargo y las referencias): un hilo de cuatro Entregas con 27 hechos pasó de 6,5 KB a 11,8 KB (+80 %). Con 16 KB, una Entrega de 125 cifras (el «¿cómo viene el año?» de Río Claro)
+ * esqueletizaba sus propias cifras al segundo `derivar` (ensayo 11: A02 1.5 y C01 1.5). Owner 2026-10-09: el tope sube a 64 KB — y lo que importa no es el número sino que NO HAYA PÉRDIDA SILENCIOSA («si se alcanza un límite, el anfitrión debe saberlo antes de utilizar una memoria incompleta»):
+ * toda respuesta de una acción trae `memoria` (`estadoDeLaMemoria`: íntegra o recortada, qué Entregas perdieron qué ids, cuánto del tope se usa), y un id de lo recortado se contesta `id_recortado`, jamás como si no existiera. Subir el tope no es un cambio de constante:
+ * la base lo exige (migración 015: `check pg_column_size(estado) <= 16384` y la guarda de `adi_guardar_estado_conversacion`); la migración 016 los sube a 65536 (un archivo nuevo, sin aplicar: la 015 tampoco está aplicada y un candado la lee tal cual).
+ * Por eso `rv` va compacto (`titular:"medido"` y `tipo:"ref"` no se escriben).
  *
  * Puro: sin I/O — el CALLER decide cuándo leer/guardar con el almacén (`almacen.js`); estas funciones solo
  * transforman el objeto `Libro` (que siempre se trata como inmutable: cada función devuelve uno nuevo). */
 
-export const LIBRO_TOPE_BYTES = 16 * 1024;
+export const LIBRO_TOPE_BYTES = 64 * 1024;   /* = el `check` y la guarda de la base en la migración 016 (65536) */
 export const ENTREGAS_TOPE = 12;
 export const SUPUESTOS_VIVOS_TOPE = 3; // = SUPUESTOS_USUARIO_MAX (oracle/conversationScope.js, encargo/esquema.js)
 /* Las DERIVACIONES de la quinta acción `derivar` (Contrato del Anfitrión, owner 2026-10-05): hechos nuevos `D<k>` calculados por ADI sobre cifras ya entregadas (`libro.derivaciones[]`, aditivo). No consumen los cupos de Entregas ni mueven ningún `E<n>.h<k>`. */
@@ -52,7 +54,7 @@ export const VERSION_LIBRO = "libro/v1";
 export const ORIGEN_LIBRO = "complemento";
 
 /* ═══ LA FORMA GUARDADA (ensayo 5, owner 2026-10-07 · `_ADI_DISENO_CONTRATO_ANFITRION.md` §11) ═══════════════════════════════════════════════════════════════
- * «Toda cifra que ADI entrega lleva un id que `derivar` y `retomar` pueden resolver mientras dure la conversación.» El tope de 16 KB es de la base (migración 015) y no se toca; lo que se pudo
+ * «Toda cifra que ADI entrega lleva un id que `derivar` y `retomar` pueden resolver mientras dure la conversación.» El tope es de la base (migración 015: 16 KB; 016: 64 KB) y no se toca desde acá; lo que se pudo
  * hacer es no desperdiciarlo: una cifra del libro pesaba ~250 B porque repetía cada dato (el dueño dos veces, la procedencia dos veces, la prioridad, `ref`, el id, dos `null`) y nombraba cada
  * campo. La FORMA GUARDADA escribe la cifra regular como una tupla posicional y repone lo que se deduce de su lugar (el id, la prioridad, el dueño igual al sujeto…): ~100 B. Es SIN PÉRDIDA —
  * `expandirLibro(comprimirLibro(L))` es el mismo libro— y solo la ven los almacenes: todo lo demás (acciones, revalidar, derivar, estado vigente) trabaja con el libro de siempre. Lo que no
@@ -122,12 +124,17 @@ function _apoyoDeTupla(t, n) {
 
 /* un UNIVERSO de una Entrega (el conjunto sobre el que se pidió) → su tupla. Los campos en su valor por omisión (diez de quince en un universo común) no se escriben. */
 const _CLAVES_UNIVERSO = ["id", "eje", "top", "base", "texto", "valido", "estados", "excluir", "filtros", "periodo", "criterio", "entidades", "no_estados", "soloRanking", "errorValidacion"];
+/* CAMPOS OPCIONALES del universo (ensayo 11, owner 2026-10-09; un universo de antes no los trae y se lee igual): `ejeN` = cuántas entidades tiene el EJE entero de esa empresa al entregar (con él, un conteo de `derivar` dice si cubrió todo el eje o solo las cifras indicadas);
+ * `orden` = el id de la lente («riesgo», «ventas»…) cuando `entidades` es un ORDEN de prioridad, de la primera a la última (la prioridad integrada que la Entrega nombra: «le sigue X» sale de acá, con el puesto de cada una). */
+const _CLAVES_OPCIONALES_UNIVERSO = ["ejeN", "orden"];
 const _UNIVERSO_POR_OMISION = { top: null, base: null, valido: true, estados: null, excluir: null, filtros: null, periodo: null, criterio: null, no_estados: null, soloRanking: false, errorValidacion: null };
 function _tuplaDeUniverso(u) {
-  if (!_esObj(u) || Object.keys(u).length !== _CLAVES_UNIVERSO.length || !_CLAVES_UNIVERSO.every((c) => c in u)) return null;
+  if (!_esObj(u) || !Object.keys(u).every((c) => _CLAVES_UNIVERSO.includes(c) || _CLAVES_OPCIONALES_UNIVERSO.includes(c)) || !_CLAVES_UNIVERSO.every((c) => c in u)) return null;
   if (typeof u.id !== "string" || !_esTxtONulo(u.eje) || !_esTxtONulo(u.texto) || !Array.isArray(u.entidades) || !u.entidades.every((x) => typeof x === "string")) return null;
+  if (("ejeN" in u && !Number.isInteger(u.ejeN)) || ("orden" in u && (typeof u.orden !== "string" || !u.orden))) return null;
   const x = {};
   for (const [c, d] of Object.entries(_UNIVERSO_POR_OMISION)) if (JSON.stringify(u[c]) !== JSON.stringify(d)) x[c] = u[c];
+  for (const c of _CLAVES_OPCIONALES_UNIVERSO) if (c in u) x[c] = u[c];
   const t = [u.id, u.eje, u.texto, u.entidades];
   if (Object.keys(x).length) t.push(x);
   return t;
@@ -135,7 +142,7 @@ function _tuplaDeUniverso(u) {
 function _universoDeTupla(t) {
   const [id, eje, texto, entidades, x = {}] = t;
   const v = (c) => (c in x ? x[c] : _UNIVERSO_POR_OMISION[c]);
-  return { id, eje, top: v("top"), base: v("base"), texto, valido: v("valido"), estados: v("estados"), excluir: v("excluir"), filtros: v("filtros"), periodo: v("periodo"), criterio: v("criterio"), entidades, no_estados: v("no_estados"), soloRanking: v("soloRanking"), errorValidacion: v("errorValidacion") };
+  return { id, eje, top: v("top"), base: v("base"), texto, valido: v("valido"), estados: v("estados"), excluir: v("excluir"), filtros: v("filtros"), periodo: v("periodo"), criterio: v("criterio"), entidades, no_estados: v("no_estados"), soloRanking: v("soloRanking"), errorValidacion: v("errorValidacion"), ...("ejeN" in x ? { ejeN: x.ejeN } : {}), ...("orden" in x ? { orden: x.orden } : {}) };
 }
 
 /* ═══ LO REPETIDO SE ESCRIBE UNA VEZ (segunda pasada, sin pérdida y sin saber qué es cada campo) ═══════════════════════════════════════════════════════════════════════
@@ -277,9 +284,27 @@ export function detectarCambioVersion(libro, versionIdActual) {
   return { de: ultima, a: versionIdActual, desdeTurno: libro.turno };
 }
 
-/* una Entrega vieja recortada: solo lo que la ley permite conservar — "queda n, temas, versionId" (§B). */
+/* una Entrega vieja recortada: solo lo que la ley permite conservar — "queda n, temas, versionId" (§B) — MÁS cuánto perdió (`cifras` = cuántos hechos `E<n>.h<k>` tenía, `apoyo` = cuántas cifras de apoyo, `universos`): con ello `estadoDeLaMemoria` dice qué ids se fueron
+ * («E1.h1–E1.h125») y la respuesta a un id recortado nombra lo que ya no está. Un esqueleto de antes de este cambio no trae los conteos: se dice «sus cifras». */
 function _esqueleto(e) {
-  return { n: e.n, turno: e.turno, versionId: e.versionId || null, temas: Array.isArray(e.temas) ? e.temas.slice() : [], recortada: true };
+  const k = (x) => (Array.isArray(x) ? x.length : 0);
+  return { n: e.n, turno: e.turno, versionId: e.versionId || null, temas: Array.isArray(e.temas) ? e.temas.slice() : [], recortada: true, ...(k(e.hechos) ? { cifras: k(e.hechos) } : {}), ...(k(e.apoyo) ? { apoyo: k(e.apoyo) } : {}), ...(k(e.universos) ? { universos: k(e.universos) } : {}) };
+}
+
+/** entregasDeLosIds(libro, ids) → Set de números de Entrega · de qué Entregas salen los ids (`E3.h2`, `E1.e17`, `E2.u1`) y, para un `D<k>`, de las que sostienen esa derivación (recursivo, acotado). Sirve para NO recortar lo que la operación en curso acaba de usar. */
+export function entregasDeLosIds(libro, ids, _prof = 0) {
+  const out = new Set();
+  for (const id of Array.isArray(ids) ? ids : []) {
+    const s = String(id == null ? "" : id);
+    const m = /^E(\d+)\./.exec(s);
+    if (m) { out.add(Number(m[1])); continue; }
+    const d = /^D(\d+)$/.exec(s);
+    if (d && _prof < 6) {
+      const x = (libro && Array.isArray(libro.derivaciones) ? libro.derivaciones : []).find((y) => y && y.id === s);
+      if (x) for (const n of entregasDeLosIds(libro, [...(Array.isArray(x.sobre) ? x.sobre : []), ...(x.base ? [x.base] : []), ...(x.condicion && typeof x.condicion.valor === "string" ? [x.condicion.valor] : [])], _prof + 1)) out.add(n);
+    }
+  }
+  return out;
 }
 
 /** recortarATope(libro) → Libro · aplica, EN ORDEN, tres recortes que NUNCA tocan `premisas` ni `criterioVigente`:
@@ -289,11 +314,13 @@ function _esqueleto(e) {
  *   2) sigue por encima de `LIBRO_TOPE_BYTES` → de las que quedan, se esqueletizan de la más vieja a la más
  *      nueva (queda `{n, temas, versionId}`, sin hechos ni universos — "recortar" en el sentido del corte 5);
  *   3) sigue por encima → se recortan las ofertas en pie más viejas (lo menos esencial que queda).
- * Si aun así excede el tope (premisas+criterio+supuestos por sí solos superan 16 KB — un caso extremo que
+ * `protegidas` (ensayo 11, owner 2026-10-09): las Entregas que la operación en curso acaba de usar (los operandos de un `derivar`, lo citado por `contexto`): se esqueletizan ÚLTIMO —antes ceden las más viejas que la operación NO usa—, y solo si aun así no cabe ceden también ellas.
+ * Si aun así excede el tope (premisas+criterio+supuestos por sí solos superan 64 KB — un caso extremo que
  * ningún flujo real alcanza hoy), el libro se devuelve tal cual: la ley dice qué NO se toca, no que el tope sea
  * absoluto a cualquier costo. */
-export function recortarATope(libro, tope = LIBRO_TOPE_BYTES) {   // `tope`: solo para los candados (la costura para probar el caso que la base no admite); en producción es siempre el de la base
+export function recortarATope(libro, tope = LIBRO_TOPE_BYTES, { protegidas = [] } = {}) {   // `tope`: solo para los candados (la costura para probar el caso que la base no admite); en producción es siempre el de la base
   let L = libro;
+  const protegido = new Set(protegidas);
   /* PASO 0 (Contrato del Anfitrión, 2026-10-05): más de `DERIVACIONES_TOPE` derivaciones → se quitan las MÁS viejas (su id `D<k>` no se reasigna jamás: lo garantiza `nDerivaciones`). Un libro sin derivaciones pasa idéntico. */
   if (Array.isArray(L.derivaciones) && L.derivaciones.length > DERIVACIONES_TOPE) {
     L = { ...L, derivaciones: L.derivaciones.slice(L.derivaciones.length - DERIVACIONES_TOPE) };
@@ -303,7 +330,8 @@ export function recortarATope(libro, tope = LIBRO_TOPE_BYTES) {   // `tope`: sol
   }
   let vueltas = 0;
   while (tamanoBytes(L) > tope && vueltas < (L.entregas ? L.entregas.length : 0)) {
-    const idx = L.entregas.findIndex((e) => !e.recortada);
+    let idx = L.entregas.findIndex((e) => !e.recortada && !protegido.has(e.n));   /* primero las que la operación en curso NO usa… */
+    if (idx < 0) idx = L.entregas.findIndex((e) => !e.recortada);                 /* …y solo si no queda otra, también las que usa */
     if (idx < 0) break;
     const entregas = L.entregas.slice();
     entregas[idx] = _esqueleto(entregas[idx]);
@@ -328,7 +356,7 @@ export function recortarATope(libro, tope = LIBRO_TOPE_BYTES) {   // `tope`: sol
  * `entregadaEn` (cuándo se entregó, ISO — lo pone quien llama con SU reloj: esta función no lee la hora) y `periodo`
  * (el período de los datos que la Entrega declara en su Marco) quedan con la Entrega: «lo entregado se conserva tal
  * cual» incluye CUÁNDO y SOBRE QUÉ CARGA se entregó, para que un retomar posterior pueda mostrarlo sin recalcular. */
-export function registrarEntrega(libro, entrada = {}, { tope = LIBRO_TOPE_BYTES } = {}) {
+export function registrarEntrega(libro, entrada = {}, { tope = LIBRO_TOPE_BYTES, protegidas = [] } = {}) {
   const turno = libro.turno + 1;
   const cambio = detectarCambioVersion(libro, entrada.versionId);
   const hechos = (Array.isArray(entrada.hechos) ? entrada.hechos : []).map((h, k) => ({ ...h, id: `E${turno}.h${k + 1}` }));
@@ -347,7 +375,7 @@ export function registrarEntrega(libro, entrada = {}, { tope = LIBRO_TOPE_BYTES 
     datos: { versionId: entrada.versionId || libro.datos.versionId || null, cambio: cambio || null },
     entregas: [...(libro.entregas || []), entrega],
   };
-  return recortarATope(L, tope);
+  return recortarATope(L, tope, { protegidas });
 }
 
 /** registrarDerivacion(libro, derivacion) → Libro · agrega una derivación con su id `D<k>`. El contador `nDerivaciones` es propio y solo crece: un id NUNCA se reutiliza aunque el libro recorte las derivaciones más viejas. Un libro sin el campo
@@ -356,7 +384,8 @@ export function registrarDerivacion(libro, derivacion, { tope = LIBRO_TOPE_BYTES
   const previas = Array.isArray(libro.derivaciones) ? libro.derivaciones : [];
   const k = (Number.isInteger(libro.nDerivaciones) ? libro.nDerivaciones : previas.length) + 1;
   const d = { ...derivacion, id: `D${k}`, turno: libro.turno || 0 };
-  return recortarATope({ ...libro, derivaciones: [...previas, d], nDerivaciones: k }, tope);
+  const sostienen = entregasDeLosIds(libro, [...(Array.isArray(derivacion.sobre) ? derivacion.sobre : []), ...(derivacion.base ? [derivacion.base] : []), ...(derivacion.condicion && typeof derivacion.condicion.valor === "string" ? [derivacion.condicion.valor] : [])]);
+  return recortarATope({ ...libro, derivaciones: [...previas, d], nDerivaciones: k }, tope, { protegidas: [...sostienen] });
 }
 
 /** derivacionesDe(libro) → [derivación] · las que el libro conserva (copia del arreglo; vacío si el libro no las trae) */
@@ -409,13 +438,76 @@ export function limpiarOfertasEnPie(libro) {
   return { ...libro, ofertasEnPie: [] };
 }
 
+/* ═══ LA MEMORIA DE LA CONVERSACIÓN NO SE PIERDE EN SILENCIO (ensayo 11, owner 2026-10-09) ═══════════════════════════════════════════════════════════════════
+ * «La garantía importante no es el número exacto: no puede haber pérdida silenciosa de hechos por capacidad o por cálculos paralelos. Si se alcanza un límite, el anfitrión debe saberlo antes de utilizar una memoria incompleta.»
+ * El libro cede lo más viejo cuando se llena (tope de bytes), cuando pasa de 12 Entregas o de 24 derivaciones. `estadoDeLaMemoria` dice en una línea de datos qué conserva y qué no —por Entrega, con los ids que se fueron— y cuánto del tope usa; viaja en
+ * TODA respuesta de una acción (`memoria`). `textoDeRecorte` es la frase con la que se contesta un id de lo recortado (derivar: `id_recortado`; citar por `contexto`): nunca «no existe». Puros, sin I/O. */
+const _ids = (n, k) => (k === 1 ? `E${n}.h1` : `E${n}.h1–E${n}.h${k}`);
+const _rangoD = (ds) => { const xs = [...ds].sort((a, b) => a - b), out = []; for (let i = 0; i < xs.length;) { let j = i; while (j + 1 < xs.length && xs[j + 1] === xs[j] + 1) j++; out.push(i === j ? `D${xs[i]}` : `D${xs[i]}–D${xs[j]}`); i = j + 1; } return out.join(", "); };
+
+/** ocupacionDelLibro(libro, tope) → «15 % de 64 KB» · cuánto del tope de la base usa el libro (la forma GUARDADA, la que la base mide). Una frase, no un objeto: viaja en toda respuesta. */
+export function ocupacionDelLibro(libro, tope = LIBRO_TOPE_BYTES) {
+  const kb = tope / 1024;
+  return `${Math.round((tamanoBytes(libro) * 100) / tope)} % de ${Number.isInteger(kb) ? kb : kb.toFixed(1)} KB`;
+}
+
+/** recortesDelLibro(libro) → { entregas: [{ n, motivo: "capacidad"|"cantidad", cifras?, apoyo?, universos? }], derivaciones: [k…] } · lo que el libro ya no conserva.
+ *  `capacidad`: la Entrega quedó como esqueleto (el tope de bytes); `cantidad`: se quitó del arreglo (más de ${ENTREGAS_TOPE} Entregas). Un número de Entrega entre 1 y `turno` que no está en el arreglo se quitó: el turno solo avanza con una Entrega. */
+export function recortesDelLibro(libro) {
+  const L = libro && typeof libro === "object" ? libro : {};
+  const entregas = Array.isArray(L.entregas) ? L.entregas : [];
+  const presentes = new Set(entregas.filter(Boolean).map((e) => e.n));
+  const out = [];
+  for (let n = 1; n <= (Number.isInteger(L.turno) ? L.turno : 0); n++) {
+    if (!presentes.has(n)) { out.push({ n, motivo: "cantidad" }); continue; }
+    const e = entregas.find((x) => x && x.n === n);
+    if (e.recortada) out.push({ n, motivo: "capacidad", ...(Number.isInteger(e.cifras) ? { cifras: e.cifras } : {}), ...(Number.isInteger(e.apoyo) ? { apoyo: e.apoyo } : {}), ...(Number.isInteger(e.universos) ? { universos: e.universos } : {}) });
+  }
+  const vivas = new Set((Array.isArray(L.derivaciones) ? L.derivaciones : []).map((d) => Number(String(d && d.id).slice(1))));
+  const nD = Number.isInteger(L.nDerivaciones) ? L.nDerivaciones : vivas.size;
+  const derivaciones = [];
+  for (let k = 1; k <= nD; k++) if (!vivas.has(k)) derivaciones.push(k);
+  return { entregas: out, derivaciones };
+}
+
+/** textoDeRecorte(libro, n, id) → la frase con que se contesta un id de la Entrega E<n> que el libro recortó. Nunca «no existe»: dice qué pasó y qué hacer. */
+export function textoDeRecorte(libro, n, id = null) {
+  const r = recortesDelLibro(libro).entregas.find((x) => x.n === n);
+  const cual = id ? `${id} ya no se conserva` : "ya no conserva sus cifras";
+  if (r && r.motivo === "cantidad") return `la Entrega E${n} se quitó de la memoria de la conversación (se conservan como máximo ${ENTREGAS_TOPE} Entregas); ${cual}. Vuelva a consultarla: lo que ADI devuelva trae ids nuevos`;
+  return `la Entrega E${n} se recortó por capacidad de la memoria de la conversación; ${cual}. Vuelva a consultarla: lo que ADI devuelva trae ids nuevos`;
+}
+
+/** estadoDeLaMemoria(libro, { tope, ahora }) → el estado compacto que viaja en TODA respuesta de una acción:
+ *    { estado: "integra", ocupacion: "15 % de 64 KB" }
+ *    { estado: "recortada", ocupacion, recortadas: [{ entrega: "E1", ids: "E1.h1–E1.h125", motivo: "capacidad"|"cantidad" }], derivaciones?: "D1–D3", ahora?: ["E1"], aviso }
+ *  `ahora`: las Entregas que ESTA llamada obligó a recortar (el llamador las calcula comparando el libro antes y después). Sin libro (la conversación no existe): null. */
+export function estadoDeLaMemoria(libro, { tope = LIBRO_TOPE_BYTES, ahora = [] } = {}) {
+  if (!libro || typeof libro !== "object") return null;
+  const ocupacion = ocupacionDelLibro(libro, tope);
+  const { entregas, derivaciones } = recortesDelLibro(libro);
+  if (!entregas.length && !derivaciones.length) return { estado: "integra", ocupacion };
+  const recortadas = entregas.map((r) => ({
+    entrega: `E${r.n}`,
+    ids: r.motivo === "cantidad" || !Number.isInteger(r.cifras) ? "todas sus cifras" : `${_ids(r.n, r.cifras)}${r.apoyo ? ` y ${r.apoyo} cifra${r.apoyo === 1 ? "" : "s"} de apoyo` : ""}`,
+    motivo: r.motivo,
+  }));
+  return {
+    estado: "recortada", ocupacion,
+    ...(recortadas.length ? { recortadas } : {}),
+    ...(derivaciones.length ? { derivaciones: _rangoD(derivaciones) } : {}),
+    ...(ahora.length ? { ahora: ahora.map((n) => `E${n}`) } : {}),
+    aviso: "ADI ya no conserva estos ids: no los cite ni derive sobre ellos; vuelva a consultar lo que necesite (derivar los rechaza con id_recortado).",
+  };
+}
+
 /* ═══ CITAR UNA RESPUESTA ANTERIOR (Etapa 2, bloque 3 · owner 2026-10-03) ═════════════════════════════════════════════════
  * `encargo.contexto` (`E1`, `E1.h3`, `E1.u1`) apunta a lo que una Entrega YA entregó en ESTA conversación. Esta función es la ÚNICA que
  * traduce un id al contenido del libro, y lo trae TAL CUAL quedó guardado —sus hechos con id, la versión de la carga con que se entregó,
  * cuándo y el período—: nunca recalcula nada («el pasado no se reescribe»; revisar si una cifra cambió con los datos nuevos es del bloque 4).
  * Un id que no resuelve vuelve con su MOTIVO en palabras de negocio, para que quien consulta sepa qué pasó (no «no disponible» a secas).
  * Puro: sin I/O, sin red. El formato del id lo valida `encargo/validar.js` antes de llamar (un id mal formado no llega acá). */
-const _ID_DE_CONTEXTO = /^E(\d+)(?:\.([hu])(\d+))?$/;
+const _ID_DE_CONTEXTO = /^E(\d+)(?:\.([hu])(\d+)(?:\.(\d+))?)?$/;
 /* un hecho CITADO se trae como se entregó: lo que el libro conserva APARTE para revalidar (`rv`, bloque 4) no es parte de lo que la Entrega dijo, y citar una respuesta anterior no cambia por ello */
 const _comoSeEntrego = (h) => { const { rv, ...comoSeDijo } = h || {}; return comoSeDijo; };
 const _cabeceraDeEntrega = (e) => ({ n: e.n, versionId: e.versionId || null, entregadaEn: e.entregadaEn || null, periodo: e.periodo || null, temas: Array.isArray(e.temas) ? e.temas.slice() : [], entidades: Array.isArray(e.entidades) ? e.entidades.slice() : [], cierre: e.cierre || null, recortada: Boolean(e.recortada) });
@@ -430,18 +522,26 @@ export function resolverContexto(libro, id) {
   const e = entregas.find((x) => x && x.n === n);
   if (!e) {
     if (!entregas.length) return { ok: false, id, detalle: `la conversación todavía no tiene ninguna Entrega: ${id} no existe` };
-    if (n >= 1 && n <= (libro.turno || 0)) return { ok: false, id, detalle: `la Entrega E${n} ya no se conserva en la conversación (el libro recorta las más viejas por tamaño)` };
+    if (n >= 1 && n <= (libro.turno || 0)) return { ok: false, id, motivo: "id_recortado", detalle: textoDeRecorte(libro, n, id) };
     const primera = entregas[0].n, ultima = entregas[entregas.length - 1].n;
     return { ok: false, id, detalle: `la conversación tiene ${primera === ultima ? `la Entrega E${primera}` : `las Entregas E${primera} a E${ultima}`}: ${id} no existe` };
   }
+  if (m[4] !== undefined && m[2] !== "u") return { ok: false, id, detalle: "el id no tiene la forma de una referencia a lo entregado (E3, E3.h2, E3.u1, E3.u2.1): solo un universo ordenado tiene puestos" };
   const entrega = _cabeceraDeEntrega(e);
   if (!m[2]) return { ok: true, tipo: "entrega", id, entrega, hechos: (Array.isArray(e.hechos) ? e.hechos : []).map(_comoSeEntrego), universos: (Array.isArray(e.universos) ? e.universos : []).map((u) => ({ ...u })) };
-  if (e.recortada) return { ok: false, id, detalle: `la Entrega E${n} se recortó por tamaño: ya no conserva sus ${m[2] === "h" ? "hechos" : "universos"}` };
+  if (e.recortada) return { ok: false, id, motivo: "id_recortado", detalle: textoDeRecorte(libro, n, id) };
   const lista = (m[2] === "h" ? e.hechos : e.universos) || [];
   /* un HECHO se cita por su id (`registrarEntrega` siempre lo emite como `E<n>.h<k>`). Un UNIVERSO se cita por su POSICIÓN (`E<n>.u<k>` = el k-ésimo universo de esa Entrega): el libro conserva el id
    * con que el compositor lo nombró (`p1`, `p1_Lider`), que no es el que se cita; si la lista trae justo ese id, también resuelve. */
   const hallado = m[2] === "h" ? lista.find((x) => x && x.id === id) : (lista[Number(m[3]) - 1] || lista.find((x) => x && x.id === id));
   if (!hallado) return { ok: false, id, detalle: `la Entrega E${n} ${lista.length ? `tiene ${m[2] === "h" ? `los hechos ${lista[0].id} a ${lista[lista.length - 1].id}` : `${lista.length} universo${lista.length === 1 ? "" : "s"} (E${n}.u1${lista.length > 1 ? ` a E${n}.u${lista.length}` : ""})`}` : `no tiene ${m[2] === "h" ? "hechos" : "universos"}`}: ${id} no existe` };
+  if (m[4] !== undefined) {   /* E<n>.u<k>.<puesto>: el puesto <puesto> de una prioridad (un universo ORDENADO) — la entidad que va en ese lugar, con la lente que ordenó */
+    const p = Number(m[4]);
+    if (!hallado.orden) return { ok: false, id, detalle: `${`E${n}.u${m[3]}`} no es una prioridad ordenada: no tiene puestos (es un conjunto de entidades, sin orden)` };
+    const ent = (Array.isArray(hallado.entidades) ? hallado.entidades : [])[p - 1];
+    if (!ent) return { ok: false, id, detalle: `la prioridad E${n}.u${m[3]} tiene ${(hallado.entidades || []).length} puesto${(hallado.entidades || []).length === 1 ? "" : "s"} (E${n}.u${m[3]}.1 a E${n}.u${m[3]}.${(hallado.entidades || []).length}): ${id} no existe` };
+    return { ok: true, tipo: "puesto", id, entrega, universo: { ...hallado }, puesto: p, entidad: ent, lente: hallado.orden };
+  }
   return m[2] === "h" ? { ok: true, tipo: "hecho", id, entrega, hecho: _comoSeEntrego(hallado) } : { ok: true, tipo: "universo", id, entrega, universo: { ...hallado } };
 }
 

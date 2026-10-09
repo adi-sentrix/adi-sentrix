@@ -70,12 +70,21 @@ H("2b · la clase «perfil»: los campos, el origen y los conceptos reservados d
   ok(otras.every((t) => !/memoria_empresa/.test(t)), "ninguna migración anterior menciona `memoria_empresa`: la clase se amplió solo en la 015");
 }
 
-/* ═══ 3 · EL TOPE DE 16KB del libro — el mismo número en el código y en el `check` de la base ═══ */
-H("3 · el tope de `conversaciones.estado` es el MISMO que `libro.js:LIBRO_TOPE_BYTES`");
+/* ═══ 3 · EL TOPE del libro — el mismo número en el código y en el `check` de la base ═══
+ * Owner 2026-10-09 (ensayo 11): el tope sube de 16 KB a 64 KB. La 015 NO se edita (las migraciones son históricas; nada de esto está aplicado): la 016 lo sube con un `check` nuevo y `create or replace` de la guarda. */
+H("3 · el tope de `conversaciones.estado`: la 015 conserva sus 16384 (histórica); la 016 pone 65536 = `libro.js:LIBRO_TOPE_BYTES`");
 {
-  ok(sql.includes(`pg_column_size(estado) <= ${LIBRO_TOPE_BYTES}`) || sql.includes("pg_column_size(estado) <= 16384"), `el check SQL usa ${LIBRO_TOPE_BYTES} — el MISMO literal que LIBRO_TOPE_BYTES`);
-  ok(LIBRO_TOPE_BYTES === 16384, "el literal del módulo JS es 16384 (si cambia sin tocar el SQL, este candado arde)");
-  ok(sql.includes("16384") && sql.match(/16384/g).length >= 2, "el número aparece más de una vez (el check de la tabla y la función de guardado — la doble validación del diseño, como 007)");
+  const sql016 = readFileSync(new URL("./db/migraciones/016_libro_de_conversacion_64kb.sql", import.meta.url), "utf8");
+  ok(sql.includes("pg_column_size(estado) <= 16384") && sql.match(/16384/g).length >= 2, "la 015 queda como estaba: 16384 en el check de la tabla y en la guarda de la función (la doble validación del diseño, como 007) — NO se edita");
+  ok(sql016.includes(`pg_column_size(estado) <= ${LIBRO_TOPE_BYTES}`) && sql016.includes(`pg_column_size(v_estado) > ${LIBRO_TOPE_BYTES}`), `★ la 016 usa ${LIBRO_TOPE_BYTES} — el MISMO literal que LIBRO_TOPE_BYTES — en el check de la tabla Y en la guarda de adi_guardar_estado_conversacion`);
+  ok(LIBRO_TOPE_BYTES === 65536, "el literal del módulo JS es 65536 = 64 KB (si cambia sin tocar la 016, este candado arde)");
+  ok(!/\b16384\b/.test(sql016.replace(/--[^\n]*/g, "").replace(/'[^']*'/g, "")), "y la 016 no deja el tope viejo en ningún código (solo se nombra en sus comentarios)");
+  ok(/no se aplic[oó]|ARCHIVO, NO UN HECHO EN LA BASE/i.test(sql016) && /idempotente/i.test(sql016), "la 016 se declara escrita y NO aplicada, e idempotente, como el resto");
+  ok(/drop constraint if exists conversaciones_estado_tamano_check;\s*\n\s*alter table public\.conversaciones add constraint conversaciones_estado_tamano_check/.test(sql016) && /create or replace function public\.adi_guardar_estado_conversacion\(/.test(sql016), "idempotente de verdad: suelta el check antes de agregarlo y la función es `create or replace`");
+  /* la función de la 016 es la de la 015 salvo el tope: el mismo cuerpo, sin perder el origen sellado ni el rechazo de un hilo de la app */
+  const cuerpo = (t) => { const m = /create or replace function public\.adi_guardar_estado_conversacion\([\s\S]*?\n\$\$;/.exec(t.replace(/\r\n/g, "\n")); return m ? m[0].replace(/16384|65536/g, "N").replace(/16KB|64KB/g, "NKB") : null; };
+  ok(cuerpo(sql) && cuerpo(sql) === cuerpo(sql016), "★ la guarda de la 016 es la misma función de la 015 salvo el número del tope (el origen lo sigue sellando la base; un hilo de la app sigue sin pisarse)");
+  ok(/grant execute on function public\.adi_guardar_estado_conversacion\(text, jsonb, uuid, text, text\) to adi_tenant;/.test(sql016), "y conserva su permiso para el rol del producto");
 }
 
 /* ═══ 4 · EL PERFIL — CORRECCIÓN DEL SUPERVISOR (2026-09-26, segunda ronda): CADA campo admite UN SOLO origen ═══

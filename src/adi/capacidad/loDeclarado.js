@@ -336,6 +336,7 @@ export function antecedentesDe(contextoResuelto, { versionActiva = null } = {}) 
     const base = { id: r.id, tipo: r.tipo, entrega: r.entrega, cargaActual: versionActiva || null, cargaCambio: cambio };
     if (r.tipo === "entrega") return { ...base, hechos: r.hechos, universos: r.universos };
     if (r.tipo === "hecho") return { ...base, hecho: r.hecho };
+    if (r.tipo === "puesto") return { ...base, universo: r.universo, puesto: r.puesto, entidad: r.entidad, lente: r.lente };   /* ensayo 11: el puesto `E<n>.u<k>.<j>` de una prioridad ordenada */
     return { ...base, universo: r.universo };
   });
 }
@@ -351,9 +352,10 @@ export function textoDeAntecedentes(antecedentes) {
     const cabeza = `**Antecedente: lo que la Entrega E${e.n} ya entregó** (${a.id}). Carga ${e.versionId || "sin versión declarada"}${e.entregadaEn ? `, entregada el ${e.entregadaEn}` : ""}${periodo ? `; período: ${periodo}` : ""}.`;
     const lineas = [];
     if (a.tipo === "entrega") {
-      if (e.recortada) lineas.push(`- La Entrega E${e.n} se recortó por tamaño: conserva sus temas${e.temas.length ? ` (${e.temas.join(", ")})` : ""} y su carga, pero ya no sus hechos.`);
+      if (e.recortada) lineas.push(`- La Entrega E${e.n} se recortó por capacidad de la memoria de la conversación: conserva sus temas${e.temas.length ? ` (${e.temas.join(", ")})` : ""} y su carga, pero ya no sus hechos; vuelva a consultarla.`);
       else { for (const h of a.hechos || []) lineas.push(_lineaDeHecho(h)); (a.universos || []).forEach((u, k) => lineas.push(_lineaDeUniverso(u, `E${e.n}.u${k + 1}`))); }
     } else if (a.tipo === "hecho") lineas.push(_lineaDeHecho(a.hecho));
+    else if (a.tipo === "puesto") lineas.push(`- ${a.id} · puesto ${a.puesto} de la prioridad por ${a.lente === "riesgo" ? "riesgo integrado" : a.lente}: ${a.entidad}`);
     else lineas.push(_lineaDeUniverso(a.universo, a.id));
     const nota = `Son las cifras tal como se entregaron entonces: ADI no las recalculó.${a.cargaCambio ? ` La carga activa ahora es ${a.cargaActual}: esas cifras no se volvieron a verificar contra ella.` : ""}`;
     secciones.push([cabeza, ...lineas, nota].join("\n"));

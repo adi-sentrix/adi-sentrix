@@ -4,7 +4,7 @@
  * ya acepta) que responde como lo haría PostgREST para las funciones y tablas que la continuidad necesita:
  *   · `tenants` (select) y `adi_version_activa` — lo que `tenantService.server.js:packActivo` pide para servir el pack;
  *   · las funciones de la migración 015 (`adi_aportar/confirmar/retirar_hecho_empresa`, `adi_leer_memoria_empresa`,
- *     `adi_leer/guardar_estado_conversacion`) con la semántica de su SQL (validaciones, `reemplaza`, tope de 16 KB,
+ *     `adi_leer/guardar_estado_conversacion`) con la semántica de su SQL (validaciones, `reemplaza`, tope de 64 KB (016; 16 KB en la 015),
  *     el origen del hilo SELLADO por la base);
  *   · las del Historial de la app (009/010: `adi_guardar/listar/leer_conversacion`) en DOS modos — `"010"` (la lista
  *     original, SIN la condición de origen: la CARNADA del defecto D3) y `"015"` (con ella).
@@ -53,7 +53,7 @@ export function canonico(x) {
 }
 
 const _UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const _TOPE_ESTADO = 16384;
+const _TOPE_ESTADO = 65536;   /* la 016 (owner 2026-10-09) sube el tope de la 015 (16384) a 65536: el doble repite la base como quedará con las dos aplicadas */
 const _ESTADOS = ["pendiente", "vigente", "retirado", "omitido"];
 /* la 015 (clase «perfil»): los cuatro campos, tal cual los escribe el SQL — NO se importan de `src/` a propósito: el doble
  * repite la base, y `_migracion_015_gate` vigila que el SQL y el código no diverjan. */
@@ -166,7 +166,7 @@ export function crearSupabaseFalso({ secretoJwt, semilla = 20261002, latenciaMax
     if (a.p_hilo_id == null || String(a.p_hilo_id).trim().length === 0) throw new _ErrorSql("P0001", "sin empresa o sin hilo: no se guarda un libro anónimo");
     if (a.p_estado == null || typeof a.p_estado !== "object" || Array.isArray(a.p_estado)) throw new _ErrorSql("P0001", "el libro de conversación tiene que ser un objeto");
     const v = jsonb({ ...a.p_estado, origen: "complemento" });          // ★ el origen lo SELLA la base
-    if (JSON.stringify(v).length > _TOPE_ESTADO) throw new _ErrorSql("P0001", "el libro de conversación supera el tamaño máximo (16KB)");
+    if (JSON.stringify(v).length > _TOPE_ESTADO) throw new _ErrorSql("P0001", "el libro de conversación supera el tamaño máximo (64KB)");
     const previa = conversaciones.find((x) => x.tenant_id === tenant && x.hilo_id === a.p_hilo_id);
     if (previa) {
       if (origenDe(previa) !== "complemento") throw new _ErrorSql("P0001", "ese hilo es una conversación del chat de la app: no se guarda un libro encima");

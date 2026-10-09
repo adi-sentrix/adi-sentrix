@@ -71,6 +71,12 @@ function _parcial(u, tamanosDeEje) {
   return Number.isInteger(N) && Number.isInteger(n) && n < N ? `${n} de ${N}` : null;
 }
 
+/* UNA PRIORIDAD ORDENADA (ensayo 11, owner 2026-10-09): el orden completo de la prioridad que la Entrega nombra, de la primera cuenta a la última, con la lente que la ordenó y el PUESTO de cada una como un id citable (`E<n>.u<k>.<puesto>`). Con él «le sigue X» sale de ADI, no del anfitrión. No es un conjunto con «parcial»: son las cuentas con señal material, todas. */
+function _prioridadOrdenada(u, id) {
+  const ents = Array.isArray(u.entidades) ? u.entidades : [];
+  return _soloConValor({ id, texto: u.texto, lente: u.orden, orden: ents.map((entidad, j) => ({ id: `${id}.${j + 1}`, entidad })) });   /* el puesto es el último número del id */
+}
+
 function _compactarEntrega(entrega, turno, tamanosDeEje = null) {
   const texto = entrega.texto;
   const j = entrega.json && typeof entrega.json === "object" ? entrega.json : null;
@@ -84,7 +90,9 @@ function _compactarEntrega(entrega, turno, tamanosDeEje = null) {
   /* `definiciones` y `referencia`: los criterios con que se calculó (piso, techo, benchmark) cada uno con SU origen («declarado por la empresa» · «criterio general de ADI») — lo que la persona preguntará: «¿con qué criterio?» */
   const marco = _soloConValor({ empresa: m.empresa, periodo: m.periodo, universo: m.universo, moneda: m.moneda, definiciones: _noVacio(m.definiciones) ? m.definiciones : null, referencia: m.referenciaDeclarada && m.referenciaDeclarada.texto ? m.referenciaDeclarada.texto : null, perfil: _perfilBreve(m.perfil) });
   /* el id del universo es el que el libro le da por posición (`E<n>.u<k>`): el que una persona puede citar después con `contexto.universoRef` */
-  const universos = (Array.isArray(j.universos) ? j.universos : []).map((u, k) => _soloConValor({ id: `E${turno}.u${k + 1}`, parte: u.id, eje: u.eje, texto: u.texto, n: Array.isArray(u.entidades) ? u.entidades.length : null, parcial: _parcial(u, tamanosDeEje), ...(Array.isArray(u.entidades) && u.entidades.length <= ENTIDADES_DE_UN_UNIVERSO_MAX ? { entidades: u.entidades } : {}), ...(u.valido === false ? { valido: false, errorValidacion: u.errorValidacion || null } : {}) }));
+  /* el conjunto de cuentas de la tabla de una prioridad (`<partes>_prioridad`, sin orden: solo autoriza las filas) NO viaja cuando existe su prioridad ordenada (`…_orden`): era el que se leía como un orden («le sigue Andes del Sur») y repetía la lista que la tabla ya muestra. El id `E<n>.u<k>` de los demás no se mueve. */
+  const _ordenadas = new Set((Array.isArray(j.universos) ? j.universos : []).filter((u) => u && u.orden).map((u) => u.id));
+  const universos = (Array.isArray(j.universos) ? j.universos : []).map((u, k) => (u && !u.orden && _ordenadas.has(`${u.id}_orden`)) ? null : u && u.orden ? _prioridadOrdenada(u, `E${turno}.u${k + 1}`) : _soloConValor({ id: `E${turno}.u${k + 1}`, parte: u.id, eje: u.eje, texto: u.texto, n: Array.isArray(u.entidades) ? u.entidades.length : null, parcial: _parcial(u, tamanosDeEje), ...(Array.isArray(u.entidades) && u.entidades.length <= ENTIDADES_DE_UN_UNIVERSO_MAX ? { entidades: u.entidades } : {}), ...(u.valido === false ? { valido: false, errorValidacion: u.errorValidacion || null } : {}) })).filter(Boolean);
   const me = j.meta || {};
   const alcance = _soloConValor({ profundidad: me.profundidad, palabras: me.palabras, tope: me.tope, filas: me.filas, topeFilas: me.topeFilas, recortoFilas: me.recortoFilas, recortoOraciones: me.recortoOraciones, excedeTope: me.excedeTope });
   const d = j.detalle && typeof j.detalle === "object" ? j.detalle : null;
@@ -115,7 +123,8 @@ function _compactarConsultar(s) {
   const { entrega, tamanosDeEje, ...resto } = s;
   const ev = resto.continuidad && resto.continuidad.estadoVigente;
   const turno = ev && Number.isInteger(ev.turno) ? ev.turno : null;
-  return { ok: resto.ok, entrega: _compactarEntrega(entrega, turno, tamanosDeEje), ...Object.fromEntries(Object.entries(resto).filter(([k]) => k !== "ok")) };
+  /* `memoria` (ensayo 11, owner 2026-10-09) va ANTES de la Entrega: el anfitrión debe saber si la memoria de la conversación está incompleta antes de usar lo que sigue */
+  return { ok: resto.ok, ...(resto.memoria ? { memoria: resto.memoria } : {}), entrega: _compactarEntrega(entrega, turno, tamanosDeEje), ...Object.fromEntries(Object.entries(resto).filter(([k]) => k !== "ok" && k !== "memoria")) };
 }
 
 /* ── CONOCER EMPRESA ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────── */

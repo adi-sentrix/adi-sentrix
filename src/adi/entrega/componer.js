@@ -52,7 +52,7 @@ import { normalizar } from "../notario/afirmacion.js";
 // agente en vivo: «no escribas otra prioridad, sería una segunda verdad». Nada de esto se reescribe acá.
 import { partesDelEncargo, dominiosDelEncargo } from "../agente/partesDelEncargo.js";
 import { pasosDeDominios } from "../agente/contratoDeDominios.js";
-import { LENTES, CRITERIOS } from "../agente/prioridadIntegrada.js";
+import { LENTES, CRITERIOS, ordenPorCriterio } from "../agente/prioridadIntegrada.js";
 import { crearEntrega } from "./esquema.js";
 import { prioridadDeParte, alOrdenServido, valoresDeProyeccion, prioridadCruzada, lideresPorDominio, prioridadPorLente, prioridadPorMedidaParcial, temasQueDecidenPorSuCuenta, temaDeLaParteQuePrioriza, conceptoDeLaMedidaParcial, modoDeLaCruzada, vaAntesQue, nombreVisibleDeLente, lenteIdDelCriterio, primeroPorMedida, marcaDePrioridad, ALCANCE_DE_PRIORIDAD, esOracionDePrioridad, primeroDeLaConclusion } from "./prioridad.js";   // FAMILIA 1 (consolidación): quién va primero y qué lente o medida se nombra, UNA pieza
 // CORTE 3b (Etapa 1, owner 2026-09-25, `_ADI_LLMBUSINESS_PLAN.md` §1 + `_ADI_CONTRATO_ENCARGO_V1.md`) — la Entrega
@@ -259,7 +259,7 @@ function _coherenciaConLaCapa(entrega, { conocimientoActivo, perfil }) {
  * error a la vista, nunca en silencio (CLAUDE.md §5: «declara, no esconde»). Es el CIMIENTO para que una
  * pregunta de seguimiento («de esos, ¿cuál priorizo?») se resuelva sobre el universo correcto — la conversación
  * en sí queda para más adelante (Etapa 6 del plan), acá solo se declara la identidad. */
-function _declararUniverso(entrega, I, { id, eje, top = null, base = null, filtros = null, excluir = null, periodo = null, entidades = [], criterio = null, estados = null, no_estados = null, soloRanking = false, bodega = null, union = null }) {
+function _declararUniverso(entrega, I, { id, eje, top = null, base = null, filtros = null, excluir = null, periodo = null, entidades = [], criterio = null, estados = null, no_estados = null, soloRanking = false, bodega = null, union = null, orden = null }) {
   const u = { eje };
   if (bodega) u.bodega = bodega;
   if (Array.isArray(union) && union.length) u.union = union;
@@ -285,7 +285,25 @@ function _declararUniverso(entrega, I, { id, eje, top = null, base = null, filtr
   // cifra propia: `verificarEntrega` lo excluye de la unión de entidades autorizadas (si no, el ranking completo
   // de la cartera —13 nombres— autorizaría a CUALQUIERA de ellos a aparecer con cifra propia en cualquier parte
   // de la Entrega, aunque el encargo solo haya pedido una).
-  entrega.universos.push({ id, eje, base: base || null, top: top || null, filtros: filtros || null, excluir: excluir || null, estados: estados || null, no_estados: no_estados || null, periodo, entidades, criterio, texto, valido: !errorValidacion, errorValidacion, soloRanking });
+  entrega.universos.push({ id, eje, base: base || null, top: top || null, filtros: filtros || null, excluir: excluir || null, estados: estados || null, no_estados: no_estados || null, periodo, entidades, criterio, texto, valido: !errorValidacion, errorValidacion, soloRanking, ...(orden ? { orden } : {}) });   /* `orden` (ensayo 11): el id de la lente cuando `entidades` es una PRIORIDAD ordenada, de la primera a la última — solo existe en esos universos */
+}
+
+/* ═══ EL ORDEN DE LA PRIORIDAD VIAJA ENTERO (ensayo 11, owner 2026-10-09) ═══════════════════════════════════════════════════════════════════════════════════════
+ * A02|1|1: ADI entregó solo el PRIMERO de la prioridad integrada (El Roble) y el anfitrión inventó el segundo («le sigue Andes del Sur»; el verdadero era Maipo). El universo que se declaraba (`<partes>_prioridad`) es el CONJUNTO de cuentas con fila en la tabla,
+ * en el orden en que se fueron agregando —no un orden— y tenía a Andes del Sur primero: leído como orden, mentía. Ahora la Entrega declara además la prioridad COMPLETA, en su orden, con la lente que la ordenó: un universo `soloRanking` (no autoriza cifras de nadie)
+ * con `orden: <lente>` y `entidades` de la primera a la última. Es la conclusión del procedimiento tal cual (`prioridadIntegrada` / `ordenPorCriterio`), no una segunda: lo que la oración «Quien más pesa…» nombra es SIEMPRE su primer puesto (si no coincide, no se declara). El texto de la Entrega no cambia: el orden viaja en
+ * `universos[]` (id `E<n>.u<k>`; el puesto `j` se cita `E<n>.u<k>.<j>`). Se agrega AL FINAL de `universos` para no mover el id posicional de ninguno de los que ya existían. */
+const ORDEN_DE_PRIORIDAD_MAX = 10;   /* los puestos que se entregan: una prioridad integrada trae pocas cuentas materiales; la de una lente sobre todo el eje puede traer 13 — «k de N» se dice */
+const _ORDINAL = (n) => `${n}.º`;
+function _universoDeOrdenDePrioridad({ id, lente, nombreLente, entidades }) {
+  const todas = [...new Set((Array.isArray(entidades) ? entidades : []).filter(Boolean))];
+  if (!todas.length || !lente) return null;
+  const vistas = todas.slice(0, ORDEN_DE_PRIORIDAD_MAX);
+  const de = todas.length > vistas.length ? ` — los ${vistas.length} primeros de ${todas.length}` : "";
+  const criterio = lente === "riesgo"
+    ? `prioridad por riesgo integrado, de la primera cuenta a la última; el puesto es el último número del id${de}`
+    : `prioridad por ${nombreLente || lente}, de la primera cuenta a la última entre las ${todas.length} que esta Entrega evalúa (no todo el eje); el puesto es el último número del id${de}`;
+  return { id: `${id}_orden`, eje: "cliente",   /* = el id del conjunto de cuentas de la tabla (`<partes>_prioridad`) + «_orden»: el compacto reconoce el par */ entidades: vistas, criterio, soloRanking: true, orden: lente };
 }
 
 /* ── el libro de hechos de este turno: declara SOLO `ref` (cita literal de una fig), `razon` y `derivada`
@@ -1418,6 +1436,8 @@ export function componerEntregaMultidominio({ scenario = ESCENARIO_INICIAL, preg
   }
   if (top) {
     _declararUniverso(entrega, I, { id: "prioridad_integrada", eje: _ejeDeDominio(top.dominios[0] || "comercial"), entidades: [top.entidad], criterio: "prioridad integrada por señales — materialidad, severidad y urgencia entre los dominios que comparten cliente, nunca por suma de montos" });
+    /* ensayo 11: la prioridad ENTERA, en su orden (la oración nombra al primero; «le sigue X» se cita de acá) */
+    { const uo = P && Array.isArray(P.integrada) && P.integrada.length && P.integrada[0].entidad === top.entidad ? _universoDeOrdenDePrioridad({ id: "prioridad_integrada", lente: "riesgo", nombreLente: "riesgo integrado", entidades: P.integrada.map((c) => c.entidad) }) : null; if (uo) _declararUniverso(entrega, I, { id: uo.id, eje: uo.eje, entidades: uo.entidades, criterio: uo.criterio, soloRanking: true, orden: uo.orden }); }
   }
 
   entrega.procedencia = { libro, cifrasImpresas };
@@ -2880,7 +2900,13 @@ function _planMultiTema(temas, figs, ref, declararRazon, declararDerivada, { con
   } else if (conDecision) { const r = _prioridadPorLenteDelUsuario(temas, figs, ref, lente, temasDeDecision, ctx); porLente = r.porLente; lenteNoAplica = r.lenteNoAplica; faltantesLente = r.faltantesLente || []; }
   /* FAMILIA 1: qué oración de prioridad cruzada se dice (por la lente pedida · el criterio pedido no ordena · «riesgo» sobre un dominio · riesgo integrado) y si se sirve el «va antes que» lo decide la pieza; los renders solo redactan */
   const prioridad = { modo: modoDeLaCruzada({ top, conDecision, porLente, lenteNoAplica, lenteRiesgoPedida: lente === "riesgo", temas, lideres }), vaAntes: vaAntesQue({ top, porLente, hayVersus: !!(idsVersus && idsVersus.length) }) };
-  return { kind: "multitema", temas, conDecision, temaDeLaParte: temaDeLaParteQuePrioriza(temasDeDecision, temas), lideres, top, idsIntegrada, idsVersus, idShare, versusLider, idBenchComercial, prioridad, ...(porLente ? { porLente } : {}), ...(lenteNoAplica ? { lenteNoAplica } : {}), ...(porLentePorParte ? { porLentePorParte } : {}), ...(faltantesLente.length ? { faltantesLente } : {}), ...(lente === "riesgo" ? { lenteRiesgoPedida: true } : {}) };
+  /* EL ORDEN COMPLETO de la prioridad que la oración nombra (ensayo 11): con la lente del usuario, el de `ordenPorCriterio` (la misma función que ordena «ahora por X»); si no, el de `prioridadIntegrada`. Solo vale si su primero ES el que la oración dice. */
+  let orden = null;
+  try {
+    if (porLente) { const O = ordenPorCriterio(figs, temas, porLente.lente); if (O && Array.isArray(O.lista) && O.lista.length && O.lista[0].entidad === porLente.entidad) orden = { lente: porLente.lente, nombreLente: nombreVisibleDeLente(porLente.lente, porLente.temaDeLaParte || porLente.dominio) || porLente.lente, entidades: O.lista.map((x) => x.entidad) }; }
+    else if (top && P && Array.isArray(P.integrada) && P.integrada.length && P.integrada[0].entidad === top.entidad) orden = { lente: "riesgo", nombreLente: "riesgo integrado", entidades: P.integrada.map((c) => c.entidad) };
+  } catch { orden = null; }
+  return { kind: "multitema", orden, temas, conDecision, temaDeLaParte: temaDeLaParteQuePrioriza(temasDeDecision, temas), lideres, top, idsIntegrada, idsVersus, idShare, versusLider, idBenchComercial, prioridad, ...(porLente ? { porLente } : {}), ...(lenteNoAplica ? { lenteNoAplica } : {}), ...(porLentePorParte ? { porLentePorParte } : {}), ...(faltantesLente.length ? { faltantesLente } : {}), ...(lente === "riesgo" ? { lenteRiesgoPedida: true } : {}) };
 }
 
 /* ── PLAN «comparacion» (2 entidades, mismo eje — `compareEntities`) ─────────────────────────────────────────── */
@@ -3359,6 +3385,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
 
   const scenario = ESCENARIO_INICIAL;
   const { plan, porParte } = lecturasDe(resolucion);
+  const universosAlFinal = [];   /* ensayo 11: los órdenes de prioridad se declaran DESPUÉS de todos los universos de las partes (no mueven el id posicional de ninguno) */
   if (!plan || !plan.calls.length) return _vacia("el encargo no generó ninguna lectura del Core");
   const rp = runPlan(plan, { scenario, maxCalls: Math.max(8, plan.calls.length), preguntaUsuario: null, registry: REGISTRO_LECTURAS });
   const figs = asignarIds((rp.ledger && rp.ledger.figs) || []);
@@ -4668,6 +4695,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
             _filaDedup(PL.entidad, PL.dominio, rotuloDeLaCasa({ concepto: PL.metrica }).rotulo, PL.id);
           }
         } else entrega.respuesta.push({ texto: `${prefijoDecision}, por riesgo integrado: ${plan.top.entidad}${coincide} (${partesTop.join("; ")}).${cierreLente}`, hechos: Object.values(plan.idsIntegrada).flatMap((o) => Object.values(o)).filter(Boolean), prioridad: 0, _prioridad: marcaDePrioridad(ALCANCE_DE_PRIORIDAD.CRUZADA, plan.top.entidad) });
+        { const uo = plan.orden ? _universoDeOrdenDePrioridad({ id: `${plan.partesIds ? plan.partesIds.join("_") : "multitema"}_prioridad`, ...plan.orden }) : null; if (uo) universosAlFinal.push(uo); }   /* ensayo 11: la prioridad ENTERA, en su orden */
       }
       if (plan.prioridad.vaAntes) {   /* el «va antes que» es del riesgo integrado: solo se sirve si la lente pedida pone primero a la MISMA cuenta (nunca se contradice) */
         const comparativos = plan.idsVersus.map(({ it, idA, idB }) => `${it.nombre} (${R(idA)} contra ${R(idB)})`).join(", ");
@@ -4680,7 +4708,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
       }
       // CORTE 3e (owner 2026-09-26) — «declarado por usted» → «declarado por la empresa».
       if (plan.idBenchComercial) entrega.marco.referenciaDeclarada = entrega.marco.referenciaDeclarada || { texto: textoDeBenchmark(R(plan.idBenchComercial), { calificador: "comercial" }), hechoId: plan.idBenchComercial };   /* FAMILIA 3: la frase del benchmark oficial es de `referencias.js` */
-      if (entidadesMultitema.size) _declararUniverso(entrega, I, { id: `${plan.partesIds ? plan.partesIds.join("_") : "multitema"}_prioridad`, eje: "cliente", entidades: [...entidadesMultitema], criterio: "prioridad integrada por señales — materialidad, severidad y urgencia entre los dominios que comparten cliente, nunca por suma de montos" });
+      if (entidadesMultitema.size) _declararUniverso(entrega, I, { id: `${plan.partesIds ? plan.partesIds.join("_") : "multitema"}_prioridad`, eje: "cliente", entidades: [...entidadesMultitema], criterio: "prioridad integrada por señales — materialidad, severidad y urgencia entre los dominios que comparten cliente, nunca por suma de montos. Son las cuentas con fila en la tabla, SIN orden (el orden es el del universo «_orden»)" });   /* ensayo 11: este conjunto autoriza las filas y NO es un orden (el anfitrión lo leyó como tal: «le sigue Andes del Sur») */
       // §7.3·22 (supervisor 2026-09-27, diagnóstico v9, precisa la 17 — cierra la raíz A1) — antes, acá se
       // declaraba OTRA VEZ el universo de cada parte de `plan.partesIds` con universo propio (§7.3·17, tarea 3,
       // 2026-09-27), porque esas partes NUNCA pasaban por `_planCifraGrupo` (el `.length === 1` de arriba las
@@ -4893,6 +4921,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
   entrega.paraSuJuicio = entrega.paraSuJuicio.map((p) => ({ ...p, texto: _desabreviarDias(p.texto) }));
 
   entrega.temasCubiertos = [...temasCubiertos];
+  for (const { id, eje, entidades, criterio, soloRanking, orden } of universosAlFinal) _declararUniverso(entrega, I, { id, eje, entidades, criterio, soloRanking, orden });
   // CORTE 3d.1 (owner 2026-09-25) — la traza estructural de la iniciativa: `ids` (verificados y SERVIDOS, en
   // Respuesta o en la oferta — «una señal nunca desaparece»), `ofertaIds` (subconjunto que salió como oferta,
   // no como texto principal), `calls` (llamadas ➕ usadas — siempre 0 en este corte, ver la cabecera de

@@ -103,7 +103,7 @@ H("0 · lo cerrado: seis operaciones (sin promedio), la cabecera de cinco reglas
   ok(jj(OPERACIONES) === jj(["suma", "diferencia", "participacion", "conteo", "razon", "coincidencia"]), "★ las operaciones son EXACTAMENTE suma · diferencia · participacion · conteo · razon · coincidencia (sin `promedio`, §8.3; la razón llegó con el ensayo 5 y la coincidencia entre dos órdenes con el ensayo 10)");
   ok(OPERANDOS_MAX === 40 && OPERANDOS_MAX === ENTIDADES_DE_UN_UNIVERSO_MAX, "el tope de operandos es lo que un universo lista a la vista (40)");
   ok(CABECERA_DE_USO.length === 5, "★ la cabecera de uso tiene CINCO reglas (la cuarta del contrato original + la del orden sobre el total, ensayo 8)");
-  ok(CABECERA_DE_USO[1] === "Toda afirmación de orden sobre el total (el mayor, el que más creció, el más grave) o de relación entre dos órdenes (los más grandes son los de menor margen) debe venir de una consulta de ADI que vio el universo completo; con una vista parcial, dígalo como parcial o pídale a ADI el extremo o la coincidencia.", "★ la regla 2.ª es el texto EXACTO del owner (el orden sobre el total y, desde el ensayo 10, la relación entre dos órdenes)");
+  ok(CABECERA_DE_USO[1] === "Toda afirmación de orden sobre el total (el mayor, el que más creció, el más grave), de relación entre dos órdenes (los más grandes son los de menor margen) o de qué elementos cumplen una condición (los que pasan de 250 días) debe venir de una consulta de ADI que vio el universo completo; con una vista parcial, dígalo como parcial o pídale a ADI el extremo, la coincidencia o el filtro.", "★ la regla 2.ª es el texto EXACTO del owner (el orden sobre el total, desde el ensayo 10 la relación entre dos órdenes y desde el 11 qué elementos cumplen una condición)");
   ok(CABECERA_DE_USO[0] === "Toda cifra empresarial que usted diga —en números o en palabras, incluidos totales, diferencias, porcentajes y conteos— debe ser un hecho que ADI le entregó en esta conversación. Si la cifra que necesita no está entre lo entregado, no la calcule ni la complete: pídasela a ADI (derivar, sobre identificadores ya entregados; o una consulta nueva). Redondear a lo impreso no es calcular.", "★ la regla 1 es el texto EXACTO del contrato (sin «con su identificador»)");
   ok(!/con su identificador/.test(jj(CABECERA_DE_USO)) && !/promedios? de más de dos cifras/.test(jj(CABECERA_DE_USO)), "las dos reglas viejas (1/5 y 2/5) ya no están");
   ok(/^Lo que la Entrega declara en «Lo que no se puede concluir» se respeta/.test(CABECERA_DE_USO[2]) && /^La «Referencia del oficio» es conocimiento general/.test(CABECERA_DE_USO[3]) && /^Redacte con total libertad/.test(CABECERA_DE_USO[4]), "las otras tres reglas siguen, en su orden");
@@ -266,7 +266,7 @@ for (const { etiqueta, T } of EMPRESAS) {
     await alterado("una cifra de un supuesto sumada con una medida", "mezcla_de_realidades", (L) => { hechoDe(L, v0[0]).rv.deSupuesto = true; }, { operacion: "suma", sobre: v0.slice(0, 2) });
     await alterado("un dato declarado", "operando_no_medido", (L) => { hechoDe(L, v0[0]).rv.titular = "declarado"; }, { operacion: "suma", sobre: v0.slice(0, 2) });
     await alterado("una propuesta", "operando_no_medido", (L) => { hechoDe(L, v0[0]).rv.procedencia = "propuesta"; }, { operacion: "suma", sobre: v0.slice(0, 2) });
-    await alterado("una Entrega recortada", "entrega_recortada", (L) => { const e = L.entregas[0]; L.entregas[0] = { n: e.n, turno: e.turno, versionId: e.versionId, temas: e.temas, recortada: true }; }, { operacion: "suma", sobre: v0.slice(0, 2) });
+    await alterado("una Entrega recortada", "id_recortado", (L) => { const e = L.entregas[0]; L.entregas[0] = { n: e.n, turno: e.turno, versionId: e.versionId, temas: e.temas, recortada: true }; }, { operacion: "suma", sobre: v0.slice(0, 2) });
     await alterado("una participación con una cifra negativa", "operando_negativo", (L) => { hechoDe(L, v0[1]).rv.raw = -5; }, { operacion: "participacion", sobre: [v0[1]], base: v0[0] });
     await alterado("otra empresa (libro de otra empresa)", "otra_empresa", (L) => { L.empresaId = "otra-empresa"; }, { operacion: "suma", sobre: v0.slice(0, 2) });
   }
@@ -348,7 +348,7 @@ for (const { etiqueta, T } of EMPRESAS) {
     ok(hD[0].valor === dSuma.hecho.valor && jj(hD[0].sobre) === jj(dSuma.hecho.sobre), "con el mismo valor y los operandos de la derivación");
     ok(r1.resumen.total === sinD.resumen.total + 2 && r1.resumen.igual === sinD.resumen.igual + 2, "entran al resumen");
     ok(r1.lineaContinuidad === sinD.lineaContinuidad && jj(r1.eventos) === jj(sinD.eventos), "no agregan nada a la línea de continuidad");
-    const sinLasD = jj(compactarParaAnfitrion("retomar", { ...r1, hechos: r1.hechos.filter((x) => !/^D\d+$/.test(x.id)), resumen: sinD.resumen }));
+    const sinLasD = jj(compactarParaAnfitrion("retomar", { ...r1, memoria: sinD.memoria, hechos: r1.hechos.filter((x) => !/^D\d+$/.test(x.id)), resumen: sinD.resumen }));   /* `memoria` (ensayo 11) mide la OCUPACIÓN del libro, que crece con las D por construcción: es lo único que se neutraliza */
     ok(sinLasD === sinDComp, "★ quitadas las D, `retomar` es BYTE A BYTE el de un hilo sin derivaciones");
     const enc = jj(await hr.store.leerLibro(T.id, hr.conv));
     await hr.A.retomar({ tenant: T, conversacionId: hr.conv });
@@ -439,7 +439,7 @@ H("9 · la puerta: cinco herramientas, REST `derivar`, OpenAPI con cinco rutas")
 }
 
 /* ═══ 10 · EL LIBRO DE 16 KB CON EL CASO MÁS GRANDE ══════════════════════════════════════════════════════════════════════════════════════════════════════ */
-H("10 · el tope de 16 KB del libro con el caso más grande del demo");
+H("10 · el tope del libro (64 KB desde el ensayo 11; 16 KB antes) con el caso más grande del demo");
 {
   const T = EMPRESAS[0].T;
   conTenant(T);
@@ -747,7 +747,7 @@ for (const { etiqueta, T } of EMPRESAS) {
     const cT = compactarParaAnfitrion("consultar", avisoVisto);
     ok((cT.advertencias || []).length > 0 && cT.continuidad.entregasSinCifras.length > 0, "y eso llega al anfitrión por la puerta (la respuesta compacta lo trae)");
     const rr = await AT.derivar({ tenant: T, conversacionId: conv, operacion: "suma", sobre: [`E${recort[0]}.h1`, `E${recort[0]}.h2`] });
-    ok(rr.ok === false && rr.motivo === "entrega_recortada" && /se recortó por tamaño/.test(rr.detalle), "★ derivar sobre una cifra de una Entrega recortada se rechaza diciendo por qué (entrega_recortada)", jj(rr).slice(0, 300));
+    ok(rr.ok === false && rr.motivo === "id_recortado" && /se recortó por capacidad de la memoria de la conversación/.test(rr.detalle) && /Vuelva a consultarla/.test(rr.detalle) && rr.memoria && rr.memoria.estado === "recortada", "★ derivar sobre una cifra de una Entrega recortada se rechaza diciendo por qué (id_recortado: «se recortó por capacidad… vuelva a consultarla») y trae el estado de la memoria", jj(rr).slice(0, 300));
     /* (ii) una derivación nueva también compite por el tope: si obliga a recortar una Entrega, lo dice en SU respuesta */
     const sD = crearAlmacenEnMemoria(); const ADx = crearAcciones({ continuidad: sD, ahora: reloj });
     let cv = null;
@@ -1040,7 +1040,7 @@ for (const { etiqueta, T } of EMPRESAS) {
   const raz = await derivar(h, { operacion: "razon", sobre: [vv[0].id], base: vv[1].id }, T);
   ok(raz.ok && raz.hecho.descripcion === `Venta: cuántas veces es ${ent(vv[0])} respecto de ${ent(vv[1])}`, `★ razón → «${raz.ok && raz.hecho.descripcion}»`);
   const cont = await derivar(h, { operacion: "conteo", sobre: vv.slice(0, 4).map((x) => x.id), condicion: { op: ">", valor: 0 } }, T);
-  ok(cont.ok && /^Venta: cuántas de las 4 cifras \(.+\) son mayores que \$0$/.test(cont.hecho.descripcion), `★ conteo → «${cont.ok && cont.hecho.descripcion}»`);
+  ok(cont.ok && /^Venta: cuántas de las 4 cifras \(.+\) son mayores que \$0, solo sobre esas cifras \(no todo el eje\)$/.test(cont.hecho.descripcion), `★ conteo → «${cont.ok && cont.hecho.descripcion}»`);
   const enc = await derivar(h, { operacion: "diferencia", sobre: [sum3.hecho.id, vv[3].id] }, T);
   ok(enc.ok && enc.hecho.descripcion === `Venta: ${sum3.hecho.id} menos ${ent(vv[3])}`, `   encadenada → «${enc.ok && enc.hecho.descripcion}» (la derivación se nombra por su id; su descripción viaja en el mismo retomar)`);
   const enc2 = await derivar(h, { operacion: "suma", sobre: [sum3.hecho.id, vv[3].id] }, T);
@@ -1536,7 +1536,7 @@ H("16b · ensayo 10: la herramienta lo dice, corto, y la cabecera cubre la relac
   ok(OPERACIONES.includes("coincidencia") && P.operacion.enum.includes("coincidencia") && /COINCIDENCIA/.test(tool.description) && /dos órdenes/.test(tool.description), "★ la descripción de `derivar` dice que la coincidencia es para toda relación entre dos órdenes");
   ok(P.eje && P.a && P.b && jj(Object.keys(P.a.properties)) === jj(["metrica", "direccion", "k"]) && jj(P.a.properties.direccion.enum) === jj([...DIRECCIONES_DE_TOP]) && jj(P.a) === jj(P.b) && !tool.inputSchema.required.includes("sobre") && tool.inputSchema.additionalProperties === false, "★ el esquema: `eje`, `a` y `b` ({metrica, direccion, k}, direcciones de la casa); `sobre` ya no es obligatorio (la coincidencia no lo usa); sin campos extra");
   ok(JSON.stringify(tool).length < 2400, `★ la herramienta sigue dentro de su presupuesto de 2 400 B (${JSON.stringify(tool).length} B): la coincidencia entró recortando palabras, no subiendo el tope`);
-  ok(CABECERA_DE_USO.length === 5 && CABECERA_DE_USO[1] === "Toda afirmación de orden sobre el total (el mayor, el que más creció, el más grave) o de relación entre dos órdenes (los más grandes son los de menor margen) debe venir de una consulta de ADI que vio el universo completo; con una vista parcial, dígalo como parcial o pídale a ADI el extremo o la coincidencia.", "★ la regla de orden ABARCA la relación entre dos órdenes (texto del owner, 2026-10-09); la cabecera sigue en cinco reglas");
+  ok(CABECERA_DE_USO.length === 5 && CABECERA_DE_USO[1] === "Toda afirmación de orden sobre el total (el mayor, el que más creció, el más grave), de relación entre dos órdenes (los más grandes son los de menor margen) o de qué elementos cumplen una condición (los que pasan de 250 días) debe venir de una consulta de ADI que vio el universo completo; con una vista parcial, dígalo como parcial o pídale a ADI el extremo, la coincidencia o el filtro.", "★ la regla de orden ABARCA la relación entre dos órdenes (2026-10-09) y qué elementos cumplen una condición (ensayo 11: el filtro sobre el universo completo); la cabecera sigue en cinco reglas");
   const g = guiaDeUniverso();
   ok(/coincidencia/.test(g.extremo.texto) && JSON.stringify(g).length < 3500, "el catálogo (catalogo.universo) dice dónde pedir la relación entre dos órdenes y sigue < 3 500 B");
   const spec = construirOpenApi("http://gate.local");
@@ -1604,6 +1604,232 @@ H("13 · estático y esquema");
   ok(/validarDerivacion\(libro, pedido, \{ tenantId, deBodega \}\)/.test(acc) && /deBodega\(h\)/.test(der), "`acciones.js:derivar` le pasa a `validarDerivacion` el origen de cada cifra (los universos del libro) y `derivar.js` lo consulta por cada cifra de origen");
   const tool = MCP_TOOLS.find((t) => t.name === "derivar");
   ok(JSON.stringify(tool).length < 2400, `la herramienta «derivar» sigue corta (${JSON.stringify(tool).length} B < 2400 B)`);
+}
+
+/* ═══ 17 · ENSAYO 11 (owner 2026-10-09): LA MEMORIA DE LA CONVERSACIÓN NO SE PIERDE EN SILENCIO ═══════════════════════════════════════════════════════
+ * A02 1.5 y C01 1.5: la Entrega E1 («¿cómo viene el año?», 125 cifras con id) llenaba los 16 KB y, a la segunda derivación del mismo mensaje, ADI la recortaba: el anfitrión —que ya había emitido las demás llamadas en paralelo— recibía «entrega_recortada» sobre una derivación VÁLIDA, sin
+ * haber visto el aviso. Owner: «la garantía importante no es el número exacto: no puede haber pérdida silenciosa de hechos por capacidad o por cálculos paralelos. Si se alcanza un límite, el anfitrión debe saberlo antes de utilizar una memoria incompleta.» */
+H("17 · ensayo 11: tope de 64 KB, `memoria` en toda respuesta, `id_recortado`, lo no usado se recorta primero");
+{
+  const hoy = () => "2026-10-09T12:00:00.000Z";
+  const noDemo = EMPRESAS.find((e) => e.etiqueta === "no-demo").T, demo = EMPRESAS.find((e) => e.etiqueta === "demo").T;
+  const parte = (id, tema, conceptos, extra = {}) => ({ id, tema, cierre: "lectura", conceptos, ...extra });
+  /* los encargos REALES de A02 (Río Claro) y C01 (demo) del ensayo 11 */
+  const A02_E1 = E([parte("p1", "comercial", ["ventas", "variacion", "margen", "contribucion"], { universo: "negocio" }), parte("p2", "cobranza", ["saldo_pendiente", "saldo_vencido"], { universo: "negocio" }), parte("p3", "inventario", ["capital", "capital_inmovilizado", "capital_frenado"], { universo: "negocio" })]);
+  const A02_E1b = { ...A02_E1, profundidad: "breve" };
+  const A02_MARCAS = { ...E([parte("p1", "comercial", ["ventas", "ventas_anterior", "variacion", "variacion_usd"], { eje: "marca", universo: "negocio" })]), criterio: { lente: "ventas" }, profundidad: "completa" };
+  const A02_FILTRO = E([parte("p1", "cobranza", ["saldo_vencido"], { eje: "cliente", universo: { eje: "cliente", filtros: [{ metrica: "saldo_vencido", op: ">", valor: 40000000 }] } })]);
+  const C01_E1 = { ...E([parte("p1", "comercial", ["ventas", "ventas_anterior", "variacion", "margen", "contribucion"], { universo: "negocio" }), parte("p2", "cobranza", ["saldo_pendiente", "saldo_vencido"], { universo: "negocio" }), parte("p3", "inventario", ["capital", "capital_inmovilizado"], { universo: "negocio" })]), profundidad: "breve" };
+  const C01_MARCAS = { ...E([parte("p1", "comercial", ["ventas", "ventas_anterior", "variacion", "variacion_usd"], { eje: "marca", universo: { eje: "marca" } })]), criterio: { lente: "crecimiento" }, profundidad: "completa" };
+  const C01_TOP3 = E([{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido", "dias_vencido"], eje: "cliente", universo: { eje: "cliente", top: { metrica: "saldo_vencido", k: 3, direccion: "mayor" } } }]);
+  const CRIT = { texto: "piso de cobranza: deuda vencida de un cliente sobre $40 millones", valor: 40000000, unidad: "money" };
+  const conv = (e, id) => ({ ...e, conversacionId: id });
+  const hilo17 = async (T, encargos, { tope = LIBRO_TOPE_BYTES } = {}) => {
+    conTenant(T);
+    const store = crearAlmacenEnMemoria(), A = crearAcciones({ continuidad: store, ahora: hoy, libroTope: tope });
+    let id = null; const rs = [];
+    for (const e of encargos) { const r = await A.consultar({ tenant: T, encargo: id ? conv(e, id) : e }); id = r.continuidad.conversacionId; rs.push(r); }
+    return { A, store, id, rs, libro: () => store.leerLibro(T.id, id) };
+  };
+  const vencidosDe = (L, n = 3) => { const out = []; for (const h of L.entregas.find((e) => e.n === 1).hechos) if (/Saldo vencido/.test(h.metrica || "") && h.sujeto && h.rv && h.rv.unidad === "money" && !out.some((x) => x.sujeto === h.sujeto)) out.push(h); return out.slice(0, n); };
+  const paralelas = (A, T, id, ids) => Promise.all(ids.map((x) => A.derivar({ tenant: T, conversacionId: id, operacion: "diferencia", sobre: ["criterio", x], criterio: CRIT })));
+
+  /* ── (a) el tope REAL: A02 y C01 completos ya no pierden nada ── */
+  {
+    const h = await hilo17(noDemo, [A02_E1b, A02_MARCAS, A02_FILTRO]);
+    const L = await h.libro();
+    ok(L.entregas[0].hechos.length >= 120 && !L.entregas.some((e) => e.recortada), `A02 (Río Claro): E1 trae ${L.entregas[0].hechos.length} cifras con id y con las tres Entregas el libro no recorta nada (${tamanoBytes(L)} B de ${LIBRO_TOPE_BYTES})`);
+    ok(h.rs.every((r) => r.memoria && r.memoria.estado === "integra" && /^\d+ % de 64 KB$/.test(r.memoria.ocupacion) && parseInt(r.memoria.ocupacion, 10) < 100), "★ cada consultar trae `memoria` «integra» con su ocupación", jj(h.rs.map((r) => r.memoria)));
+    const ids = vencidosDe(L, 3).map((x) => x.id);
+    const rs = await paralelas(h.A, noDemo, h.id, ids);
+    ok(rs.length === 3 && rs.every((r) => r.ok && r.hecho && r.memoria && r.memoria.estado === "integra"), "★ A02 1.5 con el tope real: las tres derivaciones en PARALELO salen (antes la 3.ª recibía «entrega_recortada»), y cada una trae la memoria «integra»", jj(rs.map((r) => r.motivo || r.hecho.id)));
+    ok(!rs.some((r) => (r.advertencias || []).length || (r.continuidad.entregasSinCifras || []).length), "y ninguna dice que una Entrega perdió cifras");
+    const d = await h.A.derivar({ tenant: noDemo, conversacionId: h.id, operacion: "coincidencia", eje: "marca", a: { metrica: "ventas", direccion: "mayor", k: 3 }, b: { metrica: "variacion", direccion: "mayor", k: 3 } });
+    ok(d.ok && d.memoria && d.memoria.estado === "integra", "la coincidencia (A02 1.3) también trae la memoria");
+    const c = await hilo17(demo, [C01_E1, C01_MARCAS, C01_TOP3]);
+    const Lc = await c.libro();
+    const part = Lc.entregas.find((e) => e.n === 1).hechos;
+    const venta4 = ["Falabella", "Lider", "Jumbo", "Sodimac"].map((n) => part.find((x) => x.sujeto === n && /^Venta$/.test(x.metrica || "") && x.rv && x.rv.unidad === "money")).filter(Boolean).map((x) => x.id);
+    const total = part.find((x) => /Venta · total del listado completo/.test(x.metrica || ""));
+    const rc = await Promise.all([[venta4, total.id], ...venta4.map((v) => [[v], total.id])].map(([sobre, base]) => c.A.derivar({ tenant: demo, conversacionId: c.id, operacion: "participacion", sobre, base })));
+    ok(venta4.length === 4 && total && rc.length === 5 && rc.every((r) => r.ok && r.memoria && r.memoria.estado === "integra"), "★ C01 1.5 con el tope real: las 5 participaciones en PARALELO (125 cifras en E1) salen todas (antes 3 de 5 recibían «entrega_recortada»)", jj(rc.map((r) => r.motivo || r.hecho.id)));
+    const rt = await c.A.retomar({ tenant: demo, conversacionId: c.id });
+    ok(rt.ok && rt.memoria && rt.memoria.estado === "integra" && !rt.entregas.some((e) => e.recortada), "retomar también trae la memoria, y no lista ninguna Entrega recortada");
+  }
+
+  /* ── (b) el tope viejo como COSTURA: lo que antes era silencio ahora se dice, y lo que no se usa cede primero ── */
+  {
+    const h0 = await hilo17(noDemo, [A02_E1b, A02_MARCAS, A02_FILTRO]);
+    const L0 = await h0.libro();
+    const topeJusto = tamanoBytes(L0) + 450;   /* cabe E1+E2+E3 y apenas una derivación: la segunda obliga a ceder */
+    const h = await hilo17(noDemo, [A02_E1b, A02_MARCAS, A02_FILTRO], { tope: topeJusto });
+    const L = await h.libro();
+    ok(!L.entregas.some((e) => e.recortada), "(control) con ese tope las tres Entregas caben enteras");
+    const ids = vencidosDe(L, 3).map((x) => x.id);
+    const rs = await paralelas(h.A, noDemo, h.id, ids);   /* el servidor las atiende de a una, en orden */
+    ok(rs.every((r) => r.ok), "★ las TRES derivaciones en paralelo salen: para guardarlas cedieron las Entregas que NO usan (E2, E3), no la E1 de la que sale cada cifra", jj(rs.map((r) => [r.motivo || r.hecho.id, r.memoria && r.memoria.estado])));
+    const L2 = await h.libro();
+    ok(L2.entregas[0].recortada === false && L2.entregas.slice(1).some((e) => e.recortada) && tamanoBytes(L2) <= topeJusto, "E1 quedó entera y cedió lo más viejo que la operación no usa", jj(L2.entregas.map((e) => [e.n, e.recortada])));
+    const trigger = rs.find((r) => r.memoria && r.memoria.ahora);
+    ok(trigger && trigger.memoria.estado === "recortada" && trigger.memoria.ahora.every((n) => /^E\d+$/.test(n)) && (trigger.continuidad.entregasSinCifras || []).length > 0 && (trigger.advertencias || []).some((a) => /ya no conserv/.test(a)), "★ la llamada que PROVOCA el recorte lo dice en su propia respuesta: memoria.ahora, continuidad.entregasSinCifras y una advertencia", jj(trigger && trigger.memoria));
+    ok(trigger.memoria.recortadas.every((x) => /^E\d+\.h1–E\d+\.h\d+/.test(x.ids) && x.motivo === "capacidad"), "y la memoria dice QUÉ ids se fueron de cada Entrega (E<n>.h1–E<n>.h<k>) y por qué (capacidad)", jj(trigger.memoria.recortadas));
+    const ultimo = rs[rs.length - 1];
+    ok(ultimo.memoria.estado === "recortada" && ultimo.memoria.recortadas.length === trigger.memoria.recortadas.length, "y las llamadas posteriores del mismo lote traen la MISMA memoria recortada (la ven antes de seguir)");
+    /* un id de lo que se recortó se contesta con su motivo, jamás «no existe» */
+    const cedida = trigger.memoria.recortadas[0].entrega;
+    const idCedido = `${cedida}.h1`;
+    const rj = await h.A.derivar({ tenant: noDemo, conversacionId: h.id, operacion: "suma", sobre: [idCedido, `${cedida}.h2`] });
+    ok(rj.ok === false && rj.motivo === "id_recortado" && rj.motivo !== "id_inexistente" && new RegExp(`la Entrega ${cedida} se recortó por capacidad de la memoria de la conversación; ${idCedido} ya no se conserva\\. Vuelva a consultarla`).test(rj.detalle) && rj.ids.includes(idCedido), "★ derivar sobre un id de la Entrega recortada: «id_recortado» — «la Entrega E<n> se recortó por capacidad de la memoria de la conversación; <id> ya no se conserva. Vuelva a consultarla…» (jamás id_inexistente)", jj(rj).slice(0, 400));
+    ok(rj.memoria && rj.memoria.estado === "recortada" && rj.memoria.recortadas.some((x) => x.entrega === cedida) && /^\d+ % de \d+(\.\d)? KB$/.test(rj.memoria.ocupacion), "y el rechazo trae el estado de la memoria (qué Entregas, qué ids, cuánto del tope)");
+    const rm = MCP_TOOLS.find((t) => t.name === "derivar");
+    ok(MOTIVOS_DE_DERIVACION.includes("id_recortado") && !MOTIVOS_DE_DERIVACION.includes("entrega_recortada") && JSON.stringify(rm).length < 2400, "el código `id_recortado` está en la lista cerrada (reemplaza a `entrega_recortada`) y la herramienta sigue corta");
+    /* una derivación cuyas cifras se recortaron: dice de cuál se trata */
+    const dEncadenada = await h.A.retomar({ tenant: noDemo, conversacionId: h.id });
+    const quitadas = (dEncadenada.advertencias || []).filter((a) => /se recortó por capacidad/.test(a));
+    ok(dEncadenada.ok && dEncadenada.memoria.estado === "recortada" && quitadas.length === dEncadenada.memoria.recortadas.length && quitadas.every((a, i) => a.includes(dEncadenada.memoria.recortadas[i].ids) && /vuelva a consultarla/.test(a)), "★ retomar LISTA lo recortado: una advertencia por Entrega con los ids que perdió, y la lista de Entregas dice qué perdió cada una", jj(dEncadenada.advertencias));
+    ok(dEncadenada.entregas.filter((e) => e.recortada).every((e) => typeof e.perdio === "string" && e.motivoDelRecorte === "capacidad"), "las Entregas recortadas de retomar traen `perdio` y `motivoDelRecorte`");
+  }
+
+  /* ── (c) C01 1.5 tal cual pasó: la Entrega grande es la ÚNICA que sostiene las derivaciones → no se puede evitar recortarla, pero se DICE y todo lo que la toque después falla con el motivo ── */
+  {
+    const h0 = await hilo17(demo, [C01_E1]);
+    const L0 = await h0.libro();
+    const tope = tamanoBytes(L0) + 380;   /* una derivación cabe; la segunda obliga a recortar E1 (la única Entrega, y la que las sostiene) */
+    const h = await hilo17(demo, [C01_E1], { tope });
+    const L = await h.libro();
+    const part = L.entregas[0].hechos;
+    const total = part.find((x) => /Venta · total del listado completo/.test(x.metrica || ""));
+    const ventas = ["Falabella", "Lider", "Jumbo", "Sodimac"].map((n) => part.find((x) => x.sujeto === n && /^Venta$/.test(x.metrica || "") && x.rv && x.rv.unidad === "money")).filter(Boolean);
+    ok(L0.entregas[0].hechos.length >= 100 && ventas.length === 4 && total, `C01 (demo): E1 con ${L0.entregas[0].hechos.length} cifras`);
+    const rs = await Promise.all(ventas.map((v) => h.A.derivar({ tenant: demo, conversacionId: h.id, operacion: "participacion", sobre: [v.id], base: total.id })));
+    const ok1 = rs.filter((r) => r.ok), malos = rs.filter((r) => !r.ok);
+    ok(ok1.length >= 1 && malos.length >= 1 && ok1[0] === rs[0], "(control) con ese tope la primera sale y alguna posterior ya no puede: es el caso de C01 1.5", jj(rs.map((r) => r.motivo || r.hecho.id)));
+    const provoca = rs.find((r) => r.ok && r.memoria && r.memoria.ahora && r.memoria.ahora.includes("E1"));
+    ok(provoca && provoca.memoria.recortadas[0].ids.startsWith(`E1.h1–E1.h${L0.entregas[0].hechos.length}`) && (provoca.continuidad.entregasSinCifras || []).includes(1), "★ la derivación que obligó a recortar E1 lo dice: memoria.ahora [E1], los ids que se fueron (E1.h1–E1.h<n>) y continuidad.entregasSinCifras", jj(provoca && provoca.memoria));
+    ok(malos.every((r) => r.motivo === "id_recortado" && /^la Entrega E1 se recortó por capacidad/.test(r.detalle) && r.memoria.estado === "recortada" && r.memoria.recortadas[0].entrega === "E1"), "★ y TODA llamada posterior que toque un id de E1 —del mismo mensaje o de otro— falla con «id_recortado» y trae la memoria recortada", jj(malos.map((r) => [r.motivo, r.detalle.slice(0, 60)])));
+    /* volver a consultarla da ids nuevos que sí se derivan */
+    const reC = await h.A.consultar({ tenant: demo, encargo: conv(E([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: { eje: "cliente", top: { metrica: "ventas", k: 5, direccion: "mayor" } } }]), h.id) });
+    ok(reC.ok && reC.memoria && reC.memoria.estado === "recortada" && reC.memoria.recortadas.some((x) => x.entrega === "E1"), "volver a consultar sigue trayendo el estado de la memoria (E1 sigue recortada: lo nuevo es otra Entrega)");
+  }
+
+  /* ── (d) las Entregas que se quitan por CANTIDAD (más de 12) y las derivaciones que ceden tampoco son silencio ── */
+  {
+    const h = await hilo17(demo, [C01_TOP3]);
+    let r = null;
+    for (let i = 0; i < 13; i++) r = await h.A.consultar({ tenant: demo, encargo: conv(C01_TOP3, h.id) });
+    ok(r.memoria.estado === "recortada" && r.memoria.recortadas.length === 2 && r.memoria.recortadas.every((x) => x.motivo === "cantidad" && x.ids === "todas sus cifras"), "★ con 14 Entregas, E1 y E2 se quitan por CANTIDAD y la memoria lo dice (no desaparecen sin rastro)", jj(r.memoria));
+    const rq = await h.A.derivar({ tenant: demo, conversacionId: h.id, operacion: "suma", sobre: ["E1.h1", "E1.h2"] });
+    ok(rq.ok === false && rq.motivo === "id_recortado" && /se quitó de la memoria de la conversación \(se conservan como máximo 12 Entregas\)/.test(rq.detalle), "★ derivar sobre un id de una Entrega quitada por cantidad: «id_recortado», no «id_inexistente»", jj(rq).slice(0, 300));
+    const rn = await h.A.derivar({ tenant: demo, conversacionId: h.id, operacion: "suma", sobre: ["E99.h1", "E99.h2"] });
+    ok(rn.ok === false && rn.motivo === "id_inexistente", "(control) una Entrega que nunca existió sigue siendo «id_inexistente»");
+  }
+  {
+    /* D<k> que cedió su lugar: id_recortado (27 derivaciones DISTINTAS: las pares de las 13 ventas sobre su total) */
+    const h = await hilo17(demo, [C01_E1]);
+    const L = await h.libro();
+    const part = L.entregas[0].hechos;
+    const total = part.find((x) => /Venta · total del listado completo/.test(x.metrica || ""));
+    const v = part.filter((x) => /^Venta$/.test(x.metrica || "") && x.sujeto && x.rv && x.rv.unidad === "money").map((x) => x.id);
+    let n = 0, ultima = null;
+    for (let i = 0; i < v.length && n < 27; i++) for (let j = i + 1; j < v.length && n < 27; j++) { ultima = await h.A.derivar({ tenant: demo, conversacionId: h.id, operacion: "participacion", sobre: [v[i], v[j]], base: total.id }); if (ultima.ok) n++; }
+    const L2 = await h.libro();
+    ok(v.length === 13 && n === 27 && L2.nDerivaciones === 27 && L2.derivaciones.length === 24, "(control) 27 derivaciones distintas: el libro conserva 24 y el contador sigue en 27", jj({ v: v.length, n, nD: L2.nDerivaciones, len: (L2.derivaciones || []).length }));
+    ok(ultima.memoria.estado === "recortada" && ultima.memoria.derivaciones === "D1–D3" && !ultima.memoria.recortadas, "★ la derivación que hizo ceder a D1–D3 lo dice: memoria.derivaciones «D1–D3»", jj(ultima.memoria));
+    const rd = await h.A.derivar({ tenant: demo, conversacionId: h.id, operacion: "suma", sobre: ["D1", v[0]] });
+    ok(rd.ok === false && rd.motivo === "id_recortado" && rd.motivo !== "id_inexistente" && /la derivación D1 se quitó de la memoria de la conversación \(se conservan como máximo 24 derivaciones\)/.test(rd.detalle) && rd.memoria.derivaciones === "D1–D3", "★ una D<k> que cedió su lugar: «id_recortado» —«la derivación D1 se quitó de la memoria de la conversación…»— y la memoria la lista", jj(rd).slice(0, 400));
+    const rt = await h.A.retomar({ tenant: demo, conversacionId: h.id });
+    ok((rt.advertencias || []).some((a) => /las derivaciones D1–D3 cedieron su lugar/.test(a)), "retomar lista las derivaciones que cedieron su lugar", jj(rt.advertencias));
+  }
+
+  /* ── (e) toda acción trae `memoria`, también por la puerta, y va ANTES de la Entrega ── */
+  {
+    const h = await hilo17(demo, [C01_TOP3]);
+    const e = await h.A.conocerEmpresa({ tenant: demo, conversacionId: h.id });
+    ok(e.ok && e.memoria && e.memoria.estado === "integra", "conocerEmpresa (con la conversación indicada) trae la memoria");
+    const ap = await h.A.aportarContexto({ tenant: demo, conversacionId: h.id, aportes: [{ clase: "criterio", concepto: "nivel_de_atencion", valor: { raw: 5, unidad: "pct" } }] });
+    ok(ap.ok && ap.memoria && ap.memoria.estado === "integra" && /^\d+ % de 64 KB$/.test(ap.memoria.ocupacion), "aportarContexto trae la memoria");
+    const rt = await h.A.retomar({ tenant: demo, conversacionId: h.id });
+    ok(rt.ok && rt.memoria && rt.memoria.estado === "integra", "retomar trae la memoria");
+    const c = compactarParaAnfitrion("consultar", await h.A.consultar({ tenant: demo, encargo: conv(C01_TOP3, h.id) }));
+    ok(Object.keys(c).indexOf("memoria") === 1 && Object.keys(c).indexOf("memoria") < Object.keys(c).indexOf("entrega"), "★ en la respuesta compacta de consultar la memoria va ANTES de la Entrega (el anfitrión la lee antes de usar lo que sigue)", Object.keys(c).join());
+    const rechazo = await h.A.derivar({ tenant: demo, conversacionId: h.id, operacion: "suma", sobre: ["E1.h999", "E1.h1"] });
+    ok(rechazo.ok === false && rechazo.memoria && rechazo.memoria.estado === "integra", "hasta un rechazo normal (id inexistente) trae el estado de la memoria");
+    const sinConv = await h.A.derivar({ tenant: demo, conversacionId: "no-existe", operacion: "suma", sobre: ["E1.h1", "E1.h2"] });
+    ok(sinConv.ok === false && !sinConv.memoria, "y una conversación que no existe no inventa un estado");
+    const L = await h.libro();
+    ok(Object.keys(await (async () => (await h.A.consultar({ tenant: demo, encargo: conv(C01_TOP3, h.id) })).memoria)()).sort().join() === "estado,ocupacion", "el estado íntegro es mínimo: solo {estado, ocupacion}");
+    ok(tamanoBytes(L) > 0, "(la ocupación sale del tamaño de la forma guardada)");
+  }
+}
+
+/* ═══ 18 · ENSAYO 11 (owner 2026-10-09): QUÉ ELEMENTOS CUMPLEN UNA CONDICIÓN ES LA MISMA FAMILIA QUE EL ORDEN — SE EVALÚA SOBRE EL UNIVERSO COMPLETO O SE DICE PARCIAL ═══════════
+ * C02|1|6: «con ese filtro aparecerían El Roble y Maipo» —el anfitrión solo había visto los 3 mayores por saldo vencido—; Casa Lomas (281 días, el MAYOR atraso) faltaba. La regla 2.ª de la cabecera ahora cubre «qué elementos cumplen una condición»; el camino del universo completo
+ * (`consultar` con `universo.filtros`) ya existía: se prueba, se enseña en el catálogo, y el conteo de `derivar` dice sobre qué contó. */
+H("18 · ensayo 11: el filtro sobre el eje COMPLETO («k de N»), el conteo que dice su alcance y el camino enseñado en el catálogo");
+{
+  const { buildMesaFlujo } = await import("./src/adi/sentrix/mesaFlujo.js");
+  const { guiaDeUniverso } = await import("./src/adi/capacidad/ensenar.js");
+  const hoy = () => "2026-10-09T12:00:00.000Z";
+  const filtro = (metrica, op, valor) => E([{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["dias_vencido"], eje: "cliente", universo: { eje: "cliente", filtros: [{ metrica, op, valor }] } }]);
+  for (const { etiqueta, T } of EMPRESAS) {
+    conTenant(T);
+    /* el ORÁCULO: la mesa de cobranza de la pantalla (las facturas y abonos del tenant), no la Entrega ni `derivar` */
+    const filas = conTenantActivo(T.dataset, () => buildMesaFlujo().filas.map((f) => ({ nombre: f.nombre, dias: f.diasVencido })));
+    const mas250 = filas.filter((f) => f.dias > 250).map((f) => f.nombre).sort();
+    const A = crearAcciones({ continuidad: crearAlmacenEnMemoria(), ahora: hoy });
+    const r = await A.consultar({ tenant: T, encargo: filtro("dias_vencido", ">", 250) });
+    const c = compactarParaAnfitrion("consultar", r);
+    const u = (c.entrega.universos || [])[0] || {};
+    ok(r.ok && mas250.length >= 1 && jj([...(u.entidades || [])].sort()) === jj(mas250), `(${etiqueta}) «clientes con más de 250 días de atraso»: ADI evalúa el eje COMPLETO y devuelve exactamente los de la recomputación independiente desde las facturas del tenant (${mas250.join(", ")})`, jj({ u: u.entidades, oraculo: mas250 }));
+    ok(new RegExp(`hay ${mas250.length} de ${filas.length} en los clientes con días vencido superior a 250 días`).test(c.entrega.texto) && u.n === mas250.length && u.parcial === `${mas250.length} de ${filas.length}`, `★ (${etiqueta}) y lo dice «${mas250.length} de ${filas.length}» —k de N sobre todo el eje— en la respuesta y marca la lista como parcial`, c.entrega.texto.split("\n").find((l) => /▸/.test(l)));
+    if (etiqueta === "no-demo") {
+      const lomas = filas.find((f) => f.nombre === "Casa Lomas");
+      ok(lomas && lomas.dias === 281 && Math.max(...filas.map((f) => f.dias)) === 281 && (u.entidades || []).includes("Casa Lomas"), "★ C02|1|6 (Río Claro): Casa Lomas —281 días, el mayor atraso— ESTÁ en el conjunto «más de 250 días» (el anfitrión lo había omitido desde los 3 mayores por saldo)");
+      const vistos = await A.consultar({ tenant: T, encargo: E([{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido", "dias_vencido"], eje: "cliente", universo: { eje: "cliente", top: { metrica: "saldo_vencido", k: 3, direccion: "mayor" } } }], r.continuidad.conversacionId) });
+      const cv = compactarParaAnfitrion("consultar", vistos);
+      ok(!(cv.entrega.universos[0].entidades || []).includes("Casa Lomas") && cv.entrega.universos[0].parcial === "3 de 13", "(la vista parcial que engañó al anfitrión: los 3 mayores por saldo vencido NO traen a Casa Lomas, y la Entrega los marca «3 de 13»)");
+    }
+    /* el conteo de derivar sobre esa vista parcial dice sobre qué contó */
+    const rp = await A.consultar({ tenant: T, encargo: E([{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido", "dias_vencido"], eje: "cliente", universo: { eje: "cliente", top: { metrica: "saldo_vencido", k: 3, direccion: "mayor" } } }], r.continuidad.conversacionId) });
+    const cp = compactarParaAnfitrion("consultar", rp);
+    const dias = cp.entrega.cifras.filter((x) => x.metrica === "Días vencido" || /^d[ií]as/i.test(x.metrica || "")).map((x) => x.id);
+    const dv = await A.derivar({ tenant: T, conversacionId: r.continuidad.conversacionId, operacion: "conteo", sobre: dias, condicion: { op: ">", valor: 250 } });
+    ok(dias.length === 3 && dv.ok === true && /^\d de 3$/.test(dv.hecho.valor), `(${etiqueta}) el conteo de los 3 días de atraso entregados: «${dv.ok ? dv.hecho.valor : jj(dv).slice(0, 200)}»`);
+    ok(dv.ok && /^Contó solo sobre las 3 cifras entregadas, no sobre todo el eje \(13 en total\): quien no está entre esas cifras no se cuenta ni se descarta\. Para saber cuántos de TODO el eje cumplen una condición, consulte con universo\.filtros: evalúa el eje completo y responde «k de N»\.$/.test(dv.alcance), "★ y dice SU ALCANCE: \"Contó solo sobre las 3 cifras entregadas, no sobre todo el eje (13 en total)…\" + el camino (consultar con universo.filtros)", dv.alcance);
+    ok(dv.ok && /solo sobre esas cifras \(no todo el eje\)/.test(dv.hecho.descripcion), "y la descripción del hecho (la que ve retomar) lo lleva", dv.hecho && dv.hecho.descripcion);
+    const rt = await A.retomar({ tenant: T, conversacionId: r.continuidad.conversacionId });
+    ok((rt.hechos.find((h) => h.id === dv.hecho.id) || {}).descripcion === dv.hecho.descripcion, "retomar trae la misma descripción");
+    /* un conteo que SÍ cubre todo el eje lo dice: las 13 ventas */
+    const rv = await A.consultar({ tenant: T, encargo: E([PARTE(["ventas"], "comercial")], r.continuidad.conversacionId) });
+    const ventas = delMetrica(compactarParaAnfitrion("consultar", rv), "Venta");
+    const dc = await A.derivar({ tenant: T, conversacionId: r.continuidad.conversacionId, operacion: "conteo", sobre: ventas.map((x) => x.id), condicion: { op: ">", valor: 0 } });
+    ok(ventas.length === 13 && dc.ok && dc.hecho.valor === "13 de 13" && dc.alcance === "Contó las 13 cifras entregadas: son todo el eje (13)." && !/solo sobre esas cifras/.test(dc.hecho.descripcion), "★ un conteo sobre las 13 del eje lo dice: «Contó las 13 cifras entregadas: son todo el eje (13).»", jj(dc).slice(0, 300));
+    /* un libro de antes (sin el tamaño del eje): solo se afirma lo seguro */
+    const st = crearAlmacenEnMemoria(); const Av = crearAcciones({ continuidad: st, ahora: hoy });
+    const r0 = await Av.consultar({ tenant: T, encargo: E([PARTE(["ventas"], "comercial")]) });
+    const L0 = await st.leerLibro(T.id, r0.continuidad.conversacionId);
+    for (const e of L0.entregas) for (const x of e.universos || []) delete x.ejeN;
+    await st.guardarLibro(T.id, L0);
+    const vs3 = delMetrica(compactarParaAnfitrion("consultar", r0), "Venta").slice(0, 3).map((x) => x.id);
+    const dold = await Av.derivar({ tenant: T, conversacionId: r0.continuidad.conversacionId, operacion: "conteo", sobre: vs3, condicion: { op: ">", valor: 0 } });
+    ok(dold.ok && /^Contó solo sobre las 3 cifras entregadas que se indicaron: no consultó el resto del eje\. Para saber cuántos de TODO el eje/.test(dold.alcance) && !/no sobre todo el eje/.test(dold.alcance), "un libro de antes (sin el tamaño del eje) solo afirma lo seguro: contó las 3 indicadas y no consultó el resto — sin decir «no todo el eje»", dold.alcance);
+  }
+  /* el catálogo lo enseña donde enseña el extremo y la coincidencia */
+  {
+    const g = guiaDeUniverso();
+    ok(/sobre el universo completo del eje/.test(g.extremo.texto) && /la relación entre dos órdenes \(derivar con operacion «coincidencia»\)/.test(g.extremo.texto) && /qué elementos cumplen una condición \(consultar con universo \{ eje, filtros \}, ver «ejemplos»: responde «k de N» con los nombres; el conteo de derivar cuenta solo lo que usted indique\)/.test(g.extremo.texto) && /no autoriza a afirmar ninguno de los tres/.test(g.extremo.texto), "★ la guía del universo (catalogo.universo.extremo) enseña el camino del filtro junto al extremo y la coincidencia: sobre el universo completo, responde «k de N», y el conteo de derivar cuenta solo lo indicado", g.extremo.texto);
+    const filtroEjemplo = g.ejemplos.find((x) => x && x.filtros);
+    const ej = JSON.parse(JSON.stringify(filtroEjemplo).replace('"<número>"', "250"));
+    const T = EMPRESAS[1].T; conTenant(T);
+    const A = crearAcciones({ continuidad: crearAlmacenEnMemoria(), ahora: hoy });
+    const r = await A.consultar({ tenant: T, encargo: E([{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["dias_vencido"], eje: ej.eje, universo: ej }]) });
+    ok(filtroEjemplo && filtroEjemplo.filtros[0].valor === "<número>" && r.ok, "y el ejemplo del filtro (el de «ejemplos», con «<número>» reemplazado) corre tal cual por consultar", jj(filtroEjemplo));
+    const cat = await crearAcciones({ continuidad: crearAlmacenEnMemoria() }).conocerEmpresa({ tenant: T });
+    ok(/consultar con universo \{ eje, filtros \}/.test(jj(cat.catalogo.universo.extremo)) && cat.catalogo.universo.ejemplos.some((x) => x && x.filtros), "y llega a conocerEmpresa (el catálogo que ve el anfitrión)");
+    const tool = MCP_TOOLS.find((t) => t.name === "derivar"), tc = MCP_TOOLS.find((t) => t.name === "consultar");
+    ok(/conteo = cuántas de las cifras indicadas cumplen una condición \(todo el eje: consultar con universo\.filtros\)/.test(jj(tool)) && jj(tool).length < 2400, `la herramienta «derivar» dice lo mismo en su esquema (conteo = lo indicado; todo el eje = consultar con universo.filtros) y sigue corta (${jj(tool).length} B < 2400 B)`);
+    ok(jj(tc).length < 2400, `y «consultar» no crece (${jj(tc).length} B)`);
+  }
 }
 
 H("CERO RED");

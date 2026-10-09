@@ -263,6 +263,7 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
     contrato, contratoPorHilo, erroresDeAdi,
     erroresMateriales: materiales, cruces, derivaciones, declaradasPorLaPersona, ejemplosHipoteticos: ejemplos, nombresDeLaPersona, fallasDelMedidor, paraRevisar, naturalidad,
     clases34Juzgadas: juzgoClases34,
+    observaciones: (cierre && Array.isArray(cierre.limpieza) ? cierre.limpieza : []).flatMap((l) => (Array.isArray(l.observaciones) ? l.observaciones : []).map((o) => ({ hilo: l.hilo, sesion: l.sesion, regla: o.regla, herramienta: o.herramienta || null, llamadas: o.llamadas || 1, detalle: o.detalle }))),   /* owner 2026-10-09: lo que el chequeo de limpieza OBSERVÓ sin anular la corrida (una llamada mal dirigida, rechazada sin ejecutar) */
     invalidaciones, turnos: { hechos: turnosHechos, planeados: cierre ? cierre.turnosPlaneados : null, hilos: hilos.length, hilosAnulados: hilos.filter((h) => h.anulado).length },
     consumo, consumoDelRepo: repoConsumo ? { salieron: repoConsumo.salieron, costoUSD: repoConsumo.costoUSD, modelosSinPrecio: repoConsumo.modelosSinPrecio, sinConteo: repoConsumo.sinConteo.total } : null,
     huellas: manifiesto ? { corpusSha256: manifiesto.corpus && manifiesto.corpus.sha256, ...manifiesto.hashes, cli: manifiesto.cli || null } : null,
@@ -327,6 +328,7 @@ export function informeEnMarkdown(i) {
   for (const e of i.fallasDelMedidor.slice(0, 30)) L.push(`- [${e.id}] ${e.veredicto} → revertida${e.nota ? `: ${e.nota}` : ""}`);
   L.push("", `## Para revisar por una persona · ${i.paraRevisar.length}`);
   for (const e of i.paraRevisar.slice(0, 40)) L.push(`- [${e.id}] ${e.veredicto} · «${String(e.oracion || e.token || "").slice(0, 120)}»`);
+  if ((i.observaciones || []).length) { L.push("", `## Observaciones de la corrida · ${i.observaciones.length} (no anulan: una llamada mal dirigida —el nombre de una acción de ADI sin el prefijo del servidor— que el CLI rechazó sin ejecutar nada; si el anfitrión después le dijo a la persona que la herramienta «no estaba disponible», es un error SUYO que la revisión humana clasifica, no de ADI)`); for (const o of i.observaciones) L.push(`- hilo ${o.hilo} sesión ${o.sesion}: ${o.regla}${o.herramienta ? ` · «${o.herramienta}»` : ""}${o.llamadas > 1 ? ` ×${o.llamadas}` : ""} — ${o.detalle}`); }
   L.push("", `## Invalidaciones · ${i.invalidaciones.length}`);
   for (const x of i.invalidaciones) L.push(`- ${x}`);
   L.push("", "## Turnos", `${i.turnos.hechos} turnos medidos${i.turnos.planeados ? ` de ${i.turnos.planeados} planeados` : ""} · ${i.turnos.hilos} hilos · ${i.turnos.hilosAnulados} anulados`);

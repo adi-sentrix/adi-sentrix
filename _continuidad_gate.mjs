@@ -7,7 +7,7 @@
  *   · mismo aporte/encargo dos veces → mismos ids (determinismo, nunca azar)
  *   · versión de datos cambiada a mitad de conversación → se declara (evento + línea)
  *   · el anfitrión no devuelve el conversacionId → libro nuevo, memoria de empresa INTACTA
- *   · tope de 16 KB del libro → se recorta lo más viejo, NUNCA premisas ni criterio vigente
+ *   · tope de 64 KB del libro (16 KB hasta el ensayo 11) → se recorta lo más viejo, NUNCA premisas ni criterio vigente; y NUNCA en silencio (§5c: `memoria`, `id_recortado`)
  *   · turno sin evento → cero texto de continuidad; turno con evento → UNA línea
  *   · una premisa falsa queda guardada CON su veredicto
  *   · un declarado frente a un "medido" (simulado) → los DOS quedan, nunca se pisan en silencio
@@ -26,6 +26,7 @@ import {
   emitirConversacionId, libroNuevo, detectarCambioVersion, registrarEntrega, actualizarCriterio,
   agregarSupuestoVivo, retirarSupuestoVivo, registrarPremisa, registrarOfertaEnPie, limpiarOfertasEnPie,
   registrarHechoAportado, recortarATope, DERIVACIONES_TOPE, registrarDerivacion, derivacionesDe,
+  estadoDeLaMemoria, recortesDelLibro, textoDeRecorte, entregasDeLosIds, resolverContexto, comprimirLibro, expandirLibro, ocupacionDelLibro,
 } from "./src/adi/continuidad/libro.js";
 import {
   ESTADO_VIGENTE_TOPE_BYTES, ESTADO_VIGENTE_TOPE_TEXTO, TIPOS_DE_EVENTO,
@@ -45,7 +46,7 @@ ok(ORIGENES_HECHO_EMPRESA.join(",") === "declarado,documento", "esta memoria SOL
 ok(ESTADOS_HECHO_EMPRESA.join(",") === "pendiente,vigente,retirado,omitido", "los cuatro estados del ciclo de vida");
 ok(SELLOS_DOCUMENTO.join(",") === "extraido,confirmado,verificado", "los tres sellos de un documento (REVISIÓN 3 §4)");
 ok(VERSION_LIBRO === "libro/v1", "el libro se versiona");
-ok(LIBRO_TOPE_BYTES === 16384 && ENTREGAS_TOPE === 12 && SUPUESTOS_VIVOS_TOPE === 3, "los topes del diseño v2 §B/§F: 16KB · 12 Entregas · 3 supuestos vivos");
+ok(LIBRO_TOPE_BYTES === 65536 && ENTREGAS_TOPE === 12 && SUPUESTOS_VIVOS_TOPE === 3, "los topes del diseño v2 §B/§F tras el ensayo 11 (owner 2026-10-09): 64KB (antes 16KB; migración 016) · 12 Entregas · 3 supuestos vivos");
 ok(TIPOS_DE_EVENTO.length === 5 && TIPOS_DE_EVENTO.includes("datos_cambiaron") && TIPOS_DE_EVENTO.includes("supuesto_vivo_afecta"), "los cinco eventos de continuidad, ni uno más (REVISIÓN 3 §3)");
 
 /* ═══ 2 · DETERMINISMO — el mismo aporte dos veces → los MISMOS ids, nunca dos filas nuevas al azar ═══ */
@@ -113,7 +114,7 @@ H("4 · sin conversacionId devuelto: se abre un libro nuevo y la memoria de EMPR
 }
 
 /* ═══ 5 · TOPE DE 16 KB — se recorta lo más viejo, NUNCA premisas ni criterio vigente ═══ */
-H("5 · tope de 16KB: se esqueletizan las Entregas más viejas; premisas y criterio SOBREVIVEN siempre");
+H("5 · tope de 64KB: se esqueletizan las Entregas más viejas; premisas y criterio SOBREVIVEN siempre");
 {
   let libro = libroNuevo({ conversacionId: "c3", versionId: "v1" });
   libro = actualizarCriterio(libro, { lente: "riesgo", origen: "usuario", alternativa: null });
@@ -123,7 +124,7 @@ H("5 · tope de 16KB: se esqueletizan las Entregas más viejas; premisas y crite
     libro = registrarEntrega(libro, {
       versionId: "v1", temas: ["comercial", "inventario", "cobranza"], entidades: ["Jumbo", "Falabella", "Lider", "Cencosud"],
       cierre: "lectura",
-      hechos: Array.from({ length: 20 }, (_, k) => ({ sujeto: `Cliente${k}`, metrica: "ventas", valor: 12345.67 + k, unidad: "money", periodo: "2025-12-31", origen: "medido" })),
+      hechos: Array.from({ length: 90 }, (_, k) => ({ sujeto: `Cliente${k}`, metrica: "ventas", valor: 12345.67 + k, unidad: "money", periodo: "2025-12-31", origen: "medido" })),   /* 90 por Entrega: con el tope de 64 KB el de 16 KB ya no se alcanza con 20 */
       universos: [{ eje: "cliente", top: { metrica: "ventas", k: 5 } }],
     });
   }
@@ -134,7 +135,8 @@ H("5 · tope de 16KB: se esqueletizan las Entregas más viejas; premisas y crite
   const vieja = libro.entregas.find((e) => e.recortada);
   ok(!!vieja && Array.isArray(vieja.temas) && vieja.versionId === "v1" && vieja.hechos === undefined, "una Entrega vieja quedó como esqueleto {n, temas, versionId} — sin hechos ni universos", JSON.stringify(vieja));
   const nueva = libro.entregas[libro.entregas.length - 1];
-  ok(!nueva.recortada && Array.isArray(nueva.hechos) && nueva.hechos.length === 20, "la Entrega más NUEVA conserva sus hechos completos");
+  ok(!nueva.recortada && Array.isArray(nueva.hechos) && nueva.hechos.length === 90, "la Entrega más NUEVA conserva sus hechos completos");
+  ok(vieja && vieja.cifras === 90 && vieja.universos === 1, "★ el esqueleto recuerda CUÁNTO perdió (90 cifras, 1 universo): con ello la memoria dice qué ids se fueron", JSON.stringify(vieja));
 }
 H("5b · CARNADA · un libro artificialmente enorme jamás sacrifica premisas ni criterio");
 {
@@ -373,9 +375,82 @@ H("19 · derivaciones `D<k>`: ids estables tras el recorte, aditivas y sin tocar
   ok(registrarDerivacion(viejo, { operacion: "suma", sobre: [] }).derivaciones[2].id === "D3", "sin contador, el id sigue de lo que el libro ya tiene");
   /* el tope de bytes: las derivaciones más viejas ceden, la más nueva queda */
   let grande = libroNuevo({ conversacionId: "c-grande" });
-  for (let i = 0; i < 24; i++) grande = registrarDerivacion(grande, { operacion: "suma", sobre: ["E1.h1"], entidad: `${i}-${"x".repeat(1200)}`, resultado: { raw: i } });   // textos DISTINTOS: la forma guardada escribe una sola vez lo repetido (`comprimirLibro`), así que 24 iguales ya no llenan los 16 KB
-  ok(tamanoBytes(grande) <= LIBRO_TOPE_BYTES && grande.derivaciones[grande.derivaciones.length - 1].id === "D24" && grande.derivaciones.length < 24, "★ si el libro excede 16 KB ceden las derivaciones más viejas y la más nueva se conserva", `${tamanoBytes(grande)} B · ${grande.derivaciones.length}`);
+  for (let i = 0; i < 24; i++) grande = registrarDerivacion(grande, { operacion: "suma", sobre: ["E1.h1"], entidad: `${i}-${"x".repeat(4800)}`, resultado: { raw: i } });   // textos DISTINTOS: la forma guardada escribe una sola vez lo repetido (`comprimirLibro`), así que 24 iguales ya no llenan el tope
+  ok(tamanoBytes(grande) <= LIBRO_TOPE_BYTES && grande.derivaciones[grande.derivaciones.length - 1].id === "D24" && grande.derivaciones.length < 24, "★ si el libro excede 64 KB ceden las derivaciones más viejas y la más nueva se conserva", `${tamanoBytes(grande)} B · ${grande.derivaciones.length}`);
   ok(grande.premisas.length === 0 && grande.criterioVigente === null, "(control) las premisas y el criterio no se tocan");
+}
+
+/* ═══ 20 · LA MEMORIA NO SE PIERDE EN SILENCIO (ensayo 11, owner 2026-10-09) ═══════════════════════════════════════════════════════════════════
+ * «La garantía importante no es el número exacto: no puede haber pérdida silenciosa de hechos por capacidad o por cálculos paralelos. Si se alcanza un límite, el anfitrión debe saberlo antes de utilizar una memoria incompleta.» */
+H("20 · `estadoDeLaMemoria`: íntegra o recortada, con los ids que se fueron y cuánto del tope se usa; un id recortado se contesta con su motivo");
+{
+  const hechos = (n) => Array.from({ length: n }, (_, k) => ({ sujeto: `C${k}`, metrica: "ventas", valor: String(k), unidad: null, periodo: null, origen: "medido" }));
+  let L = libroNuevo({ conversacionId: "m1", versionId: "v1" });
+  L = registrarEntrega(L, { versionId: "v1", temas: ["comercial"], hechos: hechos(40) });
+  L = registrarEntrega(L, { versionId: "v1", temas: ["cobranza"], hechos: hechos(10) });
+  const m0 = estadoDeLaMemoria(L);
+  ok(m0.estado === "integra" && m0.ocupacion === `${Math.round((tamanoBytes(L) * 100) / LIBRO_TOPE_BYTES)} % de 64 KB` && m0.ocupacion === ocupacionDelLibro(L) && !m0.recortadas && Object.keys(m0).join() === "estado,ocupacion", "★ un libro sin recortes: «integra» + la ocupación en una frase («N % de 64 KB»), nada más", JSON.stringify(m0));
+  ok(estadoDeLaMemoria(null) === null && estadoDeLaMemoria(undefined) === null, "sin libro (la conversación no existe) no hay estado que decir");
+
+  /* con un tope que no cabe: la Entrega más vieja cede, y la memoria DICE cuál y qué ids */
+  const justo = tamanoBytes(L) - 400;
+  const R = recortarATope(L, justo);
+  const mR = estadoDeLaMemoria(R, { tope: justo, ahora: [1] });
+  ok(R.entregas[0].recortada === true && R.entregas[0].cifras === 40, "la Entrega E1 quedó como esqueleto y recuerda sus 40 cifras");
+  ok(mR.estado === "recortada" && mR.recortadas.length === 1 && mR.recortadas[0].entrega === "E1" && mR.recortadas[0].ids === "E1.h1–E1.h40" && mR.recortadas[0].motivo === "capacidad" && mR.ahora.join() === "E1" && /id_recortado/.test(mR.aviso), "★ la memoria nombra la Entrega, los ids que perdió (E1.h1–E1.h40), el motivo (capacidad), cuál recortó ESTA llamada y qué pasa si se cita", JSON.stringify(mR));
+  ok(mR.ocupacion === ocupacionDelLibro(R, justo) && /^\d+ % de \d+(\.\d)? KB$/.test(mR.ocupacion), "y la ocupación es la del libro recortado, contra el tope que rige");
+
+  /* un id de la Entrega recortada se contesta con su motivo, nunca «no existe» */
+  const rc = resolverContexto(R, "E1.h3");
+  ok(rc.ok === false && rc.motivo === "id_recortado" && /E1 se recortó por capacidad de la memoria de la conversación/.test(rc.detalle) && /Vuelva a consultarla/.test(rc.detalle) && !/no existe/.test(rc.detalle), "★ citar E1.h3 de una Entrega recortada: «id_recortado» — «la Entrega E1 se recortó por capacidad…; vuelva a consultarla»", JSON.stringify(rc));
+  ok(textoDeRecorte(R, 1, "E1.h3").includes("E1.h3 ya no se conserva"), "la frase nombra el id que se pidió");
+
+  /* más de 12 Entregas: las quitadas del arreglo NO desaparecen sin rastro (el turno avanzó) */
+  let M = libroNuevo({ conversacionId: "m2", versionId: "v1" });
+  for (let i = 0; i < 14; i++) M = registrarEntrega(M, { versionId: "v1", temas: ["comercial"], hechos: hechos(2) });
+  const rM = recortesDelLibro(M);
+  ok(M.entregas.length === ENTREGAS_TOPE && rM.entregas.map((x) => `${x.n}:${x.motivo}`).join() === "1:cantidad,2:cantidad", "★ con 14 Entregas el arreglo guarda 12 y la memoria sabe que E1 y E2 se quitaron por CANTIDAD", JSON.stringify(rM));
+  const mM = estadoDeLaMemoria(M);
+  ok(mM.estado === "recortada" && mM.recortadas.map((x) => x.entrega + "=" + x.ids).join("|") === "E1=todas sus cifras|E2=todas sus cifras", "y lo dice (sin ids que nombrar: «todas sus cifras»)", JSON.stringify(mM));
+  const rq = resolverContexto(M, "E1.h1");
+  ok(rq.ok === false && rq.motivo === "id_recortado" && /se quitó de la memoria de la conversación \(se conservan como máximo 12 Entregas\)/.test(rq.detalle) && !/no existe/.test(rq.detalle), "★ citar E1.h1 (quitada) tampoco es «no existe»: «id_recortado»", rq.detalle);
+  ok(resolverContexto(M, "E99.h1").ok === false && !resolverContexto(M, "E99.h1").motivo, "(control) una Entrega que NUNCA existió sí sigue siendo «no existe»");
+
+  /* las derivaciones que ceden */
+  let D = libroNuevo({ conversacionId: "m3", versionId: "v1" });
+  D = registrarEntrega(D, { versionId: "v1", temas: ["comercial"], hechos: hechos(3) });
+  for (let i = 0; i < DERIVACIONES_TOPE + 3; i++) D = registrarDerivacion(D, { operacion: "suma", sobre: ["E1.h1", "E1.h2"], entidad: `x${i}`, resultado: { raw: i } });
+  const mD = estadoDeLaMemoria(D);
+  ok(mD.estado === "recortada" && mD.derivaciones === "D1–D3" && !mD.recortadas, "★ las derivaciones que cedieron su lugar se listan (D1–D3) sin tocar a las Entregas", JSON.stringify(mD));
+}
+
+H("20b · el recorte prefiere lo que la operación en curso NO usa (`protegidas`); solo si no queda otra cede también lo que usa");
+{
+  const hechos = (n) => Array.from({ length: n }, (_, k) => ({ sujeto: `C${k}`, metrica: "ventas", valor: String(k), unidad: null, periodo: null, origen: "medido" }));
+  let L = libroNuevo({ conversacionId: "p1", versionId: "v1" });
+  for (let i = 0; i < 3; i++) L = registrarEntrega(L, { versionId: "v1", temas: ["comercial"], hechos: hechos(30) });
+  const t2 = tamanoBytes(L) - 300;   /* no cabe: hay que ceder UNA Entrega */
+  const sin = recortarATope(L, t2);
+  ok(sin.entregas.map((e) => e.recortada).join() === "true,false,false", "(control) sin protección cede la más vieja, E1");
+  const con = recortarATope(L, t2, { protegidas: [1] });
+  ok(con.entregas.map((e) => e.recortada).join() === "false,true,false", "★ con E1 protegida cede la siguiente más vieja que la operación NO usa (E2)", JSON.stringify(con.entregas.map((e) => [e.n, e.recortada])));
+  const todas = recortarATope(L, 600, { protegidas: [1, 2, 3] });
+  ok(todas.entregas.every((e) => e.recortada), "y si no cabe ni cediendo todo lo no usado, ceden también las protegidas (la ley dice qué no se toca: premisas y criterio)");
+  /* registrarDerivacion protege las Entregas de las que sale la derivación */
+  const d1 = registrarDerivacion(L, { operacion: "suma", sobre: ["E1.h1", "E1.h2"], entidad: "x", resultado: { raw: 1 } }, { tope: t2 });
+  ok(d1.entregas[0].recortada === false && d1.entregas.slice(1).some((e) => e.recortada), "★ una derivación sobre E1 cede lugar a E2/E3, NO a la Entrega que la sostiene", JSON.stringify(d1.entregas.map((e) => [e.n, e.recortada])));
+  /* encadenada: D1 sale de E3; derivar sobre D1 protege E3 */
+  const c1 = registrarDerivacion(L, { operacion: "suma", sobre: ["E3.h1", "E3.h2"], entidad: "x", resultado: { raw: 1 } });
+  ok([...entregasDeLosIds(c1, ["D1", "E2.h1", "criterio"])].sort().join() === "2,3", "entregasDeLosIds sigue una D<k> hasta las Entregas de las que sale (y ignora «criterio»)");
+}
+
+H("20c · la forma guardada es sin pérdida con los esqueletos nuevos (cifras · apoyo · universos)");
+{
+  const hechos = (n) => Array.from({ length: n }, (_, k) => ({ sujeto: `C${k}`, metrica: "ventas", valor: String(k), unidad: null, periodo: null, origen: "medido" }));
+  let L = libroNuevo({ conversacionId: "g1", versionId: "v1" });
+  for (let i = 0; i < 3; i++) L = registrarEntrega(L, { versionId: "v1", temas: ["comercial"], hechos: hechos(30) });
+  const R = recortarATope(L, tamanoBytes(L) - 300);
+  ok(JSON.stringify(expandirLibro(comprimirLibro(R))) === JSON.stringify(R) && R.entregas[0].recortada && R.entregas[0].cifras === 30, "expandir(comprimir(libro con esqueletos)) es el mismo libro, y el esqueleto conserva su conteo");
 }
 
 console.log(`\n── _continuidad_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);

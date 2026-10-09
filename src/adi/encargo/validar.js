@@ -715,7 +715,7 @@ export function validarEncargo(encargo, ctx = {}) {
   const contextoResuelto = [];
   const conLibro = Object.prototype.hasOwnProperty.call(ctx || {}, "libro");
   if (_es(encargo.contexto)) {
-    const idOk = /^E\d+(?:\.[hu]\d+)?$/;
+    const idOk = /^E\d+(?:\.h\d+|\.u\d+(?:\.\d+)?)?$/;   /* E1 · E1.h3 · E1.u1 · E1.u2.1 (el puesto 1 de una prioridad ordenada: ensayo 11) */
     const idsDeContexto = [encargo.contexto.entregaRef, ...(Array.isArray(encargo.contexto.hechosRef) ? encargo.contexto.hechosRef : []), encargo.contexto.universoRef].filter(_str);
     for (const cid of idsDeContexto) {
       if (!idOk.test(cid)) noResueltoContexto.push(nuevoNoResuelto({ campo: "contexto", valor: cid, motivo: "contexto_mal_formado" }));

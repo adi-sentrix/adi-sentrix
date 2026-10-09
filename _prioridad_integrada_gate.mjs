@@ -720,5 +720,95 @@ H("17 · la cifra de un grupo es del grupo completo: promedios, subtotales, pron
   ok(!arde(V6c.final.texto) && V6c.final.estado === "encargo-compuesto", "el respaldo compuesto («$655K — la más pesada es la de Falabella ($194K)», «6 pagan margen en acciones comerciales (Falabella · Lider)») no arde: la respuesta de la casa sigue sirviéndose entera");
 }
 
+/* ═══ 18 · ENSAYO 11 (owner 2026-10-09): LA PRIORIDAD INTEGRADA SE ENTREGA EN SU ORDEN, NO SOLO LA PRIMERA ═══════════════════════════════════════════════════
+ * A02|1|1: ADI entregó solo el primero de la prioridad (El Roble) y el anfitrión escribió «Le sigue Andes del Sur»: el segundo verdadero era Maipo (Andes iba TERCERO). El conjunto de cuentas que la Entrega declaraba traía a Andes del Sur primero —sin orden— y se leía como un orden.
+ * Owner: «Wherever the integrated priority travels to the host… deliver the ordered list needed, with each one's rank as a fact with id and the criterion/lente, so «le sigue…» can be cited.» La conclusión del procedimiento y las reglas del criterio no se tocan. */
+H("18 · ensayo 11: la Entrega entrega la prioridad ENTERA, en su orden, con su lente y el puesto de cada una como un id citable");
+{
+  const { crearAcciones } = await import("./src/adi/capacidad/acciones.js");
+  const { crearAlmacenEnMemoria } = await import("./src/adi/continuidad/almacen.js");
+  const { compactarParaAnfitrion } = await import("./src/adi/capacidad/compacto.js");
+  const { conTenantActivo } = await import("./src/adi/capacidad/aislamiento.js");
+  const { packRenombrado } = await import("./scripts/medicion-anfitrion/empresa-no-demo.mjs");
+  const { lecturasDe, REGISTRO_LECTURAS } = await import("./src/adi/encargo/lecturasDe.js");
+  const { validarEncargo } = await import("./src/adi/encargo/validar.js");
+  const { asignarIds } = await import("./src/adi/notario/hechos.js");
+  const { ordenPorCriterio } = await import("./src/adi/agente/prioridadIntegrada.js");
+  const { resolverContexto, expandirLibro, comprimirLibro } = await import("./src/adi/continuidad/libro.js");
+  const { componerEntrega } = await import("./src/adi/entrega/componer.js");
+  const PACK = packRenombrado({ version: 1 });
+  const TENANTS = [
+    { et: "demo", T: { id: "demo", nombre: "ADI Demo", dataset: TENANT_DEMO, version: 1, sello: null } },
+    { et: "Río Claro", T: { id: "rioclaro", nombre: "Distribuidora Río Claro", dataset: PACK, version: 1, sello: null } },
+  ];
+  const parte = (id, tema, conceptos, cierre = "lectura") => ({ id, tema, cierre, universo: "negocio", conceptos });
+  const ENC = { version: "encargo/v1", partes: [parte("p1", "comercial", ["ventas", "variacion", "margen", "contribucion"]), parte("p2", "cobranza", ["saldo_pendiente", "saldo_vencido"]), parte("p3", "inventario", ["capital", "capital_inmovilizado", "capital_frenado"])], profundidad: "breve" };
+  /* el ORÁCULO: el procedimiento (prioridadIntegrada / ordenPorCriterio) sobre la boleta de ESA Entrega, sin pasar por el render ni por la declaración del universo */
+  const boletaDe = (T, enc) => conTenantActivo(T.dataset, () => { const { plan } = lecturasDe(validarEncargo(enc, {})); const rp = runPlan(plan, { scenario: ESCENARIO_INICIAL, maxCalls: Math.max(8, plan.calls.length), preguntaUsuario: null, registry: REGISTRO_LECTURAS }); return asignarIds((rp.ledger && rp.ledger.figs) || []); });
+  const ordenIntegradaDe = (T, enc, doms) => conTenantActivo(T.dataset, () => prioridadIntegrada(boletaDe(T, enc), doms).integrada.map((c) => c.entidad));
+  let nombres = {};
+  for (const { et, T } of TENANTS) {
+    const A = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
+    const r = await A.consultar({ tenant: T, encargo: ENC });
+    const c = compactarParaAnfitrion("consultar", r);
+    const u = (c.entrega.universos || []).find((x) => x.orden);
+    const quien = (c.entrega.texto.match(/Quien más pesa en el conjunto, por riesgo integrado: (.+?)(?: —| \()/) || [])[1];
+    const esperado = ordenIntegradaDe(T, ENC, ["comercial", "inventario", "cobranza"]);
+    ok(r.ok && !!u && u.lente === "riesgo", `(${et}) la Entrega declara la prioridad ordenada, con su lente (riesgo)`, JSON.stringify(c.entrega.universos));
+    ok(u && u.orden.map((x) => x.entidad).join("|") === esperado.join("|"), `★ (${et}) el ORDEN que viaja es el del procedimiento sobre la boleta de la Entrega (${esperado.join(" > ")})`, JSON.stringify(u && u.orden));
+    ok(u && u.orden[0].entidad === quien, `★ (${et}) el primer puesto ES la cuenta que la oración «Quien más pesa…» nombra (${quien})`);
+    ok(u && u.orden.every((x, j) => x.id === `${u.id}.${j + 1}`) && !u.orden.some((x) => "puesto" in x), "cada puesto es un id citable `E<n>.u<k>.<puesto>`: el puesto es el último número del id");
+    ok(u && /riesgo integrado/.test(u.texto) && /de la primera cuenta a la última/.test(u.texto), "y el universo dice el criterio y el sentido del orden", u && u.texto);
+    ok(!(c.entrega.universos || []).some((x) => /_prioridad$/.test(x.parte || "")) && !JSON.stringify(c.entrega.universos).includes("Lider − Falabella"), "★ el conjunto sin orden (cuentas con fila en la tabla, con las etiquetas de diferencia) YA NO viaja al anfitrión: era el que se leía como un orden");
+    nombres[et] = { u, esperado };
+  }
+  /* A02|1|1 tal cual: el segundo NO es Andes del Sur */
+  {
+    const { u } = nombres["Río Claro"];
+    ok(u.orden[0].entidad === "Mayorista El Roble" && u.orden[1].entidad === "Centro Constructor Maipo" && u.orden[2].entidad === "Supermercados Andes del Sur", "★ A02|1|1 (Río Claro): 1.º El Roble · 2.º CENTRO CONSTRUCTOR MAIPO · 3.º Andes del Sur — «le sigue Andes del Sur» ya no se puede citar ni inventar", JSON.stringify(u.orden));
+    const d = nombres["demo"].u;
+    ok(d.orden[0].entidad === "Lider" && d.orden[1].entidad === "Falabella", "el caso permanente (demo): Lider primero, Falabella segundo, con el criterio de riesgo integrado");
+  }
+  /* el texto de la Entrega no cambia: lo que se sumó viaja al lado (universos), no en la prosa — el mismo texto con el orden y sin él */
+  {
+    const T = TENANTS[1].T;
+    const t1 = conTenantActivo(T.dataset, () => componerEntrega(validarEncargo(ENC, {})).texto);
+    const A = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
+    const r = await A.consultar({ tenant: T, encargo: ENC });
+    ok(r.entrega.texto === t1 && !/prioridad ordenada|_orden/.test(t1), "★ el TEXTO de la Entrega es el mismo (byte a byte) que el del compositor: el orden viaja en `universos`, no en la prosa");
+    const lib = await (async () => { const st = crearAlmacenEnMemoria(); const AA = crearAcciones({ continuidad: st }); const rr = await AA.consultar({ tenant: T, encargo: ENC }); return { L: await st.leerLibro(T.id, rr.continuidad.conversacionId), AA, id: rr.continuidad.conversacionId }; })();
+    const k = lib.L.entregas[0].universos.findIndex((x) => x.orden);
+    const uo = lib.L.entregas[0].universos[k];
+    ok(k >= 0 && uo.soloRanking === true && uo.orden === "riesgo" && uo.id.endsWith("_prioridad_orden") && Number.isInteger(uo.ejeN), "el libro guarda la prioridad (orden: riesgo, soloRanking: no autoriza cifras de nadie) y el tamaño del eje", JSON.stringify(uo).slice(0, 300));
+    ok(k === lib.L.entregas[0].universos.length - 1, "va AL FINAL de los universos: ningún id posicional existente se mueve");
+    ok(JSON.stringify(expandirLibro(comprimirLibro(lib.L))) === JSON.stringify(lib.L), "la forma guardada del libro es sin pérdida con el universo ordenado");
+    const id = `E1.u${k + 1}`;
+    const p2 = resolverContexto(lib.L, `${id}.2`), p9 = resolverContexto(lib.L, `${id}.9`), noOrd = resolverContexto(lib.L, "E1.u1.1");
+    ok(p2.ok && p2.tipo === "puesto" && p2.puesto === 2 && p2.entidad === "Centro Constructor Maipo" && p2.lente === "riesgo", "★ el puesto 2 (`${id}.2`) se resuelve contra el libro: Centro Constructor Maipo, lente riesgo", JSON.stringify(p2).slice(0, 200));
+    ok(!p9.ok && /tiene 4 puestos/.test(p9.detalle) && !noOrd.ok && /no es una prioridad ordenada/.test(noOrd.detalle), "un puesto que no existe, o de un universo sin orden, se declara");
+    /* citarlo en un turno siguiente (`contexto.universoRef`) lo trae como antecedente */
+    const r2 = await lib.AA.consultar({ tenant: T, encargo: { version: "encargo/v1", conversacionId: lib.id, partes: [{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido"], eje: "cliente", entidades: [{ nombre: "Centro Constructor Maipo" }] }], contexto: { universoRef: `${id}.2` } } });
+    ok(r2.ok && (r2.antecedentes || []).some((a) => a.tipo === "puesto" && a.entidad === "Centro Constructor Maipo") && /puesto 2 de la prioridad por riesgo integrado: Centro Constructor Maipo/.test(r2.entrega.texto), "y citarlo con `contexto.universoRef` en otro turno lo trae tal como se entregó", JSON.stringify(r2.antecedentes || r2.noResuelto).slice(0, 300));
+    /* derivar no confunde un puesto con una cifra */
+    const d = await lib.AA.derivar({ tenant: T, conversacionId: lib.id, operacion: "suma", sobre: [`${id}.1`, `${id}.2`] });
+    ok(d.ok === false && d.motivo === "id_invalido" && /puesto de una prioridad ordenada, no una cifra/.test(d.detalle), "derivar sobre un puesto se rechaza diciendo que es un orden, no una cifra");
+  }
+  /* la lente que el usuario pide gobierna el orden (el criterio del usuario manda): el universo es el de ESA lente y su primero es el de la oración */
+  {
+    const T = TENANTS[1].T;
+    for (const lente of ["credito", "ventas"]) {
+      const enc = { version: "encargo/v1", partes: [parte("p1", "comercial", ["ventas", "margen"], "decision"), parte("p2", "cobranza", ["saldo_vencido"], "decision")], criterio: { lente } };
+      const A = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
+      const r = await A.consultar({ tenant: T, encargo: enc });
+      const c = compactarParaAnfitrion("consultar", r);
+      const u = (c.entrega.universos || []).find((x) => x.orden);
+      const esperado = conTenantActivo(T.dataset, () => ordenPorCriterio(boletaDe(T, enc), ["comercial", "cobranza"], lente).lista.map((x) => x.entidad));
+      const dice = (c.entrega.texto.match(/Prioridad del procedimiento, por [^:]+: ([^,\n]+),/) || [])[1];
+      ok(r.ok && u && u.lente === lente && u.orden.map((x) => x.entidad).join("|") === esperado.slice(0, 10).join("|") && u.orden[0].entidad === dice, `★ criterio del usuario «${lente}»: el orden entregado es el de ESA lente (${esperado.slice(0, 3).join(" > ")}…) y su primero es el de la oración (${dice})`, JSON.stringify(u && u.orden.map((x) => x.entidad)));
+      ok(/entre las \d+ que esta Entrega evalúa \(no todo el eje\)/.test(u.texto), "y dice que ordena las cuentas de la Entrega, no todo el eje", u && u.texto);
+    }
+  }
+}
+
 console.log(`\n── _prioridad_integrada_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
 process.exit(FAIL ? 1 : 0);

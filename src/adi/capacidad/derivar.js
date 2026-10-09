@@ -37,6 +37,7 @@
  * participación entre métricas distintas exige el MISMO dueño («Saldo pendiente − Saldo vencido» de una cuenta): dos métricas y dos dueños a la vez no es una cifra del negocio — `metricas_distintas`; (d) el conteo de
  * DINERO contra una cantidad suelta solo admite 0 (la escala de «5» —¿$5 o $5M?— es ambigua): contra otra cifra entregada (su id) admite cualquier valor. */
 import { cifrasDeLaEntrega, llaveDeCifra } from "../continuidad/revalidar.js";
+import { textoDeRecorte, DERIVACIONES_TOPE } from "../continuidad/libro.js";   /* ensayo 11: un id de lo recortado se contesta `id_recortado` con su motivo, jamás como si no existiera */
 import { formatoDeLaCasa, formatoDeReferencia, DIRECCIONES_DE_TOP, EJES_VALIDOS } from "../notario/hechos.js";
 import { metricaPorClave, metricaDeClave, CLAVES_DE_METRICA, PLURAL_DE_EJE } from "../notario/lexico.js";
 import { normalizar } from "../notario/afirmacion.js";
@@ -52,7 +53,7 @@ export const OPERANDOS_MAX = 40;
 export const MOTIVOS_DE_DERIVACION = Object.freeze([
   "falta_conversacion", "conversacion_inexistente", "otra_empresa",
   "operacion_desconocida", "faltan_operandos", "demasiados_operandos", "derivacion_no_encadenable",
-  "id_invalido", "id_inexistente", "entrega_recortada",
+  "id_invalido", "id_inexistente", "id_recortado",   /* `id_recortado` (ensayo 11, antes `entrega_recortada`): el id es de una Entrega o derivación que la memoria de la conversación ya no conserva (capacidad o cantidad) — vuelva a consultarla */
   "operando_sin_valor_exacto", "operando_no_medido", "operando_repetido", "operando_es_total", "operando_negativo",
   "unidades_distintas", "metricas_distintas", "metrica_no_aditiva", "operando_no_positivo",
   "otro_periodo", "otra_moneda", "otra_carga", MOTIVO_VENTA_POR_BODEGA,
@@ -258,7 +259,7 @@ function _resolverDerivada(libro, indice, idc) {
   const d = (libro && Array.isArray(libro.derivaciones) ? libro.derivaciones : []).find((x) => x && x.id === idc);
   if (!d) {
     const nD = libro && Number.isInteger(libro.nDerivaciones) ? libro.nDerivaciones : 0;
-    if (k >= 1 && k <= nD) return _rechazo("id_inexistente", `la derivación ${idc} ya no se conserva en la conversación (el libro recorta las más viejas): ${idc} no existe`, [idc]);
+    if (k >= 1 && k <= nD) return _rechazo("id_recortado", `la derivación ${idc} se quitó de la memoria de la conversación (se conservan como máximo ${DERIVACIONES_TOPE} derivaciones); vuelva a pedirla con \`derivar\` sobre las cifras entregadas (si ya no están, vuelva a consultarlas)`, [idc]);
     return _rechazo("id_inexistente", `la conversación no tiene la derivación ${idc}: no existe (una derivación solo se encadena sobre una que ADI ya devolvió en esta conversación)`, [idc]);
   }
   const R = d.resultado && typeof d.resultado === "object" ? d.resultado : null;
@@ -272,7 +273,7 @@ function _resolverDerivada(libro, indice, idc) {
   for (const hid of ids) {
     if (!_esIdDeCifra(hid)) return _rechazo("id_inexistente", `la derivación ${idc} no conserva de qué cifras sale: no se puede derivar sobre ella`, [idc]);
     const r = _resolverE(libro, indice, hid);
-    if (!r.ok) return r;
+    if (!r.ok) return r.motivo === "id_recortado" ? { ...r, detalle: `la derivación ${idc} sale de cifras que la memoria de la conversación ya no conserva: ${r.detalle}`, ids: [idc, ...(r.ids || []).filter((x) => x !== idc)] } : r;
     if (!hojas.some((h) => h.id === r.op.id)) hojas.push(r.op);
   }
   if (!hojas.length) return _rechazo("id_inexistente", `la derivación ${idc} no conserva de qué cifras sale: no se puede derivar sobre ella`, [idc]);
@@ -301,6 +302,7 @@ const _entregasDe = (x) => (x.entregaNs ? x.entregaNs : [x.entregaN]);
 
 /* una cifra del libro → un operando con todo lo que la derivación necesita (y nada que haya que volver a calcular) */
 function _resolverE(libro, indice, id) {
+  if (typeof id === "string" && /^E\d+\.u\d+(?:\.\d+)?$/.test(id.trim())) return _rechazo("id_invalido", `${id.trim()} es un universo, o el puesto de una prioridad ordenada, no una cifra: no se suma, no se resta ni se divide. Derive sobre las cifras entregadas (E<n>.h<k>); la prioridad se cita tal cual con su id`, [id.trim()]);
   const m = typeof id === "string" ? (_ID_DE_CIFRA.exec(id.trim()) || _ID_DE_APOYO.exec(id.trim())) : null;
   if (!m) return _rechazo("id_invalido", `«${typeof id === "string" ? id : JSON.stringify(id)}» no es el identificador de una cifra entregada (E<n>.h<k>), de una cifra de apoyo (E<n>.e<k>) ni de una derivación (D<k>): solo se deriva sobre lo que ADI ya entregó en esta conversación`, [String(id)]);
   const idc = id.trim();
@@ -310,10 +312,10 @@ function _resolverE(libro, indice, id) {
   if (!ent) {
     const turno = libro && Number.isInteger(libro.turno) ? libro.turno : 0;
     if (!indice.size) return _rechazo("id_inexistente", `la conversación todavía no tiene ninguna Entrega: ${idc} no existe`, [idc]);
-    if (n >= 1 && n <= turno) return _rechazo("id_inexistente", `la Entrega E${n} ya no se conserva en la conversación (el libro recorta las más viejas): ${idc} no existe`, [idc]);
+    if (n >= 1 && n <= turno) return _rechazo("id_recortado", textoDeRecorte(libro, n, idc), [idc]);
     return _rechazo("id_inexistente", `la conversación no tiene la Entrega E${n}: ${idc} no existe`, [idc]);
   }
-  if (ent.entrega.recortada) return _rechazo("entrega_recortada", `la Entrega E${n} se recortó por tamaño: ya no conserva sus cifras, así que no se puede derivar sobre ${idc}`, [idc]);
+  if (ent.entrega.recortada) return _rechazo("id_recortado", textoDeRecorte(libro, n, idc), [idc]);
   const h = ent.porId.get(idc);
   if (!h && esApoyo && ent.apoyoSinCifra.has(idc)) return _rechazo("operando_sin_valor_exacto", `${idc} es un dato de apoyo sin una cifra sobre la que se derive (un resultado que ADI ya calculó, un conteo o una premisa): derive sobre las cifras de la tabla de las que sale`, [idc]);
   if (!h) return _rechazo("id_inexistente", esApoyo ? `la Entrega E${n} no tiene la cifra de apoyo ${idc}` : `la Entrega E${n} no tiene la cifra ${idc}`, [idc]);
@@ -584,7 +586,32 @@ export function validarDerivacion(libro, pedido, { tenantId = null, deBodega = n
     const deBase = new Set([...(base && (operacion === "participacion" || operacion === "razon") ? _hojasDe(base).map((h) => h.id) : []), ...operandos.flatMap((x) => x.soloBase || [])]);
     soloBase = [...deBase].filter((id) => !deValor.has(id));
   }
-  return { ok: true, operacion, operandos, base, condicion, referencia, linaje, ...(soloBase && soloBase.length ? { soloBase } : {}), ...(cruce ? { cruce } : {}), ...(criterioOp ? { criterio: { valor: criterioOp.raw, unidad: criterioOp.unidad, texto: criterioOp.texto } } : {}), ...(deSupuesto ? { deSupuesto: true, supuestoTxt: _unirSupuestos(todos.filter(_simulada).map((x) => x.supuestoTxt)) || "planteado en la consulta" } : {}), contexto: { versionId: entregas[0].versionId == null ? null : entregas[0].versionId, periodo: _periodoTexto(entregas[0].periodo), moneda: entregas[0].moneda || null } };
+  return { ok: true, operacion, operandos, base, condicion, referencia, linaje, ...(operacion === "conteo" ? { alcance: _alcanceDelConteo(operandos, indice) } : {}), ...(soloBase && soloBase.length ? { soloBase } : {}), ...(cruce ? { cruce } : {}), ...(criterioOp ? { criterio: { valor: criterioOp.raw, unidad: criterioOp.unidad, texto: criterioOp.texto } } : {}), ...(deSupuesto ? { deSupuesto: true, supuestoTxt: _unirSupuestos(todos.filter(_simulada).map((x) => x.supuestoTxt)) || "planteado en la consulta" } : {}), contexto: { versionId: entregas[0].versionId == null ? null : entregas[0].versionId, periodo: _periodoTexto(entregas[0].periodo), moneda: entregas[0].moneda || null } };
+}
+
+/* ═══ 4b · EL ALCANCE DE UN CONTEO (ensayo 11, owner 2026-10-09) ═══════════════════════════════════════════════════════════════════════════════════════════
+ * «El conteo (cumplen/noCumplen) debe decir cuándo se calculó solo sobre los operandos entregados, para que un conjunto parcial no pueda leerse como completo.» C02|1|6: «con ese filtro aparecerían El Roble y Maipo» —sobre los 3 mayores por saldo vencido que el anfitrión había visto— cuando Casa Lomas (281 días) también lo cumplía.
+ * Un conteo de `derivar` cuenta SOLO las cifras que se le indican: `n` = cuántas; `de` = cuántas entidades tiene el EJE entero (lo que el libro guardó al entregar: `universo.ejeN`), cuando todas las cifras salen de una misma Entrega cuyo universo las contiene. Sin `de` (un libro anterior, o cifras de varias Entregas) solo se afirma lo seguro:
+ * que contó las cifras indicadas. Para «cuántos de TODO el eje cumplen» está `consultar` con `universo.filtros`, que evalúa el eje completo y responde «k de N». */
+function _alcanceDelConteo(operandos, indice) {
+  const hojas = operandos.flatMap(_hojasDeValor).filter((h) => h && !h.criterio && Number.isInteger(h.entregaN));
+  const sujetos = new Set(hojas.map((h) => h.entidad).filter(Boolean));
+  const ns = [...new Set(hojas.map((h) => h.entregaN))];
+  let de = null;
+  if (ns.length === 1 && sujetos.size && hojas.length === operandos.length) {
+    const ent = indice.get(ns[0]);
+    const us = ((ent && ent.entrega && ent.entrega.universos) || []).filter((u) => u && u.valido !== false && Number.isInteger(u.ejeN) && Array.isArray(u.entidades) && [...sujetos].every((s) => u.entidades.includes(s)));
+    if (us.length) de = Math.min(...us.map((u) => u.ejeN));
+  }
+  return { n: operandos.length, ...(de != null ? { de } : {}) };
+}
+/** textoDelAlcanceDelConteo(alcance) → la frase con que un conteo dice sobre qué contó (null si la derivación es de antes y no lo guardó) */
+export function textoDelAlcanceDelConteo(al) {
+  if (!al || !Number.isInteger(al.n)) return null;
+  if (Number.isInteger(al.de) && al.n >= al.de) return `Contó las ${al.n} cifras entregadas: son todo el eje (${al.de}).`;
+  const pregunta = "Para saber cuántos de TODO el eje cumplen una condición, consulte con universo.filtros: evalúa el eje completo y responde «k de N».";
+  if (Number.isInteger(al.de)) return `Contó solo sobre las ${al.n} cifras entregadas, no sobre todo el eje (${al.de} en total): quien no está entre esas cifras no se cuenta ni se descarta. ${pregunta}`;
+  return `Contó solo sobre las ${al.n} cifras entregadas que se indicaron: no consultó el resto del eje. ${pregunta}`;
 }
 
 /* ═══ 5 · CALCULAR (con su rótulo) ════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
@@ -640,6 +667,7 @@ export function derivacionParaElLibro(pedido, v, c) {
     ...(v.soloBase && v.soloBase.length ? { soloBase: v.soloBase } : {}),
     ...(v.base ? { base: v.base.id } : {}), ...(v.condicion ? { condicion: { op: v.condicion.op, valor: v.condicion.valor } } : {}),
     ...(v.criterio ? { criterio: v.criterio } : {}),
+    ...(v.alcance ? { alcance: v.alcance } : {}),   /* ensayo 11: sobre cuántas cifras contó un conteo (y de cuántas es el eje) */
     ...(v.deSupuesto ? { deSupuesto: true, supuestoTxt: v.supuestoTxt } : {}),   /* ensayo 9: sale de un resultado simulado; con el supuesto, en palabras */
     resultado: c.resultado, entidad: c.entidad, metrica: c.metrica,
     versionId: v.contexto.versionId, periodo: v.contexto.periodo, moneda: v.contexto.moneda,
@@ -698,6 +726,7 @@ export function describirDerivacion(d, operandosPorId) {
     const c = d.condicion || {};
     const ref = typeof c.valor === "string" ? rot(c.valor) : (_finito(c.valor) ? formatoDeLaCasa(c.valor, _unidadDeLoImpreso((O.get(d.sobre[0]) || {}).valor)) : "");
     t = `${M}: cuántas de las ${d.sobre.length} cifras (${_enumerar(nombres)}) son ${_FRASE_DE_OPERADOR[c.op] || c.op} ${ref}`.trim();
+    if (d.alcance && !(Number.isInteger(d.alcance.de) && d.alcance.n >= d.alcance.de)) t = `${t}, solo sobre esas cifras${Number.isInteger(d.alcance.de) ? " (no todo el eje)" : ""}`;   /* ensayo 11 */
   }
   if (d.deSupuesto && d.supuestoTxt) t = `${t}, bajo el supuesto ${d.supuestoTxt}`;
   const corte = d.deSupuesto ? _CORTE_DE_DESCRIPCION_SIMULADA : _CORTE_DE_DESCRIPCION;
@@ -727,6 +756,7 @@ export function respuestaDeLaDerivacion(d, operandosPorId) {
   }
   if (d.base) out.base = pos(d.base);
   if (d.condicion) out.condicion = { op: d.condicion.op, valor: d.condicion.valor, ...(typeof d.condicion.valor === "string" ? { referencia: pos(d.condicion.valor) } : {}) };
+  if (d.operacion === "conteo" && d.alcance) out.alcance = textoDelAlcanceDelConteo(d.alcance);   /* ensayo 11: sobre qué contó */
   if (d.operacion === "conteo" && Array.isArray(r.cumplen)) {
     const set = new Set(r.cumplen);
     out.cumplen = d.sobre.filter((_, i) => set.has(i));

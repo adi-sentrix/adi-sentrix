@@ -507,8 +507,9 @@ H("9 · `componer.js` con la capa ACTIVA: ninguna frase dice que no se aplica co
   const PIN = {
     /* CIFRAS FIJADAS DEL DEMO, RE-FIJADAS (una sola realidad, owner 2026-10-06, diseño §6.5 ii): los ocho hashes llevan las cifras de las TABLAS corregidas (§2 a–d) y los dos efectos de diseño sobre el libro (Makita ahora tiene variación vs año anterior → una fila más en rankings.marca.variacion; la variación de La Polar y la de Ripley cambian de orden en la fila YoY: «cede más» es La Polar). Medido con el árbol del HEAD (98ad5c03) contra el actual, las ocho salidas completas: fuera de las cifras, lo único que cambia es eso (la fila de Makita y el intercambio Ripley↔La Polar en las cifras YoY del libro). */
     /* MARCA Y FAMILIA = LA SUMA DE SUS SKU (owner 2026-10-06, §2-bis): los ocho hashes se RE-FIJAN otra vez. Medido contra el árbol del commit cd16580a (mismas ocho salidas, capa apagada): fuera de las cifras lo único que cambia es el ORDEN de las dos primeras filas de cada ranking de marca del libro (Philips pasa a la primera: la tabla de marca se sirve ordenada por contribución). */
-    demo: { BrechaComercial: "7a7d0d3fe6764e44", Cobranza: "8b005a18dff8d5b9", Inventario: "ac8180f388cfe6fe", Multidominio: "b8064d4586ffa260" },
-    completo: { BrechaComercial: "74e68edb85b73f40", Cobranza: "d9598a6c263bfe9c", Inventario: "bbf0fd917a969059", Multidominio: "ded2566fca2289f7" },
+    /* ENSAYO 11 (owner 2026-10-09): los dos hashes de Multidominio se RE-FIJAN. Causa ÚNICA, medida: la ruta fija declara además el universo `prioridad_integrada_orden` (la prioridad entera, en su orden: `soloRanking`, no autoriza cifras de nadie). Quitado ese universo de la salida, el hash es EXACTAMENTE el de antes (demo b8064d4586ffa260 · completo ded2566fca2289f7): el texto, las cifras y el libro no cambian un byte. */
+    demo: { BrechaComercial: "7a7d0d3fe6764e44", Cobranza: "8b005a18dff8d5b9", Inventario: "ac8180f388cfe6fe", Multidominio: "6f8f33a7cead3633" },
+    completo: { BrechaComercial: "74e68edb85b73f40", Cobranza: "d9598a6c263bfe9c", Inventario: "bbf0fd917a969059", Multidominio: "ccd22da711518d47" },
   };
   const EMP = { demo: TENANT_DEMO, completo: TENANT_C };
   const FALSA = /no aplica conocimiento del oficio|todavía no está construido|Sin conocimiento del sector cargado|aunque el catálogo lo tuviera/i;

@@ -358,7 +358,7 @@ H("6 · carnadas del libro: sin valor exacto o sin encargo no hay veredicto; un 
   // f · UNA Entrega recortada por tamaño no se revalida y se dice
   const recortada = clon(base); recortada.entregas[0] = { n: 1, turno: 1, versionId: 1, temas: ["comercial"], recortada: true };
   const rG = await correr(recortada);
-  ok(rG.ret.hechos.every((h) => !h.id.startsWith("E1.")) && rG.ret.advertencias.some((a) => /E1 se recortó por tamaño/.test(a)), "una Entrega recortada por el tope del libro no tiene hechos que revalidar y se declara en las advertencias");
+  ok(rG.ret.hechos.every((h) => !h.id.startsWith("E1.")) && rG.ret.advertencias.some((a) => /Entrega E1 se recortó por capacidad de la memoria de la conversación/.test(a) && /vuelva a consultarla/.test(a)) && rG.ret.memoria && rG.ret.memoria.estado === "recortada" && rG.ret.memoria.recortadas[0].entrega === "E1", "una Entrega recortada por el tope del libro no tiene hechos que revalidar y se declara en las advertencias (ensayo 11: «se recortó por capacidad… vuelva a consultarla») y en `memoria`");
 
   // g · UNA Entrega que el Core ya no puede resolver (la cuenta salió de los datos) → sin_reverificar, JAMÁS ya_no_existe
   const sH = crearAlmacenEnMemoria();
@@ -577,7 +577,7 @@ H("9 · auditorías de código: retomar no escribe, ADI no reconoce frases, la c
   ok(reconocedores.length === 0, "★ la revalidación no lleva una sola regex ni `match`: ADI no reconoce frases — compara estructuras tipadas", jj(reconocedores));
   ok(!/node:/.test(["./src/adi/continuidad/revalidar.js", "./src/adi/continuidad/retomar.js", "./src/adi/continuidad/estadoVigente.js", "./src/adi/continuidad/libro.js"].map((p) => (fs.readFileSync(p, "utf8").match(/^\s*import\s[^;]*from\s*["'][^"']+["'];?/gm) || []).join("\n")).join("\n")), "la cadena de la puerta sigue sin `node:*` (corre en el borde)");
   ok(!/\bfetch\b|https?:\/\//.test(rev) && !/Math\.random|Date\.now|new Date/.test(rev), "revalidar.js es puro: sin red, sin reloj, sin azar");
-  ok(LIBRO_TOPE_BYTES === 16384, "el tope del libro SIGUE en 16 KB: lo exige la base (migración 015: check pg_column_size(estado) <= 16384), y subirlo pide una migración nueva, no un cambio de constante");
+  ok(LIBRO_TOPE_BYTES === 65536, "el tope del libro es 64 KB desde el ensayo 11 (owner 2026-10-09): lo exige la base y por eso lo sube una migración NUEVA (la 016: check pg_column_size(estado) <= 65536; la 015 no se edita), no solo un cambio de constante — `_migracion_015_gate` compara el literal de la 016 con este");
 }
 
 console.log(`\n── _retomar_revalida_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);

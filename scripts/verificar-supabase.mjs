@@ -426,9 +426,9 @@ if (!mig["015"]) {
       console.log(`  · el Historial NO se puede verificar: la empresa «${EMPRESA}» no es plan pro (el Historial es de pago). Para probarlo: update public.tenants set plan = 'pro' where id = '${EMPRESA}';`);
     }
 
-    // — el tope de 16 KB —
-    const grande = await db.llamarFuncion("adi_guardar_estado_conversacion", { p_hilo_id: `${HILO}-grande`, p_estado: { version: "libro/v1", conversacionId: `${HILO}-grande`, relleno: "x".repeat(20000) }, p_actor_id: null, p_actor_label: null, p_actor_rol: null }, { pase });
-    chequeo(!grande.ok && /16KB|tamaño|check/i.test(_txt(grande)), "un libro de más de 16 KB se rechaza (la base lo respalda aunque el código se olvide de recortar)", _txt(grande).slice(0, 200));
+    // — el tope de 64 KB (migración 016; la 015 lo ponía en 16 KB) —
+    const grande = await db.llamarFuncion("adi_guardar_estado_conversacion", { p_hilo_id: `${HILO}-grande`, p_estado: { version: "libro/v1", conversacionId: `${HILO}-grande`, relleno: "x".repeat(70000) }, p_actor_id: null, p_actor_label: null, p_actor_rol: null }, { pase });
+    chequeo(!grande.ok && /64KB|16KB|tamaño|check/i.test(_txt(grande)), "un libro de más de 64 KB se rechaza (la base lo respalda aunque el código se olvide de recortar)", _txt(grande).slice(0, 200));
 
     // — EL MURO: lo único que un doble no puede probar —
     console.log("\n  EL MURO · un pase de OTRA empresa no alcanza esta memoria ni este libro");

@@ -9,12 +9,17 @@
  *       ni `ToolSearch`, ni nada más;
  *   2 · el único servidor MCP conectado es `adi`;
  *   3 · no hay skills, agentes ni plugins cargados (son instrucciones ajenas);
- *   4 · ningún `tool_use` del modelo llama a algo que no sea una de las cuatro acciones;
+ *   4 · ningún `tool_use` del modelo llama a algo que no sea una de las cuatro acciones — SALVO UNA EXCEPCIÓN DECLARADA (owner 2026-10-09, opción A, ensayo 11):
+ *       el nombre de una acción de ADI SIN el prefijo del servidor («derivar» en vez de «mcp__adi__derivar») que el CLI rechazó ANTES de ejecutarla
+ *       (el `tool_result` de ese `tool_use` es un error «No such tool available») no ejecutó ninguna herramienta ni alteró ningún dato: se registra como
+ *       OBSERVACIÓN de la corrida («llamada mal dirigida, rechazada sin ejecutar»), no la anula. Cualquier OTRA herramienta ajena (Bash, Read…) o cualquier
+ *       llamada ajena que no se pueda probar rechazada (sin su error en el stream, o ejecutada) sigue anulándola. El anfitrión que después le diga a la persona
+ *       que la herramienta «no estaba disponible» comete un error SUYO (no de ADI): la revisión humana lo clasifica como tal (`_ADI_DISENO_MEDICION_ANFITRION.md` §6);
  *   5 · ningún mensaje de usuario trae texto que el arnés no mandó (system reminders, CLAUDE.md, memoria, hooks);
  *   6 · ningún evento de hook;
  *   7 · la carpeta de trabajo es la carpeta VACÍA del arnés;
  *   8 · el modelo del `init` es el pedido (un cambio de modelo invalida).
- * Cada hallazgo dice qué regla rompió y con qué evidencia. Una sola infracción anula la corrida. */
+ * Cada hallazgo dice qué regla rompió y con qué evidencia. Una sola infracción anula la corrida. Las OBSERVACIONES (`observaciones[]`) no anulan: se informan. */
 import { nombresMcpDelCli } from "./instruccion.mjs";
 
 const _blocks = (m) => (m && Array.isArray(m.content) ? m.content : (m && typeof m.content === "string" ? [{ type: "text", text: m.content }] : []));
@@ -26,8 +31,21 @@ const _AJENO = /<system-reminder>|claudeMd|CLAUDE\.md|# auto memory|MEMORY\.md|<
 export const RESIDUO_ACEPTADO = Object.freeze(["cc-plugin-agents-md", "cc-plugin-plugin-authoring"]);
 export const AGENTES_ACEPTADOS = Object.freeze(["claude", "Explore", "general-purpose", "Plan", "statusline-setup"]);
 const _NOMBRE_RESIDUO = /agents-md|plugin-authoring|"subagent_type"|"name":"(Agent|Task)"|statusline-setup|general-purpose/i;
+/* el nombre desnudo de cada acción de ADI («derivar» para `mcp__adi__derivar`): lo único que puede ser una llamada mal dirigida (y no una herramienta ajena) */
+const _PREFIJO = "mcp__adi__";
+const _RECHAZO_DEL_CLI = /No such tool available/i;
 export function chequearLimpieza({ eventos = [], enviados = [], modelo = null, dirTrabajo = null } = {}) {
   const hallazgos = [];
+  const observaciones = [];
+  const desnudas = new Set(nombresMcpDelCli().map((n) => n.slice(_PREFIJO.length)));
+  /* los `tool_result` por id: con ellos se prueba que una llamada con nombre desnudo fue RECHAZADA por el CLI antes de ejecutarse */
+  const resultados = new Map();
+  for (const e of eventos) if (e && e.type === "user") for (const b of _blocks(e.message)) if (b && b.type === "tool_result" && b.tool_use_id) resultados.set(b.tool_use_id, b);
+  const rechazadaSinEjecutar = (b) => {
+    if (!desnudas.has(b.name)) return false;
+    const r = resultados.get(b.id);
+    return Boolean(r && r.is_error === true && _RECHAZO_DEL_CLI.test(typeof r.content === "string" ? r.content : JSON.stringify(r.content || "")));
+  };
   const h = (regla, detalle) => hallazgos.push({ regla, detalle });
   const permitidas = new Set(nombresMcpDelCli());
   const enviadosSet = new Set(enviados.map((t) => String(t).trim()));
@@ -79,7 +97,10 @@ export function chequearLimpieza({ eventos = [], enviados = [], modelo = null, d
     if (!(e.type === "system" && e.subtype === "init") && _NOMBRE_RESIDUO.test(JSON.stringify(e))) h("residuo_intervino", "un plugin incluido aceptado como residuo (agents-md / plugin-authoring) aparece en la sesión: la corrida se anula");
     if (e.type === "assistant") {
       for (const b of _blocks(e.message)) {
-        if (b.type === "tool_use" && !permitidas.has(b.name)) h("tool_use_ajeno", `el modelo llamó a «${b.name}», que no es una acción de ADI`);
+        if (b.type === "tool_use" && !permitidas.has(b.name)) {
+          if (rechazadaSinEjecutar(b)) observaciones.push({ regla: "llamada_mal_dirigida", herramienta: b.name, detalle: `el modelo llamó a «${b.name}» sin el prefijo del servidor (${_PREFIJO}${b.name}): el CLI la rechazó antes de ejecutarla («No such tool available») — llamada mal dirigida, rechazada sin ejecutar; no se ejecutó ninguna herramienta ni se alteró ningún dato` });
+          else h("tool_use_ajeno", `el modelo llamó a «${b.name}», que no es una acción de ADI`);
+        }
         if (b.type === "text" && _AJENO.test(String(b.text || ""))) h("texto_ajeno_en_respuesta", "la respuesta del modelo cita instrucciones ajenas (reminders / CLAUDE.md / memoria)");
       }
     }
@@ -97,5 +118,8 @@ export function chequearLimpieza({ eventos = [], enviados = [], modelo = null, d
   // sin duplicados exactos (un mismo hallazgo repetido por cada turno no agrega información)
   const vistos = new Set(); const unicos = [];
   for (const x of hallazgos) { const k = `${x.regla}|${x.detalle}`; if (!vistos.has(k)) { vistos.add(k); unicos.push(x); } }
-  return { limpia: unicos.length === 0, hallazgos: unicos, residuos: init ? { herramientas: init.tools || [], mcp_servers: init.mcp_servers || [], slash_commands: init.slash_commands || [], cwd: init.cwd || null, model: init.model || null, permissionMode: init.permissionMode || null, claude_code_version: init.claude_code_version || null, apiKeySource: init.apiKeySource || null } : null };
+  /* las observaciones no anulan; se cuentan por herramienta (una entrada por nombre, con cuántas llamadas fueron) */
+  const porHerramienta = new Map();
+  for (const o of observaciones) { const k = `${o.regla}|${o.herramienta}`; const x = porHerramienta.get(k); if (x) x.llamadas += 1; else porHerramienta.set(k, { ...o, llamadas: 1 }); }
+  return { limpia: unicos.length === 0, hallazgos: unicos, observaciones: [...porHerramienta.values()], residuos: init ? { herramientas: init.tools || [], mcp_servers: init.mcp_servers || [], slash_commands: init.slash_commands || [], cwd: init.cwd || null, model: init.model || null, permissionMode: init.permissionMode || null, claude_code_version: init.claude_code_version || null, apiKeySource: init.apiKeySource || null } : null };
 }

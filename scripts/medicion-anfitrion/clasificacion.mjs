@@ -9,6 +9,9 @@
  * CONVENCIÓN DE MEDICIÓN (owner 2026-10-08 · es de DOCUMENTACIÓN: ningún cálculo cambia; el diseño completo está en `_ADI_DISENO_MEDICION_ANFITRION.md` §6):
  *   · MATERIAL (H-grave, y A cuando la Entrega indujo el error) = un error que cambiaría una conclusión o una cifra sobre la que el usuario actuaría.
  *   · LEVE (H-leve) = un error DENTRO de una hipótesis explícita, una autocorrección en la misma respuesta, o una imprecisión de orden que no cambia la conclusión.
+ *   · UNA LLAMADA MAL DIRIGIDA (owner 2026-10-09, ensayo 11 · `limpieza.mjs`, `_ADI_DISENO_MEDICION_ANFITRION.md` §6): el anfitrión que llama a una acción de ADI sin el prefijo del servidor («derivar») y el CLI la rechaza sin ejecutar nada deja una OBSERVACIÓN de la corrida, no una anulación.
+ *     Si después le dice a la persona que la herramienta «no estaba disponible» (o que ADI no pudo calcular algo que nunca pidió bien), esa frase es un error del ANFITRIÓN, no de ADI: se clasifica con el subtipo `herramienta_no_disponible_falso`
+ *     (familia «afirmación no sostenida»; H-leve si la persona igual recibió la cifra por otro camino, H-grave solo si la frase le hace actuar sobre una conclusión equivocada). Nunca es un caso A.
  * NADA acá llama a un modelo. Es lectura de datos de la persona, con una sola regla de fondo: lo que la persona clasificó manda sobre la máquina. */
 
 const _plano = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -26,7 +29,7 @@ export const FAMILIAS_DE_ERROR = Object.freeze([
   ["causalidad sin respaldo", /causal|porque|causa_/],
   ["cifra sin respaldo", /no_traza|inventad|sin_respaldo|cifra_/],
   ["umbral redondeado", /umbral|redondead/],
-  ["afirmación no sostenida", /no_sostenid|autocontradich|exagerad|generaliz|omision|cuantificador|ejemplos_presentados/],
+  ["afirmación no sostenida", /no_sostenid|autocontradich|exagerad|generaliz|omision|cuantificador|ejemplos_presentados|herramienta_no_disponible/],
   ["continuidad", /pasado_reescrito|cambio_no_avisado|cambio_inventado/],
 ]);
 /** familiaDeError(subtipoOVeredicto) → la familia («conteo», «dueño distinto»…) o el propio subtipo si no cae en ninguna. */

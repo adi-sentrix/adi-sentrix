@@ -1058,6 +1058,41 @@ ok(chequearLimpieza({ eventos: [initOk], modelo: "claude-sonnet-5-5", dirTrabajo
 ok(chequearLimpieza({ eventos: [{ ...initOk, apiKeySource: CLAVE }] }).hallazgos.some((h) => h.regla === "gasto_por_api"), "★ limpieza: si el CLI autentica con una API key, el ensayo estaría gastando API → se anula");
 ok(chequearLimpieza({ eventos: [{ ...initOk, cwd: "C:/otra" }], dirTrabajo: "C:/x" }).hallazgos.some((h) => h.regla === "carpeta_distinta") && chequearLimpieza({ eventos: [{ ...initOk, model: "claude-opus-5" }], modelo: "claude-sonnet-5-5" }).hallazgos.some((h) => h.regla === "modelo_distinto"), "limpieza: otra carpeta de trabajo u otro modelo se detecta");
 ok(chequearLimpieza({ eventos: [] }).hallazgos[0].regla === "sin_init" && chequearLimpieza({ eventos: [initOk, { type: "user", message: { role: "user", content: [{ type: "text", text: "texto que el arnés no mandó" }] } }], enviados: ["hola"] }).hallazgos.some((h) => h.regla === "texto_de_usuario_no_enviado"), "limpieza: sin init no se puede verificar, y un texto de usuario que el arnés no mandó es ajeno");
+/* ═════ H2 · LA LLAMADA MAL DIRIGIDA ES UNA OBSERVACIÓN, NO UNA ANULACIÓN (owner 2026-10-09, opción A · ensayo 11, C04_s1) ═════
+ * El ensayo 11 se anuló porque el modelo llamó a «derivar» (sin `mcp__adi__`) y el CLI lo rechazó («No such tool available») SIN ejecutar nada.
+ * Fixture: los 5 eventos reales del `stream.jsonl` de esa sesión. Regla: un nombre de acción de ADI sin prefijo que el CLI rechazó antes de ejecutar
+ * es una observación; cualquier otra herramienta ajena, o una llamada ajena que no se pueda probar rechazada, sigue anulando. */
+seccion("H2 · la llamada mal dirigida (nombre sin prefijo, rechazada por el CLI sin ejecutar) es una OBSERVACIÓN de la corrida");
+{
+  const FX = JSON.parse(fs.readFileSync(new URL("./fixtures/medicion-anfitrion/ensayo-11-C04_s1-llamada-mal-dirigida.json", import.meta.url), "utf8"));
+  const ev = FX.eventos;
+  ok(ev.length === 5 && ev[0].subtype === "init" && ev.filter((e) => e.type === "assistant").every((e) => e.message.content.every((b) => b.type !== "tool_use" || b.name === "derivar")) && ev.filter((e) => e.type === "user").every((e) => e.message.content[0].is_error === true && /No such tool available: derivar/.test(e.message.content[0].content)), "el fixture son los eventos REALES de C04_s1: dos llamadas a «derivar» y sus dos errores «No such tool available» del CLI");
+  const R = chequearLimpieza({ eventos: ev, modelo: "claude-sonnet-5-5", enviados: [] });
+  ok(R.limpia === true && R.hallazgos.length === 0, "★ la corrida con el stream REAL de C04_s1 queda LIMPIA (antes se anulaba por `tool_use_ajeno`)", JSON.stringify(R.hallazgos));
+  ok(Array.isArray(R.observaciones) && R.observaciones.length === 1 && R.observaciones[0].regla === "llamada_mal_dirigida" && R.observaciones[0].herramienta === "derivar" && R.observaciones[0].llamadas === 2 && /rechazada sin ejecutar/.test(R.observaciones[0].detalle) && /No such tool available/.test(R.observaciones[0].detalle), "y deja UNA observación «llamada mal dirigida, rechazada sin ejecutar» con las dos llamadas contadas", JSON.stringify(R.observaciones));
+  const tuUso = (id, name, input = {}) => ({ type: "assistant", message: { role: "assistant", content: [{ type: "tool_use", id, name, input }] } });
+  const resultado = (id, content, is_error) => ({ type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content, ...(is_error === undefined ? {} : { is_error }) }] } });
+  const init = ev[0];
+  const anula = (eventos) => { const r = chequearLimpieza({ eventos, modelo: "claude-sonnet-5-5" }); return !r.limpia && r.hallazgos.some((h) => h.regla === "tool_use_ajeno"); };
+  /* CARNADAS: lo que NO es una observación sigue anulando */
+  ok(anula([init, tuUso("t1", "Bash", { command: "ls" }), resultado("t1", "<tool_use_error>Error: No such tool available: Bash</tool_use_error>", true)]), "★ CARNADA · otra herramienta ajena (Bash), aunque el CLI también la rechace, ANULA");
+  ok(anula([init, tuUso("t1", "Read", { file_path: "x" }), resultado("t1", "contenido", false)]), "★ CARNADA · una herramienta ajena que EJECUTÓ (Read) ANULA");
+  ok(anula([init, tuUso("t1", "derivar", { operacion: "suma" }), resultado("t1", "{\"ok\":true,\"hecho\":{\"id\":\"D1\"}}", false)]), "★ CARNADA · «derivar» sin prefijo CON un resultado que no es el rechazo del CLI (alguien ejecutó algo) ANULA");
+  ok(anula([init, tuUso("t1", "derivar", { operacion: "suma" })]), "★ CARNADA · «derivar» sin prefijo SIN resultado en el stream (no se puede probar que no ejecutó) ANULA");
+  ok(anula([init, tuUso("t1", "derivar", { operacion: "suma" }), resultado("t1", "Error: permission denied", true)]), "★ CARNADA · un error que no es «No such tool available» no prueba el rechazo previo a la ejecución: ANULA");
+  ok(anula([init, tuUso("t1", "derivar"), resultado("t1", "<tool_use_error>Error: No such tool available: derivar</tool_use_error>", true), tuUso("t2", "Bash", { command: "ls" }), resultado("t2", "x", false)]), "★ CARNADA · una llamada mal dirigida NO tapa a una herramienta ajena de la misma sesión: ANULA");
+  ok(anula([init, tuUso("t1", "consultarTodo"), resultado("t1", "<tool_use_error>Error: No such tool available: consultarTodo</tool_use_error>", true)]), "★ CARNADA · un nombre que ni siquiera es una acción de ADI (con o sin prefijo) ANULA");
+  /* las cinco acciones, sin prefijo, rechazadas: cada una es observación; con prefijo y bien escritas no hay nada que observar */
+  const cinco = ["conocerEmpresa", "consultar", "aportarContexto", "retomar", "derivar"];
+  const rs = chequearLimpieza({ eventos: [init, ...cinco.flatMap((n, i) => [tuUso(`c${i}`, n), resultado(`c${i}`, `<tool_use_error>Error: No such tool available: ${n}</tool_use_error>`, true)])], modelo: "claude-sonnet-5-5" });
+  ok(rs.limpia && rs.observaciones.map((o) => o.herramienta).sort().join() === [...cinco].sort().join(), "las cinco acciones de ADI sin prefijo y rechazadas son observaciones (y quedan nombradas)");
+  ok(chequearLimpieza({ eventos: [init, tuUso("t1", "mcp__adi__derivar"), resultado("t1", "{}", false)], modelo: "claude-sonnet-5-5" }).observaciones.length === 0, "una llamada bien dirigida no deja observación");
+  /* el informe lo dice: la observación viaja al cierre de la corrida y al informe, y NO es una invalidación */
+  const InfObs = baseInf({ limpieza: [{ hilo: "A01", sesion: 1, limpia: true, hallazgos: [], observaciones: R.observaciones }] });
+  ok(Array.isArray(InfObs.observaciones) && InfObs.observaciones.length === 1 && InfObs.observaciones[0].regla === "llamada_mal_dirigida" && InfObs.observaciones[0].hilo === "A01" && InfObs.observaciones[0].sesion === 1 && !InfObs.invalidaciones.some((v) => /limpieza/.test(v)), "★ el informe lista la observación (hilo, sesión, herramienta, llamadas) y NO la cuenta como invalidación", JSON.stringify({ o: InfObs.observaciones, inv: InfObs.invalidaciones }));
+  { const { familiaDeError: fam } = await import(D + "clasificacion.mjs"); ok(fam("herramienta_no_disponible_falso") === "afirmación no sostenida", "★ la frase del anfitrión «la herramienta no estaba disponible» se clasifica como error del ANFITRIÓN (familia «afirmación no sostenida», subtipo herramienta_no_disponible_falso), nunca de ADI"); }
+  ok(/Observaciones de la corrida/.test(informeEnMarkdown(InfObs)) && /llamada mal dirigida/.test(informeEnMarkdown(InfObs)), "y el informe en Markdown tiene su sección «Observaciones de la corrida»");
+}
 // la carpeta de trabajo aislada
 const existe = (set) => (p) => set.has(path.resolve(p));
 const R0 = path.resolve("/tmp-x/a/b");

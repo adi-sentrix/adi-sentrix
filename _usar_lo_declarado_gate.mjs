@@ -159,7 +159,7 @@ H("3 · el contraste declarado/medido y la cita contra el libro: pieza por pieza
   ok(/E1.h99 no existe/.test(motivo("E1.h99")) && /E1.h1 a E1.h2/.test(motivo("E1.h99")) && /E2 no tiene hechos/.test(motivo("E2.h1")) && /E1.u9 no existe/.test(motivo("E1.u9")), "un hecho o un universo que esa Entrega no tiene: dice qué sí tiene", motivo("E1.h99") + " | " + motivo("E2.h1"));
   ok(/falta el conversacionId/.test(motivo("E1", null)) && /todavía no tiene ninguna Entrega/.test(motivo("E1", libroNuevo({ conversacionId: "c2" }))), "sin libro (no hay conversacionId o no existe), o con un libro vacío: motivo claro");
   const recortado = { ...libro, entregas: [{ n: 1, turno: 1, versionId: 3, temas: ["cobranza"], recortada: true }, libro.entregas[1]] };
-  ok(RC("E1", recortado).ok && RC("E1", recortado).entrega.recortada === true && /se recortó por tamaño/.test(motivo("E1.h1", recortado)), "una Entrega recortada por tamaño se cita (conserva sus temas y su carga) pero sus hechos ya no, y lo dice");
+  ok(RC("E1", recortado).ok && RC("E1", recortado).entrega.recortada === true && /se recortó por capacidad de la memoria de la conversación/.test(motivo("E1.h1", recortado)) && /Vuelva a consultarla/.test(motivo("E1.h1", recortado)), "una Entrega recortada por capacidad se cita (conserva sus temas y su carga) pero sus hechos ya no, y lo dice (ensayo 11: «se recortó por capacidad de la memoria de la conversación… vuelva a consultarla»)");
   ok(/ya no se conserva/.test(motivo("E1", { ...libro, entregas: [libro.entregas[1]] })), "una Entrega que el libro ya quitó por el tope de 12 lo dice (no «no existe»)");
   ok(!RC("zzz").ok && !RC(null).ok, "un id que no tiene la forma de una referencia no resuelve");
   // la cita no muta el libro y trae copias
