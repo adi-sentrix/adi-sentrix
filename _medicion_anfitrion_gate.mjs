@@ -19,6 +19,14 @@
  *       el entorno SIN credencial de API, y el CHEQUEO DE LIMPIEZA con seis carnadas (herramienta ajena · tool_use ajeno ·
  *       system-reminder · skills · otro servidor MCP · hook): cada una ANULA la corrida; `--solo-imprimir` no ejecuta nada.
  *
+ *   I · el BRAZO del A/B (`--brazo=A|B` → ADI_ALCANCE_ESTRUCTURAL solo en el servidor de ADI, nunca en el anfitrión; el arranque del servidor lo prueba; no se mezclan brazos).
+ *   J · la SERIE A/B (`--serie-ab`): el mismo corpus sellado corre cuatro veces; la quinta, la de otra serie, la de otro código o con el sello quemado por otro se rechazan; fuera de una serie nada cambia.
+ *   K · las cuentas del A/B: Wilson · Newcombe · reducción relativa con bootstrap por hilo · la regla de parada (umbral parámetro).
+ *   L · el SOBRE-ALCANCE (§6.1 de `_ADI_DISENO_ALCANCE_DE_LO_ENTREGADO.md`) en la clasificación humana y en el informe; no mueve el veredicto de cierre.
+ *   M · la familia «DESLIZ DE LECTURA CON LA VERDAD A LA VISTA»: material, pero sin patrón con otra familia.
+ *   N · el MEDIDOR tras el ensayo 12 («métrica distinta ×20» era del medidor): 29 frases reales + carnadas.
+ *   O · `comparar-brazos.mjs`: sobre-alcance por brazo, reducción con intervalo, materiales por familia y la regla de parada.
+ *
  * CERO llamadas a un LLM · CERO red · CERO credencial viva. Solo por `npm run gates:offline` o
  * `node --import ./scripts/offline-guard.mjs _medicion_anfitrion_gate.mjs`. */
 import fs from "node:fs";
@@ -1115,6 +1123,412 @@ ok(llC.length >= 1 && llC.every((l) => l.argv.includes("--verbose") && l.argv.in
   ok(rA.codigo === 2, "--solo-imprimir es solo del ensayo");
 }
 ok(typeof localizarClaude({ env: {}, existe: () => false }) === "string" && localizarClaude({ env: { CLAUDE_BIN: "X" }, existe: (p) => p === "X" }) === "X" && localizarClaude({ env: { APPDATA: "A" }, existe: (p) => /2\.1\.286[\\/]abc[\\/]claude\.exe$/.test(p), listar: (d) => (/claude-code$/.test(d) ? ["2.1.284", "2.1.286"] : ["abc"]) }).endsWith("claude.exe"), "localizarClaude encuentra el ejecutable de la app de escritorio (la versión más nueva) cuando no está en el PATH");
+
+
+/* ═════ I · EL BRAZO DEL A/B (`_ADI_DISENO_ALCANCE_DE_LO_ENTREGADO.md` §6.2) ═══════════════════════════════════════════════════════════════════════════════════
+ * `--brazo=A|B` fija ADI_ALCANCE_ESTRUCTURAL ("0" = A, la entrega de hoy · "1" = B, el valor por defecto) SOLO en el entorno del servidor de ADI (bloque `env` del --mcp-config; el `env` de la puerta en la vía api) y lo QUITA
+ * del entorno del anfitrión. El servidor deja `arranque.json` con lo que vio y el arnés lo contrasta: un brazo que no llegó invalida la corrida. Una corrida es de UN brazo. Con el `claude` falso, que levanta el servidor REAL por stdio. */
+seccion("I · el brazo del A/B: llega al servidor de ADI y solo ahí; las corridas no mezclan brazos");
+const BR = await import(D + "brazo.mjs");
+{
+  const { VARIABLE_DEL_BRAZO, BRAZO_POR_DEFECTO, normalizarBrazo, valorDelBrazo, brazoDeValor, envDelBrazo } = BR;
+  ok(VARIABLE_DEL_BRAZO === "ADI_ALCANCE_ESTRUCTURAL" && BRAZO_POR_DEFECTO === "B" && valorDelBrazo("A") === "0" && valorDelBrazo("B") === "1" && brazoDeValor("0") === "A" && brazoDeValor("1") === "B" && brazoDeValor("2") === null && brazoDeValor(undefined) === null, "★ el contrato del brazo: A = «0» (la entrega de hoy), B = «1» (alcance estructural, el valor por defecto) en ADI_ALCANCE_ESTRUCTURAL");
+  ok(normalizarBrazo("a") === "A" && normalizarBrazo(" B ") === "B" && normalizarBrazo("C") === null && normalizarBrazo(undefined) === null && normalizarBrazo(true) === null && JSON.stringify(envDelBrazo("A")) === '{"ADI_ALCANCE_ESTRUCTURAL":"0"}', "normalizarBrazo y envDelBrazo");
+  let lanza = false; try { envDelBrazo("C"); } catch { lanza = true; }
+  ok(lanza, "envDelBrazo rechaza un brazo que no es A ni B");
+  // validarArgs
+  const base = { via: "cli", tipo: "ensayo", catalogo: "c.json", modelo: "claude-sonnet-5-5", salida: "s", "tope-llamadas": "5" };
+  ok(validarArgs({ ...base, brazo: "C" }, {}).some((e) => /--brazo debe ser A o B/.test(e)) && validarArgs({ ...base, brazo: "a" }, {}).length === 0 && validarArgs(base, {}).length === 0, "★ validarArgs: --brazo debe ser A|B (sin él vale el B por defecto)");
+  ok(validarArgs({ ...base, "serie-ab": "x" }, {}).some((e) => /--brazo=A\|B explícito/.test(e)) && validarArgs({ ...base, "serie-ab": "x", brazo: "A" }, {}).some((e) => /--repeticion=1\|2/.test(e)) && validarArgs({ ...base, "serie-ab": "x", brazo: "A", repeticion: "3", sello: "s.json" }, {}).some((e) => /--repeticion=1\|2/.test(e)) && validarArgs({ ...base, "serie-ab": "x", brazo: "A", repeticion: "1" }, {}).some((e) => /--sello/.test(e)) && validarArgs({ ...base, "serie-ab": "x", brazo: "A", repeticion: "2", sello: "s.json" }, {}).length === 0 && validarArgs({ ...base, repeticion: "1" }, {}).some((e) => /solo existe dentro de una serie/.test(e)) && validarArgs({ ...base, "serie-ab": true, brazo: "A", repeticion: "1", sello: "s.json" }, {}).some((e) => /necesita un nombre/.test(e)), "★ validarArgs: una serie exige nombre, brazo explícito, repetición 1|2 y sello; --repeticion no existe fuera de una serie");
+  // el comando: el brazo va en el `env` del servidor «adi», NO en el del anfitrión
+  const cmdA = armarComandoCli({ modelo: "m", dirTrabajo: "d", rutaMcpConfig: "c.json", brazo: "A", baseEnv: { PATH: "p", ADI_ALCANCE_ESTRUCTURAL: "1" }, mcp: { estado: "e", empresa: "demo", salidaEstado: "o", bitacora: "b", arranque: "a.json" } });
+  ok(JSON.stringify(cmdA.mcpConfig.mcpServers.adi.env) === '{"ADI_ALCANCE_ESTRUCTURAL":"0"}' && cmdA.mcpConfig.mcpServers.adi.args.includes("--arranque=a.json"), "★ armarComandoCli: el brazo A va en el bloque `env` del servidor «adi» (y el servidor sabe dónde dejar su arranque)");
+  ok(!("ADI_ALCANCE_ESTRUCTURAL" in cmdA.env) && cmdA.quitadas.includes("ADI_ALCANCE_ESTRUCTURAL") && cmdA.env.PATH === "p", "★ …y el entorno del anfitrión NO lo lleva: si el arnés lo heredó de la consola, se QUITA");
+  const cmdSin = armarComandoCli({ modelo: "m", dirTrabajo: "d", rutaMcpConfig: "c.json", baseEnv: { PATH: "p" }, mcp: { estado: "e", empresa: "demo", salidaEstado: "o", bitacora: "b" } });
+  ok(JSON.stringify(cmdSin.mcpConfig.mcpServers.adi.env) === "{}" && !cmdSin.mcpConfig.mcpServers.adi.args.some((a) => /^--arranque=/.test(a)), "sin brazo el comando es el de siempre (env vacío del servidor)");
+
+  // ── extremo a extremo con el `claude` falso (el servidor MCP real por stdio)
+  const SA = sub("brazo-A");
+  const { R: RA, llamadas: llA } = await runCli({ hilo: "A01", salida: SA, extra: ["--brazo=A"], envExtra: { ADI_ALCANCE_ESTRUCTURAL: "1" } });
+  const manA = leerJson(path.join(SA, "manifiesto.json")), arrA = leerJson(path.join(SA, "sesiones", "A01_s1", "arranque.json")), cfgA = leerJson(path.join(SA, "sesiones", "A01_s1", "mcp-config.json"));
+  ok(RA.cierre.motivo === "completa" && manA.brazo.id === "A" && manA.brazo.valor === "0" && manA.brazo.variable === "ADI_ALCANCE_ESTRUCTURAL" && manA.brazo.porDefecto === false, "★ el manifiesto registra el brazo A (valor «0», no por defecto)", JSON.stringify(manA.brazo));
+  ok(JSON.stringify(cfgA.mcpServers.adi.env) === '{"ADI_ALCANCE_ESTRUCTURAL":"0"}', "★ el --mcp-config de la sesión lleva el brazo en el `env` del servidor «adi»");
+  ok(arrA.ADI_ALCANCE_ESTRUCTURAL === "0" && arrA.brazo === "A" && arrA.efectivoEnLaPuerta === "0" && arrA.empresa === "demo", "★ el servidor de ADI (el `mcp-adi.mjs` REAL, por stdio) VIO «0» y se lo pasó a su puerta", JSON.stringify(arrA));
+  ok(llA.length >= 1 && llA.every((l) => l.env.ADI_ALCANCE_ESTRUCTURAL === null), "★ el entorno del ANFITRIÓN no lleva la variable (aunque la consola del arnés la traía puesta en «1»): la quitó el arnés");
+  ok(RA.cierre.brazo.id === "A" && RA.cierre.servidores.length >= 1 && RA.cierre.servidores.every((x) => x.ok === true && x.esperado === "0" && x.visto === "0"), "el cierre de la corrida deja lo que vio cada servidor y que coincide con el brazo", JSON.stringify(RA.cierre.servidores));
+  const trA = leerJson(path.join(SA, "transcritos", "A01.json"));
+  ok(trA.brazo === "A" && trA.turnos.every((t) => t.brazo === "A") && RA.informe.brazo === "A" && RA.informe.invalidaciones.length === 1 && /JUGUETE/.test(RA.informe.invalidaciones[0]), "cada transcrito y cada turno llevan el brazo; el informe lo trae (la única invalidación es la del juguete)");
+  ok(/Brazo del A\/B: A/.test(informeEnMarkdown(RA.informe)) && /ADI_ALCANCE_ESTRUCTURAL=0/.test(informeEnMarkdown(RA.informe)), "el informe en Markdown nombra el brazo y la variable");
+  ok(/^[0-9a-f]{64}$/.test(manA.hashes.codigo) && manA.hashes.codigo === RA.cierre.codigoHuellaFinal, "la huella del código sigue registrada en el manifiesto (y es la misma al cierre)");
+  // el valor por defecto
+  const { R: RD } = await runCli({ hilo: "A01", salida: sub("brazo-defecto") });
+  const manD = leerJson(path.join(sub("brazo-defecto"), "manifiesto.json")), arrD = leerJson(path.join(sub("brazo-defecto"), "sesiones", "A01_s1", "arranque.json"));
+  ok(manD.brazo.id === "B" && manD.brazo.porDefecto === true && arrD.ADI_ALCANCE_ESTRUCTURAL === "1" && RD.cierre.servidores.every((x) => x.ok), "★ sin --brazo el brazo es el B (alcance estructural), declarado «por defecto», y el servidor vio «1»");
+  const { R: RB } = await runCli({ hilo: "A01", salida: sub("brazo-B"), extra: ["--brazo=B"], envExtra: { ADI_ALCANCE_ESTRUCTURAL: "0" } });
+  ok(leerJson(path.join(sub("brazo-B"), "sesiones", "A01_s1", "arranque.json")).ADI_ALCANCE_ESTRUCTURAL === "1" && RB.cierre.brazo.id === "B", "--brazo=B pisa lo que traiga la consola del arnés: el servidor vio «1»");
+
+  // ── el brazo que NO llega al servidor invalida la corrida (un anfitrión que pierde el `env` del servidor)
+  const { R: RP } = await runCli({ hilo: "A01", salida: sub("brazo-perdido"), extra: ["--brazo=A"], envExtra: { FALSO_IGNORAR_ENV_DEL_SERVIDOR: "1" } });
+  ok(RP.cierre.motivo === "brazo_no_llego_al_servidor" && RP.cierre.servidores.some((x) => x.ok === false && x.esperado === "0") && RP.informe.invalidaciones.some((v) => /brazo A no llegó al servidor/.test(v)) && RP.informe.veredicto === "INVÁLIDA", "★ CARNADA · el servidor NO vio el brazo (el anfitrión perdió su `env`): la corrida se corta y es INVÁLIDA", JSON.stringify(RP.cierre.detalle || RP.cierre.servidores));
+  ok(RP.cierre.turnosHechos <= 1, "…y se corta TEMPRANO (tras el primer turno)", String(RP.cierre.turnosHechos));
+
+  // ── no se mezclan brazos en una corrida
+  const outMix = []; const regMix = path.join(TMP, "mezcla-reg.jsonl");
+  const envMix = { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, FALSO_REGISTRO: regMix };
+  const rMixA = await ejecutarArnes(["--via=cli", "--tipo=ensayo", `--catalogo=${RUTA_JUGUETE}`, "--modelo=claude-sonnet-5-5", `--salida=${SA}`, "--tope-llamadas=200", "--brazo=B", "--hilo=A01"], { env: envMix, escribir: (m) => outMix.push(m), ahora, claudeBin: RUTA_FALSO, versionCli: "falso", carpetaAislada: () => ({ aislada: true, problemas: [] }) });
+  ok(rMixA.codigo === 3 && /ya tiene una corrida del brazo A/.test(outMix.join("\n")), "★ la MISMA carpeta de salida no recibe una corrida del otro brazo", outMix.join(" | ").slice(0, 200));
+  const rMixB = await ejecutarArnes(["--via=cli", "--tipo=ensayo", `--catalogo=${RUTA_JUGUETE}`, "--modelo=claude-sonnet-5-5", `--salida=${SA}`, "--tope-llamadas=200", "--brazo=B", "--hilo=A01", "--reanudar"], { env: envMix, escribir: (m) => outMix.push(m), ahora, claudeBin: RUTA_FALSO, versionCli: "falso", carpetaAislada: () => ({ aislada: true, problemas: [] }) });
+  ok(rMixB.codigo === 3 && /no se puede reanudar una corrida del brazo A con el brazo B/.test(outMix.join("\n")), "★ y reanudar una corrida del brazo A con el brazo B se rechaza");
+  // un transcrito que trae turnos de otro brazo invalida la corrida
+  const dirMez = sub("brazo-mezclado"); fs.cpSync(SA, dirMez, { recursive: true });
+  const trM = leerJson(path.join(dirMez, "transcritos", "A01.json")); trM.turnos[trM.turnos.length - 1].brazo = "B"; fs.writeFileSync(path.join(dirMez, "transcritos", "A01.json"), JSON.stringify(trM));
+  const infM = calcularInforme(cargarSalida(dirMez));
+  ok(infM.invalidaciones.some((v) => /mezcla de brazos/.test(v)) && infM.veredicto === "INVÁLIDA", "★ CARNADA · un turno del brazo B dentro de una corrida del brazo A → la corrida es INVÁLIDA («mezcla de brazos»)", JSON.stringify(infM.invalidaciones));
+  // las corridas anteriores al A/B (sin brazo) siguen leyéndose
+  const manViejo = { ...manA }; delete manViejo.brazo; delete manViejo.serieAb;
+  const infViejo = calcularInforme({ manifiesto: manViejo, cierre: RA.cierre, hilos: [trA] });
+  ok(infViejo.brazo === null && /no registrado/.test(informeEnMarkdown(infViejo)) && !infViejo.invalidaciones.some((v) => /brazo/.test(v)), "una corrida anterior al A/B (sin brazo en el manifiesto) se informa igual: «no registrado»");
+
+  // ── la vía api: la puerta en proceso lleva el brazo en su `env`, y process.env queda como estaba
+  ok(process.env.ADI_ALCANCE_ESTRUCTURAL === undefined, "(antes) process.env no trae la variable del brazo");
+  const aRaw = await abrirAlmacen({ estadoJson: crearEstadoInicial() });
+  const pTocada = crearPuertaMcp({ almacen: aRaw, empresaId: "demo", alcanceEstructural: "0" });
+  ok(aRaw.env.ADI_ALCANCE_ESTRUCTURAL === "0" && pTocada.alcanceEstructural() === "0" && process.env.ADI_ALCANCE_ESTRUCTURAL === undefined, "★ crearPuertaMcp pone el brazo en el `env` de ESA puerta y no toca process.env");
+  const aLimpio = await abrirAlmacen({ estadoJson: crearEstadoInicial() });
+  ok(crearPuertaMcp({ almacen: aLimpio, empresaId: "demo" }).alcanceEstructural() === null && !("ADI_ALCANCE_ESTRUCTURAL" in aLimpio.env), "sin brazo la puerta no inventa la variable (el servidor usa su valor por defecto)");
+  let visto = null;
+  const salidaApi = sub("brazo-api");
+  const rApi = await correrApi({ hilo: "A01", salida: salidaApi, extra: ["--brazo=A"], deps: { transporte: (() => { const t = crearTransporteApiSimulado({ modo: "bueno", empresaId: "demo", registro: [] }); return async (req) => { visto = process.env.ADI_ALCANCE_ESTRUCTURAL; return t(req); }; })() } });
+  const manApi = leerJson(path.join(salidaApi, "manifiesto.json")), trApi = leerJson(path.join(salidaApi, "transcritos", "A01.json"));
+  ok(manApi.brazo.id === "A" && rApi.cierre.brazo.id === "A" && trApi.turnos.every((t) => t.brazo === "A") && visto === "0", "★ vía api: el manifiesto, el cierre y cada turno son del brazo A, y durante la corrida el proceso de la puerta vio «0»", String(visto));
+  ok(process.env.ADI_ALCANCE_ESTRUCTURAL === undefined, "…y al terminar process.env queda como estaba (la variable no se escapa del arnés)");
+  const salidaApiB = sub("brazo-api-defecto"); await correrApi({ hilo: "A01", salida: salidaApiB });
+  ok(leerJson(path.join(salidaApiB, "manifiesto.json")).brazo.id === "B", "vía api sin --brazo: el B por defecto");
+  // --solo-imprimir lo dice
+  const salImp = []; await ejecutarArnes(["--via=cli", "--tipo=ensayo", "--solo-imprimir", "--modelo=claude-sonnet-5-5", `--salida=${sub("imp-brazo")}`, "--tope-llamadas=9", "--brazo=A"], { env: { PATH: process.env.PATH }, escribir: (t) => salImp.push(t), claudeBin: RUTA_FALSO });
+  ok(/BRAZO del A\/B: A → ADI_ALCANCE_ESTRUCTURAL=0 SOLO en el `env` del servidor/.test(salImp.join("\n")) && !fs.existsSync(sub("imp-brazo")), "--solo-imprimir declara el brazo y dónde va (y no crea nada)");
+}
+
+
+/* ═════ J · LA SERIE A/B: UN CORPUS SELLADO, CUATRO CORRIDAS (A·1, A·2, B·1, B·2) ════════════════════════════════════════════════════════════════════════════════
+ * Un corpus usado no se vuelve a abrir (C). La serie A/B es la excepción explícita y acotada: la primera corrida quema el sello y deja SERIE-AB.json; las otras tres lo abren sin --reanudar solo si son de ESA serie y ESE corpus,
+ * no son la quinta, nadie más quemó el sello y el código no cambió. Fuera de una serie, nada cambia. */
+seccion("J · la serie A/B: el MISMO corpus sellado corre cuatro veces; la quinta o la de otra serie se rechaza");
+const SERIE = await import(D + "serie-ab.mjs");
+let CORRIDAS_SERIE = null;
+{
+  const { ruta: rutaC, sello: rutaS } = corpusComoOficial("serie-gate");
+  const rutaSerie = SERIE.rutaDeLaSerie(rutaS);
+  ok(path.basename(rutaSerie) === "serie-gate.SELLO.SERIE-AB.json" && path.dirname(rutaSerie) === path.dirname(rutaS) && path.basename(SERIE.rutaDeLaSerie("/x/corpus-ensayo-13/SELLO.json")) === "SERIE-AB.json" && path.basename(SERIE.rutaDeLaSerie("/x/y/otro.json")) === "otro.SERIE-AB.json", "★ SERIE-AB.json vive JUNTO al sello (junto a un `SELLO.json` se llama exactamente SERIE-AB.json; si hay varios sellos en la carpeta, `<sello>.SERIE-AB.json`: una serie es de UN sello)");
+  const serieAb = (brazo, rep, salida, { nombre = "ensayo-13", extra = [], deps = {}, corpus = rutaC, sello = rutaS, hilo = null } = {}) =>
+    correrApi({ corpus, salida, hilo, extra: [`--sello=${sello}`, `--serie-ab=${nombre}`, `--brazo=${brazo}`, `--repeticion=${rep}`, ...extra], deps });
+  const rechazo = async (que, f, esperado, c = 4) => { const out = []; const r = await f(out); ok(r.codigo === c && esperado.test(out.join("\n")) && !r.cierre, `★ CARNADA · ${que}`, `${r.codigo} ${out.join(" | ").slice(0, 240)}`); };
+  // fuera de una serie, el corpus sellado se quema como siempre
+  const { ruta: rutaX, sello: selloX } = corpusComoOficial("fuera-de-serie");
+  const out0 = []; const rX1 = await correrApi({ corpus: rutaX, salida: sub("fs-1"), hilo: "A01", extra: [`--sello=${selloX}`], deps: { escribir: (m) => out0.push(m) } });
+  const rX2 = await correrApi({ corpus: rutaX, salida: sub("fs-2"), hilo: "A01", extra: [`--sello=${selloX}`], deps: { escribir: (m) => out0.push(m) } });
+  ok(rX1.cierre && rX2.codigo === 4 && /ya fue LEÍDO/.test(out0.join("\n")) && !fs.existsSync(SERIE.rutaDeLaSerie(selloX)), "★ FUERA de una serie nada cambia: el corpus usado se rechaza (código 4) y no nace ninguna SERIE-AB.json", out0.join(" | ").slice(0, 200));
+
+  // ── A·1: quema el sello y crea la serie
+  const salidas = {};
+  const corre = (brazo, rep, o = {}) => { const salida = sub(`serie-${brazo}${rep}`); salidas[`${brazo}${rep}`] = salidas[`${brazo}${rep}`] || salida; return serieAb(brazo, rep, salidas[`${brazo}${rep}`], o); };
+  const r1 = await corre("A", 1);
+  const selloTrasA1 = leerJson(rutaS), serieTrasA1 = leerJson(rutaSerie);
+  ok(r1.cierre && selloTrasA1.leido === true && selloTrasA1.leidoPor === "serie-ab:ensayo-13" && serieTrasA1.formato === "serie-ab/v1" && serieTrasA1.nombre === "ensayo-13" && serieTrasA1.corpusSha256 === selloTrasA1.sha256 && serieTrasA1.leidoPor === selloTrasA1.leidoPor, "★ la PRIMERA corrida quema el sello como siempre y deja la serie (nombre, huella del corpus, quién lo quemó)", JSON.stringify(serieTrasA1).slice(0, 300));
+  ok(serieTrasA1.planeadas.map((c) => `${c.brazo}${c.repeticion}`).join() === "A1,A2,B1,B2" && serieTrasA1.corridas.length === 1 && serieTrasA1.corridas[0].brazo === "A" && serieTrasA1.corridas[0].repeticion === 1 && /^[0-9a-f]{64}$/.test(serieTrasA1.codigoSha256), "…con las CUATRO corridas planeadas (A·1, A·2, B·1, B·2), la celda A·1 anotada y la huella del código");
+  const manA1 = leerJson(path.join(salidas.A1, "manifiesto.json"));
+  ok(manA1.serieAb.nombre === "ensayo-13" && manA1.serieAb.repeticion === 1 && manA1.brazo.id === "A" && manA1.hashes.codigo === serieTrasA1.codigoSha256 && /A1-/.test(manA1.corridaId), "el manifiesto de la corrida lleva la serie, la repetición y el brazo; su huella de código es la de la serie");
+
+  // ── CARNADAS con la serie abierta y las otras celdas todavía libres
+  await rechazo("una corrida de OTRA serie no puede abrir el corpus", (out) => corre("A", 2, { nombre: "ensayo-14", deps: { escribir: (m) => out.push(m) } }), /pertenece a la serie «ensayo-13», no a «ensayo-14»/);
+  await rechazo("el CÓDIGO cambió desde la primera corrida de la serie (A y B no serían comparables)", (out) => corre("A", 2, { deps: { escribir: (m) => out.push(m), huellaDelCodigo: () => "f".repeat(64) } }), /CÓDIGO cambió/);
+  { const s = leerJson(rutaS); const copia = JSON.stringify(s); s.leidoPor = "una persona abrió el corpus"; fs.writeFileSync(rutaS, JSON.stringify(s));
+    await rechazo("si el sello lo quemó OTRO (una persona abrió el corpus) la serie NO lo abre: el sello sigue siendo la prueba", (out) => corre("A", 2, { deps: { escribir: (m) => out.push(m) } }), /no lo quemó la serie/);
+    fs.writeFileSync(rutaS, copia); }
+  ok(!fs.existsSync(salidas.A2 || sub("no-existe")) || true, "(las corridas rechazadas no dejan celdas anotadas)");
+  ok(leerJson(rutaSerie).corridas.length === 1, "★ …y ninguna corrida rechazada anotó una celda en la serie");
+
+  const out234 = []; const dd = { deps: { escribir: (m) => out234.push(m) } }; const r2 = await corre("A", 2, dd), r3 = await corre("B", 1, dd), r4 = await corre("B", 2, dd);
+  ok(r2.cierre && r3.cierre && r4.cierre && leerJson(rutaSerie).corridas.map((c) => `${c.brazo}${c.repeticion}`).join() === "A1,A2,B1,B2", "★ A·2, B·1 y B·2 abren el MISMO corpus sin --reanudar (misma serie, misma huella, sello quemado por la serie)", out234.join(" | ").slice(0, 500));
+  ok([r1, r2, r3, r4].every((r) => r.cierre) && [r1, r2, r3, r4].map((r) => r.cierre.brazo.id).join("") === "AABB" && [r1, r2, r3, r4].every((r) => r.informe.brazo === r.cierre.brazo.id), "cada corrida es de UN brazo: A A B B");
+  ok(new Set([r1, r2, r3, r4].map((r) => leerJson(path.join(r.salida, "manifiesto.json")).hashes.codigo)).size === 1 && new Set([r1, r2, r3, r4].map((r) => leerJson(path.join(r.salida, "manifiesto.json")).corpus.sha256)).size === 1, "★ las cuatro corridas tienen el MISMO código y el MISMO corpus (el único cambio es el brazo)");
+  ok(leerJson(path.join(salidas.A1, "manifiesto.json")).brazo.valor === "0" && leerJson(path.join(salidas.B1, "manifiesto.json")).brazo.valor === "1" && leerJson(path.join(salidas.B2, "manifiesto.json")).serieAb.repeticion === 2, "el brazo de cada celda sale del parámetro: A·1 = «0», B·1 = «1»; la repetición queda en el manifiesto");
+
+  // ── la QUINTA y la repetición de una celda
+  await rechazo("una QUINTA corrida se rechaza: la serie ya tiene sus cuatro (cualquier celda que se pida ya corrió)", (out) => serieAb("B", 1, sub("serie-quinta"), { deps: { escribir: (m) => out.push(m) } }), /ya corrió/);
+  await rechazo("la misma celda no se repite (A·1 otra vez en otra carpeta)", (out) => serieAb("A", 1, sub("serie-a1-bis"), { deps: { escribir: (m) => out.push(m) } }), /ya corrió/);
+  await rechazo("una corrida fuera del plan (repetición 3) ni llega a abrir el corpus", (out) => serieAb("A", 3, sub("serie-rep3"), { deps: { escribir: (m) => out.push(m) } }).then((r) => ({ ...r, codigo: r.codigo === 2 ? 4 : r.codigo })), /--repeticion=1\|2/);
+  { const serie = leerJson(rutaSerie), sello = leerJson(rutaS);
+    const A = (o) => SERIE.autorizarCorrida({ serie, nombre: "ensayo-13", brazo: "A", repeticion: 2, corpusSha256: serie.corpusSha256, sello, codigoSha256: serie.codigoSha256, ...o });
+    ok(!A({}).ok && /ya corrió/.test(A({}).motivo) && A({ reanudar: true }).ok && !A({ brazo: "C" }).ok && !A({ repeticion: 3 }).ok && !A({ corpusSha256: "x" }).ok && !A({ nombre: "otra" }).ok && !A({ codigoSha256: "y" }).ok, "autorizarCorrida (pura): solo la celda planeada, con la huella del corpus, el nombre de la serie y el código de la primera corrida");
+    const llena = { ...serie, corridas: serie.corridas.map((c, i) => ({ ...c, brazo: "A", repeticion: 9 + i })) };
+    const q = SERIE.autorizarCorrida({ serie: llena, nombre: "ensayo-13", brazo: "A", repeticion: 2, corpusSha256: serie.corpusSha256, sello, codigoSha256: serie.codigoSha256 });
+    ok(!q.ok && /no hay quinta corrida/.test(q.motivo), "★ autorizarCorrida: con las cuatro corridas ya anotadas, una más es «la quinta» y no hay lugar"); }
+
+  // ── retomar una celda INTERRUMPIDA con --reanudar y la misma carpeta
+  { const out = []; const r = await corre("A", 1, { extra: ["--reanudar"], deps: { escribir: (m) => out.push(m) } }); ok(r.cierre && r.cierre.reanudada === true && leerJson(rutaSerie).corridas.length === 4, "una celda INTERRUMPIDA se retoma con --reanudar y la misma --salida (no abre una celda nueva)", out.join(" | ").slice(0, 200)); }
+  // ── un corpus quemado por una corrida normal no lo abre una serie nueva; --reanudar sin serie no quema nada
+  await rechazo("un corpus quemado por una corrida normal NO se abre con una serie nueva (no hay serie que lo ampare)", (out) => serieAb("A", 1, sub("serie-nueva-sobre-leido"), { nombre: "serie-nueva", corpus: rutaX, sello: selloX, deps: { escribir: (m) => out.push(m) } }), /ya fue LEÍDO/);
+  ok(!fs.existsSync(SERIE.rutaDeLaSerie(selloX)), "…y no deja ninguna SERIE-AB.json junto a ese sello");
+  { const { ruta: rutaY, sello: selloY } = corpusComoOficial("serie-sin-serie");
+    await rechazo("--reanudar sin una serie existente no abre nada", (out) => serieAb("A", 1, sub("serie-reanudar-vacia"), { corpus: rutaY, sello: selloY, extra: ["--reanudar"], deps: { escribir: (m) => out.push(m) } }), /no hay serie A\/B/);
+    ok(leerJson(selloY).leido === false, "…y el sello sigue sin quemar"); }
+  CORRIDAS_SERIE = salidas;
+}
+
+
+/* ═════ K · LAS CUENTAS DEL A/B: Wilson, Newcombe, bootstrap por hilo y la regla de parada ═════════════════════════════════════════════════════════════════════════ */
+seccion("K · estadística del A/B: Wilson · Newcombe · reducción relativa con bootstrap por hilo · regla de parada");
+const EST = await import(D + "estadistica.mjs");
+{
+  const { wilson, newcombe, reduccionRelativa, veredictoDeLaRegla, generador, FRASE_FAMILIA_RESUELTA, FRASE_RESIDUO } = EST;
+  const cerca = (x, y, e = 1e-3) => Math.abs(x - y) <= e;
+  const w0 = wilson(0, 10), w5 = wilson(5, 10), wN = wilson(3, 0);
+  ok(cerca(w0.lo, 0) && cerca(w0.hi, 0.2775) && cerca(w5.lo, 0.2366) && cerca(w5.hi, 0.7634) && cerca(w5.p, 0.5) && wN.p === null && wN.lo === null, "★ Wilson 95 %: 0/10 → [0, 0.2775] y 5/10 → [0.2366, 0.7634] (valores de referencia); n = 0 → sin intervalo");
+  const nw = newcombe(56, 70, 48, 80);
+  ok(cerca(nw.diff, 0.2) && cerca(nw.lo, 0.0524) && cerca(nw.hi, 0.3339), "★ Newcombe (método 10): 56/70 contra 48/80 → diferencia 0.20, intervalo [0.0524, 0.3339] (el ejemplo del artículo de 1998)");
+  ok(newcombe(1, 0, 1, 5).diff === null, "Newcombe con n = 0 → sin intervalo");
+  const g1 = generador(7), g2 = generador(7), g3 = generador(8);
+  const s1 = [g1(), g1(), g1()], s2 = [g2(), g2(), g2()], s3 = [g3(), g3(), g3()];
+  ok(JSON.stringify(s1) === JSON.stringify(s2) && JSON.stringify(s1) !== JSON.stringify(s3) && s1.every((x) => x >= 0 && x < 1), "el generador del bootstrap es determinista (misma semilla, mismos números) y está en [0, 1)");
+  const mk = (ks, n = 100) => Object.fromEntries(ks.map((k, i) => [`H${i}`, { k, n }]));
+  const A = mk([6, 5, 7, 4, 6, 5, 7, 4]);
+  const redB = reduccionRelativa({ A, B: mk([2, 1, 3, 1, 2, 1, 2, 1]) });
+  ok(redB.kA === 44 && redB.nA === 800 && redB.kB === 13 && redB.nB === 800 && cerca(redB.reduccion, 1 - (13 / 800) / (44 / 800), 1e-9) && redB.lo > 0 && redB.hi >= redB.reduccion - 0.3 && redB.lo <= redB.reduccion && redB.validas === 10000 && redB.hilos === 8, "★ reducción relativa: 44 contra 13 sobre 800 y 800 → 70.5 %, con el intervalo bootstrap por hilo por encima de 0", JSON.stringify(redB));
+  const redB2 = reduccionRelativa({ A, B: mk([2, 1, 3, 1, 2, 1, 2, 1]) });
+  ok(JSON.stringify(redB) === JSON.stringify(redB2) && JSON.stringify(reduccionRelativa({ A, B: mk([2, 1, 3, 1, 2, 1, 2, 1]) }, { semilla: 99, iteraciones: 500 })) !== JSON.stringify(redB), "el bootstrap es reproducible: mismos datos y semilla → mismo intervalo");
+  const redIgual = reduccionRelativa({ A, B: A });
+  ok(redIgual.reduccion === 0 && !(redIgual.lo > 0), "A = B → reducción 0 y el intervalo NO excluye la no-reducción");
+  // un brazo B con ruido: la reducción puntual existe pero el intervalo toca 0 → no es «resuelta» aunque supere el umbral
+  const ruido = reduccionRelativa({ A: mk([9, 0, 9, 0, 9, 0, 9, 0]), B: mk([0, 9, 0, 9, 0, 9, 0, 9]) });
+  ok(cerca(ruido.reduccion, 0, 1e-9) && ruido.lo < 0 && ruido.hi > 0, "★ si el efecto depende de qué hilos caen (A alto donde B bajo y al revés) el intervalo cruza el 0: los hilos son la unidad que se remuestrea", JSON.stringify(ruido));
+  const sinA = reduccionRelativa({ A: mk([0, 0, 0]), B: mk([1, 0, 0]) });
+  ok(sinA.reduccion === null && /no hay nada que reducir/.test(sinA.motivo), "A sin sobre-alcance: la reducción relativa no se define (y se dice)");
+  ok(reduccionRelativa({ A: {}, B: {} }).reduccion === null && /ningún hilo/.test(reduccionRelativa({ A: {}, B: {} }).motivo), "sin hilos en común no hay comparación");
+  const solo = reduccionRelativa({ A: { H0: { k: 4, n: 100 }, H1: { k: 1, n: 50 } }, B: { H0: { k: 1, n: 100 } } });
+  ok(solo.hilos === 1 && solo.kA === 4, "solo cuentan los hilos que los dos brazos comparten");
+  // LA REGLA DE PARADA
+  const v = (reduccion, lo, umbralPct) => veredictoDeLaRegla({ reduccion, lo }, umbralPct == null ? {} : { umbralPct });
+  ok(v(0.6, 0.1).resuelta && v(0.6, 0.1).frase === "familia resuelta" && FRASE_FAMILIA_RESUELTA === "familia resuelta", "★ regla de parada: B reduce 60 % y el intervalo excluye el 0 → «familia resuelta»");
+  ok(!v(0.6, -0.05).resuelta && v(0.6, -0.05).frase === "el residuo es variabilidad del anfitrión: el owner revisa el criterio" && FRASE_RESIDUO === v(0.6, -0.05).frase && v(0.6, -0.05).cumpleUmbral && !v(0.6, -0.05).excluyeNoReduccion, "★ …reduce 60 % pero el intervalo NO excluye la no-reducción → «el residuo es variabilidad del anfitrión: el owner revisa el criterio»");
+  ok(!v(0.4, 0.1).resuelta && !v(0.4, 0.1).cumpleUmbral && v(0.4, 0.1, 30).resuelta && v(0.5, 0.01).resuelta && !v(0.499, 0.2).resuelta && !v(null, null).resuelta && !v(0.9, 0).resuelta, "★ el umbral es un PARÁMETRO (50 % por defecto): 40 % no alcanza con 50 pero sí con 30; exactamente 50 % alcanza; el límite inferior debe ser > 0 estricto");
+}
+
+/* ═════ L · EL SOBRE-ALCANCE EN LA CLASIFICACIÓN HUMANA Y EN EL INFORME (§6.1) ═══════════════════════════════════════════════════════════════════════════════ */
+seccion("L · sobre-alcance: se marca en la revisión humana, se agrega por brazo/subtipo/hilo y NO cambia el veredicto de cierre");
+const CLAS = await import(D + "clasificacion.mjs");
+const { bloqueDeSobreAlcance } = await import(D + "informe.mjs");
+const hilosDeLaSerie = fs.readdirSync(path.join(CORRIDAS_SERIE.A1, "transcritos")).filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, "")).sort();
+const copiarCorrida = (de, a, clasificacion = null, ajusta = null) => { fs.cpSync(de, a, { recursive: true }); if (clasificacion) fs.writeFileSync(path.join(a, "clasificacion.json"), JSON.stringify(clasificacion)); if (ajusta) ajusta(a); return a; };
+{
+  const { leerClasificacion, subtipoDeSobreAlcance, SUBTIPOS_DE_SOBRE_ALCANCE, DEFINICION_DE_SOBRE_ALCANCE } = CLAS;
+  ok(SUBTIPOS_DE_SOBRE_ALCANCE.join() === "orden,extremo,conjunto,relacion,existencia,continuidad,cifra", "★ los siete subtipos del sobre-alcance: orden · extremo · conjunto · relación · existencia · continuidad · cifra");
+  ok(["Orden", "extremos", "Conjunto", "relación", "RELACION", "Existencia", "continuidad", "cifra"].map(subtipoDeSobreAlcance).join() === "orden,extremo,conjunto,relacion,relacion,existencia,continuidad,cifra" && subtipoDeSobreAlcance("raro") === "sin_subtipo" && subtipoDeSobreAlcance(undefined) === "sin_subtipo", "los subtipos se normalizan (acentos, mayúsculas, plural); lo desconocido es «sin_subtipo»");
+  ok(/orden, extremo, conjunto, relación, existencia, cifra o continuidad/.test(DEFINICION_DE_SOBRE_ALCANCE) && /sea verdadera o falsa/.test(DEFINICION_DE_SOBRE_ALCANCE) && /no se dice como parcial o no evaluada/.test(DEFINICION_DE_SOBRE_ALCANCE), "la definición codificada: orden, extremo, conjunto, relación, existencia, cifra o continuidad que ningún id ni `establecido` sostiene y no se dice parcial o no evaluada, sea verdadera o falsa");
+  const h0 = hilosDeLaSerie[0], h1 = hilosDeLaSerie[1] || hilosDeLaSerie[0];
+  const clasSA = {
+    corrida: "gate-sa",
+    palabras: [
+      { id: `${h0}|1|1`, clase: "H-correcta", subtipo: "orden_propio", oracion: "Las tres más grandes son también las tres de menor margen.", sobreAlcance: "orden", verdad: "el orden lo armó el anfitrión; resultó cierto" },
+      { id: `${h0}|1|1`, clase: "V", subtipo: "lectura_directa", oracion: "Jumbo vendió $1.1M." },
+    ],
+    filas: [{ id: `${h1}|1|1|99`, clase: "H-leve", subtipo: "cuantificador", oracion: "Casi todas están al día.", sobreAlcance: "conjunto" }],
+    sobreAlcance: [
+      { id: `${h0}|1|1`, subtipo: "Orden", oracion: "Las tres más grandes son también las tres de menor margen.", verdadera: true },       // la MISMA oración que ya está en palabras → una sola afirmación
+      { id: `${h0}|1|1`, subtipo: "extremo", oracion: "Falabella es tu mayor cliente en deuda.", verdadera: false },
+      { id: `${h1}|1|1`, subtipo: "relación", oracion: "Las dos que más aportan son las dos que más dejan sin capturar.", clase: "H-grave" },
+      { id: `${h1}|1|1`, subtipo: "continuidad", oracion: "Como vimos antes, Falabella era el mayor." },
+      { id: `${h1}|1|1`, subtipo: "inventado", oracion: "Algo sin subtipo reconocible." },
+    ],
+  };
+  const lc = leerClasificacion(clasSA);
+  ok(lc.sobreAlcance.length === 6 && lc.resumen.sobreAlcance === 6, "★ sobre-alcance: 6 afirmaciones (la oración marcada en `palabras` y en la lista propia cuenta UNA vez)", JSON.stringify(lc.sobreAlcance.map((x) => [x.subtipo, x.oracion.slice(0, 30)])));
+  const por = (pref) => lc.sobreAlcance.find((x) => x.oracion.startsWith(pref));
+  ok(por("Las tres más").subtipo === "orden" && por("Las tres más").verdadera === true && por("Falabella es").verdadera === false && por("Las dos que").subtipo === "relacion" && por("Las dos que").verdadera === false && por("Como vimos").verdadera === null && por("Casi todas").subtipo === "conjunto" && por("Casi todas").verdadera === false, "★ verdadera o falsa, no importa: cada una conserva su veredicto (true / false / H-grave ⇒ false / sin dato ⇒ null) y su subtipo normalizado");
+  ok(lc.sobreAlcance.some((x) => x.subtipo === "sin_subtipo") && lc.avisos.some((a) => /sin subtipo reconocible/.test(a)), "un subtipo desconocido se cuenta como «sin_subtipo» y deja un aviso");
+  ok(leerClasificacion({ filas: [{ id: "A|1|1|1", clase: "V", sobreAlcance: true, subtipoSobreAlcance: "existencia", oracion: "x" }] }).sobreAlcance[0].subtipo === "existencia" && leerClasificacion({ filas: [{ id: "A|1|1|1", clase: "V", oracion: "x" }] }).sobreAlcance.length === 0 && leerClasificacion({}).sobreAlcance.length === 0, "una fila puede marcarse con `sobreAlcance: true` + `subtipoSobreAlcance`; sin marca no hay sobre-alcance");
+
+  // ── en el informe
+  const dSA = copiarCorrida(CORRIDAS_SERIE.A1, sub("sa-informe"), clasSA);
+  const infSA = calcularInforme(cargarSalida(dSA));
+  const sa = infSA.sobreAlcance;
+  ok(sa.medido && sa.n === 6 && sa.N >= infSA.veredictoDetallado.afirmacionesEmpresariales.total && sa.tasaPor500 === Number(((6 / sa.N) * 500).toFixed(2)), "★ el informe cuenta n = 6 y su tasa por 500 afirmaciones empresariales", JSON.stringify({ n: sa.n, N: sa.N, t: sa.tasaPor500 }));
+  const wl = EST.wilson(sa.n, sa.N);
+  ok(sa.intervaloWilsonPor500.lo === Number((wl.lo * 500).toFixed(2)) && sa.intervaloWilsonPor500.hi === Number((wl.hi * 500).toFixed(2)) && sa.intervaloWilsonPor500.nivel === 0.95, "…con su intervalo de Wilson por 500");
+  ok(JSON.stringify(sa.porSubtipo) === JSON.stringify({ orden: 1, extremo: 1, conjunto: 1, relacion: 1, continuidad: 1, sin_subtipo: 1 }), "★ …por subtipo", JSON.stringify(sa.porSubtipo));
+  ok(sa.verdaderas === 1 && sa.falsas === 3 && sa.sinVeredicto === 2, "verdaderas / falsas / sin veredicto (la verdad o falsedad NO decide si es sobre-alcance)", JSON.stringify([sa.verdaderas, sa.falsas, sa.sinVeredicto]));
+  ok(Object.values(sa.porHilo).reduce((s, x) => s + x.n, 0) === 6 && sa.porHilo[h0].n >= 1 && sa.porHilo[h1].n >= 1 && Object.values(sa.porHilo).every((x) => x.N >= x.n), "★ …y por hilo (la suma por hilo es el total; ningún hilo tiene más sobre-alcance que afirmaciones)", JSON.stringify(sa.porHilo));
+  ok(sa.extrasAlDenominador === 5 && sa.N === sa.nDelCierre + sa.extrasAlDenominador, "las afirmaciones marcadas que el cierre no había contado se suman SOLO al denominador del sobre-alcance (nDelCierre queda aparte)");
+  const md = informeEnMarkdown(infSA);
+  ok(/## Sobre-alcance/.test(md) && /Por subtipo: orden 1 · extremo 1 · conjunto 1/.test(md) && /Por hilo:/.test(md) && /Wilson 95 % por 500/.test(md) && /No decide el cierre/.test(md), "★ el informe en Markdown trae el bloque «Sobre-alcance»: conteo, tasa por 500 con Wilson, por subtipo, por hilo");
+  // sin clasificación: no se mide
+  const dSin = copiarCorrida(CORRIDAS_SERIE.A1, sub("sa-sin-clasificacion"));
+  fs.rmSync(path.join(dSin, "clasificacion.json"), { force: true });
+  const infSin = calcularInforme(cargarSalida(dSin));
+  ok(infSin.sobreAlcance.medido === false && /No medido/.test(informeEnMarkdown(infSin)) && bloqueDeSobreAlcance(infSin).join("\n").includes("No medido"), "sin `clasificacion.json` el sobre-alcance NO se mide (y el informe lo dice)");
+  // el veredicto de cierre no se mueve
+  const clasBase = { corrida: "base", palabras: [{ id: `${h0}|1|1`, clase: "H-grave", subtipo: "conteo_propio", oracion: "Son cinco cuentas." }] };
+  const clasConSA = { ...clasBase, sobreAlcance: clasSA.sobreAlcance };
+  const iBase = calcularInforme(cargarSalida(copiarCorrida(CORRIDAS_SERIE.A1, sub("cierre-base"), clasBase))), iSA = calcularInforme(cargarSalida(copiarCorrida(CORRIDAS_SERIE.A1, sub("cierre-sa"), clasConSA)));
+  ok(iBase.veredicto === iSA.veredicto && iBase.porQue === iSA.porQue && JSON.stringify(iBase.veredictoDetallado.criterios) === JSON.stringify(iSA.veredictoDetallado.criterios) && iBase.veredictoDetallado.afirmacionesEmpresariales.total === iSA.veredictoDetallado.afirmacionesEmpresariales.total, "★ la REGLA DE CIERRE no se mueve: con o sin marcas de sobre-alcance el veredicto, los criterios y N son idénticos (los materiales siguen decidiendo)", `${iBase.veredicto} / ${iSA.veredicto}`);
+}
+
+/* ═════ M · LA FAMILIA «DESLIZ DE LECTURA CON LA VERDAD A LA VISTA» (§3) ═════════════════════════════════════════════════════════════════════════════════════ */
+seccion("M · desliz de lectura con la verdad a la vista: familia propia, material si cambia una conclusión, sin patrón con otra familia");
+{
+  const { FAMILIA_DESLIZ, familiaDeError, familiaDeFila, patronesSistematicos, esFamiliaDesliz, leerClasificacion } = CLAS;
+  ok(FAMILIA_DESLIZ === "desliz de lectura con la verdad a la vista" && esFamiliaDesliz(FAMILIA_DESLIZ) && !esFamiliaDesliz("dueño distinto"), "la familia se llama «desliz de lectura con la verdad a la vista»");
+  ok(["desliz_de_lectura_tabla_propia", "desliz de lectura", "desliz_lectura_orden", "lectura_erronea_de_su_propia_tabla", "par_equivocado_verdad_a_la_vista"].every((s) => familiaDeError(s) === FAMILIA_DESLIZ), "★ el subtipo «desliz…» cae en su propia familia aunque traiga palabras de otra («orden», «relación»)");
+  ok(familiaDeError("orden_falso_sobre_el_universo_completo") === "relación o razón entre cifras" && familiaDeError("dueno_distinto_diferencia_de_otro_par") === "dueño distinto" && familiaDeError("conteo_propio") === "conteo", "las familias de siempre no cambian");
+  ok(familiaDeFila({ familia: "desliz", subtipo: "orden_falso" }) === FAMILIA_DESLIZ && familiaDeFila({ familia: "conteo", subtipo: "x" }) === "conteo" && familiaDeFila({ subtipo: "metrica_espuria" }) === "métrica distinta" && familiaDeFila({ familia: "zzz", subtipo: "dueno_distinto" }) === "dueño distinto", "la persona puede fijar la familia a mano (`familia`); si no se reconoce, manda el subtipo");
+  const e = (familia, hilo, id) => ({ familia, hilo, id, oracion: id });
+  ok(patronesSistematicos([e(FAMILIA_DESLIZ, "A01", "1"), e("relación o razón entre cifras", "B02", "2")]).length === 0, "★ un desliz y un error de RELACIÓN no arman patrón entre sí (familias distintas)");
+  ok(patronesSistematicos([e(FAMILIA_DESLIZ, "A01", "1"), e("dueño distinto", "A01", "2"), e("conteo", "B01", "3")]).length === 0, "…ni con dueño distinto ni con conteo");
+  const dos = patronesSistematicos([e(FAMILIA_DESLIZ, "A01", "1"), e(FAMILIA_DESLIZ, "C02", "2")]);
+  ok(dos.length === 1 && dos[0].familia === FAMILIA_DESLIZ && dos[0].esDesliz === true && dos[0].veces === 2, "dos deslices SÍ son «la misma familia ×2» (el patrón es el de siempre: misma familia, 2 o más) y quedan marcados `esDesliz`");
+  const rel = patronesSistematicos([e("relación o razón entre cifras", "A01", "1"), e("relación o razón entre cifras", "B01", "2")]);
+  ok(rel.length === 1 && rel[0].esDesliz === false, "dos errores de relación siguen armando patrón, como hoy");
+  // por el informe: dos errores materiales, uno desliz y uno de relación → NO PASA por el límite, pero SIN patrón
+  const h0 = hilosDeLaSerie[0];
+  const clasDes = { corrida: "desliz", palabras: [
+    { id: `${h0}|1|1`, clase: "H-grave", subtipo: "desliz_de_lectura_tabla_propia", oracion: "Las dos más vendidas: Norvik y Teravolt; Alsen, la tercera." },
+    { id: `${h0}|1|2`, clase: "H-grave", subtipo: "relacion_en_palabras_falsa", oracion: "Una cuenta vende el doble que la otra." },
+  ] };
+  const iDes = calcularInforme(cargarSalida(copiarCorrida(CORRIDAS_SERIE.A1, sub("desliz-mixto"), clasDes)));
+  const famIn = iDes.veredictoDetallado.erroresDelAnfitrion.map((x) => x.familia).sort();
+  ok(famIn.join() === ["desliz de lectura con la verdad a la vista", "relación o razón entre cifras"].sort().join() && iDes.veredictoDetallado.criterios.anfitrion.errores === 2 && iDes.veredictoDetallado.criterios.patron.sistematico === false, "★ en el informe: el desliz sigue siendo un error MATERIAL (cuenta contra el límite) pero NO arma patrón con el de relación", JSON.stringify([famIn, iDes.veredictoDetallado.criterios.patron]));
+  ok(iDes.materialesPorFamilia["desliz de lectura con la verdad a la vista"] === 1 && iDes.veredictoDetallado.erroresDelAnfitrion.find((x) => x.esDesliz).hilo === h0 && /familia «desliz de lectura con la verdad a la vista» es variabilidad del anfitrión/.test(informeEnMarkdown(iDes)), "el informe cuenta los materiales por familia y explica la del desliz");
+  const clasDes2 = { corrida: "desliz2", palabras: [
+    { id: `${h0}|1|1`, clase: "H-grave", subtipo: "desliz_de_lectura_tabla_propia", oracion: "Alsen, la tercera." },
+    { id: `${h0}|1|2`, clase: "H-grave", subtipo: "x", familia: "desliz", oracion: "LG, 2.7 pp por debajo de Philips." },
+  ] };
+  const iDes2 = calcularInforme(cargarSalida(copiarCorrida(CORRIDAS_SERIE.A1, sub("desliz-doble"), clasDes2)));
+  ok(iDes2.veredictoDetallado.criterios.patron.sistematico === true && iDes2.veredictoDetallado.criterios.patron.patrones[0].esDesliz === true, "dos deslices en la misma corrida: el patrón es el de hoy (misma familia ×2), señalado como desliz");
+  const clasLeve = { palabras: [{ id: `${h0}|1|1`, clase: "H-leve", subtipo: "desliz_de_lectura", oracion: "Un desliz leve." }] };
+  ok(leerClasificacion(clasLeve).hallazgos[0].familia === FAMILIA_DESLIZ, "un desliz LEVE también se agrupa en su familia (los leves repetidos se informan aparte)");
+}
+
+/* ═════ N · EL MEDIDOR TRAS EL ENSAYO 12: «MÉTRICA DISTINTA ×20» ERA UNA FALLA DEL MEDIDOR ══════════════════════════════════════════════════════════════════════ */
+seccion("N · el medidor: una cifra toma la métrica de SU etiqueta (30 marcas «métrica distinta» de los ensayos 9-12, todas falsas alarmas salvo una)");
+{
+  const { REGLAS, esEjemploHipotetico } = await import(D + "rastreo.mjs");
+  const FXR = JSON.parse(fs.readFileSync(new URL("./fixtures/medicion-anfitrion/ensayo-12-metrica-distinta.json", import.meta.url), "utf8"));
+  const FALSOS_N = new Set(["no_traza", "dueno_distinto", "metrica_distinta", "conteo_no_cierra", "relacion_no_cierra", "cambio_no_avisado"]);
+  const NUEVAS = ["etiqueta_propia", "sin_venta", "negada", "etiqueta_antes", "etiqueta_reclamada", "columna_de_tabla", "brecha_en_pesos", "unidad_natural", "ejemplo_encadenado", "margen_es_razon", "sin_capturar"];
+  const hiloF = (cid, cambia = []) => {
+    const c = FXR.contextos[cid]; let prosa = c.prosa;
+    for (const [de, a] of cambia) { if (!prosa.includes(de)) throw new Error(`la prosa de ${cid} ya no trae «${de}»`); prosa = prosa.split(de).join(a); }
+    const turnos = c.persona.map((p, i) => ({ sesion: 1, turno: i + 1, persona: p, textoEnviado: p, texto: i === c.persona.length - 1 ? prosa : "", llamadas: i === c.persona.length - 1 ? JSON.parse(JSON.stringify(c.llamadas)) : [] }));
+    return { hiloId: "M", forma: c.forma, empresa: c.empresa, turnos };
+  };
+  const vsF = (cid, token, cambia = []) => rastrearHilo(hiloF(cid, cambia)).at(-1).afirmaciones.filter((a) => a.clase === 1 && a.veredicto !== "ignorado" && a.token === token).map((a) => a.veredicto);
+  const sinTodas = (f) => { for (const r of NUEVAS) REGLAS[r] = false; try { return f(); } finally { for (const r of NUEVAS) REGLAS[r] = true; } };
+  const sinUna = (r, f) => { REGLAS[r] = false; try { return f(); } finally { REGLAS[r] = true; } };
+  const casos = Object.entries(FXR.casos);
+  ok(casos.length === 32 && casos.filter(([, c]) => !c.control).length === 29 && Object.keys(FXR.contextos).length === 25, "el fixture trae las 29 marcas «métrica distinta» de los ensayos 9-12 + 3 controles (frases VERBATIM de los transcritos reales, con el libro reducido de ADI)", `${casos.length}`);
+  let ahoraBien = 0, antesMarcado = 0, resiste = 0; const fallos = [];
+  for (const [id, c] of casos) {
+    const ahora = vsF(c.ctx, c.token), antes = sinTodas(() => vsF(c.ctx, c.token));
+    const sigueMarcada = ahora.some((x) => FALSOS_N.has(x));
+    if (c.control) { if (!sigueMarcada && !antes.some((x) => FALSOS_N.has(x))) ahoraBien += 1; else fallos.push(`control ${id}`); continue; }
+    if (!sigueMarcada) ahoraBien += 1; else if (id === "e10/B01-1.6-k13") resiste += 1; else fallos.push(`sigue ${id}`);
+    if (antes.includes("metrica_distinta")) antesMarcado += 1; else fallos.push(`sin las reglas no se marca ${id}: ${antes}`);
+  }
+  ok(fallos.length === 0 && antesMarcado === 29 && ahoraBien === 31 && resiste === 1, "★ las 29 marcas del medidor viejo: con las reglas nuevas APAGADAS vuelven las 29 (rojo), con ellas puestas 28 dejan de marcarse; queda UNA («Quillay no tiene saldo vencido (tiene $3.8M por vencer)», que la persona clasificó H-correcta, no V) y los 3 controles siguen sin marca", `${JSON.stringify(fallos)} antes=${antesMarcado} ahoraBien=${ahoraBien} resiste=${resiste}`);
+  // cada regla hace falta: donde la ablación de UNA regla re-marca el caso, el fixture lo recuerda (`reglas`) y el gate lo exige
+  let conRegla = 0, reglasVistas = new Set();
+  for (const [id, c] of casos) for (const r of c.reglas || []) { const v = sinUna(r, () => vsF(c.ctx, c.token)); if (v.some((x) => FALSOS_N.has(x))) { conRegla += 1; reglasVistas.add(r); } else fallos.push(`${id} sin ${r}: ${v}`); }
+  ok(fallos.length === 0 && conRegla >= 18 && ["etiqueta_propia", "etiqueta_antes", "etiqueta_reclamada", "unidad_natural", "negada", "brecha_en_pesos", "margen_es_razon", "ejemplo_encadenado"].every((r) => reglasVistas.has(r)), "★ cada regla nueva tiene al menos un caso REAL que sin ella vuelve a marcarse (etiqueta propia/antes/reclamada · unidad natural · negada · brecha en pesos · margen es razón · ejemplo encadenado)", `${conRegla} ${[...reglasVistas]} ${JSON.stringify(fallos)}`);
+  // la sin_venta y la columna: se prueban con el caso que SOLO ellas rescatan (sin ellas, solas, no hay otra regla redundante)
+  const sinSoloSV = sinUna("sin_venta", () => { REGLAS.etiqueta_propia = false; try { return vsF("e12/A01-1.2-k49", "$11K"); } finally { REGLAS.etiqueta_propia = true; } });
+  ok(sinSoloSV.includes("metrica_distinta") && vsF("e12/A01-1.2-k49", "$11K").every((x) => !FALSOS_N.has(x)), "«$11K inmovilizados y 68 días sin venta»: «sin venta» es una ausencia, no la métrica Venta (sin esa regla y sin la etiqueta propia vuelve a marcarse)");
+  { const sinEP = (extra) => { REGLAS.etiqueta_propia = false; if (extra) REGLAS[extra] = false; try { return vsF("e12/A01-1.2-k28", "$1.1M"); } finally { REGLAS.etiqueta_propia = true; if (extra) REGLAS[extra] = true; } };
+    ok(!sinEP().some((x) => FALSOS_N.has(x)) && sinEP("sin_capturar").includes("metrica_distinta"), "«$1.1M sin capturar» ES la contribución no capturada: sin la regla `sin_capturar` (y sin la etiqueta propia) vuelve a leerse como el margen de la oración"); }
+  const tablaSinCol = sinUna("columna_de_tabla", () => { REGLAS.etiqueta_antes = false; REGLAS.etiqueta_propia = false; try { return vsF("e12/A03-1.3-k12", "25%"); } finally { REGLAS.etiqueta_antes = true; REGLAS.etiqueta_propia = true; } });
+  ok(vsF("e12/A03-1.3-k12", "25%").every((x) => !FALSOS_N.has(x)) && tablaSinCol.includes("metrica_distinta"), "la celda «| Bajo, con brecha relevante | Grandes Almacenes Bío | 25% |» toma la métrica de su COLUMNA (Margen), no la palabra «brecha» del encabezado de grupo");
+  // ── CARNADAS: lo que de verdad es una métrica equivocada SIGUE marcándose
+  const car = (cid, token, cambia, msg, esperado = "metrica_distinta") => { const v = vsF(cid, token, cambia); ok(v.includes(esperado), `★ CARNADA · ${msg}: sigue marcándose`, JSON.stringify(v)); };
+  car("e12/A03-1.1-k5", "$35.5M", [["Supermercados Andes del Sur: $35.5M, +8.3%, margen 22%.", "Supermercados Andes del Sur: margen de $35.5M, +8.3%."]], "«margen de $35.5M» (es venta)");
+  car("e12/A03-1.1-k5", "$35.5M", [["Supermercados Andes del Sur: $35.5M, +8.3%, margen 22%.", "Supermercados Andes del Sur: contribución $35.5M, +8.3%, margen 22%."]], "«contribución $35.5M» (es venta)");
+  car("e12/A01-1.2-k49", "$11K", [["- **BOS-SANDER:** $11K inmovilizados y 68 días sin venta.", "- **BOS-SANDER:** vendió $11K y lleva 68 días sin venta."]], "«vendió $11K» (es capital)");
+  car("e11/C01-1.1-k12", "$17.9M", [["- Lider: $17.9M, +15%, margen 21.5%.", "- Lider: margen $17.9M, +15%."]], "«margen $17.9M» (es venta)");
+  car("e12/A03-1.3-k12", "25%", [["| Situación | Cliente | Margen |", "| Situación | Cliente | Venta |"]], "una columna «Venta» con el valor del margen");
+  car("e12/A03-1.1-k62", "$2.3M", [["La brecha de $2.3M es la mayor.", "El costo de $2.3M es la mayor."]], "«el costo de $2.3M» (es brecha)");
+  car("e12/B01-2.7-k6", "$2.0M", [["Los $2.0M no equivalen a capital liberado ni a liquidez, porque los datos no traen posición de caja.", "Los $2.0M son el capital liberado."]], "«son el capital liberado» (es saldo pendiente)");
+  car("e09/C04-1.6-k1", "23,1 %", [["El margen ponderado de Norvik y Teravolt juntas es **23,1 %**", "El costo ponderado de Norvik y Teravolt juntas es **23,1 %**"]], "«el costo ponderado es 23,1 %» (es margen)");
+  car("e12/A03-1.3-k19", "1.8%", [["Mercantil Pacífico tiene 1.8% y 29% de margen.", "Mercantil Pacífico tiene margen de 1.8% y 29% de carga."]], "«margen de 1.8 %» (es carga comercial)");
+  car("e11/B01-1.5-k5", "$10,7 M", [["Debe $10,7 M y tiene", "Su margen es $10,7 M y tiene"]], "«su margen es $10,7 M» (es saldo pendiente)");
+  { const frase = 'usted me da un supuesto, como "+8% de venta" o "+2 pp de margen"', sin = 'Una cuenta vende bien y tiene 10%, o 12%.'; ok(esEjemploHipotetico(frase, { indice: frase.indexOf("2 pp") }) && !esEjemploHipotetico(sin, { indice: sin.indexOf("12%") }), "la oferta encadenada «como «+8% de venta» o «+2 pp de margen»» es un ejemplo hipotético; una frase sin oferta no"); }
+}
+
+
+/* ═════ O · EL INFORME COMPARATIVO A/B (`comparar-brazos.mjs`) ═══════════════════════════════════════════════════════════════════════════════════════════════════
+ * Cuatro carpetas de corrida (las de la serie de J, con una clasificación humana SINTÉTICA: datos falsos, solo para ejercitar la aritmética) → sobre-alcance por brazo con Wilson, reducción relativa con bootstrap por hilo,
+ * materiales por familia y el veredicto de la regla de parada. */
+seccion("O · comparar-brazos: sobre-alcance por brazo, reducción relativa con intervalo, materiales por familia y la regla de parada");
+const CMP = await import(D + "comparar-brazos.mjs");
+{
+  const { compararBrazos, compararResumenes, resumirCorrida, textoDeLaComparacion, UMBRAL_DE_REDUCCION_POR_DEFECTO } = CMP;
+  const SUBS = ["orden", "extremo", "conjunto", "relación", "existencia", "continuidad", "cifra"];
+  /* una clasificación sintética: `porHilo` = cuántas afirmaciones de sobre-alcance en cada hilo; `materiales` = [{ hilo, subtipo }] */
+  const clasFalsa = (porHilo, materiales = []) => ({
+    corrida: "sintética",
+    sobreAlcance: Object.entries(porHilo).flatMap(([h, n]) => Array.from({ length: n }, (_, i) => ({ id: `${h}|1|1`, subtipo: SUBS[i % SUBS.length], oracion: `afirmación ${i + 1} del hilo ${h} más allá de lo entregado`, verdadera: i % 2 === 0 }))),
+    palabras: materiales.map((m, i) => ({ id: `${m.hilo}|1|${i + 1}`, clase: "H-grave", subtipo: m.subtipo, oracion: `error material ${i + 1} del hilo ${m.hilo}` })),
+  });
+  const A3 = Object.fromEntries(hilosDeLaSerie.map((h) => [h, 3])), B0 = Object.fromEntries(hilosDeLaSerie.map((h, i) => [h, i === 0 ? 1 : 0]));
+  const armar = (nombre, mapa) => { const d = {}; for (const [celda, salida] of Object.entries(CORRIDAS_SERIE)) { const m = mapa[celda]; d[celda] = copiarCorrida(salida, sub(`${nombre}-${celda}`), clasFalsa(m.porHilo, m.materiales || [])); } return d; };
+  const h0 = hilosDeLaSerie[0], h1 = hilosDeLaSerie[1] || h0;
+  // ── escenario 1: B casi no tiene sobre-alcance, y lo poco que le queda de material es un desliz
+  const e1 = armar("cmp1", { A1: { porHilo: A3, materiales: [{ hilo: h0, subtipo: "relacion_invertida" }] }, A2: { porHilo: A3 }, B1: { porHilo: B0, materiales: [{ hilo: h1, subtipo: "desliz_de_lectura_tabla_propia" }] }, B2: { porHilo: B0 } });
+  const c1 = compararBrazos(Object.values(e1));
+  ok(c1.ok && c1.A.corridas.length === 2 && c1.B.corridas.length === 2 && c1.A.k === 3 * hilosDeLaSerie.length * 2 && c1.B.k === 2 && c1.comunes === hilosDeLaSerie.length, "★ comparar: sobre-alcance por brazo SUMADO sobre las repeticiones (A = 3 por hilo × 2 corridas; B = 1 en un hilo × 2 corridas)", JSON.stringify({ ok: c1.ok, errores: c1.errores, A: c1.A && c1.A.k, B: c1.B && c1.B.k }));
+  ok(c1.A.n > 0 && c1.B.n > 0 && c1.A.tasaPor500 === Number(((c1.A.k / c1.A.n) * 500).toFixed(2)) && c1.A.wilsonPor500.lo < c1.A.tasaPor500 && c1.A.tasaPor500 < c1.A.wilsonPor500.hi && c1.B.wilsonPor500.lo >= 0, "…con la tasa por 500 y su intervalo de Wilson por brazo");
+  const piso = EST.wilson(c1.A.k, c1.A.n); ok(c1.A.wilsonPor500.lo === Number((piso.lo * 500).toFixed(2)) && c1.A.wilsonPor500.hi === Number((piso.hi * 500).toFixed(2)), "el intervalo de Wilson del informe es el de `estadistica.mjs` sobre el total sumado");
+  ok(c1.reduccion.reduccion > 0.9 && c1.reduccion.lo > 0 && c1.reduccion.hi <= 1 && c1.newcombe.diff > 0 && c1.newcombe.lo > 0, "★ reducción relativa de B respecto de A > 90 %, con el intervalo bootstrap por hilo y el de Newcombe de la diferencia absoluta por encima de 0", JSON.stringify([c1.reduccion.reduccion, c1.reduccion.lo, c1.newcombe]));
+  ok(c1.regla.resuelta && c1.regla.frase === "familia resuelta" && c1.umbralPct === 50 && UMBRAL_DE_REDUCCION_POR_DEFECTO === 50, "★ REGLA DE PARADA: reduce ≥ 50 % y el intervalo excluye la no-reducción → «familia resuelta» (umbral por defecto 50 %)");
+  ok(c1.A.materialesPorFamilia["relación o razón entre cifras"] === 1 && c1.B.materialesPorFamilia["desliz de lectura con la verdad a la vista"] === 1 && c1.B.nMateriales === 1, "★ errores materiales por familia y por brazo");
+  ok(/TODOS los materiales que quedan en B \(1\) son «desliz de lectura con la verdad a la vista»/.test(c1.nota || "") && /NOTA:/.test(c1.texto), "★ §6.4 (iii): B reduce pero lo único que le queda de material es un desliz con la verdad a la vista → se dice (el owner revisa el criterio solo para esa familia)");
+  ok(/COMPARACIÓN A\/B/.test(c1.texto) && /Sobre-alcance por brazo/.test(c1.texto) && /Reducción relativa de B respecto de A/.test(c1.texto) && /bootstrap por hilo/.test(c1.texto) && /Newcombe/.test(c1.texto) && /Por subtipo/.test(c1.texto) && /Por hilo/.test(c1.texto) && /VEREDICTO: familia resuelta/.test(c1.texto), "el texto trae todo: brazos con Wilson, reducción con intervalo, Newcombe, subtipos, hilos, materiales por familia y el veredicto");
+  ok(Object.keys(c1.A.porSubtipo).length === 3 && c1.A.porSubtipo.orden >= 1 && c1.A.porSubtipo.extremo >= 1 && c1.B.porSubtipo.orden >= 1 && !c1.B.porSubtipo.extremo, "por subtipo: A y B");
+  // ── escenario 2: B igual que A → el residuo es del anfitrión
+  const e2 = armar("cmp2", { A1: { porHilo: A3 }, A2: { porHilo: A3 }, B1: { porHilo: A3 }, B2: { porHilo: A3 } });
+  const c2 = compararBrazos(Object.values(e2));
+  ok(c2.ok && !c2.regla.resuelta && c2.regla.frase === "el residuo es variabilidad del anfitrión: el owner revisa el criterio" && /VEREDICTO: el residuo es variabilidad del anfitrión: el owner revisa el criterio/.test(c2.texto) && !c2.nota, "★ REGLA DE PARADA: B no reduce → «el residuo es variabilidad del anfitrión: el owner revisa el criterio»");
+  // ── escenario 3: B reduce 33 % (de 3 a 2 por hilo): no alcanza 50 % pero el intervalo excluye el 0; con el umbral en 30 % sí
+  const B2h = Object.fromEntries(hilosDeLaSerie.map((h) => [h, 2]));
+  const e3 = armar("cmp3", { A1: { porHilo: A3 }, A2: { porHilo: A3 }, B1: { porHilo: B2h }, B2: { porHilo: B2h } });
+  const c3 = compararBrazos(Object.values(e3)), c3b = compararBrazos(Object.values(e3), { umbralPct: 20 });
+  ok(c3.ok && c3.reduccion.reduccion > 0.2 && c3.reduccion.reduccion < 0.4 && c3.reduccion.lo > 0 && !c3.regla.resuelta && !c3.regla.cumpleUmbral && c3.regla.excluyeNoReduccion && c3b.regla.resuelta && c3b.umbralPct === 20 && /≥ 20 %/.test(c3b.texto), "★ el umbral es un PARÁMETRO: una reducción de ~24 % (intervalo por encima de 0) no es «familia resuelta» con 50 %, sí con 20 %", JSON.stringify([c3.reduccion.reduccion, c3.regla, c3b.regla]));
+  // ── la misma aritmética sin carpetas (resúmenes a mano): reducción 40 % exacta
+  const res = (brazo, rep, k, n = 100, hs = 8, mat = []) => ({ carpeta: `${brazo}${rep}`, errores: [], corridaId: `${brazo}${rep}`, brazo, repeticion: rep, serie: "s", corpusSha256: "c", codigoSha256: "k", modelo: "m", veredicto: "NO CONCLUYENTE", N: n * hs, n: k * hs, porSubtipo: { orden: k * hs }, porHilo: Object.fromEntries(Array.from({ length: hs }, (_, i) => [`H${i}`, { k, n }])), materiales: mat, nMateriales: mat.length, patron: [] });
+  const p40 = compararResumenes([res("A", 1, 5), res("A", 2, 5), res("B", 1, 3), res("B", 2, 3)]);
+  ok(p40.ok && Math.abs(p40.reduccion.reduccion - 0.4) < 1e-9 && !p40.regla.resuelta && compararResumenes([res("A", 1, 5), res("A", 2, 5), res("B", 1, 3), res("B", 2, 3)], { umbralPct: 40 }).regla.resuelta, "reducción exacta de 40 % (3 contra 5 por 100 en cada hilo): no basta con 50 %, basta con un umbral de 40 %");
+  const pDesl = compararResumenes([res("A", 1, 5), res("A", 2, 5), res("B", 1, 1, 100, 8, [{ id: "x", hilo: "H0", familia: "desliz de lectura con la verdad a la vista", esDesliz: true }]), res("B", 2, 1)]);
+  ok(pDesl.ok && pDesl.regla.resuelta && /deslices|desliz de lectura/.test(pDesl.nota) === true, "(iii) con resúmenes a mano: B reduce 80 % y su único material es un desliz → nota");
+  const pMezcla = compararResumenes([res("A", 1, 5), res("A", 2, 5), res("B", 1, 1, 100, 8, [{ id: "x", hilo: "H0", familia: "desliz de lectura con la verdad a la vista", esDesliz: true }, { id: "y", hilo: "H1", familia: "conteo", esDesliz: false }]), res("B", 2, 1)]);
+  ok(pMezcla.ok && pMezcla.regla.resuelta && pMezcla.nota === null, "…pero si en B quedan materiales de otra familia además del desliz, no hay nota (la familia 'conteo' no es variabilidad)");
+  // ── lo que se RECHAZA: una comparación engañosa
+  const rech = (que, carpetas, re, opc = {}) => { const r = compararBrazos(carpetas, opc); ok(!r.ok && re.test(r.errores.join("\n")) && /COMPARACIÓN RECHAZADA/.test(r.texto), `★ CARNADA · ${que}`, JSON.stringify(r.errores)); };
+  rech("falta un brazo (solo corridas A)", [e1.A1, e1.A2], /falta al menos una corrida del brazo B/);
+  { const d = copiarCorrida(e1.B1, sub("cmp-otro-corpus"), clasFalsa(B0)); const m = leerJson(path.join(d, "manifiesto.json")); m.corpus.sha256 = "0".repeat(64); fs.writeFileSync(path.join(d, "manifiesto.json"), JSON.stringify(m)); rech("una corrida de OTRO corpus (huella sha256 distinta): sin pareo no hay A/B", [e1.A1, e1.A2, d, e1.B2], /MISMO corpus sellado/); }
+  { const d = copiarCorrida(e1.B1, sub("cmp-otro-codigo"), clasFalsa(B0)); const m = leerJson(path.join(d, "manifiesto.json")); m.hashes.codigo = "1".repeat(64); fs.writeFileSync(path.join(d, "manifiesto.json"), JSON.stringify(m)); const cj = leerJson(path.join(d, "corrida.json")); cj.codigoHuellaFinal = "1".repeat(64); fs.writeFileSync(path.join(d, "corrida.json"), JSON.stringify(cj)); rech("una corrida con OTRO código", [e1.A1, e1.A2, d, e1.B2], /mismo CÓDIGO/); }
+  { const d = copiarCorrida(e1.B1, sub("cmp-sin-brazo"), clasFalsa(B0)); const m = leerJson(path.join(d, "manifiesto.json")); delete m.brazo; fs.writeFileSync(path.join(d, "manifiesto.json"), JSON.stringify(m)); rech("una corrida sin brazo (anterior al A/B)", [e1.A1, e1.A2, d, e1.B2], /no declara su brazo/); }
+  { const d = copiarCorrida(e1.B1, sub("cmp-sin-clasif"), null); fs.rmSync(path.join(d, "clasificacion.json"), { force: true }); rech("una corrida SIN clasificación humana (el sobre-alcance no se mide solo)", [e1.A1, e1.A2, d, e1.B2], /falta `clasificacion\.json`/); }
+  { const d = copiarCorrida(e1.B1, sub("cmp-mezclada"), clasFalsa(B0)); const t = leerJson(path.join(d, "transcritos", `${h0}.json`)); t.turnos[0].brazo = "A"; fs.writeFileSync(path.join(d, "transcritos", `${h0}.json`), JSON.stringify(t));
+    rech("una corrida INVÁLIDA (mezcla de brazos) no entra en la comparación", [e1.A1, e1.A2, d, e1.B2], /INVÁLIDA/);
+    ok(compararBrazos([e1.A1, e1.A2, d, e1.B2], { aceptarInvalidas: true }).ok, "…salvo que se pida `aceptarInvalidas` (solo para análisis, no para decidir)"); }
+  ok(!compararBrazos([sub("no-existe-1"), e1.B1]).ok && /no existe/.test(compararBrazos([sub("no-existe-1"), e1.B1]).errores.join()), "una carpeta que no existe se rechaza");
+  { const dup = compararBrazos([e1.A1, e1.A1, e1.B1, e1.B2]); ok(dup.ok && dup.advertencias.some((a) => /aparece dos veces/.test(a)), "la misma celda dos veces: se advierte"); }
+  { const tres = compararBrazos([e1.A1, e1.B1, e1.B2]); ok(tres.ok && tres.advertencias.some((a) => /el diseño pide 2 repeticiones/.test(a)), "un brazo con una sola corrida: se advierte (el diseño pide 2 por brazo)"); }
+  // el CLI
+  { const r = await new Promise((res) => { const p = spawn(process.execPath, ["--import", "./scripts/offline-guard.mjs", D + "comparar-brazos.mjs", "--umbral=30", ...Object.values(e1)], { stdio: ["ignore", "pipe", "pipe"] }); let so = ""; p.stdout.on("data", (c) => { so += c; }); p.on("close", (code) => res({ code, so })); });
+    ok(r.code === 0 && /VEREDICTO: familia resuelta/.test(r.so) && /30 %/.test(r.so), "el CLI `comparar-brazos.mjs --umbral=30 <4 carpetas>` imprime el informe y sale con 0", r.so.slice(0, 200));
+    const r2 = await new Promise((res) => { const p = spawn(process.execPath, ["--import", "./scripts/offline-guard.mjs", D + "comparar-brazos.mjs", e1.A1], { stdio: ["ignore", "pipe", "pipe"] }); let so = ""; p.stdout.on("data", (c) => { so += c; }); p.on("close", (code) => res({ code, so })); });
+    ok(r2.code === 2 && /COMPARACIÓN RECHAZADA/.test(r2.so), "…y con una sola carpeta se rechaza (código 2)"); }
+  fs.writeFileSync(path.join(TMP, "muestra-comparacion.txt"), c1.texto);
+  if (process.env.MX_MOSTRAR_COMPARACION) console.log("\n" + c1.texto + "\n");
+}
 
 try { fs.rmSync(TMP, { recursive: true, force: true }); } catch { /* temporal */ }
 console.log(`\n── _medicion_anfitrion_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);

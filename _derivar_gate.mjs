@@ -25,7 +25,7 @@ import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { validarEncargo } from "./src/adi/encargo/validar.js";
 import { componerEntrega } from "./src/adi/entrega/componer.js";
-import { crearAcciones, CABECERA_DE_USO, _hechosDeLaEntrega } from "./src/adi/capacidad/acciones.js";
+import { crearAcciones, CABECERA_DE_USO, cabeceraDeUso, _hechosDeLaEntrega } from "./src/adi/capacidad/acciones.js";   /* `cabeceraDeUso()` = la del brazo que corre (B por defecto: cuatro reglas; A: las cinco de siempre, `CABECERA_DE_USO`) */
 import { conTenantActivo } from "./src/adi/capacidad/aislamiento.js";
 import { compactarParaAnfitrion, ENTIDADES_DE_UN_UNIVERSO_MAX } from "./src/adi/capacidad/compacto.js";
 import { OPERACIONES, OPERANDOS_MAX, MOTIVOS_DE_DERIVACION, UNIDADES_DE_CRITERIO, textoDeVeces, validarDerivacion, calcularDerivacion, derivacionParaElLibro } from "./src/adi/capacidad/derivar.js";
@@ -143,7 +143,7 @@ for (const { etiqueta, T } of EMPRESAS) {
     ok(r.hecho.valor === formatoDeLaCasa(suma, "money"), `★ el valor es el de la casa sobre la SUMA DE LOS CRUDOS (${formatoDeLaCasa(suma, "money")})`, r.hecho && r.hecho.valor);
     ok(jj(r.hecho.sobre) === jj(tres.map((x) => x.id)) && r.operandos.length === 3 && r.operandos.every((o, i) => o.id === tres[i].id && o.valor === tres[i].valor && o.entidad === tres[i].entidad), "los operandos viajan con su id, entidad y valor tal como se entregaron");
     ok(r.hecho.entidad === tres.map((x) => x.entidad).join(" + ") && r.hecho.metrica === "Venta · suma de 3 cifras entregadas", "la entidad nombra a los tres y la métrica dice qué es", jj(r.hecho));
-    ok(jj(r.uso) === jj(CABECERA_DE_USO) && r.continuidad.guardada === true && r.continuidad.conversacionId === h.conv, "trae la cabecera de uso y la continuidad");
+    ok(jj(r.uso) === jj(cabeceraDeUso()) && r.continuidad.guardada === true && r.continuidad.conversacionId === h.conv, "trae la cabecera de uso y la continuidad");
     const L1 = await libroDe();
     ok(L1.derivaciones.length === 1 && L1.derivaciones[0].id === "D1" && L1.derivaciones[0].resultado.raw === suma && L1.nDerivaciones === 1, "★ la derivación quedó en el libro con su crudo exacto");
     ok(jj(L1.entregas) === jj(L0.entregas) && L1.turno === L0.turno, "★ ninguna Entrega ni id `E<n>.h<k>` se movió (derivar no consume los cupos de Entregas)");
@@ -426,7 +426,7 @@ H("9 · la puerta: cinco herramientas, REST `derivar`, OpenAPI con cinco rutas")
   const conv = rc.continuidad.conversacionId;
   const ids = rc.entrega.cifras.filter((x) => x.entidad).slice(0, 3).map((x) => x.id);
   const rest = await (await pedir(`${RUTA}/derivar`, { conversacionId: conv, operacion: "suma", sobre: ids }, 2)).json();
-  ok(rest.ok === true && rest.hecho.id === "D1" && rest.hecho.procedencia === "derivado" && jj(rest.uso) === jj(CABECERA_DE_USO), "★ REST: `derivar` por la puerta devuelve el hecho D1 con la cabecera de uso", jj(rest).slice(0, 300));
+  ok(rest.ok === true && rest.hecho.id === "D1" && rest.hecho.procedencia === "derivado" && jj(rest.uso) === jj(cabeceraDeUso()), "★ REST: `derivar` por la puerta devuelve el hecho D1 con la cabecera de uso", jj(rest).slice(0, 300));
   const rpc = await (await pedir("/mcp", { jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "derivar", arguments: { conversacionId: conv, operacion: "diferencia", sobre: ids.slice(0, 2) } } }, 3)).json();
   const p = JSON.parse(rpc.result.content[0].text);
   ok(p.ok === true && p.hecho.id === "D2" && rpc.result.isError === false, "JSON-RPC: tools/call `derivar` devuelve D2 (el id sigue el libro)", jj(p).slice(0, 300));
@@ -1218,7 +1218,7 @@ for (const { etiqueta, T } of EMPRESAS) {
     const cOp = r.operandos.find((o) => o.id === "criterio");
     ok(cOp && cOp.procedencia === "declarado" && cOp.origen === "declarado por el usuario en esta conversación" && cOp.valor === "25%" && cOp.texto === crit.texto, "★ el criterio viaja con SU procedencia: «declarado por el usuario en esta conversación», su valor exacto y sus palabras", jj(cOp));
     ok(r.hecho.procedencias.includes("declarado por el usuario en esta conversación") && r.hecho.procedencias.length === 2 && /criterio declarado por el usuario/.test(r.hecho.metrica) && /el criterio declarado por el usuario/.test(r.hecho.descripcion), "★ el hecho nombra las DOS procedencias (lo derivado de ADI y lo declarado por el usuario) y la métrica y la descripción dicen que el criterio es del usuario", jj([r.hecho.procedencias, r.hecho.metrica, r.hecho.descripcion]));
-    ok(!/criterio de ADI|referencia del oficio|benchmark|declarado por la empresa/i.test(jj({ ...r, uso: undefined })), "★ NUNCA se presenta como criterio de ADI, del oficio ni de la empresa");
+    ok(!/criterio de ADI|referencia del oficio|benchmark|declarado por la empresa/i.test(jj({ ...r, uso: undefined, establecido: undefined })), "★ NUNCA se presenta como criterio de ADI, del oficio ni de la empresa");
     const rAlReves = await derivar(h, { operacion: "diferencia", sobre: [D[0], "criterio"], criterio: crit }, T);
     ok(rAlReves.ok && rAlReves.hecho.valor === formatoDeLaCasa(part(ventas[0]) - 25, "pp") && rAlReves.hecho.id !== r.hecho.id, "el orden manda: lo medido menos el criterio es la distancia con el signo contrario", jj(rAlReves.hecho));
     const rep = await derivar(h, { operacion: "diferencia", sobre: ["criterio", D[0]], criterio: crit }, T);
@@ -1425,7 +1425,7 @@ for (const { etiqueta, T } of EMPRESAS) {
   }
   const resp = ra.ok ? JSON.stringify(ra) : "";
   ok(ra.ok && ra.coincidencia.a.marco && ra.coincidencia.a.marco === ra.coincidencia.b.marco && /eje completo/.test(ra.hecho.descripcion) && ra.coincidencia.universo === `${axisEntityNames("cliente").length} clientes`, "cada orden dice su marco (período cerrado) y el universo del que sale (los N clientes del eje)");
-  ok(ra.ok && jj(ra.uso) === jj(CABECERA_DE_USO) && !/boleta|fig\b|toolRegistry/i.test(resp), "viaja con la cabecera de uso y sin vocabulario de mecanismo");
+  ok(ra.ok && jj(ra.uso) === jj(cabeceraDeUso()) && !/boleta|fig\b|toolRegistry/i.test(resp), "viaja con la cabecera de uso y sin vocabulario de mecanismo");
 
   /* b · la dirección contraria y el orden de a/b: otra pregunta, otra cifra */
   const rb = await C("cliente", L("margen", "menor", 3), L("ventas", "mayor", 3));
@@ -1556,7 +1556,7 @@ H("16c · ensayo 10: por la puerta (REST y JSON-RPC) y falla cerrada");
   const conv = rc.continuidad.conversacionId;
   const body = { conversacionId: conv, operacion: "coincidencia", eje: "cliente", a: { metrica: "ventas", direccion: "mayor", k: 3 }, b: { metrica: "margen", direccion: "menor", k: 3 } };
   const rest = await (await pedir(`${RUTA}/derivar`, body, 2)).json();
-  ok(rest.ok === true && rest.hecho.id === "D1" && rest.hecho.valor === "2 de 3" && rest.hecho.entidad === "Falabella y Lider" && jj(rest.uso) === jj(CABECERA_DE_USO), "★ REST: `derivar` coincidencia por la puerta devuelve D1 «2 de 3» (Falabella y Lider) con la cabecera de uso", jj(rest).slice(0, 400));
+  ok(rest.ok === true && rest.hecho.id === "D1" && rest.hecho.valor === "2 de 3" && rest.hecho.entidad === "Falabella y Lider" && jj(rest.uso) === jj(cabeceraDeUso()), "★ REST: `derivar` coincidencia por la puerta devuelve D1 «2 de 3» (Falabella y Lider) con la cabecera de uso", jj(rest).slice(0, 400));
   const rpc = await (await pedir("/mcp", { jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "derivar", arguments: { ...body, a: { ...body.a, k: 2 } } } }, 3)).json();
   const p = JSON.parse(rpc.result.content[0].text);
   ok(p.ok === true && p.hecho.id === "D2" && rpc.result.isError === false, "JSON-RPC: tools/call `derivar` coincidencia devuelve D2", jj(p).slice(0, 300));
@@ -1780,14 +1780,14 @@ H("18 · ensayo 11: el filtro sobre el eje COMPLETO («k de N»), el conteo que 
     const r = await A.consultar({ tenant: T, encargo: filtro("dias_vencido", ">", 250) });
     const c = compactarParaAnfitrion("consultar", r);
     const u = (c.entrega.universos || [])[0] || {};
-    ok(r.ok && mas250.length >= 1 && jj([...(u.entidades || [])].sort()) === jj(mas250), `(${etiqueta}) «clientes con más de 250 días de atraso»: ADI evalúa el eje COMPLETO y devuelve exactamente los de la recomputación independiente desde las facturas del tenant (${mas250.join(", ")})`, jj({ u: u.entidades, oraculo: mas250 }));
-    ok(new RegExp(`hay ${mas250.length} de ${filas.length} en los clientes con días vencido superior a 250 días`).test(c.entrega.texto) && u.n === mas250.length && u.parcial === `${mas250.length} de ${filas.length}`, `★ (${etiqueta}) y lo dice «${mas250.length} de ${filas.length}» —k de N sobre todo el eje— en la respuesta y marca la lista como parcial`, c.entrega.texto.split("\n").find((l) => /▸/.test(l)));
+    ok(r.ok && mas250.length >= 1 && jj([...(u.entidades || [...new Set(todas(c).filter((x) => x.entidad && !/^Total/.test(x.entidad)).map((x) => x.entidad))])].sort()) === jj(mas250), `(${etiqueta}) «clientes con más de 250 días de atraso»: ADI evalúa el eje COMPLETO y devuelve exactamente los de la recomputación independiente desde las facturas del tenant (${mas250.join(", ")}) — la lista de nombres del universo, o (brazo B, que no repite lo que ya viaja como dueño de las cifras) los dueños de las cifras`, jj({ u: u.entidades, oraculo: mas250 }));
+    ok(new RegExp(`hay ${mas250.length} de ${filas.length} en los clientes con días vencido superior a 250 días`).test(c.entrega.texto) && u.cobertura === `${mas250.length} de ${filas.length}` && u.seleccion.tipo === "filtro", `★ (${etiqueta}) y lo dice «${mas250.length} de ${filas.length}» —k de N sobre todo el eje— en la respuesta y marca la lista como parcial`, c.entrega.texto.split("\n").find((l) => /▸/.test(l)));
     if (etiqueta === "no-demo") {
       const lomas = filas.find((f) => f.nombre === "Casa Lomas");
-      ok(lomas && lomas.dias === 281 && Math.max(...filas.map((f) => f.dias)) === 281 && (u.entidades || []).includes("Casa Lomas"), "★ C02|1|6 (Río Claro): Casa Lomas —281 días, el mayor atraso— ESTÁ en el conjunto «más de 250 días» (el anfitrión lo había omitido desde los 3 mayores por saldo)");
+      ok(lomas && lomas.dias === 281 && Math.max(...filas.map((f) => f.dias)) === 281 && (u.entidades || todas(c).filter((x) => x.entidad).map((x) => x.entidad)).includes("Casa Lomas"), "★ C02|1|6 (Río Claro): Casa Lomas —281 días, el mayor atraso— ESTÁ en el conjunto «más de 250 días» (el anfitrión lo había omitido desde los 3 mayores por saldo)");
       const vistos = await A.consultar({ tenant: T, encargo: E([{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido", "dias_vencido"], eje: "cliente", universo: { eje: "cliente", top: { metrica: "saldo_vencido", k: 3, direccion: "mayor" } } }], r.continuidad.conversacionId) });
       const cv = compactarParaAnfitrion("consultar", vistos);
-      ok(!(cv.entrega.universos[0].entidades || []).includes("Casa Lomas") && cv.entrega.universos[0].parcial === "3 de 13", "(la vista parcial que engañó al anfitrión: los 3 mayores por saldo vencido NO traen a Casa Lomas, y la Entrega los marca «3 de 13»)");
+      ok(!(cv.entrega.universos[0].entidades || []).includes("Casa Lomas") && cv.entrega.universos[0].cobertura === "3 de 13", "(la vista parcial que engañó al anfitrión: los 3 mayores por saldo vencido NO traen a Casa Lomas, y la Entrega los marca «3 de 13»)");
     }
     /* el conteo de derivar sobre esa vista parcial dice sobre qué contó */
     const rp = await A.consultar({ tenant: T, encargo: E([{ id: "p1", tema: "cobranza", cierre: "cifra", conceptos: ["saldo_vencido", "dias_vencido"], eje: "cliente", universo: { eje: "cliente", top: { metrica: "saldo_vencido", k: 3, direccion: "mayor" } } }], r.continuidad.conversacionId) });

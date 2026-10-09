@@ -15,15 +15,18 @@
 import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { MCP_TOOLS } from "../../src/adi/capacidad/puerta.js";
+import { VARIABLE_DEL_BRAZO } from "./brazo.mjs";
 
 export const BANDERAS_DE_LA_PUERTA = Object.freeze({ ADI_ENTREGA: "true", ADI_COMPLEMENTO: "true", ADI_MEMORIA_DURABLE: "true" });
 export const VERSION_DEL_PROTOCOLO = "2024-11-05";
 
-export function crearPuertaMcp({ almacen, empresaId, bitacora = null, rutaEstado = null, base = "http://puerta.local/mcp" }) {
+/* `alcanceEstructural`: el BRAZO del A/B ("0" = A, la entrega de hoy · "1" = B) que lee el servidor de ADI; vive en el `env` de ESTA puerta, no en el del anfitrión. null = no se toca (el valor por defecto del servidor). */
+export function crearPuertaMcp({ almacen, empresaId, bitacora = null, rutaEstado = null, alcanceEstructural = null, base = "http://puerta.local/mcp" }) {
   if (!almacen || !almacen.manejarPuerta) throw new Error("crearPuertaMcp: falta el almacén (abrirAlmacen)");
   if (!almacen.codigos || !almacen.codigos[empresaId]) throw new Error(`crearPuertaMcp: la empresa «${empresaId}» no está en el almacén`);
   // las banderas viven en el env de ESTA puerta (el objeto que recibe manejarPuerta), no en process.env del anfitrión
   Object.assign(almacen.env, BANDERAS_DE_LA_PUERTA);
+  if (alcanceEstructural != null) almacen.env[VARIABLE_DEL_BRAZO] = String(alcanceEstructural);
   const nombres = new Set(MCP_TOOLS.map((t) => t.name));
   let k = 0, n = 0;
 
@@ -74,5 +77,5 @@ export function crearPuertaMcp({ almacen, empresaId, bitacora = null, rutaEstado
     return { jsonrpc: "2.0", id, error: { code: -32601, message: `método no soportado: «${method}»` } };
   }
 
-  return { manejarMensaje, llamarHerramienta, herramientas: () => MCP_TOOLS, empresaId, llamadas: () => n };
+  return { manejarMensaje, llamarHerramienta, herramientas: () => MCP_TOOLS, empresaId, llamadas: () => n, alcanceEstructural: () => (almacen.env[VARIABLE_DEL_BRAZO] == null ? null : String(almacen.env[VARIABLE_DEL_BRAZO])) };
 }

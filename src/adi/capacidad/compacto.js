@@ -26,6 +26,7 @@
 import { _hechosDeLaEntrega } from "./acciones.js";
 import { cifrasDeLaEntrega } from "../continuidad/revalidar.js";
 import { recorrerApoyo, hechosQueYaViajan } from "./apoyo.js";
+import { paginarRetomar, cambiosDe } from "./paginasDeRetomar.js";
 
 /* quiénes son los miembros de un universo se dice cuando es un conjunto que cabe a la vista (hasta 40 nombres); de uno mayor viaja solo cuántos son (`n`) */
 export const ENTIDADES_DE_UN_UNIVERSO_MAX = 40;
@@ -77,7 +78,7 @@ function _prioridadOrdenada(u, id) {
   return _soloConValor({ id, texto: u.texto, lente: u.orden, orden: ents.map((entidad, j) => ({ id: `${id}.${j + 1}`, entidad })) });   /* el puesto es el último número del id */
 }
 
-function _compactarEntrega(entrega, turno, tamanosDeEje = null) {
+function _compactarEntrega(entrega, turno, tamanosDeEje = null, alc = null) {
   const texto = entrega.texto;
   const j = entrega.json && typeof entrega.json === "object" ? entrega.json : null;
   if (!j) return { texto };
@@ -92,9 +93,16 @@ function _compactarEntrega(entrega, turno, tamanosDeEje = null) {
   /* el id del universo es el que el libro le da por posición (`E<n>.u<k>`): el que una persona puede citar después con `contexto.universoRef` */
   /* el conjunto de cuentas de la tabla de una prioridad (`<partes>_prioridad`, sin orden: solo autoriza las filas) NO viaja cuando existe su prioridad ordenada (`…_orden`): era el que se leía como un orden («le sigue Andes del Sur») y repetía la lista que la tabla ya muestra. El id `E<n>.u<k>` de los demás no se mueve. */
   const _ordenadas = new Set((Array.isArray(j.universos) ? j.universos : []).filter((u) => u && u.orden).map((u) => u.id));
-  const universos = (Array.isArray(j.universos) ? j.universos : []).map((u, k) => (u && !u.orden && _ordenadas.has(`${u.id}_orden`)) ? null : u && u.orden ? _prioridadOrdenada(u, `E${turno}.u${k + 1}`) : _soloConValor({ id: `E${turno}.u${k + 1}`, parte: u.id, eje: u.eje, texto: u.texto, n: Array.isArray(u.entidades) ? u.entidades.length : null, parcial: _parcial(u, tamanosDeEje), ...(Array.isArray(u.entidades) && u.entidades.length <= ENTIDADES_DE_UN_UNIVERSO_MAX ? { entidades: u.entidades } : {}), ...(u.valido === false ? { valido: false, errorValidacion: u.errorValidacion || null } : {}) })).filter(Boolean);
+  /* BRAZO B (alcance estructural, owner 2026-10-09): `n` + `parcial` se funden en `cobertura`, y cada universo lleva su selección, su orden, qué métricas están ordenadas y cuáles solo se muestran, y qué pasa con el resto (`alcanceEstructural.js`, calculado en `acciones.js`). Brazo A: los campos de siempre, byte a byte. */
+  const _alcDe = (k) => (alc && alc.universos && alc.universos[k] ? alc.universos[k] : null);
+  /* brazo B: la lista de nombres de un universo que no es un orden (completo · nombradas · filtro · estado) no se repite cuando TODOS esos nombres ya viajan como dueños de las cifras de la misma respuesta (la tabla y lo «fuera del texto»): es lo mismo dicho dos veces. Un top y una prioridad conservan la suya: su orden es dato. */
+  const _visibles = alc ? new Set([...cifrasDeLaConsulta(j, turno).map((c) => c.entidad), ...(j.detalle && Array.isArray(j.detalle.filas) && !(typeof entrega.fueraNoCabe === "number" && entrega.fueraNoCabe > 0) ? _hechosDeLaEntrega({ cifras: { filas: j.detalle.filas }, procedencia: prov }).map((h) => h.sujeto || (h.rv && h.rv.sujeto)) : [])].filter(Boolean)) : null;
+  const _listaRedundante = (u, k) => { const t = _alcDe(k) && _alcDe(k).seleccion && _alcDe(k).seleccion.tipo; return Boolean(_visibles) && ["completo", "nombradas", "filtro", "estado"].includes(t) && Array.isArray(u.entidades) && u.entidades.length > 0 && u.entidades.every((e) => _visibles.has(e)); };
+  const universos = (Array.isArray(j.universos) ? j.universos : []).map((u, k) => (u && !u.orden && _ordenadas.has(`${u.id}_orden`)) ? null : u && u.orden ? (alc ? { ..._prioridadOrdenada(u, `E${turno}.u${k + 1}`), ..._soloConValor({ cobertura: (_alcDe(k) || {}).cobertura, seleccion: (_alcDe(k) || {}).seleccion, resto: (_alcDe(k) || {}).resto }) } : _prioridadOrdenada(u, `E${turno}.u${k + 1}`)) : _soloConValor({ id: `E${turno}.u${k + 1}`, parte: u.id, eje: u.eje, texto: u.texto, ...(alc ? (_alcDe(k) || {}) : { n: Array.isArray(u.entidades) ? u.entidades.length : null, parcial: _parcial(u, tamanosDeEje) }), ...(Array.isArray(u.entidades) && u.entidades.length <= ENTIDADES_DE_UN_UNIVERSO_MAX && !_listaRedundante(u, k) ? { entidades: u.entidades } : {}), ...(u.valido === false ? { valido: false, errorValidacion: u.errorValidacion || null } : {}) })).filter(Boolean);
   const me = j.meta || {};
   const alcance = _soloConValor({ profundidad: me.profundidad, palabras: me.palabras, tope: me.tope, filas: me.filas, topeFilas: me.topeFilas, recortoFilas: me.recortoFilas, recortoOraciones: me.recortoOraciones, excedeTope: me.excedeTope });
+  /* brazo B: el mecanismo de texto (`alcance`) se reduce a `recorte` y SOLO cuando algo se recortó; el nombre `alcance` pasa a significar lo de negocio (de qué conjunto sale cada lista) */
+  const recorte = alc && (me.recortoFilas > 0 || me.recortoOraciones > 0 || me.excedeTope === true) ? _soloConValor({ profundidad: me.profundidad, palabras: me.palabras, tope: me.tope, filas: me.filas, topeFilas: me.topeFilas, recortoFilas: me.recortoFilas > 0 ? me.recortoFilas : null, recortoOraciones: me.recortoOraciones > 0 ? me.recortoOraciones : null, excedeTope: me.excedeTope === true ? true : null }) : null;
   const d = j.detalle && typeof j.detalle === "object" ? j.detalle : null;
   let detalle = null;
   if (d) {
@@ -112,19 +120,20 @@ function _compactarEntrega(entrega, turno, tamanosDeEje = null) {
     if (!Object.keys(detalle).length) detalle = null;
   }
   return _soloConValor({
-    texto, cifras: cifrasDeLaConsulta(j, turno), apoyo: apoyo.length ? apoyo : null, marco, universos: universos.length ? universos : null,
-    alcance, detalle, temasCubiertos: j.temasCubiertos || null, verificacion: j.verificacion || null,
+    texto, cifras: cifrasDeLaConsulta(j, turno), ...(alc && Array.isArray(alc.tablas) && alc.tablas.length ? { tablas: alc.tablas } : {}), apoyo: apoyo.length ? apoyo : null, marco, universos: universos.length ? universos : null,
+    ...(alc ? { recorte } : { alcance }), detalle, temasCubiertos: j.temasCubiertos || null, verificacion: j.verificacion || null,
   });
 }
 
 function _compactarConsultar(s) {
   if (!s || typeof s !== "object") return s;
-  if (!s.entrega) { const { tamanosDeEje, ...r } = s; return r; }                // sin Entrega (rechazo, nada resuelto): ya es chica
-  const { entrega, tamanosDeEje, ...resto } = s;
+  if (!s.entrega) { const { tamanosDeEje, alcanceEstructural: _a, ...r } = s; return r; }                // sin Entrega (rechazo, nada resuelto): ya es chica
+  const { entrega, tamanosDeEje, alcanceEstructural: alc, ...resto } = s;
   const ev = resto.continuidad && resto.continuidad.estadoVigente;
   const turno = ev && Number.isInteger(ev.turno) ? ev.turno : null;
   /* `memoria` (ensayo 11, owner 2026-10-09) va ANTES de la Entrega: el anfitrión debe saber si la memoria de la conversación está incompleta antes de usar lo que sigue */
-  return { ok: resto.ok, ...(resto.memoria ? { memoria: resto.memoria } : {}), entrega: _compactarEntrega(entrega, turno, tamanosDeEje), ...Object.fromEntries(Object.entries(resto).filter(([k]) => k !== "ok" && k !== "memoria")) };
+  /* `establecido` (brazo B) va junto a `memoria`: lo establecido en la conversación se lee ANTES de usar la Entrega */
+  return { ok: resto.ok, ...(resto.memoria ? { memoria: resto.memoria } : {}), ...(resto.establecido ? { establecido: resto.establecido } : {}), entrega: _compactarEntrega(entrega, turno, tamanosDeEje, alc || null), ...Object.fromEntries(Object.entries(resto).filter(([k]) => k !== "ok" && k !== "memoria" && k !== "establecido")) };
 }
 
 /* ── CONOCER EMPRESA ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
@@ -212,7 +221,11 @@ function _compactarRetomar(s) {
     estadoReverificacion: h.estadoReverificacion, ...(h.valorNuevo != null ? { valorNuevo: h.valorNuevo } : {}), revalidacion: _compactarRevalidacion(h.revalidacion),
   }));
   const entregas = (Array.isArray(s.entregas) ? s.entregas : []).map((e) => _soloConValor(Object.fromEntries(Object.entries(e || {}).map(([k, v]) => [k, Array.isArray(v) && !v.length ? null : v]))));
-  return { ...s, hechos, entregas };
+  /* ensayo 12 (owner 2026-10-09): lo que cambió primero, los hechos en páginas que caben en la referencia de `consultar` — ver `paginasDeRetomar.js` (los dos brazos del experimento) */
+  const { hechos: _hechosCompletos, entregas: _e, paginaPedida, ...cabeza } = s;
+  const out = paginarRetomar({ cabeza: { ...cabeza, entregas }, cambios: cambiosDe(hechos), hechos, pagina: paginaPedida ? paginaPedida.pagina : null, desde: paginaPedida ? paginaPedida.desde : null, limite: REFERENCIA_DE_TAMANO_BYTES });
+  if (out.rechazo) return { ok: false, ...out.rechazo, conversacionId: s.conversacionId, ...(s.memoria ? { memoria: s.memoria } : {}), uso: s.uso };
+  return out.respuesta;
 }
 
 /** compactarParaAnfitrion(accion, salida) → la respuesta que viaja al anfitrión (las cuatro acciones). Pura: no muta `salida`. */

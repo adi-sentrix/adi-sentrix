@@ -6,14 +6,15 @@
  * Variables (solo del candado):
  *   FALSO_MODO          bueno | inventa | cruza | reescribe | dueno | calla_cambio
  *   FALSO_CONTAMINAR    bash (herramienta ajena en el init) · tool_use_ajeno · reminder · skills · otro_servidor · hook
- *   FALSO_REGISTRO      archivo donde anota los argumentos que recibió (para que el candado los lea) */
+ *   FALSO_REGISTRO      archivo donde anota los argumentos que recibió (para que el candado los lea)
+ *   FALSO_IGNORAR_ENV_DEL_SERVIDOR=1   el `claude` falso NO le pasa al servidor MCP el bloque `env` del --mcp-config (simula un anfitrión que lo pierde: el brazo del A/B no llega al servidor) */
 import { spawn } from "node:child_process";
 import { readFileSync, appendFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { siguiente } from "./anfitrion-simulado.mjs";
 
 const argv = process.argv.slice(2);
-if (process.env.FALSO_REGISTRO) appendFileSync(process.env.FALSO_REGISTRO, JSON.stringify({ argv, cwd: process.cwd(), env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? "(presente)" : null, OPENAI_API_KEY: process.env.OPENAI_API_KEY ? "(presente)" : null } }) + "\n");
+if (process.env.FALSO_REGISTRO) appendFileSync(process.env.FALSO_REGISTRO, JSON.stringify({ argv, cwd: process.cwd(), env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? "(presente)" : null, OPENAI_API_KEY: process.env.OPENAI_API_KEY ? "(presente)" : null, ADI_ALCANCE_ESTRUCTURAL: process.env.ADI_ALCANCE_ESTRUCTURAL ?? null } }) + "\n");
 const val = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : undefined; };
 const tiene = (n) => argv.includes(n);
 
@@ -37,7 +38,7 @@ if (faltan.length) { console.error(`claude-falso: faltan banderas del comando en
 const config = JSON.parse(readFileSync(val("--mcp-config"), "utf8"));
 const srv = config.mcpServers.adi;
 const empresaId = (srv.args.find((a) => a.startsWith("--empresa=")) || "").slice(10);
-const hijo = spawn(srv.command, srv.args, { stdio: ["pipe", "pipe", "inherit"], env: { ...process.env, ...(srv.env || {}) } });
+const hijo = spawn(srv.command, srv.args, { stdio: ["pipe", "pipe", "inherit"], env: { ...process.env, ...(process.env.FALSO_IGNORAR_ENV_DEL_SERVIDOR === "1" ? {} : (srv.env || {})) } });
 const pendientes = new Map();
 let nid = 0, buf = "";
 hijo.stdout.setEncoding("utf8");

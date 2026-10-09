@@ -8,19 +8,25 @@
  *
  * LAS BANDERAS (ADI_ENTREGA · ADI_COMPLEMENTO · ADI_MEMORIA_DURABLE) se encienden SOLO en este proceso (más abajo). Cero
  * red: el almacén es el doble en memoria; no hay variable real de Supabase ni de proveedor en este proceso. */
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import { createInterface } from "node:readline";
 import { abrirAlmacen } from "./almacen-medicion.mjs";
 import { crearPuertaMcp, BANDERAS_DE_LA_PUERTA } from "./mcp-puerta.mjs";
+import { VARIABLE_DEL_BRAZO, brazoDeValor } from "./brazo.mjs";
 
 for (const [k, v] of Object.entries(BANDERAS_DE_LA_PUERTA)) process.env[k] = v;      // SOLO en este proceso
 
 const _arg = (n) => { const a = process.argv.find((x) => x.startsWith(`--${n}=`)); return a ? a.slice(n.length + 3) : null; };
-const ESTADO = _arg("estado"), EMPRESA = _arg("empresa"), SALIDA_ESTADO = _arg("salida-estado"), BITACORA = _arg("bitacora");
+const ESTADO = _arg("estado"), EMPRESA = _arg("empresa"), SALIDA_ESTADO = _arg("salida-estado"), BITACORA = _arg("bitacora"), ARRANQUE = _arg("arranque");
 if (!ESTADO || !EMPRESA) { console.error("mcp-adi: faltan --estado y --empresa"); process.exit(2); }
 
+/* EL BRAZO del A/B: el arnés lo pone en el `env` de ESTE servidor (bloque `env` del --mcp-config). Aquí se valida, se lo pasa a la puerta y se deja constancia en `arranque.json` (el arnés lo contrasta). */
+const BRAZO_ENV = process.env[VARIABLE_DEL_BRAZO];
+if (BRAZO_ENV != null && brazoDeValor(BRAZO_ENV) == null) { console.error(`mcp-adi: ${VARIABLE_DEL_BRAZO} debe ser 0 (brazo A) o 1 (brazo B); llegó ${JSON.stringify(BRAZO_ENV)}`); process.exit(2); }
 const almacen = await abrirAlmacen({ estadoJson: readFileSync(ESTADO, "utf8") });
-const puerta = crearPuertaMcp({ almacen, empresaId: EMPRESA, bitacora: BITACORA, rutaEstado: SALIDA_ESTADO });
+const puerta = crearPuertaMcp({ almacen, empresaId: EMPRESA, bitacora: BITACORA, rutaEstado: SALIDA_ESTADO, alcanceEstructural: BRAZO_ENV == null ? null : BRAZO_ENV });
+if (ARRANQUE) { mkdirSync(dirname(ARRANQUE), { recursive: true }); writeFileSync(ARRANQUE, JSON.stringify({ pid: process.pid, empresa: EMPRESA, [VARIABLE_DEL_BRAZO]: BRAZO_ENV == null ? null : String(BRAZO_ENV), brazo: brazoDeValor(BRAZO_ENV), efectivoEnLaPuerta: puerta.alcanceEstructural(), iniciadoEn: new Date().toISOString() })); }
 
 const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
 let cola = Promise.resolve();                     // las líneas se atienden EN ORDEN (una llamada no pisa a la anterior)

@@ -17,7 +17,7 @@
 import fs from "node:fs";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
-import { crearAcciones, CABECERA_DE_USO } from "./src/adi/capacidad/acciones.js";
+import { crearAcciones, CABECERA_DE_USO, CABECERA_DE_USO_B, cabeceraDeUso } from "./src/adi/capacidad/acciones.js";   /* A = las cinco reglas de siempre (`CABECERA_DE_USO`) · B = cuatro (`CABECERA_DE_USO_B`, el producto por defecto) */
 import { manejarPuerta } from "./src/adi/capacidad/puerta.js";
 import { normalizarFormaDelEncargo } from "./src/adi/capacidad/formaDelEncargo.js";
 import { MOTIVOS } from "./src/adi/encargo/esquema.js";
@@ -145,7 +145,7 @@ H("1d · una forma ininterpretable es FORMATO: dice el campo, lo que llegó y la
     const n = (r.noResuelto || [])[0] || {};
     ok(r.ok === false && r.entrega === null && r.noResuelto.length === 1 && n.motivo === "formato_invalido" && n.campo === campo && n.esperado && n.detalle && n.valor, `★ ${t}: motivo «formato_invalido», campo «${campo}», lo que llegó y la forma esperada`, JSON.stringify(r.noResuelto));
     ok(!/entidad_inexistente|criterio_desconocido|no existe/i.test(JSON.stringify(r.noResuelto)), `★ ${t}: no culpa a la entidad ni a la lente`);
-    ok(Array.isArray(r.uso) && r.uso.length === CABECERA_DE_USO.length, `${t}: la cabecera de uso viaja igual`);
+    ok(Array.isArray(r.uso) && r.uso.length === cabeceraDeUso().length, `${t}: la cabecera de uso viaja igual`);
   }
 }
 
@@ -180,7 +180,7 @@ H("2 · la cabecera de uso (instrucción previa al anfitrión): UNA regla del co
   ok(CABECERA_DE_USO[1] === "Toda afirmación de orden sobre el total (el mayor, el que más creció, el más grave), de relación entre dos órdenes (los más grandes son los de menor margen) o de qué elementos cumplen una condición (los que pasan de 250 días) debe venir de una consulta de ADI que vio el universo completo; con una vista parcial, dígalo como parcial o pídale a ADI el extremo, la coincidencia o el filtro.", "★ la regla 2.ª es el texto EXACTO del owner: todo orden sobre el total viene de una consulta que vio el universo completo; con una vista parcial se dice parcial o se pide el extremo");
   ok(/^Lo que la Entrega declara en «Lo que no se puede concluir»/.test(CABECERA_DE_USO[2]) && /Redacte con total libertad/.test(CABECERA_DE_USO[CABECERA_DE_USO.length - 1]), "las reglas que ya tenía conservan su texto y la libertad de redacción sigue cerrando la cabecera");
   const r = await consultar(E([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente" }]));
-  ok(r.ok && r.uso.includes(REGLA), "★ cada `consultar` la trae en `uso`");
+  ok(r.ok && r.uso.includes(cabeceraDeUso()[0]), "★ cada `consultar` la trae en `uso` (la regla 1 del brazo que corre: en B, la frontera única «entregado con su alcance, o pedido»)");
   // por la puerta real (JSON-RPC y REST): lo que llega al anfitrión
   const SECRETO = "forma-del-encargo-gate-secret";
   const ENV = { ADI_COMPLEMENTO: "true", ADI_TOKEN_SECRET: SECRETO };
@@ -197,9 +197,9 @@ H("2 · la cabecera de uso (instrucción previa al anfitrión): UNA regla del co
     return JSON.parse(j.result.content[0].text);
   };
   const ok1 = await llamar({ encargo: E([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", entidades: ["Jumbo", "Lider"] }]) });
-  ok(ok1.ok === true && ok1.uso.includes(REGLA) && Array.isArray(ok1.entrega.cifras) && ok1.entrega.cifras.length >= 2 && !JSON.stringify(ok1.noResuelto || []).includes("inexistente"), "★ por la PUERTA (JSON-RPC): «Jumbo»/«Lider» como cadenas llegan con sus cifras y la regla del total en `uso`", JSON.stringify(ok1.noResuelto));
+  ok(ok1.ok === true && ok1.uso.includes(cabeceraDeUso()[0]) && Array.isArray(ok1.entrega.cifras) && ok1.entrega.cifras.length >= 2 && !JSON.stringify(ok1.noResuelto || []).includes("inexistente"), "★ por la PUERTA (JSON-RPC): «Jumbo»/«Lider» como cadenas llegan con sus cifras y la regla del total en `uso`", JSON.stringify(ok1.noResuelto));
   const mal1 = await llamar({ encargo: E([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], entidades: [{ eje: "cliente", valor: "Jumbo" }] }]) });
-  ok(mal1.ok === false && mal1.noResuelto[0].motivo === "formato_invalido" && mal1.uso.includes(REGLA), "★ por la PUERTA: una forma ininterpretable llega como `formato_invalido`, con la regla en `uso`", JSON.stringify(mal1.noResuelto));
+  ok(mal1.ok === false && mal1.noResuelto[0].motivo === "formato_invalido" && mal1.uso.includes(cabeceraDeUso()[0]), "★ por la PUERTA: una forma ininterpretable llega como `formato_invalido`, con la regla en `uso`", JSON.stringify(mal1.noResuelto));
   const ref = await crearAcciones({ continuidad: crearAlmacenEnMemoria() }).consultar({ tenant: TENANT_PUERTA, encargo: E([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", entidades: [{ nombre: "Jumbo" }, { nombre: "Lider" }] }]) });
   ok(ok1.entrega && ref.ok && Buffer.from(ok1.entrega.texto).equals(Buffer.from(ref.entrega.texto)), "★ el texto de la Entrega que llega por la puerta es el mismo, byte a byte, que con la forma canónica");
 }

@@ -46,21 +46,23 @@ function _indiceDeLaEntrega(tabla) {
   }
   return [...porMetrica].slice(0, METRICAS_INDEXADAS_MAX).map(([m, xs]) => `${m}: ${xs.slice(0, DUENOS_INDEXADOS_MAX).join(", ")}${xs.length > DUENOS_INDEXADOS_MAX ? ` (+${xs.length - DUENOS_INDEXADOS_MAX})` : ""}`).join(" · ");
 }
-function _entregaTextoCorta(e, { conIndice = false } = {}) {
+function _entregaTextoCorta(e, { conIndice = false, alcance = null } = {}) {
   const temas = Array.isArray(e.temas) && e.temas.length ? e.temas.join("+") : null;
   const entidades = Array.isArray(e.entidades) && e.entidades.length ? e.entidades.join(", ") : null;
   const _tabla = Array.isArray(e.hechos) ? e.hechos.filter((h) => !(h && h.fuera)) : [];   /* el rango es el de la tabla de la Entrega: las cifras de `fueraDelTexto` (con id, `fuera:true`) no lo mueven */
   const rango = _tabla.length ? (_tabla.length > 1 ? `${_tabla[0].id}–${_tabla[_tabla.length - 1].id}` : _tabla[0].id) : null;
-  const indice = conIndice ? _indiceDeLaEntrega(_tabla) : "";
+  const indice = conIndice && !alcance ? _indiceDeLaEntrega(_tabla) : "";
+  /* BRAZO B (alcance estructural, owner 2026-10-09): ni el índice de dueños ni la lista de entidades —una lista parcial de nombres sin su «k de N» es justo lo que provocó el error—: cuántos de cuántos, qué métricas, qué ids. Los nombres los trae `retomar`. */
+  if (alcance) { const a = alcance(e) || {}; return [`E${e.n}`, temas, conIndice ? a.universos : null, conIndice ? a.metricas : null, e.cierre, rango].filter(Boolean).join(" · "); }   /* la Entrega de ESTE turno el anfitrión la acaba de recibir con todo su alcance: aquí no se repite */
   return [`E${e.n}`, temas, indice, entidades, e.cierre, rango].filter(Boolean).join(" · ");
 }
 
 /** estadoVigenteDe(libro, {versionIdActual?}) → EstadoVigente (JSON compacto, ≤2KB) — lo que el LLM recibe en
  * la capa estructurada de CADA Entrega, con instrucción de NO narrarlo salvo que haya un evento (ver más abajo). */
-export function estadoVigenteDe(libro, { versionIdActual = null } = {}) {
+export function estadoVigenteDe(libro, { versionIdActual = null, alcance = null } = {}) {
   if (!libro) return null;
   const entregas = libro.entregas || [], ultima = entregas[entregas.length - 1];
-  let loEntregado = entregas.slice(-6).map((e) => _entregaTextoCorta(e, { conIndice: e !== ultima }));   /* el índice por dueño es de lo ya entregado ANTES: la Entrega de este turno el anfitrión la acaba de recibir completa */
+  let loEntregado = entregas.slice(-6).map((e) => _entregaTextoCorta(e, { conIndice: e !== ultima, alcance }));   /* el índice por dueño es de lo ya entregado ANTES: la Entrega de este turno el anfitrión la acaba de recibir completa */
   let estado = {
     conversacionId: libro.conversacionId,
     turno: libro.turno,

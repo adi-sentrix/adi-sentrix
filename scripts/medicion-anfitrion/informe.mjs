@@ -15,7 +15,8 @@ import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { rastrearHilo, VEREDICTOS_FALSOS, VEREDICTOS_PARA_REVISAR, CASOS_DEL_CONTRATO } from "./rastreo.mjs";
 import { resumenDeCorrida } from "../../src/adi/llm/consumo.js";
-import { leerClasificacion, familiaDeError, FAMILIA_DEL_VEREDICTO, patronesSistematicos, limiteDeErrores, PARAMETROS_DE_CIERRE } from "./clasificacion.mjs";
+import { leerClasificacion, familiaDeError, FAMILIA_DEL_VEREDICTO, patronesSistematicos, limiteDeErrores, PARAMETROS_DE_CIERRE, FAMILIA_DESLIZ, esFamiliaDesliz, DEFINICION_DE_SOBRE_ALCANCE, SUBTIPOS_DE_SOBRE_ALCANCE } from "./clasificacion.mjs";
+import { wilson } from "./estadistica.mjs";
 
 /* LA REGLA DE CIERRE (owner 2026-10-07 · reemplaza «0 errores materiales del anfitrión»; `_ADI_DISENO_MEDICION_ANFITRION.md` §6):
  *   ADI: 0 errores materiales, duro. Anfitrión: a lo más 1 error material cada 500 afirmaciones empresariales y NINGÚN patrón sistemático repetido. «La meta sigue siendo cero; el límite solo evita atribuirle a ADI errores estocásticos de un
@@ -78,8 +79,11 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
   const contrato = _vacioContrato(), contratoPorHilo = {};
   let totalBruto = 0, verdaderasBruto = 0, materialesBruto = 0;
   let total = 0, verdaderas = 0;
+  const nPorHilo = {};      // las afirmaciones empresariales que el rastreo/juez contaron en cada hilo (el denominador por hilo del sobre-alcance)
+  let hiloActual = null;
 
   const contar = (clase, forma, esVerdadera, esMaterial, brutoVerdadera, brutoMaterial) => {
+    nPorHilo[hiloActual] = (nPorHilo[hiloActual] || 0) + 1;
     total += 1; if (esVerdadera) verdaderas += 1;
     totalBruto += 1; if (brutoVerdadera) verdaderasBruto += 1; if (brutoMaterial) materialesBruto += 1;
     const sumar = (c, v, m) => { c.afirmaciones += 1; if (v) c.verdaderas += 1; else c.falsas += 1; if (m) c.materiales += 1; };
@@ -89,6 +93,7 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
   let turnosHechos = 0;
   for (const hilo of hilos) {
     if (hilo.anulado) continue;
+    hiloActual = hilo.hiloId;
     const rastro = rastrearHilo(hilo);
     const delHilo = (contratoPorHilo[hilo.hiloId] = _vacioContrato());
     /* una cifra empresarial más en el contrato (del hilo y del total): su caso FINAL, tras la revisión humana */
@@ -123,7 +128,7 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
         if (d) { v = d.veredicto === "verdadera" || d.veredicto === "error_adi"; m = v ? false : (d.material != null ? Boolean(d.material) : true); if (!brutoV && v) fallasDelMedidor.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, veredicto: a.veredicto, oracion: a.oracion, nota: d.nota || null }); if (d.veredicto === "error_adi") erroresDeAdi.push({ id, hilo: hilo.hiloId, turno: `${t.sesion}.${t.turno}`, veredicto: a.veredicto, oracion: a.oracion, nota: d.nota || null }); }
         contar(a.clase, hilo.forma, v, m, brutoV, brutoM);
         if (d && v && d.caso === "fuera_de_contrato") correctasDelAnfitrion += 1;      // verdadera, pero la calculó el anfitrión (la «verdad estricta» no la cuenta)
-        if (d && !v && !m) leves.push({ id, hilo: hilo.hiloId, familia: familiaDeError(String(d.nota || "").split(" · ")[0]), oracion: a.oracion });      // falsa e inmaterial: se lista; sus repeticiones se informan
+        if (d && !v && !m) leves.push({ id, hilo: hilo.hiloId, familia: d.familia || familiaDeError(String(d.nota || "").split(" · ")[0]), oracion: a.oracion });      // falsa e inmaterial: se lista; sus repeticiones se informan
         if (a.clase === 1) {   /* el CONTRATO: el caso de esta cifra (el del rastreo, o el que la persona fijó al revisarla) */
           let caso = a.caso || null;
           if (d) caso = d.veredicto === "falsa" ? "error_material" : (CASOS_DEL_CONTRATO.includes(d.caso) ? d.caso : (caso && caso !== "error_material" ? caso : (d.veredicto === "error_adi" ? "fuera_de_contrato" : "hecho_de_adi")));
@@ -163,6 +168,15 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
     for (const hilo of hilos) for (const t of hilo.turnos || []) {
       if (t.hashes && (t.hashes.instruccion !== manifiesto.hashes.instruccion || t.hashes.herramientas !== manifiesto.hashes.herramientas || (t.hashes.modelo && primerModelo && t.hashes.modelo !== primerModelo))) { invalidaciones.push(`cambio de modelo o de instrucción a mitad de la corrida (hilo ${hilo.hiloId}, turno ${t.sesion}.${t.turno})`); break; }
     }
+    /* EL A/B: una corrida es de UN brazo. El brazo que el servidor de ADI vio tiene que ser el del manifiesto, y ningún transcrito ni turno puede ser de otro */
+    if (manifiesto.brazo && manifiesto.brazo.id) {
+      const id = manifiesto.brazo.id;
+      const ajenos = hilos.filter((h) => (h.brazo && h.brazo !== id) || (h.turnos || []).some((t) => t.brazo && t.brazo !== id));
+      if (ajenos.length) invalidaciones.push(`mezcla de brazos: el manifiesto es del brazo ${id} y el hilo ${ajenos[0].hiloId} trae turnos de otro`);
+      const malos = ((cierre && cierre.servidores) || []).filter((x) => x.ok === false);
+      if (malos.length) invalidaciones.push(`el brazo ${id} no llegó al servidor de ADI en ${malos.length} sesión(es) (${malos.slice(0, 3).map((x) => `${x.hilo}_s${x.sesion}: esperaba ${x.esperado}, vio ${JSON.stringify(x.visto)}`).join("; ")})`);
+      if (cierre && cierre.brazo && cierre.brazo.id !== id) invalidaciones.push(`el cierre de la corrida es del brazo ${cierre.brazo.id} y el manifiesto del ${id}`);
+    }
     if (cierre) {
       const planeados = cierre.turnosPlaneados || 0;
       if (cierre.motivo === "tope_alcanzado" && planeados && (cierre.turnosHechos || 0) / planeados < 0.9) invalidaciones.push(`tope alcanzado antes del 90 % de los turnos (${cierre.turnosHechos}/${planeados})`);
@@ -192,7 +206,7 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
   const plano = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "");
   const turnoDeId = (id) => String(id).split("|").slice(0, 3).join("|");
   const errores = [];
-  const familiaDeMarca = (m) => { const d = decisiones[m.id]; return d && d.nota ? familiaDeError(String(d.nota).split(" · ")[0]) : (FAMILIA_DEL_VEREDICTO[m.veredicto] || familiaDeError(m.veredicto)); };
+  const familiaDeMarca = (m) => { const d = decisiones[m.id]; if (d && d.familia) return d.familia; return d && d.nota ? familiaDeError(String(d.nota).split(" · ")[0]) : (FAMILIA_DEL_VEREDICTO[m.veredicto] || familiaDeError(m.veredicto)); };
   const yaEsta = (turno, oracion) => { const k = plano(oracion); return errores.find((e) => e.turnoId === turno && k && e.clave && (e.clave.includes(k) || k.includes(e.clave))); };
   for (const m of materiales) {
     const turno = turnoDeId(m.id), dup = yaEsta(turno, m.oracion);
@@ -220,6 +234,33 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
   const marcasSinRevisar = materiales.filter((m) => !m.revisadoPorPersona).length;
   const provisional = !hayRevisionHumana || marcasSinRevisar > 0;
   const clasificacionSinMarca = clas ? Object.keys(decisiones).filter((id) => !marcasConsumidas.has(id) && !/\|j\d+$/.test(id)).length : 0;
+
+  /* ── EL SOBRE-ALCANCE (§6.1): afirmaciones más allá de lo entregado, verdaderas o falsas, por 500 afirmaciones empresariales. NO decide el cierre: los materiales siguen decidiéndolo. Su denominador es N + las afirmaciones marcadas que el rastreo ni los hallazgos
+   * de palabras habían contado (una afirmación verdadera dicha con letras que solo vive en la lista `sobreAlcance`). Sin clasificación humana no se mide. */
+  const porHiloExtra = {};
+  const sobreAlcance = (() => {
+    if (!clas) return { medido: false, definicion: DEFINICION_DE_SOBRE_ALCANCE, nota: "sin `clasificacion.json`: el sobre-alcance lo marca la lectura humana; no se mide" };
+    const items = clas.sobreAlcance;
+    const solapan = (a, b) => { const x = plano(a), y = plano(b); return Boolean(x && y && (x.includes(y) || y.includes(x))); };
+    const contada = (y) => marcasConsumidas.has(y.id) || clas.hallazgos.some((h) => h.turnoId === y.turnoId && solapan(h.oracion, y.oracion));
+    const extras = items.filter((y) => !contada(y));
+    for (const y of extras) porHiloExtra[y.hilo] = (porHiloExtra[y.hilo] || 0) + 1;
+    const Nsa = N + extras.length, n = items.length;
+    const por500 = (k, d) => (d ? Number(((k / d) * P.afirmacionesPorError).toFixed(2)) : null);
+    const w = wilson(n, Nsa);
+    const porSubtipo = Object.fromEntries([...SUBTIPOS_DE_SOBRE_ALCANCE, "sin_subtipo"].map((t) => [t, items.filter((y) => y.subtipo === t).length]).filter(([, c]) => c));
+    const hilosVistos = new Set([...Object.keys(nPorHilo), ...items.map((y) => y.hilo), ...(clas.hallazgos || []).map((h) => h.hilo)]);
+    const nHilo = (h) => (nPorHilo[h] || 0) + (clas.hallazgos || []).filter((x) => x.hilo === h).length + (porHiloExtra[h] || 0);
+    const porHilo = Object.fromEntries([...hilosVistos].sort().map((h) => [h, { n: items.filter((y) => y.hilo === h).length, N: nHilo(h), tasaPor500: por500(items.filter((y) => y.hilo === h).length, nHilo(h)) }]));
+    return {
+      medido: true, definicion: DEFINICION_DE_SOBRE_ALCANCE, n, N: Nsa, nDelCierre: N, extrasAlDenominador: extras.length, tasaPor500: por500(n, Nsa),
+      intervaloWilsonPor500: { lo: w.lo == null ? null : Number((w.lo * P.afirmacionesPorError).toFixed(2)), hi: w.hi == null ? null : Number((w.hi * P.afirmacionesPorError).toFixed(2)), nivel: 0.95 },
+      porSubtipo, porHilo, verdaderas: items.filter((y) => y.verdadera === true).length, falsas: items.filter((y) => y.verdadera === false).length, sinVeredicto: items.filter((y) => y.verdadera == null).length,
+      lista: items.map((y) => ({ id: y.id, hilo: y.hilo, subtipo: y.subtipo, verdadera: y.verdadera, oracion: y.oracion.slice(0, 160) })), avisos: clas.avisos || [],
+    };
+  })();
+  const materialesPorFamilia = {};
+  for (const e of errores) materialesPorFamilia[e.familia] = (materialesPorFamilia[e.familia] || 0) + 1;
 
   const criterios = {
     adi: { errores: erroresDeAdi.length, candidatos: candidatosDeAdi.length, exige: 0, cumple: erroresDeAdi.length === 0 },
@@ -250,13 +291,15 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
     parametros: P, provisional, revisionHumana: hayRevisionHumana, marcasSinRevisar, sinJuez: !juzgoClases34, criterios,
     erroresDeAdi: { firmes: erroresDeAdi.length, candidatos: candidatosDeAdi, lista: erroresDeAdi },
     afirmacionesEmpresariales: { total: N, delRastreoYElJuez: total, delasPalabras: afirmacionesDePalabras, excluidas: { dichasPorLaPersona: declaradasPorLaPersona.length, ejemplosHipoteticos: ejemplos.length, ordinales: ordinales } },
-    erroresDelAnfitrion: errores.map((e) => ({ id: e.id, hilo: e.hilo, fuente: e.fuente, familia: e.familia, oracion: e.oracion, revisadoPorPersona: e.revisadoPorPersona })),
+    erroresDelAnfitrion: errores.map((e) => ({ id: e.id, hilo: e.hilo, fuente: e.fuente, familia: e.familia, esDesliz: esFamiliaDesliz(e.familia), oracion: e.oracion, revisadoPorPersona: e.revisadoPorPersona })),
     clasificacionSinMarca,
   };
 
   const consumo = cierre && cierre.consumo ? cierre.consumo : null;
   return {
     corridaId: manifiesto && manifiesto.corridaId, tipo: manifiesto && manifiesto.tipo, via: manifiesto && manifiesto.via, modelo: manifiesto && manifiesto.modelo,
+    brazo: manifiesto && manifiesto.brazo ? manifiesto.brazo.id : null, brazoDetalle: (manifiesto && manifiesto.brazo) || null, serieAb: (manifiesto && manifiesto.serieAb) || null,
+    sobreAlcance, materialesPorFamilia,
     corpus: manifiesto && manifiesto.corpus, veredicto, provisional, porQue, regla: REGLA_DE_CIERRE, veredictoDetallado,
     verdad: { bruto: { afirmaciones: totalBruto, verdaderas: verdaderasBruto, pct: pctBruto, materiales: materialesBruto }, real: { afirmaciones: total, verdaderas, pct: pctVerdad, materiales: materiales.length }, estricta: { afirmaciones: total, verdaderas: verdaderas - correctasDelAnfitrion, pct: pctEstricta, nota: "no cuenta como verdadera la cifra correcta que calculó el anfitrión (fuera de contrato)" } },
     porClase: { real: porClase, bruto: porClaseBruto }, porForma,
@@ -273,11 +316,29 @@ export function calcularInforme({ manifiesto, cierre, hilos, juez = null, revisi
 
 const _pct = (c) => (c.afirmaciones ? `${((c.verdaderas / c.afirmaciones) * 100).toFixed(2)} %` : "—");
 
+/** El bloque «Sobre-alcance» (§6.1) del informe en Markdown. */
+export function bloqueDeSobreAlcance(i) {
+  const sa = i.sobreAlcance, L = [];
+  L.push("", "## Sobre-alcance (afirmaciones más allá de lo entregado, verdaderas o falsas)", "");
+  if (!sa || !sa.medido) { L.push(`_No medido: ${(sa && sa.nota) || "sin clasificación humana"}._`); return L; }
+  L.push(`_Definición: ${sa.definicion}._`, "");
+  L.push("| sobre-alcance | afirmaciones empresariales (N) | tasa por 500 | Wilson 95 % por 500 | verdaderas | falsas | sin veredicto |", "|---|---|---|---|---|---|---|");
+  L.push(`| ${sa.n} | ${sa.N}${sa.extrasAlDenominador ? ` (${sa.nDelCierre} del cierre + ${sa.extrasAlDenominador} marcadas fuera de él)` : ""} | ${sa.tasaPor500 ?? "—"} | ${sa.intervaloWilsonPor500.lo ?? "—"} – ${sa.intervaloWilsonPor500.hi ?? "—"} | ${sa.verdaderas} | ${sa.falsas} | ${sa.sinVeredicto} |`);
+  const tipos = Object.entries(sa.porSubtipo);
+  L.push("", `Por subtipo: ${tipos.length ? tipos.map(([t, c]) => `${t} ${c}`).join(" · ") : "ninguno"}.`);
+  const hilos = Object.entries(sa.porHilo).filter(([, x]) => x.n);
+  L.push("", `Por hilo: ${hilos.length ? hilos.map(([h, x]) => `${h} ${x.n}/${x.N} (${x.tasaPor500 ?? "—"} por 500)`).join(" · ") : "ninguno"}.`);
+  for (const a of sa.avisos || []) L.push(`- aviso: ${a}`);
+  L.push("", "_No decide el cierre: los errores materiales siguen siendo el criterio de certificación. Sirve para comparar el brazo A con el B (`comparar-brazos.mjs`)._");
+  return L;
+}
+
 /** informeEnMarkdown(informe) → texto legible. */
 export function informeEnMarkdown(i) {
   const L = [];
   L.push(`# Informe de la medición con anfitrión · ${i.corridaId || "(sin id)"}`);
   L.push("", `**Veredicto: ${i.veredicto}${i.provisional ? " (PROVISIONAL)" : ""}** — ${i.porQue}`);
+  L.push("", i.brazo ? `**Brazo del A/B: ${i.brazo}** — ${(i.brazoDetalle && i.brazoDetalle.descripcion) || ""} (${(i.brazoDetalle && i.brazoDetalle.variable) || "ADI_ALCANCE_ESTRUCTURAL"}=${(i.brazoDetalle && i.brazoDetalle.valor) ?? "?"}${i.brazoDetalle && i.brazoDetalle.porDefecto ? ", por defecto" : ""})${i.serieAb ? ` · serie «${i.serieAb.nombre}», repetición ${i.serieAb.repeticion}` : ""}` : "_Brazo del A/B: no registrado (corrida anterior al A/B)._");
   const vd = i.veredictoDetallado;
   if (vd) {
     const c = vd.criterios, mk = (b) => (b === true ? "sí" : b === false ? "**NO**" : "—");
@@ -294,9 +355,10 @@ export function informeEnMarkdown(i) {
     if (c.patron.levesRepetidos.length) L.push("", `Errores leves repetidos (informativo; ${c.patron.incluyeLeves ? "cuentan para el patrón" : "no cuentan para el patrón"}): ${c.patron.levesRepetidos.map((p) => `${p.familia} ×${p.veces}`).join(", ")}.`);
     L.push("", vd.provisional ? `_Veredicto PROVISIONAL: ${vd.revisionHumana ? `${vd.marcasSinRevisar} marca(s) del rastreo sin revisar` : "sin `clasificacion.json` ni `revision.json`"}._` : `_Revisión humana completa${vd.sinJuez ? " (sin juez: las clases 3-4 las cubre solo la lectura humana)" : ""}._`);
     if (vd.clasificacionSinMarca) L.push("", `_${vd.clasificacionSinMarca} decisión(es) de la clasificación ya no tienen marca en el rastreo actual (el medidor cambió desde que se clasificó: eran fallas del medidor o cifras de la persona)._`);
-    if (vd.erroresDelAnfitrion.length) { L.push("", `### Errores materiales del anfitrión · ${vd.erroresDelAnfitrion.length}`); for (const e of vd.erroresDelAnfitrion) L.push(`- [${e.id}] ${e.familia} (${e.fuente}) · «${String(e.oracion || "").replace(/^«+|»+$/g, "").slice(0, 140)}»`); }
+    if (vd.erroresDelAnfitrion.length) { L.push("", `### Errores materiales del anfitrión · ${vd.erroresDelAnfitrion.length}`); for (const e of vd.erroresDelAnfitrion) L.push(`- [${e.id}] ${e.familia} (${e.fuente}) · «${String(e.oracion || "").replace(/^«+|»+$/g, "").slice(0, 140)}»`); if (vd.erroresDelAnfitrion.some((e) => e.esDesliz)) L.push("", `_La familia «${FAMILIA_DESLIZ}» es variabilidad del anfitrión (la verdad entera estaba en su misma respuesta): sigue siendo material si cambia una conclusión, pero no se funde con otra familia para armar un patrón._`); }
     if (vd.erroresDeAdi.candidatos.length) { L.push("", "### Candidatos a error de ADI (el owner decide)"); for (const e of vd.erroresDeAdi.candidatos) L.push(`- [${e.id}] ${e.tipo}`); }
   }
+  L.push(...bloqueDeSobreAlcance(i));
   L.push("", `Tipo ${i.tipo} · vía ${i.via} · modelo ${i.modelo} · corpus ${(i.corpus && i.corpus.corpusId) || "?"}${i.corpus && i.corpus.juguete ? " (JUGUETE)" : ""}`);
   L.push("", "⚠️ Ninguna vía es el anfitrión real (Claude.ai / ChatGPT tienen su propio prompt de sistema): se mide la verdad de la prosa de un modelo capaz apoyado en las Entregas de ADI. La certificación por canal real es de la etapa 3.");
   L.push("", "## Verdad", "", "| | afirmaciones | verdaderas | % | errores materiales |", "|---|---|---|---|---|");

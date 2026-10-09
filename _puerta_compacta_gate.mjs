@@ -179,7 +179,7 @@ H("las cifras que no son de la tabla (premisas juzgadas, comparaciones) y las qu
   ok((z100.compacta.entrega.apoyo || []).some((a) => a.premisa === true && /17\.3M/.test(a.valor) && a.veredicto === "falsa"), "una premisa juzgada viaja como apoyo, con su veredicto y el valor que la casa imprimió", JSON.stringify(z100.compacta.entrega.apoyo));
   const z45 = await correr("v13:Z45");     // una Entrega breve: 5 filas quedaron fuera del texto
   ok(z45.completa.entrega.json.meta.recortoFilas > 0 && z45.compacta.entrega.detalle.fueraDelTexto.length === z45.completa.entrega.json.meta.recortoFilas, "las filas que el texto dejó fuera (Entrega breve) viajan aparte, con su cifra, y la forma de pedirlas", `${z45.compacta.entrega.detalle && z45.compacta.entrega.detalle.fueraDelTexto && z45.compacta.entrega.detalle.fueraDelTexto.length} vs ${z45.completa.entrega.json.meta.recortoFilas}`);
-  ok(z45.compacta.entrega.detalle.comoPedirlo && z45.compacta.entrega.alcance.recortoFilas > 0, "y dice cuánto recortó y cómo pedir el resto");
+  ok(z45.compacta.entrega.detalle.comoPedirlo && (z45.compacta.entrega.recorte || z45.compacta.entrega.alcance).recortoFilas > 0, "y dice cuánto recortó y cómo pedir el resto (brazo B: `recorte`, que solo viaja cuando algo se recortó; brazo A: `alcance`)");
   const sim = MUESTRA.find((c) => (c.encargo.partes || []).some((p) => p.cierre === "simulacion"));
   const rs = await correr(sim.id);
   ok(rs.compacta.entrega.cifras.some((c) => c.supuesto) && rs.compacta.entrega.cifras.some((c) => c.procedencia === "derivado"), `una simulación (${sim.id}) viaja con el SUPUESTO de cada cifra y su procedencia «derivado»`);
@@ -388,7 +388,9 @@ H("6 · por la puerta real (bearer · JSON-RPC y REST): lo que llega es la respu
 /* ═══ 8 · ENSAYO 8 (owner 2026-10-08) · UNA LISTA PARCIAL SE DICE: «k de N» ═══════════════════════════════════════════════════════════════════════════════════════════════
  * La regla de la cabecera de uso —el orden sobre el total (el mayor, el menor, el que más creció, el más grave) viene de una consulta que vio el universo completo— necesita que el anfitrión SEPA cuándo lo que tiene es una vista parcial: cada universo con menos
  * entidades que su eje (los 3 de mayor venta, unas cuentas nombradas, las que están en mora) viaja con `parcial: "k de N"`; el universo completo no lleva la marca. Es corto a propósito (viaja en cada universo parcial). */
-H("8 · ensayo 8: una lista parcial viaja marcada «k de N»; la completa no");
+H("8 · BRAZO A · ensayo 8: una lista parcial viaja marcada «k de N»; la completa no");
+const _BRAZO_PREVIO_8 = process.env.ADI_ALCANCE_ESTRUCTURAL;
+process.env.ADI_ALCANCE_ESTRUCTURAL = "0";   /* `n` + `parcial` y las cinco reglas son el brazo A (las entregas de hoy); el brazo B los reemplaza por `cobertura` + `seleccion` + … (§8b) */
 {
   const { consultar } = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
   const C = async (partes) => compactarParaAnfitrion("consultar", await consultar({ tenant: TENANT, encargo: { version: "encargo/v1", partes } }));
@@ -409,6 +411,27 @@ H("8 · ensayo 8: una lista parcial viaja marcada «k de N»; la completa no");
   ok(Boolean(cabecera) && /universo completo/.test(cabecera) && /vista parcial/.test(cabecera) && /el extremo/.test(cabecera), "★ la cabecera de uso que viaja con la consulta trae la regla del orden sobre el total");
 }
 
+if (_BRAZO_PREVIO_8 === undefined) delete process.env.ADI_ALCANCE_ESTRUCTURAL; else process.env.ADI_ALCANCE_ESTRUCTURAL = _BRAZO_PREVIO_8;
+
+/* ═══ 8b · BRAZO B (alcance estructural, owner 2026-10-09) · la cobertura, la selección y el resto viajan como DATO ═══════════════════════════════════════════════════════════════════════ */
+H("8b · BRAZO B · cada universo trae cobertura «k de N», la regla que lo eligió y qué pasa con el resto (n + parcial se fundieron en cobertura)");
+{
+  const { consultar } = crearAcciones({ continuidad: crearAlmacenEnMemoria() });
+  const C = async (partes) => compactarParaAnfitrion("consultar", await consultar({ tenant: TENANT, encargo: { version: "encargo/v1", partes } }));
+  const clientes = (TENANT_DEMO.clientesVentas || []).map((c) => c.nombre);
+  const N = clientes.length;
+  const top = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: { eje: "cliente", top: { metrica: "ventas", k: 3, direccion: "mayor" } } }]);
+  const u = top.entrega.universos[0];
+  ok(top.ok === true && top.entrega.universos.length === 1 && u.cobertura === `3 de ${N}` && u.seleccion.tipo === "top" && u.seleccion.k === 3 && u.resto.n === N - 3 && u.resto.evaluado === false && !("n" in u) && !("parcial" in u), "★ los 3 de mayor venta: cobertura «3 de N», selección top 3, el resto (N-3) NO evaluado; ya no viajan `n` ni `parcial`", JSON.stringify(u));
+  const nombrados = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", entidades: clientes.slice(0, 2).map((nombre) => ({ nombre })) }]);
+  ok(nombrados.ok === true && nombrados.entrega.universos.every((x) => x.seleccion.tipo === "nombradas" && new RegExp(`^1 de ${N}$`).test(x.cobertura) && x.resto.evaluado === false), "las cuentas NOMBRADAS: selección «nombradas», el resto no evaluado", JSON.stringify(nombrados.entrega.universos));
+  const completo = await C([{ id: "p1", tema: "comercial", cierre: "cifra", conceptos: ["ventas"], eje: "cliente", universo: "negocio" }]);
+  ok(completo.ok === true && completo.entrega.universos.every((x) => x.cobertura === `${N} de ${N}` && x.seleccion.tipo === "completo" && x.resto === undefined), "★ el listado COMPLETO: «N de N», selección «completo», sin resto", JSON.stringify(completo.entrega.universos));
+  ok(completo.entrega.recorte === undefined && completo.entrega.alcance === undefined, "el mecanismo de texto (`alcance`) ya no viaja; `recorte` solo cuando algo se recortó");
+  ok(!("tamanosDeEje" in top) && !("alcanceEstructural" in top) && Buffer.byteLength(JSON.stringify(top)) < 20 * 1024, "y lo interno (`tamanosDeEje`, el alcance sin proyectar) no viaja al anfitrión");
+  ok(top.uso.length === 4 && /con su alcance/.test(top.uso[0]) && /no evaluado/.test(top.uso[0]) && !top.uso.some((r) => /orden sobre el total/.test(r)), "★ la cabecera que viaja tiene CUATRO reglas: la frontera única «entregado con su alcance, o pedido»");
+}
+
 H("7 · candado: compacto.js no importa nada de `node:*` ni del gateway, y este gate es offline");
 {
   const src = fs.readFileSync(new URL("./src/adi/capacidad/compacto.js", import.meta.url), "utf8");
@@ -417,7 +440,7 @@ H("7 · candado: compacto.js no importa nada de `node:*` ni del gateway, y este 
   const j = (...p) => p.join("");
   ok(!new RegExp(j("llm", "Gate", "way") + "|" + j("gateway", "Core") + "|" + j("fe", "tch", "\\s*\\(") + "|" + j("api\\.", "openai") + "|" + j("api\\.", "anthropic")).test(sinComentarios), "compacto.js no nombra ningún camino de red ni del gateway del LLM");
   const imports = [...sinComentarios.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1]);
-  ok(imports.every((i) => i.startsWith("./") || i.startsWith("../")) && imports.length <= 3, `solo importa piezas de la casa (${imports.join(", ")})`);
+  ok(imports.every((i) => i.startsWith("./") || i.startsWith("../")) && imports.length <= 4, `solo importa piezas de la casa (${imports.join(", ")})`);
   ok(clasificarFuente(fs.readFileSync(new URL(import.meta.url), "utf8")).tipo === "offline", "este gate se clasifica `offline` (autochequeo)");
 }
 

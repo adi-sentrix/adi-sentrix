@@ -100,6 +100,9 @@ import { recorrerApoyo, apoyoParaElLibro, hechosQueYaViajan } from "./apoyo.js";
 import { ensenarRechazos, ensenarCoincidencia } from "./ensenar.js";
 import { separarVentaPorBodega, resolucionDeLoRechazado } from "./leyDeBodega.js";
 import { AXES as EJES_DEL_INDICE, axisEntityNames } from "../oracle/entityIndex.js";
+import { alcanceEstructural } from "./brazo.js";   /* el interruptor del experimento A/B (`ADI_ALCANCE_ESTRUCTURAL`): UN solo lugar */
+import { alcanceDeLaEntrega } from "./alcanceEstructural.js";
+import { establecidoDe, criteriosVigentes, vigenteDe, descripcionDeLoEntregado } from "./establecido.js";
 
 /* ── LA CABECERA DE USO (plan v2, Etapa 3 · «una cabecera de USO para el LLM») ───────────────────────────────────
  * Viaja en CADA `consultar(...)`. Cinco reglas (la 2.ª, del ensayo 8: el orden sobre el total; ampliada en el ensayo 10 a la relación entre dos órdenes y en el 11 a qué elementos cumplen una condición), en el vocabulario de negocio del contrato (nunca "boleta" ni
@@ -108,13 +111,22 @@ import { AXES as EJES_DEL_INDICE, axisEntityNames } from "../oracle/entityIndex.
  * referencia del oficio no es un objetivo de esta empresa y el benchmark no es un promedio (CLAUDE.md §4:
  * «benchmark ≠ promedio ≠ meta»); y la libertad de redacción tiene un único límite — nombrar la simulación o la
  * entidad SOLO cuando de verdad hay ambigüedad (ley del colapso de escenarios: el texto dice «simulación»). */
-export const CABECERA_DE_USO = Object.freeze([
+export const CABECERA_DE_USO = Object.freeze([   /* el BRAZO A del experimento (las entregas de hoy): cinco reglas. `cabeceraDeUso()` elige según el brazo */
   "Toda cifra empresarial que usted diga —en números o en palabras, incluidos totales, diferencias, porcentajes y conteos— debe ser un hecho que ADI le entregó en esta conversación. Si la cifra que necesita no está entre lo entregado, no la calcule ni la complete: pídasela a ADI (derivar, sobre identificadores ya entregados; o una consulta nueva). Redondear a lo impreso no es calcular.",
   "Toda afirmación de orden sobre el total (el mayor, el que más creció, el más grave), de relación entre dos órdenes (los más grandes son los de menor margen) o de qué elementos cumplen una condición (los que pasan de 250 días) debe venir de una consulta de ADI que vio el universo completo; con una vista parcial, dígalo como parcial o pídale a ADI el extremo, la coincidencia o el filtro.",
   "Lo que la Entrega declara en «Lo que no se puede concluir» se respeta: son hallazgos, no excusas — no se afirma lo contrario ni se rellena el hueco con una suposición.",
   `La «Referencia del oficio» es conocimiento general del sector, no un dato de esta empresa ni un objetivo suyo; el benchmark lleva su origen (${ETIQUETA_ORIGEN[ORIGEN.EMPRESA]} o criterio general de ADI) y no es un promedio.`,
   "Redacte con total libertad — resuma, ordene, adapte el tono al lector — y nombre la simulación o la entidad exacta SOLO cuando haya ambigüedad real sobre a cuál se refiere la cifra.",
 ]);
+
+/* ── LA CABECERA DE USO, BRAZO B (alcance estructural · owner 2026-10-09 · `_ADI_DISENO_ALCANCE_DE_LO_ENTREGADO.md` §2.5): CUATRO reglas. Las reglas 1 y 2 se funden en una: la frontera es una sola —lo entregado CON SU ALCANCE, o lo pedido—, y el
+ * alcance viaja como dato (`cobertura` · `seleccion` · `orden` · `metricas` · `resto`, y lo establecido en la conversación), no como una lista creciente de formas prohibidas. Las otras tres no cambian una letra. */
+export const CABECERA_DE_USO_B = Object.freeze([
+  "Toda cifra, orden, extremo, relación o conjunto que usted afirme debe ser un hecho que ADI le entregó (con su alcance) o estar en lo establecido de esta conversación. Lo que ADI marca como no evaluado no se completa: pídalo (consultar, derivar) o dígalo como no evaluado.",
+  CABECERA_DE_USO[2], CABECERA_DE_USO[3], CABECERA_DE_USO[4],
+]);
+/** cabeceraDeUso() → las reglas del brazo que corre (`brazo.js`): B (por defecto) = cuatro; A = las cinco de hoy */
+export const cabeceraDeUso = () => (alcanceEstructural() ? CABECERA_DE_USO_B : CABECERA_DE_USO);
 
 /* ── LA CABECERA DE USO DE `retomar` (Etapa 2, bloque 4 · owner 2026-10-04) ──────────────────────────────────────────────────────────────────
  * Viaja en CADA `retomar(...)`, en el mismo vocabulario de negocio que `CABECERA_DE_USO` (nunca «boleta», «fig» ni un nombre interno): lo entregado antes se cita tal como se dijo; si una
@@ -346,6 +358,20 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
   /* LA MEMORIA DE LA CONVERSACIÓN, EN TODA RESPUESTA (ensayo 11, owner 2026-10-09): `memoria` = íntegra o recortada (qué Entregas perdieron qué ids) + cuánto del tope se usa (`libro.js:estadoDeLaMemoria`). `ahora` = las Entregas que ESTA llamada obligó a recortar. Sin libro, nada que decir. */
   const _memoria = (libro, ahora = []) => estadoDeLaMemoria(libro, { tope: libroTope, ahora });
   const store = continuidad; // alias local: acá adentro es, literal, el almacén de `continuidad/almacen.js`
+  /* BRAZO B (alcance estructural, owner 2026-10-09): lo que el estado vigente dice de cada Entrega (cuántos de cuántos, qué métricas, qué ids) en lugar del índice de dueños; null en el brazo A (las entregas de hoy, byte a byte) */
+  const _alcanceDelEstado = () => (alcanceEstructural() ? descripcionDeLoEntregado : null);
+  /* LOS CRITERIOS VIGENTES de la empresa (valor y origen), con lo que declaró y confirmó: dentro del tenant activo, por la MISMA resolución de origen que el Marco de una Entrega. Brazo B. `null` si la base no responde. */
+  async function _criteriosDeLaEmpresa(tenant) {
+    if (!alcanceEstructural()) return null;
+    let filas = [];
+    try { filas = (await store.leerHechosEmpresa(tenant.id || null)) || []; } catch (e) { if (esErrorDeAlmacen(e)) return null; throw e; }
+    const { dataset: datasetDeCriterios, benchmarkDeclarado: varaDeCriterios } = _datasetDeLaEmpresa(tenant.dataset, perfilDeLasFilas(filas), clasificarLoDeclarado(filas));
+    return conTenantActivo(datasetDeCriterios, () => { if (varaDeCriterios) setBenchmarkOverride(varaDeCriterios.valor); return criteriosVigentes(); });
+  }
+  /* `establecido` de una respuesta con libro (brazo B): lo establecido en la conversación — universos, órdenes, extremos, relaciones, criterios, memoria — en un digesto de ≤ 1 KB; `{}` en el brazo A */
+  /* con la lectura de los criterios incluida (las acciones que no entran al Core por su cuenta: derivar, aportarContexto, coincidencia) */
+  const _est = async (tenant, libro, reserva = 0) => (alcanceEstructural() && libro ? _establecido(libro, await _criteriosDeLaEmpresa(tenant), { reserva }) : {});
+  const _establecido = (libro, criterios, { actual = null, reserva = 0 } = {}) => { if (!alcanceEstructural() || !libro) return {}; const e = establecidoDe(libro, { criterios, actual, tope: libroTope, reserva }); return e ? { establecido: e } : {}; };
   const conocimientoActivo = conocimiento && conocimiento.activo != null ? Boolean(conocimiento.activo) : ADI_CONOCIMIENTO;
   const catalogoDePiezas = conocimiento && Array.isArray(conocimiento.catalogo) ? conocimiento.catalogo : PIEZAS_CONOCIMIENTO;
 
@@ -401,7 +427,10 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
     const perfilPlegado = Object.entries(perfil.campos || {})
       .map(([campo, v]) => hechoDePerfilCampo(campo, { codigo: v && v.valor, procedencia: v && v.procedencia }))
       .filter(Boolean);
-    const estadoVigente = libro ? estadoVigenteDe(libro, { versionIdActual: tenant.version || null }) : null;
+    const estadoVigente = libro ? estadoVigenteDe(libro, { versionIdActual: tenant.version || null, alcance: _alcanceDelEstado() }) : null;
+    const criteriosHoy = await _criteriosDeLaEmpresa(tenant);   /* brazo B: el valor que RIGE hoy de cada criterio declarable (`vigente`) y, con conversación, el digesto de lo establecido */
+    const declarableB = declarable();
+    if (criteriosHoy) declarableB.criterios = declarableB.criterios.map((c) => { const h = criteriosHoy.find((x) => x.concepto === c.concepto); return h ? { ...c, vigente: vigenteDe(h) } : c; });
 
     // el NOMBRE DE LA EMPRESA sale primero del propio dataset cargado (`datosDelTenant.nombre` — "ADI Demo", el
     // nombre real del negocio) y solo si el dataset no lo trae se cae a `tenant.nombre`: en el camino SIN base de
@@ -420,9 +449,10 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         ...(Object.keys(estadoPerfil.omitidos).length ? { omitidos: CAMPOS_PERFIL_DECLARABLES.filter((c) => estadoPerfil.omitidos[c] && !estadoPerfil.vigentes[c]) } : {}),
       },
       catalogo,
-      declarable: declarable(),   // bloque 3: qué se puede declarar con lugar en la Entrega (criterios y hechos), con la forma exacta del aporte
+      declarable: declarableB,   // bloque 3: qué se puede declarar con lugar en la Entrega (criterios y hechos), con la forma exacta del aporte
       conversacionId: conversacionId || null,
       ...(libro && _memoria(libro) ? { memoria: _memoria(libro) } : {}),
+      ..._establecido(libro, criteriosHoy),
       hechosAportados: [...memoria.hechos, ...perfilPlegado],
       /* lo que dice un documento y la empresa todavía NO confirmó es DOCUMENTAL («según <documento>, sin confirmar», §7.3·58): se anuncia así, nunca como «declarado por la empresa», y no se usa */
       pendientesDeConfirmar: pendientes.filter((h) => h.clase !== "perfil" && !esConceptoReservadoDePerfil(h.concepto)).map((h) => {
@@ -447,12 +477,12 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
    * serializa por conversación (dos consultas cruzadas de la misma conversación no se pisan el libro). */
   async function consultar({ tenant, encargo } = {}) {
     const forma = _validarTenant(tenant);
-    if (!forma.ok) return { ok: false, motivo: forma.motivo, uso: CABECERA_DE_USO };
+    if (!forma.ok) return { ok: false, motivo: forma.motivo, uso: cabeceraDeUso() };
 
     /* LA FORMA ANTES DEL VALOR (ensayo 2, owner 2026-10-05): una cadena suelta donde el contrato pide una lista o un objeto se lee con su única lectura posible (`formaDelEncargo.js`); lo que no se puede leer sin adivinar
      * se declara `formato_invalido` —con el campo y la forma esperada— y NUNCA como «la entidad no existe» ni «criterio desconocido». Lo bien formado pasa idéntico. */
     const leido = normalizarFormaDelEncargo(encargo);
-    if (leido.formato.length) return { ok: false, entrega: null, noResuelto: ensenarRechazos(leido.formato), uso: CABECERA_DE_USO };
+    if (leido.formato.length) return { ok: false, entrega: null, noResuelto: ensenarRechazos(leido.formato), uso: cabeceraDeUso() };
     encargo = leido.encargo;
     const avisosDeForma = leido.avisos;
 
@@ -464,7 +494,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       let libroLeido = null;
       if (conversacionIdEntrante) {
         try { libroLeido = await store.leerLibro(tenantId, conversacionIdEntrante); }
-        catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), entrega: null, noResuelto: [], uso: CABECERA_DE_USO }; throw e; }
+        catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), entrega: null, noResuelto: [], uso: cabeceraDeUso() }; throw e; }
       }
 
       // 1b · LO QUE LA EMPRESA DECLARÓ Y CONFIRMÓ (bloques 2 y 3) — también ANTES del tramo del Core, con UNA sola lectura de la
@@ -485,7 +515,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       const { dataset, criteriosAplicados, benchmarkDeclarado } = _datasetDeLaEmpresa(tenant.dataset, estadoPerfil, loDeclarado);
 
       // 2 · EL TRAMO DEL CORE — síncrono, sin una sola espera entre `initTenant` y el cálculo
-      const { resolucion, salida, perfilCliente, hechosContrastados, origenDeReferencia, noResueltoEnsenado, tamanosDeEje } = conTenantActivo(dataset, () => {
+      const { resolucion, salida, perfilCliente, hechosContrastados, origenDeReferencia, noResueltoEnsenado, tamanosDeEje, criteriosHoy } = conTenantActivo(dataset, () => {
         // el benchmark declarado pisa también el benchmark embebido por fila del dato (la vara de la empresa, como C.2): lo limpia el siguiente `initTenant` (el de `conTenantActivo` al salir)
         if (benchmarkDeclarado) setBenchmarkOverride(benchmarkDeclarado.valor);
         // `libro: libroLeido` = la cita `contexto: E1` se resuelve contra lo que ESTA conversación ya entregó (bloque 3)
@@ -507,7 +537,9 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         const noResueltoEnsenado = ensenarRechazos(resolucion.noResuelto || [], { encargo, libro: libroLeido });
         /* cuántas entidades tiene cada eje de esta empresa: con ello la respuesta dice cuándo una lista es PARCIAL (k de N) — ensayo 8, el orden sobre el total solo lo da una consulta que vio el universo completo */
         const tamanosDeEje = Object.fromEntries(EJES_DEL_INDICE.map((e) => [e, axisEntityNames(e).length]).filter(([, n]) => n > 0));
-        return { resolucion, salida, perfilCliente: estadoPerfil ? construirPerfilCliente(dataset) : null, hechosContrastados, origenDeReferencia, noResueltoEnsenado, tamanosDeEje };
+        /* brazo B: los criterios que RIGEN hoy (valor y origen), con la vara declarada ya fijada: lo que `establecido` dice de ellos es lo que el Marco de esta Entrega usa */
+        const criteriosHoy = alcanceEstructural() ? criteriosVigentes() : null;
+        return { resolucion, salida, perfilCliente: estadoPerfil ? construirPerfilCliente(dataset) : null, hechosContrastados, origenDeReferencia, noResueltoEnsenado, tamanosDeEje, criteriosHoy };
       });
 
       // 3 · avanzar el libro (puro — no toca el Core ni la base)
@@ -529,6 +561,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       // el plazo de cobro declarado que la pregunta abierta de cobranza de esta Entrega cita (opción A, §7.3·58): se muestra con su origen y NO cambia ningún cálculo
       const plazosEnJuego = salida.ok && salida.entrega && loDeclarado.plazos.length ? plazosCitados({ plazos: loDeclarado.plazos, entrega: salida.entrega }) : [];
       let textoConContinuidad = "";
+      let alcEntrega = null;   /* brazo B: el alcance de lo que ESTA Entrega entrega (`alcanceEstructural.js`): por universo y por tabla */
 
       if (salida.ok && salida.entrega) {
         // § criterio (§4·2 del contrato del encargo, ya resuelto por `validarEncargo` — nunca se infiere acá)
@@ -576,6 +609,10 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         const apoyoParaGuardar = apoyoParaElLibro(recorrerApoyo(String(textoConContinuidad || ""), (jEntrega.cifras && Array.isArray(jEntrega.cifras.filas)) ? jEntrega.cifras.filas : [], [{ libro: provEntrega.libro }, { libro: provEntrega.libroPremisas, premisa: true }, { libro: provEntrega.libroIniciativa }], libro.turno + 1, hechosQueYaViajan(jEntrega)), { origenDeReferencia });
         const entidadesEntregadas = [...new Set(hechosParaLibro.filter((h) => !h.fuera).map((h) => h.sujeto).filter(Boolean))];   /* las de la tabla de la Entrega: las cifras de `fueraDelTexto` entran al libro con id pero no cambian quiénes se entregaron */
         const cierres = [...new Set((resolucion.partes || []).map((p) => p.cierre).filter(Boolean))];
+        /* brazo B: la bodega y la unión que la PARTE declaró (el universo declarado no las guardaba) viajan al universo: un top de una bodega no es «el mayor del eje» */
+        const _restriccionesDeLaParte = (u) => { if (!alcanceEstructural() || !u) return {}; const p = (resolucion.partes || []).find((q) => q && (q.id === u.id || String(u.id).startsWith(`${q.id}_`))); const pu = p && p.universo && typeof p.universo === "object" ? p.universo : null; return pu ? { ...(typeof pu.bodega === "string" && pu.bodega ? { bodega: pu.bodega } : {}), ...(Array.isArray(pu.union) && pu.union.length ? { union: pu.union } : {}) } : {}; };
+        const universosDeLaEntrada = (salida.entrega.universos || []).map((u) => ({ ...(u && typeof u.eje === "string" && Number.isInteger(tamanosDeEje[u.eje]) ? { ...u, ejeN: tamanosDeEje[u.eje] } : u), ..._restriccionesDeLaParte(u) }));
+        if (alcanceEstructural()) alcEntrega = alcanceDeLaEntrega({ n: libro.turno + 1, partes: resolucion.partes || [], universos: universosDeLaEntrada, filas: (jEntrega.cifras && Array.isArray(jEntrega.cifras.filas)) ? jEntrega.cifras.filas : [], hechos: hechosParaLibro, totales: (jEntrega.cifras && Array.isArray(jEntrega.cifras.totales)) ? jEntrega.cifras.totales.length : 0, filasFuera: (jEntrega.detalle && Array.isArray(jEntrega.detalle.filas)) ? jEntrega.detalle.filas : [] });
         const entradaDeLaEntrega = {
           versionId: versionIdActivo,
           temas: salida.entrega.temasCubiertos || [],
@@ -584,7 +621,8 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
           hechos: hechosParaLibro,
           apoyo: apoyoParaGuardar,
           /* `ejeN` (ensayo 11): cuántas entidades tiene el EJE entero al entregar; con él un conteo de `derivar` sabe si cubrió todo el eje o solo las cifras indicadas */
-          universos: (salida.entrega.universos || []).map((u) => (u && typeof u.eje === "string" && Number.isInteger(tamanosDeEje[u.eje]) ? { ...u, ejeN: tamanosDeEje[u.eje] } : u)),
+          universos: universosDeLaEntrada,
+          ...(alcEntrega ? { tablas: alcEntrega.tablas } : {}),
           entregadaEn: ahora(),
           periodo: (salida.entrega.marco && salida.entrega.marco.periodo) || null,
           // BLOQUE 4: lo que hace falta para REVALIDAR esta Entrega al retomar (el Encargo, con qué referencias se calculó, la moneda): se guarda en el libro, nunca sale en esta respuesta
@@ -616,7 +654,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       try { await store.guardarLibro(tenantId, libro); }
       catch (e) { if (!esErrorDeAlmacen(e)) throw e; guardada = false; operacionFallida = e.operacion || null; }
 
-      const estadoVigente = estadoVigenteDe(libro, { versionIdActual: versionIdActivo });
+      const estadoVigente = estadoVigenteDe(libro, { versionIdActual: versionIdActivo, alcance: _alcanceDelEstado() });
       const declarado = salida.ok && (criteriosAplicados.length || hechosContrastados.length || plazosEnJuego.length) ? {
         criterios: loDeclarado.criterios.map((c) => {
           const a = criteriosAplicados.find((x) => x.llave === c.llave);
@@ -649,10 +687,12 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       return {
         ok: Boolean(salida.ok),
         ...(memoriaDeEsteTurno ? { memoria: memoriaDeEsteTurno } : {}),
+        ..._establecido(libro, criteriosHoy, { actual: salida.ok ? libro.turno : null }),
         entrega: salida.ok ? (fueraNoCabe ? Object.defineProperty({ texto: textoConContinuidad, json: salida.entrega }, "fueraNoCabe", { value: fueraNoCabe }) : { texto: textoConContinuidad, json: salida.entrega }) : null,   /* `fueraSinId`: no enumerable —no sale en el JSON—; solo se lo dice a `compacto.js` */
         noResuelto: noResueltoEnsenado,
-        uso: CABECERA_DE_USO,
+        uso: cabeceraDeUso(),
         ...(salida.ok ? { tamanosDeEje } : {}),
+        ...(alcEntrega ? { alcanceEstructural: alcEntrega } : {}),
         ...(avisosDeForma.length || avisosDeMemoria.length ? { advertencias: [...avisosDeForma, ...avisosDeMemoria] } : {}),
         ...(bloquePerfil ? { perfil: bloquePerfil } : {}),
         ...(declarado ? { declarado } : {}),
@@ -788,10 +828,11 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
           ok: true,
           conversacionId: idDeConversacion,
           memoria: _memoria(libro),
+          ...(await _est(tenant, libro)),
           resultados,
           confirmaciones,
           ...(omitidos.length ? { omitidos } : {}),
-          estadoVigente: estadoVigenteDe(libro, { versionIdActual: versionIdActivo }),
+          estadoVigente: estadoVigenteDe(libro, { versionIdActual: versionIdActivo, alcance: _alcanceDelEstado() }),
         };
       } catch (e) {
         if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId: idDeConversacion };
@@ -808,23 +849,23 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
    * Vive FUERA de la rama `derivar` a propósito: esa sigue siendo pura (el candado estático de `_derivar_gate`). ORDEN (D2): LEER libro y memoria → TRAMO DEL CORE → ESCRIBIR el libro; IDEMPOTENTE por eje, órdenes y carga de datos; falla cerrada si GUARDAR falla (el id es el producto). */
   async function coincidenciaDe({ tenant, conversacionId = null, pedido = {} } = {}) {
     const forma = _validarTenant(tenant);
-    if (!forma.ok) return { ok: false, motivo: forma.motivo, uso: CABECERA_DE_USO };
+    if (!forma.ok) return { ok: false, motivo: forma.motivo, uso: cabeceraDeUso() };
     const tenantId = tenant.id || null;
     const versionIdActivo = tenant.version != null ? tenant.version : null;
     if (!conversacionId || typeof conversacionId !== "string") {
       const v = validarDerivacion(null, { conversacionId: null, operacion: "coincidencia", ...pedido });
-      return { ok: false, motivo: v.motivo, detalle: v.detalle, uso: CABECERA_DE_USO };
+      return { ok: false, motivo: v.motivo, detalle: v.detalle, uso: cabeceraDeUso() };
     }
     const trabajo = async () => {
       let libro, filasDeLaMemoria = [];
       try { libro = await store.leerLibro(tenantId, conversacionId); if (libro) filasDeLaMemoria = (await store.leerHechosEmpresa(tenantId)) || []; }
-      catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: CABECERA_DE_USO }; throw e; }
+      catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: cabeceraDeUso() }; throw e; }
       const v = validarDerivacion(libro, { conversacionId, operacion: "coincidencia", ...pedido }, { tenantId });
-      if (!v.ok) { const { ok, ...r } = v; return { ok: false, ...r, ...(_memoria(libro) ? { memoria: _memoria(libro) } : {}), alternativas: ensenarCoincidencia(r), uso: CABECERA_DE_USO }; }
+      if (!v.ok) { const { ok, ...r } = v; return { ok: false, ...r, ...(_memoria(libro) ? { memoria: _memoria(libro) } : {}), ...(await _est(tenant, libro)), alternativas: ensenarCoincidencia(r), uso: cabeceraDeUso() }; }
 
       const llave = llaveDeDerivacion({ operacion: "coincidencia", coincidencia: v.coincidencia, versionId: versionIdActivo });
       const previa = derivacionesDe(libro).find((d) => llaveDeDerivacion(d) === llave);
-      if (previa) return { ok: true, conversacionId, memoria: _memoria(libro), ...respuestaDeLaDerivacion(previa, new Map()), repetida: true, continuidad: { conversacionId, guardada: true }, uso: CABECERA_DE_USO };
+      if (previa) return { ok: true, conversacionId, memoria: _memoria(libro), ...(await _est(tenant, libro)), ...respuestaDeLaDerivacion(previa, new Map()), repetida: true, continuidad: { conversacionId, guardada: true }, uso: cabeceraDeUso() };
 
       /* el MISMO dataset que `consultar`: la ficha + lo que la empresa declaró y confirmó (un benchmark o un nivel declarado cambia qué cuentas están «bajo» él) */
       const { dataset: datasetDeLaCoincidencia, benchmarkDeclarado } = _datasetDeLaEmpresa(tenant.dataset, perfilDeLasFilas(filasDeLaMemoria), clasificarLoDeclarado(filasDeLaMemoria));
@@ -832,7 +873,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
         if (benchmarkDeclarado) setBenchmarkOverride(benchmarkDeclarado.valor);
         return calcularCoincidencia(v.coincidencia);
       });
-      if (!c.ok) { const { ok, noResuelto, ...r } = c; return { ok: false, ...r, memoria: _memoria(libro), alternativas: ensenarCoincidencia(r), uso: CABECERA_DE_USO }; }
+      if (!c.ok) { const { ok, noResuelto, ...r } = c; return { ok: false, ...r, memoria: _memoria(libro), ...(await _est(tenant, libro)), alternativas: ensenarCoincidencia(r), uso: cabeceraDeUso() }; }
 
       const cambioVersion = detectarCambioVersion(libro, versionIdActivo);
       const nuevo = registrarDerivacion(libro, derivacionDeCoincidencia(c, { versionId: versionIdActivo }), { tope: libroTope });
@@ -840,9 +881,9 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       const avisos = avisosDeLaMemoria({ perdidas });
       if (cambioVersion) avisos.push(`Los datos cambiaron desde la Entrega ${cambioVersion.desdeTurno}: esta coincidencia se calculó con los datos de hoy, y las cifras de las Entregas anteriores son de la carga previa — no las mezcle sin decirlo (retomar las revalida).`);
       try { await store.guardarLibro(tenantId, nuevo); }
-      catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: CABECERA_DE_USO }; throw e; }
+      catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: cabeceraDeUso() }; throw e; }
       const d = nuevo.derivaciones[nuevo.derivaciones.length - 1];
-      return { ok: true, conversacionId, memoria: _memoria(nuevo, perdidas), ...respuestaDeLaDerivacion(d, new Map()), repetida: false, continuidad: { conversacionId, guardada: true, ...(perdidas.length ? { entregasSinCifras: perdidas } : {}) }, ...(avisos.length ? { advertencias: avisos } : {}), uso: CABECERA_DE_USO };
+      return { ok: true, conversacionId, memoria: _memoria(nuevo, perdidas), ...(await _est(tenant, nuevo)), ...respuestaDeLaDerivacion(d, new Map()), repetida: false, continuidad: { conversacionId, guardada: true, ...(perdidas.length ? { entregasSinCifras: perdidas } : {}) }, ...(avisos.length ? { advertencias: avisos } : {}), uso: cabeceraDeUso() };
     };
     return serializarPorClave(`libro|${tenantId}|${conversacionId}`, trabajo);
   }
@@ -860,7 +901,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
    *
    * QUÉ DICE: `hechos[]` (cada cifra con su `revalidacion` tipada: igual · cambio · ya_no_existe · no_comparable · no_se_revalida · sin_reverificar), `resumen` (el conteo por estado), `eventos` y
    * UNA línea de la casa (`lineaContinuidad`) SOLO si pasó algo: nombra hasta 3 cambios y dice cuántos más hay. `advertencias` solo declara lo que NO se pudo revalidar y por qué. */
-  async function retomar({ tenant, conversacionId } = {}) {
+  async function retomar({ tenant, conversacionId, pagina = null, desde = null } = {}) {
     const forma = _validarTenant(tenant);
     if (!forma.ok) return { ok: false, motivo: forma.motivo };
     if (!conversacionId || typeof conversacionId !== "string") return { ok: false, motivo: "falta conversacionId" };
@@ -876,6 +917,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
     } catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId }; throw e; }
     if (!libro) return { ok: false, motivo: "no existe una conversación con ese id", conversacionId };
     if (libro.empresaId && tenantId && libro.empresaId !== tenantId) return { ok: false, motivo: "esta conversación es de otra empresa", conversacionId };
+    const establecidoDeHoy = await _est(tenant, libro, 56);   /* 56 B de reserva: `retomar` agrega a `memoria` «esta respuesta: página k de N, faltan M hechos» */   /* brazo B: lo establecido en la conversación (con los criterios vigentes); se lee ANTES del tramo del Core, que no espera nada adentro */
 
     // 2 · EL TRAMO DEL CORE — síncrono, sin una sola espera: la pregunta de cada Entrega revalidable, repetida con los datos de hoy
     const { dataset: datasetDeHoy, criteriosAplicados, benchmarkDeclarado } = _datasetDeLaEmpresa(tenant.dataset, perfilDeLasFilas(filasDeLaMemoria), clasificarLoDeclarado(filasDeLaMemoria));
@@ -926,7 +968,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
     }
 
     // 4 · armar la respuesta
-    const r = reverificarConversacion(libro, { versionIdActual: versionIdActivo, reverificar: reverificadorDe(resultados, { coincidenciasHoy }), lenguajeDeNegocio: true });
+    const r = reverificarConversacion(libro, { versionIdActual: versionIdActivo, reverificar: reverificadorDe(resultados, { coincidenciasHoy }), lenguajeDeNegocio: true, alcance: _alcanceDelEstado() });
 
     /* QUÉ ES CADA CIFRA (ensayo 6, owner 2026-10-08): un anfitrión nuevo que retoma lee los hechos sin haber visto cómo se pidieron. Una derivación (`D<k>`) trae su descripción —la operación y los dueños de las cifras— y una cifra de un conjunto acotado
      * (los 3 de mayor venta, los clientes en mora, el total de un listado filtrado) trae el texto de su universo. Sale de lo que el libro ya guarda; el valor y el resto del hecho no cambian. */
@@ -959,6 +1001,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       ok: true,
       conversacionId,
       ...(memoriaDeLaConversacion ? { memoria: memoriaDeLaConversacion } : {}),
+      ...establecidoDeHoy,
       estadoVigente: r.estadoVigente,
       hechos: r.hechos,
       resumen: r.resumen,
@@ -967,6 +1010,8 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       lineaContinuidad: r.lineaContinuidad,
       advertencias,
       uso: CABECERA_DE_RETOMAR,
+      /* ensayo 12: qué página de hechos se pidió (la respuesta de `acciones` trae TODOS los hechos; la proyección que viaja al anfitrión los pagina — `paginasDeRetomar.js`) */
+      ...(pagina != null || desde != null ? { paginaPedida: { pagina, desde } } : {}),
     };
   }
 
@@ -980,40 +1025,40 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
   async function derivar({ tenant, conversacionId = null, operacion, sobre, base, condicion, criterio, eje, a, b } = {}) {
     if (operacion === "coincidencia") return coincidenciaDe({ tenant, conversacionId, pedido: { eje, a, b } });
     const forma = _validarTenant(tenant);
-    if (!forma.ok) return { ok: false, motivo: forma.motivo, uso: CABECERA_DE_USO };
+    if (!forma.ok) return { ok: false, motivo: forma.motivo, uso: cabeceraDeUso() };
     const tenantId = tenant.id || null;
     if (!conversacionId || typeof conversacionId !== "string") {
       const v = validarDerivacion(null, { conversacionId: null, operacion, sobre });
-      return { ok: false, motivo: v.motivo, detalle: v.detalle, uso: CABECERA_DE_USO };
+      return { ok: false, motivo: v.motivo, detalle: v.detalle, uso: cabeceraDeUso() };
     }
     const trabajo = async () => {
       let libro;
       try { libro = await store.leerLibro(tenantId, conversacionId); }
-      catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: CABECERA_DE_USO }; throw e; }
+      catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: cabeceraDeUso() }; throw e; }
       const pedido = { conversacionId, operacion, sobre, base, condicion, criterio };
       /* la venta no se abre por bodega: una cifra comercial que sale de un universo definido por bodega no entra a un agregado (`derivar.js`; el origen lo dicen los universos del libro) */
       const deBodega = (h) => { const e = ((libro && libro.entregas) || []).find((x) => x && x.n === h.entregaN); return e ? universoDeBodegaDe(e, h.entidad != null ? h.entidad : null) : null; };
       const v = validarDerivacion(libro, pedido, { tenantId, deBodega });
-      if (!v.ok) return { ok: false, motivo: v.motivo, detalle: v.detalle, ...(v.ids ? { ids: v.ids } : {}), ...(_memoria(libro) ? { memoria: _memoria(libro) } : {}), uso: CABECERA_DE_USO };
+      if (!v.ok) return { ok: false, motivo: v.motivo, detalle: v.detalle, ...(v.ids ? { ids: v.ids } : {}), ...(_memoria(libro) ? { memoria: _memoria(libro) } : {}), ...(await _est(tenant, libro)), uso: cabeceraDeUso() };
 
       const llave = llaveDeDerivacion({ operacion: v.operacion, sobre: v.operandos.map((x) => x.id), base: v.base ? v.base.id : null, condicion: v.condicion, criterio: v.criterio });
       const previa = derivacionesDe(libro).find((d) => llaveDeDerivacion(d) === llave);
       if (previa) {
         const ids = [...previa.sobre, ...(previa.base ? [previa.base] : []), ...(previa.condicion && typeof previa.condicion.valor === "string" ? [previa.condicion.valor] : [])];
-        return { ok: true, conversacionId, memoria: _memoria(libro), ...respuestaDeLaDerivacion(previa, _conUniverso(cifrasDeLosOperandos(libro, ids), libro)), repetida: true, continuidad: { conversacionId, guardada: true }, uso: CABECERA_DE_USO };
+        return { ok: true, conversacionId, memoria: _memoria(libro), ...(await _est(tenant, libro)), ...respuestaDeLaDerivacion(previa, _conUniverso(cifrasDeLosOperandos(libro, ids), libro)), repetida: true, continuidad: { conversacionId, guardada: true }, uso: cabeceraDeUso() };
       }
 
       const c = calcularDerivacion(v);
-      if (!c) return { ok: false, motivo: "operando_sin_valor_exacto", detalle: "no se pudo calcular la derivación con las cifras indicadas", memoria: _memoria(libro), uso: CABECERA_DE_USO };
+      if (!c) return { ok: false, motivo: "operando_sin_valor_exacto", detalle: "no se pudo calcular la derivación con las cifras indicadas", memoria: _memoria(libro), ...(await _est(tenant, libro)), uso: cabeceraDeUso() };
       const nuevo = registrarDerivacion(libro, derivacionParaElLibro(pedido, v, c), { tope: libroTope });
       /* una derivación nueva también compite por los 16 KB de la base: si para guardarla hubo que recortar una Entrega, se DICE (nunca una cifra que el anfitrión pueda leer y no pueda citar) */
       const perdidas = (libro.entregas || []).filter((e) => !e.recortada).map((e) => e.n).filter((n) => !nuevo.entregas.some((e) => e.n === n && !e.recortada));
       const avisos = avisosDeLaMemoria({ perdidas });
       try { await store.guardarLibro(tenantId, nuevo); }
-      catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: CABECERA_DE_USO }; throw e; }
+      catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: cabeceraDeUso() }; throw e; }
       const d = nuevo.derivaciones[nuevo.derivaciones.length - 1];
       const operandosPorId = _conUniverso(new Map([...v.operandos, ...(v.base ? [v.base] : []), ...(v.referencia ? [v.referencia] : [])].map((x) => [x.id, x])), nuevo);
-      return { ok: true, conversacionId, memoria: _memoria(nuevo, perdidas), ...respuestaDeLaDerivacion(d, operandosPorId), repetida: false, continuidad: { conversacionId, guardada: true, ...(perdidas.length ? { entregasSinCifras: perdidas } : {}) }, ...(avisos.length ? { advertencias: avisos } : {}), uso: CABECERA_DE_USO };
+      return { ok: true, conversacionId, memoria: _memoria(nuevo, perdidas), ...(await _est(tenant, nuevo)), ...respuestaDeLaDerivacion(d, operandosPorId), repetida: false, continuidad: { conversacionId, guardada: true, ...(perdidas.length ? { entregasSinCifras: perdidas } : {}) }, ...(avisos.length ? { advertencias: avisos } : {}), uso: cabeceraDeUso() };
     };
     return serializarPorClave(`libro|${tenantId}|${conversacionId}`, trabajo);
   }

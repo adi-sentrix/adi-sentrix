@@ -28,7 +28,7 @@ import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { DOMINIOS_REGISTRO } from "./src/config/contract/dominios.js";
 import { construirCatalogo } from "./src/adi/capacidad/catalogo.js";
-import { crearAcciones } from "./src/adi/capacidad/acciones.js";
+import { crearAcciones, cabeceraDeUso } from "./src/adi/capacidad/acciones.js";
 import { MCP_TOOLS } from "./src/adi/capacidad/puerta.js";
 import { crearAlmacenEnMemoria } from "./src/adi/continuidad/almacen.js";
 import { compactarParaAnfitrion } from "./src/adi/capacidad/compacto.js";
@@ -135,7 +135,7 @@ H("3 · consultar(encargo) sobre 5 encargos válidos de fixtures/encargos-desarr
   for (const caso of cincoValidos) {
     const salida = await consultar({ tenant: TENANT, encargo: caso.encargo });
     ok(salida.ok === true, `${caso.id} (${caso.titulo}) · consultar responde ok:true`, JSON.stringify(salida.noResuelto));
-    ok(Array.isArray(salida.uso) && salida.uso.length === 5, `${caso.id} · trae la cabecera de uso completa (5 reglas)`, JSON.stringify(salida.uso));
+    ok(Array.isArray(salida.uso) && salida.uso.length === 4 && JSON.stringify(salida.uso) === JSON.stringify(cabeceraDeUso()), `${caso.id} · trae la cabecera de uso completa (4 reglas: las reglas 1 y 2 se fundieron en la frontera única «entregado con su alcance, o pedido»)`, JSON.stringify(salida.uso));
     ok(Boolean(salida.entrega && typeof salida.entrega.texto === "string" && salida.entrega.texto.length > 0), `${caso.id} · la Entrega trae texto`, "");
     ok(Boolean(salida.entrega && salida.entrega.json && Array.isArray(salida.entrega.json.cifras.filas)), `${caso.id} · la Entrega trae json.cifras`, "");
   }

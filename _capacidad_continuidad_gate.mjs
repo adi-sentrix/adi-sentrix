@@ -232,7 +232,9 @@ H("8 · CARNADA · un aporte sin confirmar jamás cuenta como dato — solo apar
 /* ═══ 9 · LO YA ENTREGADO, CITABLE POR ID (ensayo 10, owner 2026-10-09: el anfitrión dijo «Falabella es además tu mayor cliente en deuda, como vimos antes» y era Lider) ═════════════════════════════════
  * Cuando el anfitrión se refiere a lo ya entregado necesita saber DE QUIÉN y de QUÉ MÉTRICA es cada cifra, con su id, para consultarla en vez de recordarla. El resumen del estado vigente que viaja en cada `consultar` (`loEntregado`) traía
  * las entidades y el rango de ids, pero no la métrica ni qué id es de quién; ahora, de las Entregas ANTERIORES a la de este turno, trae por métrica los primeros dueños con su id y cuántos más hay. Sigue dentro de los 2 KB del estado. */
-H("9 · el estado vigente indexa lo ya entregado: dueño + métrica + id (para citar lo de antes sin recordarlo)");
+H("9 · BRAZO A · el estado vigente indexa lo ya entregado: dueño + métrica + id (para citar lo de antes sin recordarlo)");
+const _BRAZO_PREVIO = process.env.ADI_ALCANCE_ESTRUCTURAL;
+process.env.ADI_ALCANCE_ESTRUCTURAL = "0";   /* el índice de dueños por métrica es el del brazo A (las entregas de hoy); el brazo B lo reemplaza por «k de N» + métricas + ids (§9b) */
 {
   const store = crearAlmacenEnMemoria();
   const { consultar } = crearAcciones({ continuidad: store });
@@ -254,6 +256,23 @@ H("9 · el estado vigente indexa lo ya entregado: dueño + métrica + id (para c
   let conv6 = conv, ultimo = c2;
   for (let i = 0; i < 5; i++) ultimo = await consultar({ tenant: TENANT_V1, encargo: q(i % 2 ? "cobranza" : "comercial", i % 2 ? ["saldo_vencido"] : ["ventas", "margen"], conv6) });
   ok(JSON.stringify(ultimo.continuidad.estadoVigente).length <= 2 * 1024 && /^E7 /.test(ultimo.continuidad.estadoVigente.loEntregado.at(-1)), "con siete Entregas el estado sigue ≤ 2 KB y conserva lo más reciente (lo viejo cede primero)", String(JSON.stringify(ultimo.continuidad.estadoVigente).length));
+}
+if (_BRAZO_PREVIO === undefined) delete process.env.ADI_ALCANCE_ESTRUCTURAL; else process.env.ADI_ALCANCE_ESTRUCTURAL = _BRAZO_PREVIO;
+
+/* ═══ 9b · BRAZO B · lo ya entregado SIN lista parcial de nombres: «k de N», qué métricas y qué ids (alcance estructural, owner 2026-10-09) ═════════════════════════════════════════════════════ */
+H("9b · BRAZO B · el estado vigente dice cuántos de cuántos, qué métricas y qué ids; nunca un índice de dueños ni una lista parcial de nombres");
+{
+  const store = crearAlmacenEnMemoria();
+  const { consultar } = crearAcciones({ continuidad: store });
+  const q = (tema, conceptos, conv) => ({ version: "encargo/v1", ...(conv ? { conversacionId: conv } : {}), partes: [{ id: "p1", tema, cierre: "cifra", conceptos, eje: "cliente" }] });
+  const c1 = await consultar({ tenant: TENANT_V1, encargo: q("comercial", ["ventas", "margen"]) });
+  const conv = c1.continuidad.conversacionId;
+  ok(c1.continuidad.estadoVigente.loEntregado.length === 1 && /^E1 · comercial · cifra · E1\.h1–E1\.h25$/.test(c1.continuidad.estadoVigente.loEntregado[0]), "★ la Entrega de ESTE turno no repite su alcance (el anfitrión la acaba de recibir con todo): temas, cierre y rango de ids", c1.continuidad.estadoVigente.loEntregado[0]);
+  const c2 = await consultar({ tenant: TENANT_V1, encargo: q("cobranza", ["saldo_vencido"], conv) });
+  const lo = c2.continuidad.estadoVigente.loEntregado;
+  ok(lo.length === 2 && lo[0] === "E1 · comercial · clientes (13 de 13) · Venta, Margen · cifra · E1.h1–E1.h25", "★ la Entrega anterior dice «clientes (13 de 13) · Venta, Margen · E1.h1–E1.h25»: cuántos de cuántos, qué métricas, qué ids — sin dueños sueltos", lo[0]);
+  ok(!/Falabella|Lider|Jumbo|\(\+\d+\)/.test(lo.join(" ")), "★ ni un solo nombre de entidad ni un «(+k)» en el resumen: una lista parcial de nombres sin su «k de N» es justo lo que provocó el error");
+  ok(JSON.stringify(c2.continuidad.estadoVigente).length <= 2 * 1024, "el estado vigente sigue dentro de sus 2 KB");
 }
 
 console.log(`\n── _capacidad_continuidad_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);

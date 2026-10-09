@@ -126,12 +126,13 @@ function _apoyoDeTupla(t, n) {
 const _CLAVES_UNIVERSO = ["id", "eje", "top", "base", "texto", "valido", "estados", "excluir", "filtros", "periodo", "criterio", "entidades", "no_estados", "soloRanking", "errorValidacion"];
 /* CAMPOS OPCIONALES del universo (ensayo 11, owner 2026-10-09; un universo de antes no los trae y se lee igual): `ejeN` = cuántas entidades tiene el EJE entero de esa empresa al entregar (con él, un conteo de `derivar` dice si cubrió todo el eje o solo las cifras indicadas);
  * `orden` = el id de la lente («riesgo», «ventas»…) cuando `entidades` es un ORDEN de prioridad, de la primera a la última (la prioridad integrada que la Entrega nombra: «le sigue X» sale de acá, con el puesto de cada una). */
-const _CLAVES_OPCIONALES_UNIVERSO = ["ejeN", "orden"];
+/* brazo B (alcance estructural): `bodega` y `union` son restricciones de la parte que el universo declarado no guardaba y que el alcance necesita para no decir «el mayor del eje» de un top que es de UNA bodega */
+const _CLAVES_OPCIONALES_UNIVERSO = ["ejeN", "orden", "bodega", "union"];
 const _UNIVERSO_POR_OMISION = { top: null, base: null, valido: true, estados: null, excluir: null, filtros: null, periodo: null, criterio: null, no_estados: null, soloRanking: false, errorValidacion: null };
 function _tuplaDeUniverso(u) {
   if (!_esObj(u) || !Object.keys(u).every((c) => _CLAVES_UNIVERSO.includes(c) || _CLAVES_OPCIONALES_UNIVERSO.includes(c)) || !_CLAVES_UNIVERSO.every((c) => c in u)) return null;
   if (typeof u.id !== "string" || !_esTxtONulo(u.eje) || !_esTxtONulo(u.texto) || !Array.isArray(u.entidades) || !u.entidades.every((x) => typeof x === "string")) return null;
-  if (("ejeN" in u && !Number.isInteger(u.ejeN)) || ("orden" in u && (typeof u.orden !== "string" || !u.orden))) return null;
+  if (("ejeN" in u && !Number.isInteger(u.ejeN)) || ("orden" in u && (typeof u.orden !== "string" || !u.orden)) || ("bodega" in u && (typeof u.bodega !== "string" || !u.bodega)) || ("union" in u && !Array.isArray(u.union))) return null;
   const x = {};
   for (const [c, d] of Object.entries(_UNIVERSO_POR_OMISION)) if (JSON.stringify(u[c]) !== JSON.stringify(d)) x[c] = u[c];
   for (const c of _CLAVES_OPCIONALES_UNIVERSO) if (c in u) x[c] = u[c];
@@ -142,7 +143,7 @@ function _tuplaDeUniverso(u) {
 function _universoDeTupla(t) {
   const [id, eje, texto, entidades, x = {}] = t;
   const v = (c) => (c in x ? x[c] : _UNIVERSO_POR_OMISION[c]);
-  return { id, eje, top: v("top"), base: v("base"), texto, valido: v("valido"), estados: v("estados"), excluir: v("excluir"), filtros: v("filtros"), periodo: v("periodo"), criterio: v("criterio"), entidades, no_estados: v("no_estados"), soloRanking: v("soloRanking"), errorValidacion: v("errorValidacion"), ...("ejeN" in x ? { ejeN: x.ejeN } : {}), ...("orden" in x ? { orden: x.orden } : {}) };
+  return { id, eje, top: v("top"), base: v("base"), texto, valido: v("valido"), estados: v("estados"), excluir: v("excluir"), filtros: v("filtros"), periodo: v("periodo"), criterio: v("criterio"), entidades, no_estados: v("no_estados"), soloRanking: v("soloRanking"), errorValidacion: v("errorValidacion"), ...("ejeN" in x ? { ejeN: x.ejeN } : {}), ...("orden" in x ? { orden: x.orden } : {}), ...("bodega" in x ? { bodega: x.bodega } : {}), ...("union" in x ? { union: x.union } : {}) };
 }
 
 /* ═══ LO REPETIDO SE ESCRIBE UNA VEZ (segunda pasada, sin pérdida y sin saber qué es cada campo) ═══════════════════════════════════════════════════════════════════════
@@ -367,6 +368,7 @@ export function registrarEntrega(libro, entrada = {}, { tope = LIBRO_TOPE_BYTES,
     entidades: Array.isArray(entrada.entidades) ? entrada.entidades.slice() : [],
     cierre: entrada.cierre || null, hechos, universos, recortada: false,
     ...(Array.isArray(entrada.apoyo) && entrada.apoyo.length ? { apoyo: entrada.apoyo } : {}),
+    ...(Array.isArray(entrada.tablas) && entrada.tablas.length ? { tablas: entrada.tablas } : {}),   /* brazo B (alcance estructural): el orden de cada tabla tal como se entregó, para `establecido` */
     entregadaEn: entrada.entregadaEn || null, periodo: entrada.periodo || null,
     ...(entrada.revalidable === true ? { revalidable: true, encargo: entrada.encargo || null, referencias: entrada.referencias || null, moneda: entrada.moneda || null } : {}),
   };

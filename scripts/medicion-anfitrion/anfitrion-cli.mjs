@@ -24,6 +24,7 @@ import { join, dirname, resolve, parse as parsePath } from "node:path";
 import { tmpdir, homedir } from "node:os";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { INSTRUCCION_DE_SISTEMA, nombresMcpDelCli, NOMBRE_DEL_SERVIDOR_MCP } from "./instruccion.mjs";
+import { VARIABLE_DEL_BRAZO, envDelBrazo } from "./brazo.mjs";
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 export const RUTA_MCP_ADI = join(AQUI, "mcp-adi.mjs");
@@ -31,6 +32,8 @@ const GUARDA_OFFLINE = pathToFileURL(join(AQUI, "..", "offline-guard.mjs")).href
 
 /* ── el entorno del hijo: sin credencial de API; con el ruido del CLI apagado hasta donde se puede ────────────────── */
 const _CREDENCIALES_DE_API = /^(ANTHROPIC_(API_KEY|AUTH_TOKEN|BASE_URL|MODEL|SMALL_FAST_MODEL)|OPENAI_|AZURE_OPENAI|GEMINI_|GOOGLE_API_KEY|AWS_|CLAUDE_CODE_USE_(BEDROCK|VERTEX|FOUNDRY)|CLAUDE_CODE_API_KEY_HELPER|LLM_)/i;
+/* el BRAZO del A/B es del SERVIDOR de ADI (su bloque `env` en el --mcp-config), nunca del entorno del anfitrión: si el arnés lo heredó de la consola, se quita */
+const _DEL_BRAZO = new RegExp(`^${VARIABLE_DEL_BRAZO}$`);
 const _SESION_DEL_HOST = /^(CLAUDECODE$|CLAUDE_CODE_|CLAUDE_AGENT_SDK|CLAUDE_PID$|CLAUDE_EFFORT$|CLAUDE_PREVIEW_)/;
 export function entornoDelCli(base = process.env, { conservarBaseUrl = false } = {}) {
   const env = {};
@@ -42,7 +45,7 @@ export function entornoDelCli(base = process.env, { conservarBaseUrl = false } =
      * se comportaría como una subsesión de ella (p. ej. sumando AskUserQuestion). Ninguna variable de sesión de Claude pasa al
      * hijo; solo las que este arnés fija abajo. */
     const deSesion = _SESION_DEL_HOST.test(k);
-    if (deApi || deSesion) quitadas.push(k); else env[k] = v;
+    if (deApi || deSesion || _DEL_BRAZO.test(k)) quitadas.push(k); else env[k] = v;
   }
   // best-effort (no todas existen en todas las versiones): el chequeo de limpieza es la garantía, no estas variables
   /* MAX_MCP_OUTPUT_TOKENS (supervisor 2026-10-05): sin subirlo, Claude Code guarda en un archivo la respuesta grande de una herramienta y el anfitrión no ve la Entrega completa (humo-3: intentó leerla con bash) */
@@ -90,7 +93,7 @@ export function crearCarpetaDeTrabajo(base = null) {
 }
 
 /** armarComandoCli({...}) → { bin, args, cwd, env, mcpConfig, systemPrompt } · PURO (no escribe ni lanza nada). */
-export function armarComandoCli({ claudeBin = "claude", modelo, dirTrabajo, rutaMcpConfig, rutaSystemPrompt = null, modoPrompt = "texto", restringido = false, settingSources = "project", baseEnv = process.env, conservarBaseUrl = false, mcp }) {
+export function armarComandoCli({ claudeBin = "claude", modelo, dirTrabajo, rutaMcpConfig, rutaSystemPrompt = null, modoPrompt = "texto", restringido = false, settingSources = "project", baseEnv = process.env, conservarBaseUrl = false, brazo = null, mcp }) {
   if (!modelo) throw new Error("armarComandoCli: falta --modelo (el modelo es fijo en toda la corrida)");
   const permitidas = nombresMcpDelCli();
   const args = [
@@ -109,7 +112,7 @@ export function armarComandoCli({ claudeBin = "claude", modelo, dirTrabajo, ruta
   if (restringido) args.push("--restricted");
   const { env, quitadas } = entornoDelCli(baseEnv, { conservarBaseUrl });
   const [bin, argv] = _comoEjecutable(claudeBin, args);
-  const mcpConfig = { mcpServers: { [NOMBRE_DEL_SERVIDOR_MCP]: { type: "stdio", command: process.execPath, args: ["--import", GUARDA_OFFLINE, RUTA_MCP_ADI, `--estado=${mcp.estado}`, `--empresa=${mcp.empresa}`, `--salida-estado=${mcp.salidaEstado}`, `--bitacora=${mcp.bitacora}`], env: {} } } };
+  const mcpConfig = { mcpServers: { [NOMBRE_DEL_SERVIDOR_MCP]: { type: "stdio", command: process.execPath, args: ["--import", GUARDA_OFFLINE, RUTA_MCP_ADI, `--estado=${mcp.estado}`, `--empresa=${mcp.empresa}`, `--salida-estado=${mcp.salidaEstado}`, `--bitacora=${mcp.bitacora}`, ...(mcp.arranque ? [`--arranque=${mcp.arranque}`] : [])], env: brazo ? envDelBrazo(brazo) : {} } } };
   return { bin, args: argv, cwd: dirTrabajo, env, quitadas, mcpConfig, systemPrompt: INSTRUCCION_DE_SISTEMA };
 }
 

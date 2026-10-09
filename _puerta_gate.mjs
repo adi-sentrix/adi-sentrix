@@ -26,6 +26,7 @@
  * `node --import ./scripts/offline-guard.mjs _puerta_gate.mjs`. */
 import fs from "node:fs";
 import { manejarPuerta, MCP_TOOLS, construirOpenApi } from "./src/adi/capacidad/puerta.js";
+import { cabeceraDeUso } from "./src/adi/capacidad/acciones.js";
 import { makeAccessCode } from "./src/adi/llm/accessToken.js";
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
 
@@ -124,7 +125,7 @@ H("4 · tools/call de consultar, con el tenant de demostración → Entrega verd
   const payload = JSON.parse(j.result.content[0].text);
   ok(payload.ok === true, "consultar sobre el tenant demo responde ok:true", JSON.stringify(payload.noResuelto));
   ok(Boolean(payload.entrega && payload.entrega.texto.includes("Jumbo")), "la Entrega nombra la entidad pedida (Jumbo)");
-  ok(Array.isArray(payload.uso) && payload.uso.length === 5, "trae la cabecera de uso (5 reglas)");
+  ok(Array.isArray(payload.uso) && payload.uso.length === 4 && JSON.stringify(payload.uso) === JSON.stringify(cabeceraDeUso()), "trae la cabecera de uso (4 reglas: brazo B, el producto)");
   ok(j.result.isError !== true, "isError no viene marcado (la acción tuvo éxito)");
 }
 

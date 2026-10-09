@@ -219,7 +219,7 @@ export const MCP_TOOLS = [
     description: "Recupera una conversación anterior con ADI por su conversacionId: el estado vigente y lo ya entregado, tal como se dijo, con cada cifra REVALIDADA contra los datos de hoy (igual · cambió, con la cifra de antes y la de ahora · ya no figura · no comparable · no se revalida · sin revalidar, con su motivo). Trae una sola línea de continuidad, solo si pasó algo (nombra hasta tres cambios y cuántos más hay); el detalle de cada cifra viene tipado. No modifica la conversación. Úsela cuando el usuario retoma un hilo previo.",
     inputSchema: {
       type: "object",
-      properties: { conversacionId: { type: "string" } },
+      properties: { conversacionId: { type: "string" }, pagina: { type: ["integer", "null"], description: "Página de hechos (1 si se omite): la respuesta dice cuántas hay." }, desde: { type: ["string", "null"], description: "O el id del hecho desde el que seguir (E3.h1)." } },
       required: ["conversacionId"],
       additionalProperties: false,
     },
@@ -263,7 +263,7 @@ async function _despachar(nombreAccion, argsCrudos, { tenant, acciones }) {
   else if (nombreAccion === "consultar") salida = await acciones.consultar({ tenant, encargo: limpio.encargo });
   else if (nombreAccion === "aportarContexto") salida = await acciones.aportarContexto({ tenant, conversacionId: limpio.conversacionId ?? null, aportes: limpio.aportes || [], confirmar: limpio.confirmar || [], omitir: limpio.omitir || [] });
   else if (nombreAccion === "derivar") salida = await acciones.derivar({ tenant, conversacionId: limpio.conversacionId ?? null, operacion: limpio.operacion, sobre: limpio.sobre, base: limpio.base ?? undefined, condicion: limpio.condicion ?? undefined, criterio: limpio.criterio ?? undefined, eje: limpio.eje, a: limpio.a, b: limpio.b });
-  else salida = await acciones.retomar({ tenant, conversacionId: limpio.conversacionId });
+  else salida = await acciones.retomar({ tenant, conversacionId: limpio.conversacionId, pagina: limpio.pagina ?? null, desde: limpio.desde ?? null });
 
   /* LO QUE VIAJA AL ANFITRIÓN es la respuesta COMPACTA (`compacto.js`, owner 2026-10-05): el texto de la Entrega íntegro, las cifras con sus ids, la continuidad y lo declarado; la estructura interna
    * completa (libro de hechos, universos, procedencia) se queda DENTRO de ADI — las acciones de arriba la calcularon, guardaron y verificaron con ella. Un anfitrión real limita lo que una herramienta devuelve. */

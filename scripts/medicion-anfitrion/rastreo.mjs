@@ -55,7 +55,7 @@ export const CASOS_DEL_CONTRATO = Object.freeze(["hecho_de_adi", "fuera_de_contr
  *   agregado          «los 13 clientes suman $12.6M»: el 13 no es un conteo de vencidos.
  *   perfil · criterio_nombrado · sujeto_compuesto   lo entregado como dato (perfil a su precisión, rango de un criterio nombrado en la misma viñeta) y «Norvik − Teravolt» se avisa nombrando a las dos.
  * `REGLAS` es mutable SOLO para el análisis (el clasificador y el gate apagan una regla a la vez para demostrar que cada una hace falta). En producción de la medición: todas encendidas. */
-export const REGLAS = { dias_d: true, libro_numerico: true, persona: true, referencia: true, alias: true, entero: true, metrica: true, derivacion: true, contraparte: true, cruce_persona: true, colectivo: true, tema: true, apoyo: true, ejemplo: true, ordinal: true, desigualdad: true, metrica_pegada: true, grupo: true, viñeta_tema: true, dueno_clausula: true, agregado: true, sujeto_compuesto: true, perfil: true, persona_palabras: true, grafia: true, fallo_de_carga: true, criterio_nombrado: true };
+export const REGLAS = { dias_d: true, libro_numerico: true, persona: true, referencia: true, alias: true, entero: true, metrica: true, derivacion: true, contraparte: true, cruce_persona: true, colectivo: true, tema: true, apoyo: true, ejemplo: true, ordinal: true, desigualdad: true, metrica_pegada: true, grupo: true, viñeta_tema: true, dueno_clausula: true, agregado: true, sujeto_compuesto: true, perfil: true, persona_palabras: true, grafia: true, fallo_de_carga: true, criterio_nombrado: true, etiqueta_propia: true, sin_venta: true, negada: true, etiqueta_antes: true, etiqueta_reclamada: true, columna_de_tabla: true, brecha_en_pesos: true, unidad_natural: true, ejemplo_encadenado: true, margen_es_razon: true, sin_capturar: true };
 
 const _STOP_ALIAS = new Set(["mayor", "norte", "libre", "verde", "claro", "sur", "personal", "blanca", "cocina", "lavado", "aseo", "obras", "construccion", "almacenes", "comercial", "centro", "casa", "hogar", "grandes", "tiendas", "cadena", "mercado", "oeste", "este", "nuevo", "nueva", "grande", "constructor", "mercantil", "distribuidora", "mayorista", "supermercados", "bazar", "ferreteria"]);
 const _ART_ALIAS = new Set(["el", "la", "los", "las", "de", "del", "y"]);
@@ -209,7 +209,19 @@ const METRICAS = [
 /* la métrica se lee sin acentos: «los márgenes más bajos» nombra el margen (el regex de la métrica no entendía «márgenes» y la cifra de margen quedaba «métrica distinta» de la venta que la oración también nombra) */
 /* «un error de carga» es la carga de los datos, no la carga comercial: la palabra «carga» de un fallo de carga no nombra la métrica (ensayo 4, B01 2.4) */
 const _RX_FALLO_DE_CARGA = /\b(?:error|errores|falla|fallas|fallo|fallos|problema|problemas)\s+de\s+(?:la\s+)?carga\b/g;
-const _metricasDe = (t) => { const x = REGLAS.metrica ? (REGLAS.fallo_de_carga ? _sinAcento(t).replace(_RX_FALLO_DE_CARGA, " ") : _sinAcento(t)) : String(t); return new Set(METRICAS.filter(([, rx]) => rx.test(x)).map(([k]) => k)); };
+/* ENSAYO 12 (owner 2026-10-09 · el cluster «métrica distinta ×20» fue una falla del MEDIDOR, no del anfitrión): una palabra de métrica solo etiqueta la cifra que tiene al lado.
+ *  · «N días sin venta» es una ausencia, no la métrica Venta (`sin_venta`).
+ *  · «no equivalen a capital liberado» dice lo que la cifra NO es: ese «capital» no la rotula (`negada`). */
+const _RX_SIN_VENTA = /\bsin\s+(?:ventas?|vender\w*)\b/g;
+const _RX_NEGACION_DE_METRICA = /\bno\s+(?:equivalen?|es|son|significan?|representan?|corresponden?|implican?)\b.*?(?=\bsino\b|\bpero\b|[.;\n]|$)/g;
+const _metricasDe = (t) => {
+  let x = REGLAS.metrica ? (REGLAS.fallo_de_carga ? _sinAcento(t).replace(_RX_FALLO_DE_CARGA, " ") : _sinAcento(t)) : String(t);
+  if (REGLAS.metrica && REGLAS.sin_venta) x = x.replace(_RX_SIN_VENTA, " ");
+  if (REGLAS.metrica && REGLAS.negada) x = x.replace(_RX_NEGACION_DE_METRICA, " ");
+  const out = new Set(METRICAS.filter(([, rx]) => rx.test(x)).map(([k]) => k));
+  if (REGLAS.metrica && REGLAS.sin_capturar && /\b(?:sin capturar|no capturad[oa]s?)\b/.test(x)) out.add("contribucion");      // «$1.1M sin capturar» es la contribución no capturada
+  return out;
+};
 /** la métrica con que la oración ROTULA a ESTA cifra: la palabra que sigue pegada a la cifra («$21,0M vencido de $69,9M pendiente», «Andes del Sur ($15.0M pendientes)»). Manda sobre las métricas del resto de la cláusula, que
  *  nombra varias cuando una oración da dos cifras. «pendiente(s)» a secas, tras un monto, es el saldo pendiente. */
 export function metricasPegadasA(texto, tok) {
@@ -220,7 +232,7 @@ export function metricasPegadasA(texto, tok) {
   if (/^\s*(?:de\s+)?pendientes?\b/.test(frag)) out.add("saldo_pendiente");
   return out;
 }
-const _claveDeMetrica = (rotulo) => { const r = String(rotulo || ""); const x = METRICAS.find(([, rx]) => rx.test(r)); return x ? x[0] : null; };
+const _claveDeMetrica = (rotulo) => { const r = REGLAS.sin_venta ? String(rotulo || "").replace(/\bsin\s+(?:ventas?|vender\w*)\b/gi, " ") : String(rotulo || ""); const x = METRICAS.find(([, rx]) => rx.test(r)); return x ? x[0] : null; };
 
 /* ── el LIBRO DEL HILO: todo lo que ADI entregó, con dueño y métrica ───────────────────────────────────────────── */
 /** construirLibro(llamadas, buscar) → { hechos[], entidades:Set, hechosRetomar[] }
@@ -535,7 +547,7 @@ export function hechosDeLaPersona(personas) {
 
 /* ── lo que dice la cláusula, no la oración entera: «Los $115K de Lampa rotan en 29d, así que ahí el costo de oportunidad es menor» son dos afirmaciones; el «costo» es de la segunda ── */
 const _RX_CONECTOR = /(?:,\s*)?(?:as[ií] que|por lo que|por eso|por lo tanto|pero|aunque|mientras|sin embargo|ya que|porque|de modo que)\s+|;\s*/gi;
-export function clausulaDe(texto, indice) {
+export function limitesDeClausula(texto, indice) {
   let ini = 0, fin = texto.length;
   const rx = new RegExp(_RX_CONECTOR.source, "gi");
   let m;
@@ -543,7 +555,84 @@ export function clausulaDe(texto, indice) {
     if (m.index >= indice) { fin = m.index; break; }
     ini = m.index + m[0].length;
   }
+  return [ini, fin];
+}
+export function clausulaDe(texto, indice) {
+  const [ini, fin] = limitesDeClausula(texto, indice);
   return texto.slice(ini, fin);
+}
+
+/* ── LA ETIQUETA PROPIA DE UNA CIFRA (ensayo 12) ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * Una cifra toma su métrica de SU etiqueta: las palabras pegadas a ella, después («$21,0M vencido») o antes («margen de 24 %», «el costo +8 %»). Una cifra SIN etiqueta propia no hereda la de su vecina: de las métricas que nombra la cláusula
+ * se descuentan las que otra cifra de la misma cláusula ya reclamó con su etiqueta («$35.5M, +8.3%, margen 22%»: el «margen» es del 22 %, no del $35.5M); una variación con signo («+9,4 %») no hereda ninguna palabra lejana; y unos DÍAS no son
+ * una métrica en dinero («atraso mayor a 90 días» con «la venta» más allá). Una celda de tabla toma la métrica de su COLUMNA. Nada de esto afloja una etiqueta propia: «el margen de 1.8 %» sigue juzgándose contra el margen. */
+const _SIN_ETIQUETA_DE_PALABRA = "[^\\s,;:()|$\\d.%+\\-−]";
+function _fragDespues(texto, tok) {
+  const m = /^\s*((?:[^\s,;:()|$\d.]+\s*){0,3})/.exec(String(texto).slice(tok.fin));
+  let frag = m ? m[1] : "";
+  /* «ventas $5M margen 22 %»: la palabra pegada a la cifra SIGUIENTE (sin «de/en/con…» entre las dos) es de la siguiente */
+  const resto = String(texto).slice(tok.fin + (m ? m[0].length : 0));
+  if (REGLAS.etiqueta_antes && frag.trim() && /^[$+\-−\d]/.test(resto)) { const palabras = frag.trim().split(/\s+/); const ultima = _sinAcento(palabras[palabras.length - 1]); if (!/^(?:de|del|en|con|y|a|al|por|para|o)$/.test(ultima)) palabras.pop(); frag = palabras.join(" "); }
+  return frag;
+}
+function _etiquetaDespues(texto, tok) {
+  const frag = _fragDespues(texto, tok);
+  const out = _metricasDe(_sinAcento(frag));
+  if (/^\s*(?:de\s+)?pendientes?\b/.test(_sinAcento(frag))) out.add("saldo_pendiente");
+  return out;
+}
+function _etiquetaAntes(texto, tok) {
+  const pre = String(texto).slice(Math.max(0, tok.indice - 60), tok.indice).replace(/[*_`]+/g, "").replace(/\s*[+\-−±~≈]?\s*$/, "");
+  const corte = /(?:^|\s)(?:y|e|o|u|pero|que|aunque|mientras|donde|adem[aá]s)\s+(?=[^\s])/gi; let desde = 0, q; while ((q = corte.exec(pre))) desde = q.index + q[0].length;      // («stock y lleva 94 días»: el «stock» no rotula los 94 días)
+  const m = new RegExp(`(?:^|[\\s(])((?:${_SIN_ETIQUETA_DE_PALABRA}+\\s+){0,2}${_SIN_ETIQUETA_DE_PALABRA}+)$`).exec(pre.slice(desde));
+  return m ? _metricasDe(m[1]) : new Set();
+}
+const _esVariacionConSigno = (texto, tok) => /(?:^|[\s(])[+\-−]\s*$/.test(String(texto).slice(Math.max(0, tok.indice - 3), tok.indice));
+const _METRICAS_EN_DIAS = new Set(["vencido", "inventario"]);
+/** La columna de una celda de tabla: la métrica del ENCABEZADO de su columna (la fila de encabezado es la primera de la tabla si la segunda es el separador `|---|`). */
+function _metricasDeLaColumna(unidades, iu, tok) {
+  const u = unidades[iu];
+  if (!u.esFila) return null;
+  let k = iu; while (k > 0 && unidades[k - 1].esFila && unidades[k - 1].parrafo === u.parrafo) k -= 1;
+  const sep = unidades[k + 1];
+  if (!sep || !sep.esFila || !/^\s*\|?\s*:?-{2,}[\s:|\-]*$/.test(sep.texto) || k === iu || k + 1 === iu) return null;
+  const col = (u.texto.slice(0, tok.indice).match(/\|/g) || []).length - 1;
+  const celdas = u.texto.split("|").slice(1); const celda = (celdas[col] || "").replace(/[*_`]/g, "").trim();
+  if (celda.replace(/\s+/g, "") !== String(u.texto.slice(tok.indice, tok.fin)).replace(/\s+/g, "")) return null;      // solo una celda que es la cifra y nada más
+  const enc = unidades[k].texto.split("|").slice(1)[col];
+  const mets = enc ? _metricasDe(enc) : new Set();
+  return mets.size ? mets : null;
+}
+/** metricasDeLaCifra(...) → Set | null · null = «sin criterio nuevo» (el llamador sigue como antes). */
+function metricasDeLaCifra({ texto, tok, tokens, unidades, iu }) {
+  if (!REGLAS.etiqueta_propia || !REGLAS.metrica) return null;
+  const columna = REGLAS.columna_de_tabla ? _metricasDeLaColumna(unidades, iu, tok) : null;
+  if (columna) return columna;
+  const propia = new Set([...(REGLAS.metrica_pegada ? _etiquetaDespues(texto, tok) : []), ...(REGLAS.etiqueta_antes ? _etiquetaAntes(texto, tok) : [])]);
+  if (propia.size) return propia;
+  const [ini, fin] = limitesDeClausula(texto, tok.indice);
+  /* «de $4.6M a $5.2M», «$15.0M y $17.3M»: la cifra unida a la anterior por un conector corto es la misma métrica en otro punto de la serie */
+  if (REGLAS.etiqueta_reclamada) {
+    const _JOIN = /^\s*(?:a|y|e|o|u|vs\.?|contra|frente a|hasta|→|->|[-–])\s*$/i;
+    const previa = tokens.filter((o) => o.fin <= tok.indice && o.indice >= ini).sort((a, b) => b.fin - a.fin)[0];
+    const siguiente = tokens.filter((o) => o.indice >= tok.fin && o.fin <= fin).sort((a, b) => a.indice - b.indice)[0];
+    for (const [vecina, entre] of [[previa, previa && texto.slice(previa.fin, tok.indice)], [siguiente, siguiente && texto.slice(tok.fin, siguiente.indice)]]) {
+      if (vecina && vecina.unidad === tok.unidad && _JOIN.test(entre)) {
+        /* la etiqueta de la SIGUIENTE solo se comparte si es plural y va detrás («$7,7M y $5,8M vencidos»); «1.8% y 29% de margen» no reparte el «margen» */
+        const palabras = _fragDespues(texto, vecina).trim().split(/\s+/);
+        const plural = vecina === siguiente ? /s$/.test(_sinAcento(palabras[palabras.length - 1] || "")) : true;
+        const suya = new Set([...(REGLAS.metrica_pegada ? _etiquetaDespues(texto, vecina) : []), ...(REGLAS.etiqueta_antes ? _etiquetaAntes(texto, vecina) : [])]);
+        if (suya.size && plural) return suya;
+      }
+    }
+  }
+  const set = _metricasDe(texto.slice(ini, fin));
+  if (REGLAS.etiqueta_reclamada) for (const o of tokens) if (o !== tok && o.indice >= ini && o.fin <= fin && !_ignorable(o, o.unidad, texto)) for (const m of [...(REGLAS.metrica_pegada ? _etiquetaDespues(texto, o) : []), ...(REGLAS.etiqueta_antes ? _etiquetaAntes(texto, o) : [])]) set.delete(m);
+  if (REGLAS.unidad_natural) {
+    if (tok.unidad === "days") for (const m of [...set]) if (!_METRICAS_EN_DIAS.has(m)) set.delete(m);
+    if (tok.unidad === "pct" && _esVariacionConSigno(texto, tok)) set.clear();
+  }
+  return set;
 }
 /** Las métricas con que se juzga UNA cifra: «unidades» solo es de un conteo; «bajo/sobre el benchmark» compara un margen (y lo que se mide contra él: brecha, contribución, carga, costo). */
 const _CONTRA_BENCHMARK = ["margen", "brecha", "contribucion", "carga", "costo"];
@@ -551,6 +640,7 @@ function _metricasParaJuicio(mets, unidad) {
   if (!REGLAS.metrica) return mets;
   const out = new Set(mets);
   if (out.has("benchmark")) for (const k of _CONTRA_BENCHMARK) out.add(k);
+  if (REGLAS.brecha_en_pesos && out.has("brecha") && unidad === "money") out.add("contribucion");      // la brecha contra el benchmark, en pesos, ES la contribución no capturada (`descomposicionDeBrecha`)
   if (unidad !== "count") out.delete("unidades");
   return out;
 }
@@ -568,8 +658,10 @@ const _RX_SUPUESTO_COMO = /\b(?:meta|supuesto|escenario|objetivo|cambio|variaci[
  * (supuesto · escenario · simular · meta · «me dice/da/indica» · «usted proponga»). Las otras dos señales («si me dice un crecimiento de…», «una meta de margen, como un 28 %») ya son una oferta por sí mismas. */
 const _RX_OFERTA = /\b(supuesto|supuestos|escenario|simula\w*|meta|metas|propon\w*|me (?:dice|dices|da|das|d[ea]n|indica|indicas|pasa|pasas|confirma|confirmas)|usted me|tu me|dime|digame)\b/;
 /** ¿la cifra `tok` está dicha como ejemplo hipotético que se le ofrece a la persona? `contexto`: la oración anterior del párrafo (donde suele estar la oferta). */
+const _RX_SUPUESTO_ENCADENADO = /\b(?:meta|supuesto|escenario|objetivo|cambio|variaci[oó]n|alza|baja|crecimiento)\b[^.;]{0,60}?\s+(?:como|tipo|digamos)\s+[^.;]{0,80}?\s(?:o|u|y)\s+["“«']?\s*[+\-−]?\s*$/;
 export function esEjemploHipotetico(texto, tok, contexto = "") {
   const antes = _sinAcento(String(texto).slice(0, tok.indice));
+  if (REGLAS.ejemplo_encadenado && _RX_SUPUESTO_ENCADENADO.test(antes)) return true;
   if (_RX_SI_ME_DA.test(antes) || _RX_SUPUESTO_COMO.test(antes)) return true;
   return _RX_SENAL_DE_EJEMPLO.test(antes) && _RX_OFERTA.test(_sinAcento(`${contexto} ${String(texto).slice(0, tok.indice)}`));
 }
@@ -740,7 +832,8 @@ export function rastrearTurno({ texto, persona = "", personaDelHilo = null, llam
       const j = juzgarRelacion({ rel: relacion, u, libro, ents, mets, base: { clase: 1, oracion: u.texto.trim().slice(0, 240) }, personas, hits });
       if (j) afirmaciones.push(j);
     }
-    for (const tok of numerosDelTexto(u.texto)) {
+    const tokensDeUnidad = numerosDelTexto(u.texto);
+    for (const tok of tokensDeUnidad) {
       const rel = { ...tok, indice: tok.indice, fin: tok.fin };
       const ign = _ignorable(rel, tok.unidad, u.texto);
       const base = { clase: 1, tipo: "numero", token: tok.crudo, oracion: u.texto.trim().slice(0, 240), unidad: tok.unidad };
@@ -818,8 +911,10 @@ export function rastrearTurno({ texto, persona = "", personaDelHilo = null, llam
       }
       // métrica
       const metricasDeLasCoincidentes = new Set(dueño.flatMap((h) => (h.metricas && h.metricas.length ? h.metricas : [h.metrica])).filter(Boolean));
+      if (REGLAS.margen_es_razon && tok.unidad === "pct" && metricasDeLasCoincidentes.has("contribucion") && metricasDeLasCoincidentes.has("venta")) metricasDeLasCoincidentes.add("margen");      // «Contribución ÷ Venta · participación» (`derivar`) ES el margen
       const pegadas = metricasPegadasA(u.texto, tok);
-      const metsJuicio = _metricasParaJuicio(pegadas.size ? pegadas : (REGLAS.metrica ? _metricasDe(clausulaDe(u.texto, tok.indice)) : mets), tok.unidad);
+      const propias = metricasDeLaCifra({ texto: u.texto, tok, tokens: tokensDeUnidad, unidades, iu });
+      const metsJuicio = _metricasParaJuicio(propias || (pegadas.size ? pegadas : (REGLAS.metrica ? _metricasDe(clausulaDe(u.texto, tok.indice)) : mets)), tok.unidad);
       if (metsJuicio.size && metricasDeLasCoincidentes.size && ![...metricasDeLasCoincidentes].some((m) => metsJuicio.has(m))) {
         if (tok.sinUnidad && REGLAS.entero) { afirmaciones.push(sinJuicio("el valor coincide con un conteo de otra métrica")); continue; }
         const decl = declaradoPorLaPersona();

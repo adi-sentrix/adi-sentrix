@@ -32,7 +32,7 @@ const _labelDeHecho = (h) => [h.entidad || h.sujeto || null, h.metrica || h.conc
  * `lenguajeDeNegocio` (la capacidad lo enciende): la línea habla de «los datos» y de «la Entrega N», nunca de ids de carga («1 → 2», «v3»); sin él, el texto de siempre.
  * Recorre TODAS las Entregas no recortadas del libro (una entrega recortada ya perdió sus hechos: no hay nada
  * que re-verificar en ella, y su `n`/`temas`/`versionId` siguen visibles en `estadoVigente.loEntregado`). */
-export function retomar(libro, { versionIdActual = null, reverificar = null, lenguajeDeNegocio = false } = {}) {
+export function retomar(libro, { versionIdActual = null, reverificar = null, lenguajeDeNegocio = false, alcance = null } = {}) {
   if (!libro) return null;
 
   const cambioVersion = detectarCambioVersion(libro, versionIdActual);
@@ -80,7 +80,7 @@ export function retomar(libro, { versionIdActual = null, reverificar = null, len
   }
 
   const eventos = eventosDeContinuidad({ cambioVersion, cifrasReverificadas: conRevalidacion ? [] : cifrasReverificadas, cambiosDeCifras, lenguajeDeNegocio });
-  const estadoVigente = estadoVigenteDe(libro, { versionIdActual });
+  const estadoVigente = estadoVigenteDe(libro, { versionIdActual, alcance });
 
   /* LO ENTREGADO, TAL CUAL QUEDÓ (Etapa 2, bloque 1): cada Entrega con SU número, SU versión de carga, CUÁNDO se
    * entregó y el período que declaró — para que quien retoma vea que E1 y E2 son las mismas que se entregaron,

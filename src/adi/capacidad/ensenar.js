@@ -14,6 +14,7 @@ import { axisEntityNames, resolveCanonical } from "../oracle/entityIndex.js";
 import { DOMINIOS_REGISTRO, idsActivos } from "../../config/contract/dominios.js";
 import { ASSUMPTIONS } from "../../config/contract/assumptionRegistry.js";
 import { CRITERIOS } from "../agente/prioridadIntegrada.js";
+import { alcanceEstructural } from "./brazo.js";   /* el brazo del experimento A/B: la guía nombra el campo que de verdad viaja (`parcial` en A, `cobertura` en B) */
 import {
   CAMPOS_RAIZ, CAMPOS_PARTE, CIERRES, TIPOS_DE_PREMISA, USAR_VALORES, PROFUNDIDAD_VALORES, INICIATIVA_VALORES, PARTES_MAX, SUPUESTOS_USUARIO_MAX, EJES, ejesConProductor,
 } from "../encargo/esquema.js";
@@ -58,7 +59,7 @@ export function guiaDeUniverso() {
     conjuntos,
     ejemplos: [_EJEMPLO_DE_TOP(eC), estadoDeC ? { eje: eC, estados: [estadoDeC] } : null, metricaDeFiltro ? { eje: eC, filtros: [{ metrica: metricaDeFiltro, op: ">", valor: _N }] } : null].filter(Boolean),
     extremo: {
-      texto: "Se le pide a ADI, sobre el universo completo del eje: el mayor, el menor, el que más creció o el más grave (un top de 1 por esa métrica; direccion: mayor · menor · peor · mejor); la relación entre dos órdenes (derivar con operacion «coincidencia»); y qué elementos cumplen una condición (consultar con universo { eje, filtros }, ver «ejemplos»: responde «k de N» con los nombres; el conteo de derivar cuenta solo lo que usted indique). Una lista parcial (marcada «parcial» en la Entrega) no autoriza a afirmar ninguno de los tres.",
+      texto: "Se le pide a ADI, sobre el universo completo del eje: el mayor, el menor, el que más creció o el más grave (un top de 1 por esa métrica; direccion: mayor · menor · peor · mejor); la relación entre dos órdenes (derivar con operacion «coincidencia»); y qué elementos cumplen una condición (consultar con universo { eje, filtros }, ver «ejemplos»: responde «k de N» con los nombres; el conteo de derivar cuenta solo lo que usted indique). Una lista parcial (" + (alcanceEstructural() ? "su «cobertura» menor que N" : "marcada «parcial» en la Entrega") + ") no autoriza a afirmar ninguno de los tres.",
       ejemplo: eC && metricasDelEje(eC)[0] ? { eje: eC, top: { metrica: metricasDelEje(eC)[0], k: _UNO, direccion: DIRECCIONES_DE_TOP[0] } } : null,
     },
     limite: "Un universo no se acota por la marca, la familia o el canal de otro eje (los SKU no se filtran por marca): pida el eje marca, familia o canal, o nombre las entidades. Y la venta, el margen, la contribución y las unidades vendidas no se abren por bodega: el dato no dice qué bodega despachó cada venta (la bodega solo tiene inventario).",

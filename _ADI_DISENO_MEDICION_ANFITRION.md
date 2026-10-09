@@ -215,7 +215,7 @@ anfitrión (mediría otra cosa), ni juez de la misma familia.
   - **Patrón sistemático** = la MISMA *familia* de error material en 2 o más errores distintos de la corrida, en uno o
     en varios hilos. Familias (`clasificacion.mjs:FAMILIAS_DE_ERROR`): conteo (en palabras / mal hecho) · relación o razón
     entre cifras (invertida, orden mal dicho) · dueño distinto · métrica distinta · aritmética propia · causalidad sin
-    respaldo · cifra sin respaldo · umbral redondeado · afirmación no sostenida · continuidad. Los errores *leves*
+    respaldo · cifra sin respaldo · umbral redondeado · afirmación no sostenida · continuidad · **desliz de lectura con la verdad a la vista** (familia propia, 2026-10-09: sigue siendo material pero NO se funde con ninguna otra para armar patrón; ver §10.4). Los errores *leves*
     repetidos se listan aparte (informativo) y solo cuentan si `incluirLevesEnElPatron` está encendido.
   - **Veredicto PROVISIONAL** mientras falte la revisión humana: sin `clasificacion.json` (formato de los ensayos 3-5) ni
     `revision.json` la máquina no ve los errores dichos con letras. `cierreDeEtapa` no cierra con un veredicto provisional.
@@ -365,3 +365,91 @@ Pendientes del owner: (1) el **umbral del cumplimiento del contrato** (hoy infor
 (3) el borde **N < 500** (límite 0 a la letra); (4) dos hallazgos de producto que la medición destapó y no son del medidor (los trabaja el frente de ADI):
 las cifras de Unimarc llegan sin id derivable (error firme, ensayo 5 C01 1.5) y `derivar` rechaza los ids de apoyo
 `E<n>.e<k>` (candidato, ensayo 5 A03 1.5).
+
+## 10 · El A/B del alcance de lo entregado (owner 2026-10-09 · `_ADI_DISENO_ALCANCE_DE_LO_ENTREGADO.md` §3 y §6)
+
+Los 11 errores materiales de los ensayos 9-12 eran, en 9 casos, **una entrega correcta con el alcance implícito** (de qué conjunto sale, cuánto cubre, qué orden tiene, qué no establece) que el anfitrión completó; los otros 2 son deslices de lectura con la verdad a la vista. Para demostrar que el mecanismo (alcance como dato + «lo establecido») resuelve la FAMILIA y no los ejemplos, la medición agrega cinco piezas. **La regla de cierre (§6) no cambia una letra**: los errores materiales siguen decidiendo la certificación; lo de acá decide solo si la familia «alcance implícito» quedó resuelta como producto.
+
+### 10.1 · Los dos brazos (`--brazo=A|B`, `brazo.mjs`)
+
+| brazo | qué es | `ADI_ALCANCE_ESTRUCTURAL` |
+|---|---|---|
+| **A** | la entrega de hoy | `"0"` |
+| **B** | la entrega con alcance estructural (alcance por universo y tabla + `establecido` + cabecera de 4 reglas); **valor por defecto** del servidor y del arnés | `"1"` |
+
+- **Cómo llega al servidor de ADI, y solo ahí.** La variable la lee el SERVIDOR de ADI (la puerta de las cuatro acciones), no el anfitrión. Vía **cli**: el arnés la escribe en el bloque `env` del servidor `adi` del `--mcp-config` de cada sesión (`mcp-config.json`), que el `claude` entrega al proceso `mcp-adi.mjs`; y la **quita** del entorno del hijo `claude` (aparece en `quitadas` si la consola del arnés la traía). Vía **api**: la puerta corre en el proceso del arnés; la variable va en el `env` de esa puerta (`crearPuertaMcp({ alcanceEstructural })`) y, mientras dura la corrida, en `process.env` (se restaura al terminar). El anfitrión api no tiene entorno.
+- **Prueba de que llegó.** `mcp-adi.mjs` valida la variable (`0`/`1`, si no sale con error) y deja `sesiones/<hilo>_s<k>/arranque.json` con lo que VIO (`ADI_ALCANCE_ESTRUCTURAL`, `brazo`, `efectivoEnLaPuerta`). El arnés lo contrasta tras el primer turno y al cerrar cada sesión: si no coincide (un anfitrión que pierde el `env` del servidor) corta la corrida (`brazo_no_llego_al_servidor`) y es **INVÁLIDA**. `corrida.json` guarda `servidores[]` con lo que vio cada sesión.
+- **Se registra** en `manifiesto.json` (`brazo: { id, valor, variable, porDefecto }`, `serieAb`), en `corrida.json`, en cada transcrito y turno (`brazo`), en el `informe.md` («Brazo del A/B») y en el id de la corrida. La **huella del código** (`hashes.codigo`) sigue registrada; como el brazo es una variable de entorno y no código, **A y B tienen la misma huella**: es lo que permite exigir «mismo código» al comparar.
+- **No se mezclan brazos en una corrida**: una carpeta de salida con una corrida del otro brazo se rechaza (código 3), reanudar con otro brazo se rechaza, y un transcrito o turno de otro brazo dentro de la corrida la hace INVÁLIDA («mezcla de brazos»). Reanudar sin `--brazo` conserva el de la corrida; una corrida anterior al A/B (sin brazo en el manifiesto) se reanuda tal cual.
+
+### 10.2 · La serie A/B: el MISMO corpus sellado, cuatro corridas (`--serie-ab`, `serie-ab.mjs`)
+
+Un corpus usado se quema («un catálogo usado no se vuelve a abrir»). La serie es la excepción **explícita y acotada**:
+
+- La **primera** corrida de la serie quema el sello como siempre y deja `SERIE-AB.json` junto a él (si el sello se llama `SELLO.json`; si no, `<sello>.SERIE-AB.json`): nombre de la serie, `corpusSha256`, `codigoSha256` y las cuatro corridas planeadas (A·1, A·2, B·1, B·2).
+- Cada corrida siguiente de ESA serie y ESE corpus lo abre **sin `--reanudar`** si: la celda (brazo, repetición) está planeada y no corrió; no es la quinta; el sello lo quemó la serie (`leidoPor = serie-ab:<nombre>`: si lo abrió otro, la serie ya no es a ciegas); la huella sha256 del corpus es la de la serie; y el **código no cambió** desde la primera corrida (el único cambio entre A y B es el brazo). Una corrida rechazada no anota celda ni quema nada.
+- Una celda **interrumpida** se retoma con `--reanudar` y la misma `--salida`. **Fuera de una serie A/B el comportamiento no cambia** (corpus usado = código 4). `--serie-ab` exige nombre, `--brazo=A|B` explícito, `--repeticion=1|2` y `--sello`.
+
+**Las cuatro corridas del ensayo 13** (corpus sellado `ensayo-13-generalizacion`, 8 hilos · 76 turnos; sin abrir). `<SP>` = `C:\Users\jcnav\AppData\Local\Temp\claude\C--Users-jcnav-ADI-Sentrix\76927462-bb06-4b54-8c85-d00a1705f8f3\scratchpad`. Una tras otra (se recomienda **intercalar** A·1 → B·1 → A·2 → B·2 para que una deriva del modelo o de la hora no caiga toda en un brazo; la serie admite cualquier orden), cada una con su carpeta:
+
+```
+node scripts/medicion-anfitrion/arnes.mjs --via=cli --tipo=ensayo --catalogo=<SP>\corpus-ensayo-13\corpus.json --sello=<SP>\corpus-ensayo-13\SELLO.json --modelo=claude-sonnet-5-5 --tope-llamadas=900 --serie-ab=ensayo-13 --brazo=A --repeticion=1 --salida=<SP>\ensayo-13-A1
+node scripts/medicion-anfitrion/arnes.mjs --via=cli --tipo=ensayo --catalogo=<SP>\corpus-ensayo-13\corpus.json --sello=<SP>\corpus-ensayo-13\SELLO.json --modelo=claude-sonnet-5-5 --tope-llamadas=900 --serie-ab=ensayo-13 --brazo=B --repeticion=1 --salida=<SP>\ensayo-13-B1
+node scripts/medicion-anfitrion/arnes.mjs --via=cli --tipo=ensayo --catalogo=<SP>\corpus-ensayo-13\corpus.json --sello=<SP>\corpus-ensayo-13\SELLO.json --modelo=claude-sonnet-5-5 --tope-llamadas=900 --serie-ab=ensayo-13 --brazo=A --repeticion=2 --salida=<SP>\ensayo-13-A2
+node scripts/medicion-anfitrion/arnes.mjs --via=cli --tipo=ensayo --catalogo=<SP>\corpus-ensayo-13\corpus.json --sello=<SP>\corpus-ensayo-13\SELLO.json --modelo=claude-sonnet-5-5 --tope-llamadas=900 --serie-ab=ensayo-13 --brazo=B --repeticion=2 --salida=<SP>\ensayo-13-B2
+```
+
+Antes de lanzar: `… --solo-imprimir --serie-ab=ensayo-13 --brazo=A --repeticion=1 --via=cli --tipo=ensayo --modelo=claude-sonnet-5-5 --salida=<SP>\ensayo-13-A1` muestra el comando de `claude -p`, el `--mcp-config` con el brazo en el `env` del servidor y no ejecuta nada. Ninguna de las cuatro corridas puede cambiar `src/` ni `scripts/medicion-anfitrion/` mientras dura la serie (el código se contrasta con el de la primera). Cada corrida es de ~75 turnos de la suscripción (como el ensayo 12: ~150 llamadas al modelo), sin gasto de API.
+
+### 10.3 · Sobre-alcance: la métrica de la familia (`clasificacion.mjs`, `informe.mjs`)
+
+**Definición (la que codifica `DEFINICION_DE_SOBRE_ALCANCE`).** Toda afirmación del anfitrión de **orden, extremo, conjunto, relación, existencia, cifra o continuidad** que ningún id de hecho ni línea de `establecido` sostiene y que no se dice como parcial o no evaluada — **sea verdadera o falsa**. Subtipos: `orden` · `extremo` · `conjunto` · `relacion` · `existencia` · `continuidad` · `cifra`. Mide el defecto de la ENTREGA con densidad suficiente (decenas por corrida) para distinguir dos brazos; los materiales (raros: ≈ 1,4 por 500) no la tienen.
+
+**Formato en `clasificacion.json`** (lectura humana; el medidor no la ve). Cualquier fila de `filas[]` / `fuera_de_contrato[]` / `palabras[]` / `paraRevisar.noV[]` puede llevar `sobreAlcance: "<subtipo>"` (o `sobreAlcance: true` + `subtipoSobreAlcance`), y existe la lista propia para lo que no es fila de nada:
+
+```json
+"sobreAlcance": [
+  { "id": "A01|1|6", "subtipo": "orden", "oracion": "Las tres más grandes son también las tres de menor margen.", "verdadera": true },
+  { "id": "C01|1|2", "subtipo": "extremo", "oracion": "Falabella es tu mayor cliente en deuda.", "verdadera": false }
+]
+```
+
+Una misma oración marcada en dos listas es UNA afirmación (misma regla que los hallazgos en palabras). Un subtipo desconocido se cuenta como `sin_subtipo` y deja un aviso. **`informe.md` trae el bloque «Sobre-alcance»**: conteo, **tasa por 500** afirmaciones empresariales con intervalo de **Wilson 95 %**, por subtipo y por hilo (y `informe.json` → `sobreAlcance`). Su denominador es N del cierre + las afirmaciones marcadas que el cierre no había contado (se informa por separado: `nDelCierre`). **No mueve el veredicto de cierre** (probado: con o sin marcas, el veredicto, los criterios y N son idénticos). Sin `clasificacion.json` no se mide.
+
+### 10.4 · La familia «desliz de lectura con la verdad a la vista»
+
+El anfitrión leyó mal su PROPIA tabla o confundió dos filas de su propia respuesta, con la verdad entera en la misma respuesta (9·C02 1.3 «Alsen, la tercera»; 10·B02 1.2 «LG, 2.7 pp por debajo de Philips»). Ningún cambio de entrega lo evita: es **variabilidad del modelo**. Es la familia propia `FAMILIA_DESLIZ` (subtipo que contenga `desliz` / `verdad_a_la_vista`, o `familia: "desliz"` fijada a mano):
+
+- **Sigue siendo MATERIAL** si cambia una conclusión (cuenta contra el límite de 1 cada 500).
+- **No arma patrón con otra familia**: el patrón es el de siempre —la MISMA familia en 2 o más errores—; como el desliz tiene familia propia, un desliz y una relación invertida (o un dueño distinto, o un conteo) NO se suman. Dos deslices sí son «la misma familia ×2» y se listan con `esDesliz: true` (evidencia de variabilidad del anfitrión que el owner pesa aparte, §6.4 iii del diseño del alcance).
+- El informe cuenta los materiales por familia (`materialesPorFamilia`) y explica la del desliz.
+
+### 10.5 · La comparación y la regla de parada (`comparar-brazos.mjs`, `estadistica.mjs`)
+
+```
+node scripts/medicion-anfitrion/comparar-brazos.mjs [--umbral=50] [--iteraciones=10000] [--semilla=20261009] [--json=<f>] [--aceptar-invalidas] <A1> <B1> <A2> <B2>
+```
+
+Toma las carpetas de corrida (el brazo sale del manifiesto) y rechaza (código 2) lo que haría la comparación engañosa: una corrida sin brazo, sin clasificación humana, INVÁLIDA, de otro corpus (sha256), de otro código o de otro modelo, o sin los dos brazos. Imprime: sobre-alcance por brazo (sumado sobre las repeticiones) con Wilson, por corrida, por subtipo y por hilo; la **reducción relativa** de B respecto de A (`1 − pB/pA`) con su intervalo; los materiales por familia y brazo; y el veredicto.
+
+- **Intervalos.** *Wilson 95 %* para cada tasa (mejor que el normal con k chico). *Reducción relativa*: **bootstrap percentil por HILO** (10 000 remuestras, semilla fija: mismos datos → mismo intervalo): se remuestrean los hilos del corpus —no las afirmaciones— y cada remuestra usa el MISMO conjunto de hilos en los dos brazos (diseño pareado). Se eligió sobre Newcombe porque Newcombe es para diferencias, no cocientes, y porque las afirmaciones de un hilo no son independientes (y las repeticiones repiten los hilos). Se imprime además el **Newcombe de la diferencia absoluta** (método 10, híbrido de puntajes de Wilson) como chequeo ingenuo (trata cada afirmación como independiente); el veredicto usa el bootstrap. Con pocos hilos (8) el bootstrap es grueso: se informa `hilos` y `validas`.
+- **Regla de parada** (§6.4). *«familia resuelta»* si B reduce el sobre-alcance **≥ umbral** (50 % por defecto, **parámetro** `--umbral`) **y el límite inferior del intervalo es > 0** (excluye la no-reducción). Si no: *«el residuo es variabilidad del anfitrión: el owner revisa el criterio»*. Si B reduce pero **todos** los materiales que le quedan son deslices con la verdad a la vista, además se dice (iii): la evidencia de variabilidad vale solo para esa familia. En ningún caso entra una regla por frase ni un juez de prosa.
+
+### 10.6 · El medidor tras el ensayo 12: «métrica distinta ×20» era una falla del MEDIDOR
+
+El rastreo inferia la métrica de una cifra mirando las palabras de **toda su cláusula** y la comparaba con la del hecho de ADI. Falla en tres tipos de oración: viñetas con varias métricas («`$35.5M, +8.3%, margen 22%`»: ataba el monto a «margen»), «N días **sin venta**» leído como la métrica Venta, y encabezados/umbrales («`| Bajo, con brecha relevante | Bío | 25% |`», «90 días» de la persona). Regla nueva (`rastreo.mjs`, `REGLAS`, cada una apagable para el análisis): **una cifra toma la métrica de SU etiqueta** —las palabras pegadas a ella, antes o después—; una cifra sin etiqueta propia no hereda las que otra cifra de la cláusula ya reclamó (`etiqueta_propia`, `etiqueta_antes`, `etiqueta_reclamada`; «de $4.6M a $5.2M» y «$7,7M y $5,8M vencidos» comparten etiqueta); unos días no son dinero ni una variación con signo («+9,4 %») hereda una palabra lejana (`unidad_natural`); «sin venta/sin vender» es una ausencia (`sin_venta`); «no equivalen a capital liberado» dice lo que la cifra NO es (`negada`); una celda toma la métrica de su **columna** (`columna_de_tabla`); la brecha en pesos ES la contribución no capturada y «$X sin capturar» también (`brecha_en_pesos`, `sin_capturar`); «Contribución ÷ Venta» es el margen (`margen_es_razon`); y la oferta encadenada «como «+8% de venta» o «+2 pp de margen»» es un ejemplo (`ejemplo_encadenado`). **Nada afloja una etiqueta propia**: «margen de $35.5M» (que es venta), «vendió $11K» (que es capital) o «columna Venta» con un margen siguen marcándose (10 carnadas).
+
+**Marcas antes → después** (re-corriendo el rastreo SOLO sobre los transcritos guardados de los ensayos 9-12; 4 788 afirmaciones; sin llamadas):
+
+| ensayo | marcas «error material» | de ellas «métrica distinta» | lo que queda de «métrica distinta» |
+|---|---|---|---|
+| 9 | 18 → **16** | 2 → 0 | — |
+| 10 | 12 → **10** | 3 → 1 | B01\|1\|6\|13 «Quillay no tiene saldo vencido (tiene $3.8M por vencer)» — H-correcta, no V |
+| 11 | 13 → **9** | 4 → 0 | — |
+| 12 | 41 → **21** | 20 → 0 | — |
+
+De las 30 marcas «métrica distinta» (28 V + 2 H-correcta), 29 dejan de marcarse y queda 1 que la persona clasificó H-correcta. Los únicos cambios de veredicto en todo el material son 27 `metrica_distinta → traza`, 1 `→ ejemplo` y 11 enteros que pasan de «listado, no juzgado» a `traza` (rotaciones «2.4x», «8.1 pp», «las otras 8 cuentas»: ninguno se vuelve marca; N sube 11). **No se sobreajustó:** las 21 marcas que quedan en el ensayo 12 son de otros clusters (rango del catálogo ×4, dueño espurio ×5, fragmento de identificador ×2, …; 16 son V y 5 no-V) y no se tocaron. Fixture: `fixtures/medicion-anfitrion/ensayo-12-metrica-distinta.json` (29 marcas + 3 controles, frases VERBATIM con el libro reducido de ADI, rojo primero: con las reglas nuevas apagadas vuelven las 29).
+
+### 10.7 · Candado
+
+`_medicion_anfitrion_gate.mjs` secciones **I–O** (600 aserciones en total): I · el brazo (servidor real por stdio, entorno del anfitrión limpio, arranque contrastado, no se mezclan) · J · la serie (cuatro corridas, quinta/otra serie/otro código/sello quemado por otro/corpus usado rechazados, fuera de serie sin cambios) · K · Wilson/Newcombe/bootstrap/regla de parada · L · sobre-alcance (agregación, dedupe, subtipos, no mueve el cierre) · M · familia desliz · N · el medidor (29 frases reales + carnadas) · O · `comparar-brazos` (cuatro corridas sintéticas, tres escenarios y siete rechazos).
