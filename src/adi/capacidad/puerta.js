@@ -35,6 +35,7 @@
 import { crearAcciones } from "./acciones.js";
 import { compactarParaAnfitrion } from "./compacto.js";
 import { OPERACIONES, OPERADORES, UNIDADES_DE_CRITERIO } from "./derivar.js";
+import { DIRECCIONES_DE_TOP } from "../notario/hechos.js";
 import { crearAlmacenEnMemoria } from "../continuidad/almacen.js";
 import { crearAlmacenSupabase } from "../continuidad/almacenSupabase.js";
 import { CAMPOS_PERFIL_DECLARABLES } from "../continuidad/empresa.js";
@@ -225,23 +226,21 @@ export const MCP_TOOLS = [
   },
   {
     name: "derivar",
-    description: "Calcula, verifica y devuelve como hecho nuevo —con identificador y procedencia «derivado»— una cifra que sale de cifras que ADI YA entregó en esta conversación: suma, diferencia (también de una misma cifra entre dos cargas o períodos), participación, razón o conteo. Úsela SIEMPRE que necesite un total, subtotal, diferencia, porcentaje, múltiplo o conteo que no esté entre lo entregado: nunca lo calcule usted. Acepta cifras de esta conversación (E<n>.h<k>), de apoyo (E<n>.e<k>, como el benchmark) y derivaciones que ADI ya le devolvió (D<k>), que se pueden encadenar; lo que no se puede derivar con exactitud se rechaza con su razón. Una cifra simulada se deriva con otras de su simulación; contra lo medido, solo con diferencia o razón. Lo que el usuario fijó («ninguna bodega con más de un tercio») va en «criterio». Para una cifra no entregada use consultar.",
+    description: "Calcula, verifica y devuelve como hecho nuevo (con id, «derivado») lo que sale de cifras que ADI YA entregó en esta conversación: suma, diferencia (también de una misma cifra entre cargas o períodos), participación, razón o conteo. Úsela SIEMPRE que necesite un total, diferencia, porcentaje, múltiplo o conteo no entregado: nunca lo calcule usted. Acepta E<n>.h<k>, apoyo (E<n>.e<k>, como el benchmark) y D<k> (se encadenan). Una cifra simulada se deriva con otras de su simulación o, contra lo medido, con diferencia o razón. Lo que fijó el usuario va en «criterio». COINCIDENCIA: de las k primeras por un orden, cuántas están entre las k primeras por otro, sobre el eje completo; úsela para toda relación entre dos órdenes. Para una cifra no entregada use consultar.",
     inputSchema: {
       type: "object",
       properties: {
-        conversacionId: { type: "string", description: "La conversación en la que se entregaron las cifras." },
-        operacion: { type: "string", enum: [...OPERACIONES], description: "suma · diferencia (la primera menos la segunda) · participacion (una o varias cifras sobre una base) · razon (una cifra respecto de otra: «N veces») · conteo (cuántas cifras cumplen una condición)." },
-        sobre: { type: "array", items: { type: "string" }, description: "Identificadores (E<n>.h<k>, E<n>.e<k>, D<k>) o 'criterio'. En participación, el numerador (una cifra, o varias de la misma métrica); en razón, la cifra que se compara." },
-        base: { type: ["string", "null"], description: "Solo participacion y razon: la base (p. ej. el total del listado) o aquello con lo que se compara." },
-        condicion: {
-          type: ["object", "null"],
-          description: "Solo conteo: 'valor' es un número, el id de otra cifra o 'criterio'; con dinero, un número solo puede ser 0.",
-          properties: { op: { type: "string", enum: [...OPERADORES] }, valor: {} },
-          required: ["op", "valor"],
-        },
-        criterio: { type: ["object", "null"], description: "Lo que el USUARIO fijó (no es de ADI); se cita como 'criterio'.", properties: { valor: { type: "number" }, unidad: { type: "string", enum: [...UNIDADES_DE_CRITERIO] }, texto: { type: "string" } }, required: ["valor", "unidad", "texto"] },
+        conversacionId: { type: "string" },
+        operacion: { type: "string", enum: [...OPERACIONES], description: "diferencia = 1.ª menos 2.ª · participacion = una o varias cifras sobre una base · razon = N veces · conteo = cuántas cumplen una condición · coincidencia = dos órdenes" },
+        sobre: { type: "array", items: { type: "string" }, description: "Ids (E<n>.h<k>, E<n>.e<k>, D<k>) o 'criterio'. Participación: el numerador (varias de la misma métrica); razón: la cifra comparada." },
+        base: { type: ["string", "null"], description: "Solo participacion y razon: la base." },
+        condicion: { type: ["object", "null"], description: "Conteo: 'valor' es número, id o 'criterio'; con dinero, un número solo puede ser 0.", properties: { op: { type: "string", enum: [...OPERADORES] }, valor: {} } },
+        criterio: { type: ["object", "null"], description: "Lo que fijó el USUARIO; se cita como 'criterio'.", properties: { valor: { type: "number" }, unidad: { type: "string", enum: [...UNIDADES_DE_CRITERIO] }, texto: { type: "string" } } },
+        eje: { type: "string", description: "Coincidencia: eje de los órdenes a y b ({metrica, direccion, k})." },
+        a: { type: "object", properties: { metrica: { type: "string" }, direccion: { enum: [...DIRECCIONES_DE_TOP] }, k: { type: "integer" } } },
+        b: { type: "object", properties: { metrica: { type: "string" }, direccion: { enum: [...DIRECCIONES_DE_TOP] }, k: { type: "integer" } } },
       },
-      required: ["conversacionId", "operacion", "sobre"],
+      required: ["conversacionId", "operacion"],
       additionalProperties: false,
     },
   },
@@ -263,7 +262,7 @@ async function _despachar(nombreAccion, argsCrudos, { tenant, acciones }) {
   if (nombreAccion === "conocerEmpresa") salida = await acciones.conocerEmpresa({ tenant, conversacionId: limpio.conversacionId ?? null });
   else if (nombreAccion === "consultar") salida = await acciones.consultar({ tenant, encargo: limpio.encargo });
   else if (nombreAccion === "aportarContexto") salida = await acciones.aportarContexto({ tenant, conversacionId: limpio.conversacionId ?? null, aportes: limpio.aportes || [], confirmar: limpio.confirmar || [], omitir: limpio.omitir || [] });
-  else if (nombreAccion === "derivar") salida = await acciones.derivar({ tenant, conversacionId: limpio.conversacionId ?? null, operacion: limpio.operacion, sobre: limpio.sobre, base: limpio.base ?? undefined, condicion: limpio.condicion ?? undefined, criterio: limpio.criterio ?? undefined });
+  else if (nombreAccion === "derivar") salida = await acciones.derivar({ tenant, conversacionId: limpio.conversacionId ?? null, operacion: limpio.operacion, sobre: limpio.sobre, base: limpio.base ?? undefined, condicion: limpio.condicion ?? undefined, criterio: limpio.criterio ?? undefined, eje: limpio.eje, a: limpio.a, b: limpio.b });
   else salida = await acciones.retomar({ tenant, conversacionId: limpio.conversacionId });
 
   /* LO QUE VIAJA AL ANFITRIÓN es la respuesta COMPACTA (`compacto.js`, owner 2026-10-05): el texto de la Entrega íntegro, las cifras con sus ids, la continuidad y lo declarado; la estructura interna

@@ -34,7 +34,8 @@ import { crearAlmacenEnMemoria, ErrorDeAlmacen } from "./src/adi/continuidad/alm
 import { LIBRO_TOPE_BYTES, tamanoBytes, comprimirLibro, expandirLibro, libroNuevo, registrarEntrega, registrarDerivacion } from "./src/adi/continuidad/libro.js";
 import { cifraDeHecho, cifrasDeLaEntrega, encargoParaElLibro } from "./src/adi/continuidad/revalidar.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
-import { formatoDeLaCasa } from "./src/adi/notario/hechos.js";
+import { formatoDeLaCasa, DIRECCIONES_DE_TOP } from "./src/adi/notario/hechos.js";
+import { guiaDeUniverso } from "./src/adi/capacidad/ensenar.js";
 import { makeAccessCode } from "./src/adi/llm/accessToken.js";
 import { clasificarFuente } from "./scripts/clasificarGates.mjs";
 import { packRenombrado } from "./scripts/medicion-anfitrion/empresa-no-demo.mjs";
@@ -97,12 +98,12 @@ const noDeriva = async (h, T, nombre, pedido, motivo) => {
 };
 
 /* ═══ 0 · LO CERRADO ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
-H("0 · lo cerrado: cinco operaciones (sin promedio), la cabecera de cinco reglas, el tope de operandos");
+H("0 · lo cerrado: seis operaciones (sin promedio), la cabecera de cinco reglas, el tope de operandos");
 {
-  ok(jj(OPERACIONES) === jj(["suma", "diferencia", "participacion", "conteo", "razon"]), "★ las operaciones son EXACTAMENTE suma · diferencia · participacion · conteo · razon (sin `promedio`, §8.3; la razón llegó con el ensayo 5)");
+  ok(jj(OPERACIONES) === jj(["suma", "diferencia", "participacion", "conteo", "razon", "coincidencia"]), "★ las operaciones son EXACTAMENTE suma · diferencia · participacion · conteo · razon · coincidencia (sin `promedio`, §8.3; la razón llegó con el ensayo 5 y la coincidencia entre dos órdenes con el ensayo 10)");
   ok(OPERANDOS_MAX === 40 && OPERANDOS_MAX === ENTIDADES_DE_UN_UNIVERSO_MAX, "el tope de operandos es lo que un universo lista a la vista (40)");
   ok(CABECERA_DE_USO.length === 5, "★ la cabecera de uso tiene CINCO reglas (la cuarta del contrato original + la del orden sobre el total, ensayo 8)");
-  ok(CABECERA_DE_USO[1] === "Toda afirmación de orden sobre el total (el mayor, el menor, el que más creció, el más grave) debe venir de una consulta de ADI que vio el universo completo; con una vista parcial, dígalo como parcial o pídale a ADI el extremo.", "★ la regla 2.ª es el texto EXACTO del owner (el orden sobre el total)");
+  ok(CABECERA_DE_USO[1] === "Toda afirmación de orden sobre el total (el mayor, el que más creció, el más grave) o de relación entre dos órdenes (los más grandes son los de menor margen) debe venir de una consulta de ADI que vio el universo completo; con una vista parcial, dígalo como parcial o pídale a ADI el extremo o la coincidencia.", "★ la regla 2.ª es el texto EXACTO del owner (el orden sobre el total y, desde el ensayo 10, la relación entre dos órdenes)");
   ok(CABECERA_DE_USO[0] === "Toda cifra empresarial que usted diga —en números o en palabras, incluidos totales, diferencias, porcentajes y conteos— debe ser un hecho que ADI le entregó en esta conversación. Si la cifra que necesita no está entre lo entregado, no la calcule ni la complete: pídasela a ADI (derivar, sobre identificadores ya entregados; o una consulta nueva). Redondear a lo impreso no es calcular.", "★ la regla 1 es el texto EXACTO del contrato (sin «con su identificador»)");
   ok(!/con su identificador/.test(jj(CABECERA_DE_USO)) && !/promedios? de más de dos cifras/.test(jj(CABECERA_DE_USO)), "las dos reglas viejas (1/5 y 2/5) ya no están");
   ok(/^Lo que la Entrega declara en «Lo que no se puede concluir» se respeta/.test(CABECERA_DE_USO[2]) && /^La «Referencia del oficio» es conocimiento general/.test(CABECERA_DE_USO[3]) && /^Redacte con total libertad/.test(CABECERA_DE_USO[4]), "las otras tres reglas siguen, en su orden");
@@ -416,7 +417,7 @@ H("9 · la puerta: cinco herramientas, REST `derivar`, OpenAPI con cinco rutas")
   ok(jj(nombres) === jj(["conocerEmpresa", "consultar", "aportarContexto", "retomar", "derivar"]) && MCP_TOOLS.length === 5, "★ `MCP_TOOLS` trae las cinco herramientas, `derivar` la quinta", jj(nombres));
   const tool = MCP_TOOLS.find((t) => t.name === "derivar");
   ok(/Calcula, verifica y devuelve como hecho nuevo/.test(tool.description) && /Úsela SIEMPRE que necesite un total/.test(tool.description) && /use consultar\.$/.test(tool.description), "la descripción es la de negocio del contrato");
-  ok(jj(tool.inputSchema.required) === jj(["conversacionId", "operacion", "sobre"]) && jj(tool.inputSchema.properties.operacion.enum) === jj(OPERACIONES) && tool.inputSchema.additionalProperties === false, "el esquema: operación cerrada, sobre/base/condicion, sin campos extra");
+  ok(jj(tool.inputSchema.required) === jj(["conversacionId", "operacion"]) && jj(tool.inputSchema.properties.operacion.enum) === jj(OPERACIONES) && tool.inputSchema.additionalProperties === false, "el esquema: operación cerrada, sobre/base/condicion, sin campos extra");
   ok(!/compareEntities|simulateGeneral|queryMetric|toolRegistry|fig\(/i.test(JSON.stringify(tool)), "ningún mecanismo interno en su forma pública");
   const spec = construirOpenApi("http://gate.local");
   ok(Object.keys(spec.paths).length === 5 && spec.paths[`${RUTA}/derivar`] && spec.paths[`${RUTA}/derivar`].post.operationId === "derivar" && spec.paths[`${RUTA}/derivar`].post.security, "★ el OpenAPI describe las cinco rutas, `derivar` con bearer");
@@ -638,7 +639,7 @@ for (const { etiqueta, T } of EMPRESAS) {
 H("11e · lo que ve el anfitrión: el esquema de la herramienta lo dice, corto");
 {
   const tool = MCP_TOOLS.find((t) => t.name === "derivar");
-  ok(/derivaciones que ADI ya le devolvió \(D<k>\)/.test(tool.description) && /encadenar/.test(tool.description) && /use consultar\.$/.test(tool.description), "★ la descripción dice que acepta D<k> y que se encadenan, y sigue terminando en «use consultar.»", tool.description);
+  ok(/D<k> \(se encadenan\)/.test(tool.description) && /use consultar\.$/.test(tool.description), "★ la descripción dice que acepta D<k> y que se encadenan, y sigue terminando en «use consultar.»", tool.description);
   ok(/D<k>/.test(tool.inputSchema.properties.sobre.description) && /varias de la misma métrica/.test(tool.inputSchema.properties.sobre.description) && /una o varias cifras sobre una base/.test(tool.inputSchema.properties.operacion.description), "el esquema de «sobre» y de «operacion» dicen los dos permisos nuevos (D<k> y varios numeradores)");
   ok(MOTIVOS_DE_DERIVACION.includes("derivacion_no_encadenable") && MOTIVOS_DE_DERIVACION.length === new Set(MOTIVOS_DE_DERIVACION).size, "el motivo nuevo está en la lista cerrada (sin repetidos)");
   ok(JSON.stringify(tool).length < 2400, `la herramienta sigue corta (${JSON.stringify(tool).length} B): dice lo nuevo sin crecer`);
@@ -1381,6 +1382,217 @@ H("15b · ensayo 9: la herramienta lo dice, corto");
   ok(/simulaci[oó]n/.test(tool.description) && /diferencia o razón/.test(tool.description) && /use consultar\.$/.test(tool.description), "★ la descripción dice que una cifra simulada se deriva con otras de su simulación y contra lo medido solo con diferencia o razón, y sigue terminando en «use consultar.»", tool.description);
   ok(JSON.stringify(tool).length < 2400, `la herramienta sigue dentro de su presupuesto de 2 400 B (${JSON.stringify(tool).length} B): lo nuevo entró recortando palabras, no subiendo el tope`);
   ok(MOTIVOS_DE_DERIVACION.includes("mezcla_de_realidades") && MOTIVOS_DE_DERIVACION.includes("supuestos_distintos") && MOTIVOS_DE_DERIVACION.length === new Set(MOTIVOS_DE_DERIVACION).size, "los dos motivos nuevos están en la lista cerrada (sin repetidos)");
+}
+
+/* ═══ 16 · ENSAYO 10 (owner 2026-10-09): LA RELACIÓN ENTRE DOS ÓRDENES LA RESPONDE ADI ═══════════════════════════════════════════════════════════════════════════════════════════════════
+ * El ensayo 10 dejó un patrón con el dato correcto a la vista: el anfitrión dijo RELACIONES FALSAS ENTRE DOS ÓRDENES —«las cuentas más grandes (Falabella, Lider y Jumbo) son también las de menor margen» (su propia tabla ponía a Sodimac, 23.5 %, bajo Jumbo, 24 %),
+ * «El Roble… la que más crece» (era Mercantil Pacífico), «Falabella es además tu mayor cliente en deuda» (era Lider)—. Decisión del owner (opción 1): ADI responde la relación como un hecho suyo. `derivar` con `operacion: "coincidencia"` y `{ eje, a: {metrica, direccion, k}, b: {…} }`
+ * cruza el top-k por A con el top-k por B, calculados sobre el eje COMPLETO (nunca sobre lo impreso), y devuelve «m de n» con los nombres. Cada caso con su recomputación INDEPENDIENTE desde las filas del tenant (no desde el Core) y contra el top que `consultar` serviría. */
+for (const { etiqueta, T } of EMPRESAS) {
+  H(`16 · ensayo 10 (${etiqueta}): la coincidencia entre dos órdenes, calculada por ADI sobre el eje completo`);
+  conTenant(T);
+  const DS = T.dataset;
+  const store = crearAlmacenEnMemoria(); const A = crearAcciones({ continuidad: store });
+  const r0 = await A.consultar({ tenant: T, encargo: E([PARTE(["ventas"], "comercial")]) });
+  const conv = r0.continuidad.conversacionId;
+  const L = (m, d, k) => ({ metrica: m, direccion: d, k });
+  const C = (eje, a, b, tn = T) => A.derivar({ tenant: tn, conversacionId: conv, operacion: "coincidencia", eje, a, b });
+  /* el ORÁCULO: las filas del tenant, ordenadas aparte (sin pasar por el Core ni por `derivar`) */
+  const ventas = new Map(DS.clientesVentas.map((x) => [x.nombre, x.actual]));
+  const margen = new Map(DS.clientesMargen.map((x) => [x.nombre, x.margen]));
+  const crec = new Map(DS.clientesVentas.map((x) => [x.nombre, (x.actual - x.anterior) / x.anterior * 100]));
+  const topF = (mapa, dir, k) => [...mapa].sort((x, y) => (dir === "mayor" ? y[1] - x[1] : x[1] - y[1])).slice(0, k).map((x) => x[0]);
+  const inter = (a, b) => a.filter((x) => b.includes(x));
+  const mismos = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+  /* lo que `consultar` serviría para ese top (los universos de la Entrega): la MISMA lista que el anfitrión vería */
+  const deConsultar = async (tema, metrica, k, dir) => {
+    const r = await A.consultar({ tenant: T, encargo: { version: "encargo/v1", partes: [{ id: "p1", tema, cierre: "cifra", eje: "cliente", universo: { eje: "cliente", top: { metrica, k, direccion: dir } } }] } });
+    return ((compactarParaAnfitrion("consultar", r).entrega.universos || [])[0] || {}).entidades || null;
+  };
+
+  /* a · el caso del ensayo: las 3 de mayor venta × las 3 de menor margen */
+  const A3 = topF(ventas, "mayor", 3), B3 = topF(margen, "menor", 3), esperado = inter(A3, B3);
+  const ra = await C("cliente", L("ventas", "mayor", 3), L("margen", "menor", 3));
+  ok(ra.ok === true && ra.hecho.id === "D1" && ra.hecho.operacion === "coincidencia" && ra.hecho.procedencia === "derivado" && ra.hecho.valor === `${esperado.length} de ${A3.length}`, "★ las 3 de mayor venta × las 3 de menor margen: UN hecho D1 «m de 3», procedencia «derivado»", jj(ra).slice(0, 500));
+  ok(ra.ok && mismos(ra.coincidencia.comunes, esperado) && jj(ra.coincidencia.a.entidades) === jj(A3) && jj(ra.coincidencia.b.entidades) === jj(B3) && ra.coincidencia.m === esperado.length, `★ los que coinciden (${esperado.join(", ")}), el top de cada orden y el conteo SON los de la recomputación independiente desde las filas`, jj(ra.coincidencia));
+  ok(ra.ok && ra.hecho.entidad === (esperado.length === 1 ? esperado[0] : `${esperado.slice(0, -1).join(", ")} y ${esperado[esperado.length - 1]}`) && esperado.every((n) => ra.hecho.descripcion.includes(n)) && A3.every((n) => ra.hecho.descripcion.includes(n)) && B3.every((n) => ra.hecho.descripcion.includes(n)), "la descripción nombra a los de cada orden y a los que coinciden; el dueño del hecho son los que coinciden", ra.hecho && ra.hecho.descripcion);
+  const cA = await deConsultar("comercial", "ventas", 3, "mayor"), cB = await deConsultar("comercial", "margen", 3, "menor");
+  ok(cA && cB && jj([...cA].sort()) === jj([...ra.coincidencia.a.entidades].sort()) && jj([...cB].sort()) === jj([...ra.coincidencia.b.entidades].sort()), "★ cada orden es EXACTAMENTE el top que `consultar` serviría con universo {eje, top} (no una segunda ordenación)", jj({ cA, cB, a: ra.coincidencia && ra.coincidencia.a.entidades }));
+  if (etiqueta === "demo") {
+    ok(jj([...ra.coincidencia.comunes].sort()) === jj(["Falabella", "Lider"]) && !ra.coincidencia.comunes.includes("Jumbo") && ra.hecho.valor === "2 de 3" && !ra.coincidencia.b.entidades.includes("Jumbo") && ra.coincidencia.b.entidades.includes("Sodimac"), "★ EL CASO DEL ENSAYO 10 (demo): Falabella y Lider — NO Jumbo (Sodimac, 23.5 %, está bajo Jumbo, 24 %): «2 de 3», no «las tres»", jj(ra.coincidencia));
+  } else {
+    ok(esperado.length === 2 && ra.hecho.valor === "2 de 3" && !ra.coincidencia.comunes.includes("Tiendas Costa Verde"), "(no-demo) la misma relación en Río Claro: 2 de 3, y la tercera cuenta de mayor venta NO es de las de menor margen");
+  }
+  const resp = ra.ok ? JSON.stringify(ra) : "";
+  ok(ra.ok && ra.coincidencia.a.marco && ra.coincidencia.a.marco === ra.coincidencia.b.marco && /eje completo/.test(ra.hecho.descripcion) && ra.coincidencia.universo === `${axisEntityNames("cliente").length} clientes`, "cada orden dice su marco (período cerrado) y el universo del que sale (los N clientes del eje)");
+  ok(ra.ok && jj(ra.uso) === jj(CABECERA_DE_USO) && !/boleta|fig\b|toolRegistry/i.test(resp), "viaja con la cabecera de uso y sin vocabulario de mecanismo");
+
+  /* b · la dirección contraria y el orden de a/b: otra pregunta, otra cifra */
+  const rb = await C("cliente", L("margen", "menor", 3), L("ventas", "mayor", 3));
+  ok(rb.ok === true && rb.hecho.id === "D2" && mismos(rb.coincidencia.comunes, esperado) && jj(rb.coincidencia.a.entidades) === jj(B3), "★ (margen, menor) × (ventas, mayor): los mismos que coinciden, pero es OTRA derivación (D2) y A es el orden de menor margen");
+  const rp = await C("cliente", L("ventas", "mayor", 3), L("margen", "peor", 3));
+  ok(rp.ok === true && mismos(rp.coincidencia.b.entidades, B3), "«peor» margen = menor margen (la polaridad la dice la casa, no el anfitrión)", jj(rp).slice(0, 300));
+
+  /* c · «¿los que más crecen son los más grandes?» / «El Roble… la que más crece»: el extremo de crecimiento (un top de 1) cruzado con la venta */
+  const G1 = topF(crec, "mayor", 1), G3 = topF(crec, "mayor", 3);
+  const rc = await C("cliente", L("variacion", "mayor", 1), L("ventas", "mayor", 3));
+  ok(rc.ok === true && jj(rc.coincidencia.a.entidades) === jj(G1) && rc.hecho.valor === `${inter(G1, A3).length} de 1`, `★ la que MÁS CRECE (${G1[0]}) por la recomputación independiente; y si está entre las 3 de mayor venta lo dice ADI: ${inter(G1, A3).length} de 1`, jj(rc).slice(0, 400));
+  if (etiqueta !== "demo") ok(rc.ok && rc.coincidencia.a.entidades[0] === "Mercantil Pacífico" && !rc.coincidencia.a.entidades.includes("Mayorista El Roble") && rc.hecho.valor === "0 de 1" && rc.hecho.entidad === undefined && /ninguno coincide/.test(rc.hecho.descripcion), "★ EL CASO DEL ENSAYO 10 (Río Claro): la que más crece es Mercantil Pacífico — NO El Roble; «0 de 1», y la descripción dice «ninguno coincide»", jj(rc.coincidencia));
+  const rc3 = await C("cliente", L("ventas", "mayor", 3), L("variacion", "mayor", 3));
+  ok(rc3.ok === true && mismos(rc3.coincidencia.comunes, inter(A3, G3)) && jj(rc3.coincidencia.b.entidades) === jj(G3), "«¿las que más venden son las que más crecen?» (3 × 3): los que coinciden son los de la recomputación independiente", jj(rc3.coincidencia));
+
+  /* d · DOS DOMINIOS en el mismo eje: venta (período cerrado) y saldo vencido (foto de cobranza); «Falabella es además tu mayor cliente en deuda» */
+  const rd = await C("cliente", L("saldo_vencido", "mayor", 1), L("ventas", "mayor", 3));
+  const cMora = await deConsultar("cobranza", "saldo_vencido", 1, "mayor");
+  ok(rd.ok === true && cMora && jj(cMora) === jj(rd.coincidencia.a.entidades) && rd.hecho.valor === `${inter(cMora, A3).length} de 1`, `★ «el mayor en deuda» = ${cMora && cMora[0]} (el mismo que servirá consultar), y ADI dice si está entre las 3 de mayor venta: ${rd.hecho && rd.hecho.valor}`, jj(rd).slice(0, 500));
+  ok(rd.ok && /^foto de cobranza/.test(rd.coincidencia.a.marco) && rd.coincidencia.b.marco === ra.coincidencia.a.marco && rd.coincidencia.a.marco !== rd.coincidencia.b.marco && rd.hecho.descripcion.includes(rd.coincidencia.a.marco) && rd.hecho.descripcion.includes(rd.coincidencia.b.marco), "★ métricas de dos dominios en el MISMO eje: cada orden declara su marco («foto de cobranza al …» vs período cerrado) en la cifra y en la descripción", rd.hecho && rd.hecho.descripcion);
+  if (etiqueta === "demo") ok(rd.ok && rd.coincidencia.a.entidades[0] === "Lider" && rd.hecho.entidad === "Lider" && rd.hecho.valor === "1 de 1", "★ EL CASO DEL ENSAYO 10 (demo): el mayor en deuda es Lider (que sí está entre las 3 de mayor venta); Falabella es la segunda en deuda");
+
+  /* e · EMPATES: se declaran, no se rompen en silencio. Un empate en el filo del top sirve a TODOS los empatados */
+  {
+    const dsE = clon(DS);
+    const fm = [...dsE.clientesMargen].sort((x, y) => x.margen - y.margen);
+    fm[3].margen = fm[2].margen;   /* el 4.º más bajo iguala al 3.º: el filo del top-3 cae en un empate */
+    const TE = { ...T, dataset: dsE, version: 3 };   /* otra carga: el mismo pedido sobre otros datos es otra cifra (la llave incluye la carga) */
+    const filas = new Map(dsE.clientesMargen.map((x) => [x.nombre, x.margen]));
+    const filo = fm[2].margen, empatados = dsE.clientesMargen.filter((x) => x.margen === filo).map((x) => x.nombre);
+    conTenant(TE);
+    const re = await A.derivar({ tenant: TE, conversacionId: conv, operacion: "coincidencia", eje: "cliente", a: L("ventas", "mayor", 3), b: L("margen", "menor", 3) });
+    const serv = [...filas].filter((x) => x[1] < filo).map((x) => x[0]).concat(empatados);
+    ok(re.ok === true && re.coincidencia.b.empate && mismos(re.coincidencia.b.empate.entidades, empatados) && re.coincidencia.b.entidades.length === serv.length && mismos(re.coincidencia.b.entidades, serv) && re.coincidencia.b.k === 3, "★ EMPATE en el filo: el top-3 sirve a TODOS los empatados (no elige a uno) y lo declara (`empate` con quiénes y el puesto)", jj(re.coincidencia && re.coincidencia.b));
+    ok(re.ok && /Empate en el filo/.test(re.hecho.descripcion) && empatados.every((n) => re.hecho.descripcion.includes(n)), "…y la descripción lo dice con los nombres de los empatados", re.hecho && re.hecho.descripcion);
+    ok(re.ok && mismos(re.coincidencia.comunes, inter(A3, serv)), "…y los que coinciden usan a todos los servidos");
+    conTenant(T);
+  }
+
+  /* f · IDEMPOTENCIA y CARGA: el mismo pedido devuelve la misma derivación sin escribir; otra carga de datos es otra cifra */
+  {
+    const antes = jj(await store.leerLibro(T.id, conv));
+    const rr = await C("cliente", L("ventas", "mayor", 3), L("margen", "menor", 3));
+    ok(rr.ok && rr.repetida === true && rr.hecho.id === "D1" && jj(await store.leerLibro(T.id, conv)) === antes, "★ el mismo pedido: la derivación que ya existe (`repetida`), el libro byte a byte igual");
+    const T2 = { ...T, version: 2 };
+    conTenant(T2);
+    const r2 = await C("cliente", L("ventas", "mayor", 3), L("margen", "menor", 3), T2);
+    ok(r2.ok && r2.repetida === false && /^D\d+$/.test(r2.hecho.id) && r2.hecho.id !== "D1" && (r2.advertencias || []).some((x) => /datos cambiaron/i.test(x)), "★ con otra carga de datos es OTRA cifra (nuevo id) y se avisa que las Entregas anteriores son de la carga previa", jj(r2).slice(0, 400));
+    conTenant(T);
+  }
+
+  /* g · LO QUE NO SE SOPORTA se rechaza con su razón y lo que sí es válido (`ensenar.js`) */
+  {
+    const caso = async (nombre, args, motivo, alt) => {
+      const r = await A.derivar({ tenant: T, conversacionId: conv, operacion: "coincidencia", ...args });
+      ok(r.ok === false && r.motivo === motivo && typeof r.detalle === "string" && r.detalle.length > 20 && Array.isArray(r.alternativas) && r.alternativas.length > 0 && r.alternativas.some((x) => x.tipo === alt) && Array.isArray(r.uso) && !r.hecho, `★ ${nombre}: «${motivo}» con una frase de negocio y la alternativa «${alt}»`, jj(r).slice(0, 500));
+      ok(MOTIVOS_DE_DERIVACION.includes(r.motivo), `   ${nombre}: el código está en la lista cerrada`);
+      return r;
+    };
+    await caso("falta el segundo orden", { eje: "cliente", a: L("ventas", "mayor", 3) }, "coincidencia_invalida", "forma_de_coincidencia");
+    await caso("eje que no es un eje", { eje: "mes", a: L("ventas", "mayor", 3), b: L("margen", "menor", 3) }, "coincidencia_invalida", "forma_de_coincidencia");
+    await caso("dirección inventada", { eje: "cliente", a: L("ventas", "desc", 3), b: L("margen", "menor", 3) }, "coincidencia_invalida", "forma_de_coincidencia");
+    await caso("k = 0", { eje: "cliente", a: L("ventas", "mayor", 0), b: L("margen", "menor", 3) }, "coincidencia_invalida", "forma_de_coincidencia");
+    await caso("k decimal", { eje: "cliente", a: L("ventas", "mayor", 2.5), b: L("margen", "menor", 3) }, "coincidencia_invalida", "forma_de_coincidencia");
+    await caso("los dos órdenes son el mismo", { eje: "cliente", a: L("ventas", "mayor", 3), b: L("ventas", "mayor", 3) }, "coincidencia_invalida", "forma_de_coincidencia");
+    const N = axisEntityNames("cliente").length;
+    await caso("k mayor que el eje", { eje: "cliente", a: L("ventas", "mayor", N + 1), b: L("margen", "menor", 3) }, "k_fuera_de_rango", "maximo");
+    const rm = await caso("métrica que el catálogo no conoce", { eje: "cliente", a: L("ventas", "mayor", 3), b: L("popularidad", "mayor", 3) }, "metrica_no_del_eje", "metricas_del_eje");
+    ok(rm.alternativas[0].validas.includes("ventas") && rm.alternativas[0].validas.includes("margen"), "   y las métricas válidas del eje son las del catálogo (las mismas que `universo.top.metrica`)");
+    const rb = await caso("la venta no se ordena por bodega", { eje: "bodega", a: L("ventas", "mayor", 1), b: L("capital", "mayor", 1) }, "metrica_no_del_eje", "metricas_del_eje");
+    ok(!rb.alternativas[0].validas.includes("ventas") && rb.alternativas[0].validas.includes("capital"), "   y ofrece las de inventario, que sí se abren por bodega");
+    await caso("«peor» en una métrica sin polaridad declarada (la casa no dice qué es peor)", { eje: "cliente", a: L("ventas", "mayor", 3), b: L("costo", "peor", 3) }, "lado_no_resoluble", "camino");
+    const rpar = await caso("una métrica que el dato no trae para todo el eje (ranking parcial: lo ausente no vale 0)", { eje: "cliente", a: L("ventas", "mayor", 3), b: L("brecha_precio_costo", "mayor", 3) }, "lado_no_resoluble", "camino");
+    ok(/vista parcial|solo trae/.test(rpar.detalle), "   y la razón dice que ADI no ordena sobre una vista parcial", rpar.detalle);
+    await caso("una métrica de inventario en el eje cliente", { eje: "cliente", a: L("ventas", "mayor", 3), b: L("capital_inmovilizado", "mayor", 3) }, "metrica_no_del_eje", "metricas_del_eje");
+    const rnc = await A.derivar({ tenant: T, conversacionId: conv, operacion: "suma", sobre: [ra.hecho.id, "E1.h1"] });
+    ok(rnc.ok === false && rnc.motivo === "derivacion_no_encadenable" && /coincidencia/.test(rnc.detalle), "★ una coincidencia no se suma ni se divide con otras cifras: «derivacion_no_encadenable»", jj(rnc).slice(0, 300));
+    const sc = await A.derivar({ tenant: T, conversacionId: null, operacion: "coincidencia", eje: "cliente", a: L("ventas", "mayor", 3), b: L("margen", "menor", 3) });
+    ok(sc.ok === false && sc.motivo === "falta_conversacion", "sin conversación no hay dónde guardar el hecho: «falta_conversacion»");
+    const ot = await A.derivar({ tenant: { ...T, id: "otra-empresa-gate" }, conversacionId: conv, operacion: "coincidencia", eje: "cliente", a: L("ventas", "mayor", 3), b: L("margen", "menor", 3) });
+    ok(ot.ok === false && ot.motivo === "conversacion_inexistente" && !JSON.stringify(ot).includes(esperado[0]), "otra empresa con el mismo conversacionId: el almacén la aísla, y no sale ni un nombre de esta");
+  }
+
+  /* h · RETOMAR la revalida volviendo a calcularla con los datos de hoy */
+  {
+    const rt = await A.retomar({ tenant: T, conversacionId: conv });
+    const hD = rt.hechos.find((x) => x.id === "D1");
+    ok(hD && hD.estadoReverificacion === "igual" && hD.descripcion === ra.hecho.descripcion && hD.valor === ra.hecho.valor, "★ retomar: la coincidencia está `igual` y trae su descripción (quién es quién)", jj(hD).slice(0, 400));
+    /* cambia la carga: el 4.º de menor margen pasa a ser de los 3 de menor margen */
+    const dsH = clon(DS);
+    const orden = [...dsH.clientesMargen].sort((x, y) => x.margen - y.margen);
+    const quien = A3.find((n) => !B3.includes(n));
+    if (quien) {
+      dsH.clientesMargen.find((x) => x.nombre === quien).margen = orden[0].margen - 1;   /* el tercero de mayor venta pasa a ser el de MENOR margen */
+      const TH = { ...T, dataset: dsH, version: 2 };
+      conTenant(TH);
+      const rt2 = await A.retomar({ tenant: TH, conversacionId: conv });
+      const h2 = rt2.hechos.find((x) => x.id === "D1");
+      ok(h2 && h2.estadoReverificacion === "cambio" && h2.revalidacion.anterior.valor === ra.hecho.valor && h2.revalidacion.actual.valor === `${A3.length} de ${A3.length}` && new RegExp(`ahora coinciden ${quien}`).test(h2.revalidacion.detalle || ""), `★ retomar con otra carga (${quien} pasa a ser el de menor margen): \`cambio\`, con las dos cifras y quién entró`, jj(h2).slice(0, 500));
+      conTenant(T);
+    } else ok(false, "(precondición) hay un caso de cambio");
+  }
+}
+H("16b · ensayo 10: la herramienta lo dice, corto, y la cabecera cubre la relación entre dos órdenes");
+{
+  const tool = MCP_TOOLS.find((t) => t.name === "derivar");
+  const P = tool.inputSchema.properties;
+  ok(OPERACIONES.includes("coincidencia") && P.operacion.enum.includes("coincidencia") && /COINCIDENCIA/.test(tool.description) && /dos órdenes/.test(tool.description), "★ la descripción de `derivar` dice que la coincidencia es para toda relación entre dos órdenes");
+  ok(P.eje && P.a && P.b && jj(Object.keys(P.a.properties)) === jj(["metrica", "direccion", "k"]) && jj(P.a.properties.direccion.enum) === jj([...DIRECCIONES_DE_TOP]) && jj(P.a) === jj(P.b) && !tool.inputSchema.required.includes("sobre") && tool.inputSchema.additionalProperties === false, "★ el esquema: `eje`, `a` y `b` ({metrica, direccion, k}, direcciones de la casa); `sobre` ya no es obligatorio (la coincidencia no lo usa); sin campos extra");
+  ok(JSON.stringify(tool).length < 2400, `★ la herramienta sigue dentro de su presupuesto de 2 400 B (${JSON.stringify(tool).length} B): la coincidencia entró recortando palabras, no subiendo el tope`);
+  ok(CABECERA_DE_USO.length === 5 && CABECERA_DE_USO[1] === "Toda afirmación de orden sobre el total (el mayor, el que más creció, el más grave) o de relación entre dos órdenes (los más grandes son los de menor margen) debe venir de una consulta de ADI que vio el universo completo; con una vista parcial, dígalo como parcial o pídale a ADI el extremo o la coincidencia.", "★ la regla de orden ABARCA la relación entre dos órdenes (texto del owner, 2026-10-09); la cabecera sigue en cinco reglas");
+  const g = guiaDeUniverso();
+  ok(/coincidencia/.test(g.extremo.texto) && JSON.stringify(g).length < 3500, "el catálogo (catalogo.universo) dice dónde pedir la relación entre dos órdenes y sigue < 3 500 B");
+  const spec = construirOpenApi("http://gate.local");
+  const body = JSON.stringify(spec.paths[`/api/${"adi-capacidad"}/derivar`].post.requestBody || {});
+  ok(/"coincidencia"/.test(body) && /"direccion"/.test(body), "el OpenAPI de `derivar` publica la coincidencia (operación, eje, a, b)");
+}
+H("16c · ensayo 10: por la puerta (REST y JSON-RPC) y falla cerrada");
+{
+  const RUTA = "/api/" + "adi-capacidad";
+  const SECRETO = "derivar-gate-secret-e10";
+  const ENV = { ADI_COMPLEMENTO: "true", ADI_TOKEN_SECRET: SECRETO };
+  const { code } = await makeAccessCode("Owner", 72, SECRETO, Date.now(), "demo");
+  const hd = (n) => ({ "content-type": "application/json", authorization: `Bearer ${code}`, "x-real-ip": `10.8.8.${n}` });
+  const pedir = (path, body, n) => manejarPuerta(new Request(`http://gate.local${path}`, { method: "POST", headers: hd(n), body: JSON.stringify(body) }), ENV);
+  conTenant(EMPRESAS[0].T);
+  const rc = await (await pedir(`${RUTA}/consultar`, { encargo: E([PARTE(["ventas"])]) }, 1)).json();
+  const conv = rc.continuidad.conversacionId;
+  const body = { conversacionId: conv, operacion: "coincidencia", eje: "cliente", a: { metrica: "ventas", direccion: "mayor", k: 3 }, b: { metrica: "margen", direccion: "menor", k: 3 } };
+  const rest = await (await pedir(`${RUTA}/derivar`, body, 2)).json();
+  ok(rest.ok === true && rest.hecho.id === "D1" && rest.hecho.valor === "2 de 3" && rest.hecho.entidad === "Falabella y Lider" && jj(rest.uso) === jj(CABECERA_DE_USO), "★ REST: `derivar` coincidencia por la puerta devuelve D1 «2 de 3» (Falabella y Lider) con la cabecera de uso", jj(rest).slice(0, 400));
+  const rpc = await (await pedir("/mcp", { jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "derivar", arguments: { ...body, a: { ...body.a, k: 2 } } } }, 3)).json();
+  const p = JSON.parse(rpc.result.content[0].text);
+  ok(p.ok === true && p.hecho.id === "D2" && rpc.result.isError === false, "JSON-RPC: tools/call `derivar` coincidencia devuelve D2", jj(p).slice(0, 300));
+  const mal = await (await pedir("/mcp", { jsonrpc: "2.0", id: 10, method: "tools/call", params: { name: "derivar", arguments: { ...body, eje: "bodega" } } }, 4)).json();
+  ok(mal.result.isError === true && JSON.parse(mal.result.content[0].text).motivo === "metrica_no_del_eje", "…y un rechazo es `isError` con su motivo");
+  /* falla cerrada: si GUARDAR falla, no hay hecho ni id consumido */
+  const base = crearAlmacenEnMemoria(); let cae = false;
+  const fragil = { ...base, async guardarLibro(t, l) { if (cae) throw new ErrorDeAlmacen("guardarLibro", "caída de gate"); return base.guardarLibro(t, l); } };
+  const Af = crearAcciones({ continuidad: fragil });
+  const Tf = EMPRESAS[0].T;
+  const r0 = await Af.consultar({ tenant: Tf, encargo: E([PARTE(["ventas"], "comercial")]) });
+  const cf = r0.continuidad.conversacionId, antes = jj(await base.leerLibro(Tf.id, cf));
+  cae = true;
+  const rf = await Af.derivar({ tenant: Tf, conversacionId: cf, operacion: "coincidencia", eje: "cliente", a: body.a, b: body.b });
+  cae = false;
+  ok(rf.ok === false && rf.memoria === "no_disponible" && !rf.hecho && jj(await base.leerLibro(Tf.id, cf)) === antes, "★ si GUARDAR falla: ok:false · memoria «no_disponible» · sin hecho y el libro igual");
+  const rf2 = await Af.derivar({ tenant: Tf, conversacionId: cf, operacion: "coincidencia", eje: "cliente", a: body.a, b: body.b });
+  ok(rf2.ok === true && rf2.hecho.id === "D1", "…y el primer id sigue siendo D1 (el fallido no lo consumió)");
+}
+H("16d · ensayo 10: la coincidencia vive en su módulo; `derivar` sigue puro");
+{
+  const src = (f) => fs.readFileSync(f, "utf8");
+  const co = sinComentarios(src("./src/adi/capacidad/coincidencia.js")), der = sinComentarios(src("./src/adi/capacidad/derivar.js")), acc = sinComentarios(src("./src/adi/capacidad/acciones.js"));
+  ok(!/node:/.test(co) && !/fetch\(|XMLHttpRequest|process\.env/.test(co) && !/gateway|openai|anthropic/i.test(co), "`coincidencia.js` no usa `node:*`, ni red, ni entorno, ni un modelo (corre en edge)");
+  ok(/validarEncargo/.test(co) && /lecturasDe/.test(co) && /conjuntoDeUniverso/.test(co), "la coincidencia usa las MISMAS piezas del Core que `consultar` (validarEncargo · lecturasDe · conjuntoDeUniverso): no es una segunda ordenación");
+  ok(!/from\s+["'][^"']*\/(entrega|encargo)\//.test(der) && !/coincidencia\.js/.test(der), "`derivar.js` sigue sin importar `entrega/` ni `encargo/` (la parte pura de la coincidencia —forma, registro, descripción— vive ahí; el cálculo, en `coincidencia.js`)");
+  const iniRama = acc.indexOf("async function derivar("), finRama = acc.indexOf("return { conocerEmpresa, consultar, aportarContexto, retomar, derivar }");
+  const rama = acc.slice(iniRama, finRama);
+  ok(/coincidenciaDe\(/.test(rama) && !/conTenantActivo|calcularCoincidencia/.test(rama), "★ la rama `derivar` solo DELEGA la coincidencia (`coincidenciaDe`): ella misma no toca el Core");
+  const iniC = acc.indexOf("async function coincidenciaDe("), finC = acc.indexOf("async function retomar(");
+  /* la misma auditoría que `_usar_lo_declarado_gate` hace con `consultar`: los criterios declarados entran al dataset ANTES del tramo, el tramo recibe ESE dataset, fija la vara del benchmark y no espera nada adentro */
+  const cuerpoC = acc.slice(iniC, finC), tC = cuerpoC.indexOf("conTenantActivo(datasetDeLaCoincidencia,");
+  let jC = tC + "conTenantActivo(".length, nivelC = 1; while (tC >= 0 && jC < cuerpoC.length && nivelC > 0) { const ch = cuerpoC[jC++]; if (ch === "(") nivelC++; else if (ch === ")") nivelC--; }
+  const tramoC = tC >= 0 ? cuerpoC.slice(tC, jC) : "";
+  ok(tC > 0 && cuerpoC.indexOf("_datasetDeLaEmpresa(") > -1 && cuerpoC.indexOf("_datasetDeLaEmpresa(") < tC && /setBenchmarkOverride\(/.test(tramoC) && !/\bawait\b/.test(tramoC) && /calcularCoincidencia\(/.test(tramoC), "★ la coincidencia corre sobre el MISMO dataset que `consultar` (la ficha + lo que la empresa declaró y confirmó), fija la vara del benchmark dentro del tramo y el tramo no espera nada");
+  ok(iniC > 0 && finC > iniC && /conTenantActivo/.test(acc.slice(iniC, finC)) && /guardarLibro/.test(acc.slice(iniC, finC)), "control: `coincidenciaDe` sí entra al Core (dentro de `conTenantActivo`) y sí escribe el libro");
 }
 
 H("13 · estático y esquema");

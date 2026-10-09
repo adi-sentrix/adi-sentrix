@@ -87,7 +87,8 @@ import {
   libroNuevo, emitirConversacionId, detectarCambioVersion, registrarEntrega, LIBRO_TOPE_BYTES,
   actualizarCriterio, agregarSupuestoVivo, registrarPremisa, registrarHechoAportado, registrarDerivacion, derivacionesDe,
 } from "../continuidad/libro.js";
-import { validarDerivacion, calcularDerivacion, derivacionParaElLibro, respuestaDeLaDerivacion, cifrasDeLosOperandos, llaveDeDerivacion, describirDerivacion } from "./derivar.js";
+import { validarDerivacion, calcularDerivacion, derivacionParaElLibro, respuestaDeLaDerivacion, cifrasDeLosOperandos, llaveDeDerivacion, describirDerivacion, derivacionDeCoincidencia } from "./derivar.js";
+import { calcularCoincidencia } from "./coincidencia.js";   /* ensayo 10: la coincidencia entre dos órdenes (toca el Core: corre DENTRO de `conTenantActivo`, fuera de la rama `derivar`, que sigue siendo pura) */
 import { textoDeUniversoDeLaCifra, universoDeBodegaDe } from "./universoDeLasCifras.js";
 import { estadoVigenteDe, eventosDeContinuidad, lineaDeContinuidad } from "../continuidad/estadoVigente.js";
 import { retomar as reverificarConversacion } from "../continuidad/retomar.js";
@@ -96,7 +97,7 @@ import { renderDe } from "../notario/hechos.js";
 import { serializarPorClave } from "../continuidad/serializar.js";
 import { conTenantActivo } from "./aislamiento.js";
 import { recorrerApoyo, apoyoParaElLibro, hechosQueYaViajan } from "./apoyo.js";
-import { ensenarRechazos } from "./ensenar.js";
+import { ensenarRechazos, ensenarCoincidencia } from "./ensenar.js";
 import { separarVentaPorBodega, resolucionDeLoRechazado } from "./leyDeBodega.js";
 import { AXES as EJES_DEL_INDICE, axisEntityNames } from "../oracle/entityIndex.js";
 
@@ -109,7 +110,7 @@ import { AXES as EJES_DEL_INDICE, axisEntityNames } from "../oracle/entityIndex.
  * entidad SOLO cuando de verdad hay ambigüedad (ley del colapso de escenarios: el texto dice «simulación»). */
 export const CABECERA_DE_USO = Object.freeze([
   "Toda cifra empresarial que usted diga —en números o en palabras, incluidos totales, diferencias, porcentajes y conteos— debe ser un hecho que ADI le entregó en esta conversación. Si la cifra que necesita no está entre lo entregado, no la calcule ni la complete: pídasela a ADI (derivar, sobre identificadores ya entregados; o una consulta nueva). Redondear a lo impreso no es calcular.",
-  "Toda afirmación de orden sobre el total (el mayor, el menor, el que más creció, el más grave) debe venir de una consulta de ADI que vio el universo completo; con una vista parcial, dígalo como parcial o pídale a ADI el extremo.",
+  "Toda afirmación de orden sobre el total (el mayor, el que más creció, el más grave) o de relación entre dos órdenes (los más grandes son los de menor margen) debe venir de una consulta de ADI que vio el universo completo; con una vista parcial, dígalo como parcial o pídale a ADI el extremo o la coincidencia.",
   "Lo que la Entrega declara en «Lo que no se puede concluir» se respeta: son hallazgos, no excusas — no se afirma lo contrario ni se rellena el hueco con una suposición.",
   `La «Referencia del oficio» es conocimiento general del sector, no un dato de esta empresa ni un objetivo suyo; el benchmark lleva su origen (${ETIQUETA_ORIGEN[ORIGEN.EMPRESA]} o criterio general de ADI) y no es un promedio.`,
   "Redacte con total libertad — resuma, ordene, adapte el tono al lector — y nombre la simulación o la entidad exacta SOLO cuando haya ambigüedad real sobre a cuál se refiere la cifra.",
@@ -793,6 +794,50 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
     return serializarPorClave(`libro|${tenantId}|${idDeConversacion}`, () => serializarPorClave(`memoria|${tenantId}`, trabajo));
   }
 
+  /* 3b · LA COINCIDENCIA ENTRE DOS ÓRDENES (ensayo 10, owner 2026-10-09; `coincidencia.js`, `_ADI_DISENO_CONTRATO_ANFITRION.md` §16): `derivar` con `operacion: "coincidencia"` → un hecho `D<k>` «m de n» con los nombres de quienes coinciden, calculado por ADI sobre el eje
+   * COMPLETO (los dos tops son los mismos que `consultar` serviría). A diferencia de las demás operaciones, no opera sobre ids entregados sino sobre los datos de la empresa: entra al Core (`conTenantActivo`) como `consultar`, con el mismo dataset (lo que la empresa declaró y confirmó).
+   * Vive FUERA de la rama `derivar` a propósito: esa sigue siendo pura (el candado estático de `_derivar_gate`). ORDEN (D2): LEER libro y memoria → TRAMO DEL CORE → ESCRIBIR el libro; IDEMPOTENTE por eje, órdenes y carga de datos; falla cerrada si GUARDAR falla (el id es el producto). */
+  async function coincidenciaDe({ tenant, conversacionId = null, pedido = {} } = {}) {
+    const forma = _validarTenant(tenant);
+    if (!forma.ok) return { ok: false, motivo: forma.motivo, uso: CABECERA_DE_USO };
+    const tenantId = tenant.id || null;
+    const versionIdActivo = tenant.version != null ? tenant.version : null;
+    if (!conversacionId || typeof conversacionId !== "string") {
+      const v = validarDerivacion(null, { conversacionId: null, operacion: "coincidencia", ...pedido });
+      return { ok: false, motivo: v.motivo, detalle: v.detalle, uso: CABECERA_DE_USO };
+    }
+    const trabajo = async () => {
+      let libro, filasDeLaMemoria = [];
+      try { libro = await store.leerLibro(tenantId, conversacionId); if (libro) filasDeLaMemoria = (await store.leerHechosEmpresa(tenantId)) || []; }
+      catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: CABECERA_DE_USO }; throw e; }
+      const v = validarDerivacion(libro, { conversacionId, operacion: "coincidencia", ...pedido }, { tenantId });
+      if (!v.ok) { const { ok, ...r } = v; return { ok: false, ...r, alternativas: ensenarCoincidencia(r), uso: CABECERA_DE_USO }; }
+
+      const llave = llaveDeDerivacion({ operacion: "coincidencia", coincidencia: v.coincidencia, versionId: versionIdActivo });
+      const previa = derivacionesDe(libro).find((d) => llaveDeDerivacion(d) === llave);
+      if (previa) return { ok: true, conversacionId, ...respuestaDeLaDerivacion(previa, new Map()), repetida: true, continuidad: { conversacionId, guardada: true }, uso: CABECERA_DE_USO };
+
+      /* el MISMO dataset que `consultar`: la ficha + lo que la empresa declaró y confirmó (un benchmark o un nivel declarado cambia qué cuentas están «bajo» él) */
+      const { dataset: datasetDeLaCoincidencia, benchmarkDeclarado } = _datasetDeLaEmpresa(tenant.dataset, perfilDeLasFilas(filasDeLaMemoria), clasificarLoDeclarado(filasDeLaMemoria));
+      const c = conTenantActivo(datasetDeLaCoincidencia, () => {
+        if (benchmarkDeclarado) setBenchmarkOverride(benchmarkDeclarado.valor);
+        return calcularCoincidencia(v.coincidencia);
+      });
+      if (!c.ok) { const { ok, noResuelto, ...r } = c; return { ok: false, ...r, alternativas: ensenarCoincidencia(r), uso: CABECERA_DE_USO }; }
+
+      const cambioVersion = detectarCambioVersion(libro, versionIdActivo);
+      const nuevo = registrarDerivacion(libro, derivacionDeCoincidencia(c, { versionId: versionIdActivo }), { tope: libroTope });
+      const perdidas = (libro.entregas || []).filter((e) => !e.recortada).map((e) => e.n).filter((n) => !nuevo.entregas.some((e) => e.n === n && !e.recortada));
+      const avisos = avisosDeLaMemoria({ perdidas });
+      if (cambioVersion) avisos.push(`Los datos cambiaron desde la Entrega ${cambioVersion.desdeTurno}: esta coincidencia se calculó con los datos de hoy, y las cifras de las Entregas anteriores son de la carga previa — no las mezcle sin decirlo (retomar las revalida).`);
+      try { await store.guardarLibro(tenantId, nuevo); }
+      catch (e) { if (esErrorDeAlmacen(e)) return { ..._sinMemoria(e), conversacionId, uso: CABECERA_DE_USO }; throw e; }
+      const d = nuevo.derivaciones[nuevo.derivaciones.length - 1];
+      return { ok: true, conversacionId, ...respuestaDeLaDerivacion(d, new Map()), repetida: false, continuidad: { conversacionId, guardada: true, ...(perdidas.length ? { entregasSinCifras: perdidas } : {}) }, ...(avisos.length ? { advertencias: avisos } : {}), uso: CABECERA_DE_USO };
+    };
+    return serializarPorClave(`libro|${tenantId}|${conversacionId}`, trabajo);
+  }
+
   /* 4 · retomar({ tenant, conversacionId }) → el estado vigente + las cifras de las Entregas de esa conversación REVALIDADAS contra los datos de hoy (`continuidad/retomar.js` +
    * `continuidad/revalidar.js`), sin recomponer prosa. (Etapa 2, bloque 4 · owner 2026-10-04; antes devolvía todo «sin_reverificar», el límite declarado del corte 9.)
    *
@@ -847,6 +892,20 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
       });
     }
 
+    /* LAS COINCIDENCIAS ENTRE DOS ÓRDENES (ensayo 10): no salen de cifras entregadas sino del eje completo; se revalidan volviendo a calcularlas con los datos de hoy (`coincidencia.js`, dentro del Core) */
+    const coincidenciasHoy = new Map();
+    const coincidencias = (libro.derivaciones || []).filter((d) => d && d.operacion === "coincidencia" && d.coincidencia && d.coincidencia.a && d.coincidencia.b);
+    if (coincidencias.length) {
+      conTenantActivo(datasetDeHoy, () => {
+        if (benchmarkDeclarado) setBenchmarkOverride(benchmarkDeclarado.valor);
+        for (const d of coincidencias) {
+          const C = d.coincidencia, lado = (L) => ({ metrica: L.metrica, direccion: L.direccion, k: L.k });
+          try { coincidenciasHoy.set(d.id, calcularCoincidencia({ eje: C.eje, a: lado(C.a), b: lado(C.b) })); }
+          catch (err) { coincidenciasHoy.set(d.id, { ok: false, detalle: "no se pudo recalcular" }); }
+        }
+      });
+    }
+
     // 3 · comparar (puro): cada Entrega contra SU re-corrida
     const resultados = new Map();
     for (const e of libro.entregas || []) {
@@ -858,7 +917,7 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
     }
 
     // 4 · armar la respuesta
-    const r = reverificarConversacion(libro, { versionIdActual: versionIdActivo, reverificar: reverificadorDe(resultados), lenguajeDeNegocio: true });
+    const r = reverificarConversacion(libro, { versionIdActual: versionIdActivo, reverificar: reverificadorDe(resultados, { coincidenciasHoy }), lenguajeDeNegocio: true });
 
     /* QUÉ ES CADA CIFRA (ensayo 6, owner 2026-10-08): un anfitrión nuevo que retoma lee los hechos sin haber visto cómo se pidieron. Una derivación (`D<k>`) trae su descripción —la operación y los dueños de las cifras— y una cifra de un conjunto acotado
      * (los 3 de mayor venta, los clientes en mora, el total de un listado filtrado) trae el texto de su universo. Sale de lo que el libro ya guarda; el valor y el resto del hecho no cambian. */
@@ -901,7 +960,8 @@ export function crearAcciones({ continuidad = crearAlmacenEnMemoria(), ahora = (
    * ORDEN (D2): 1 · LEER el libro (base) → 2 · calcular (puro, sin Core) → 3 · ESCRIBIR el libro (base), todo serializado por conversación (el mismo candado que `consultar`). A diferencia de `consultar`, que entrega la Entrega
    * verdadera aunque no pueda guardar, acá el id ES el producto: si GUARDAR falla, la acción FALLA CERRADA (`memoria:"no_disponible"`) — un `D1` que no quedó guardado se reasignaría al siguiente pedido. IDEMPOTENTE: el mismo pedido
    * (operación, operandos, base, condición) devuelve la derivación que ya existe (`repetida:true`) y NO escribe el libro. */
-  async function derivar({ tenant, conversacionId = null, operacion, sobre, base, condicion, criterio } = {}) {
+  async function derivar({ tenant, conversacionId = null, operacion, sobre, base, condicion, criterio, eje, a, b } = {}) {
+    if (operacion === "coincidencia") return coincidenciaDe({ tenant, conversacionId, pedido: { eje, a, b } });
     const forma = _validarTenant(tenant);
     if (!forma.ok) return { ok: false, motivo: forma.motivo, uso: CABECERA_DE_USO };
     const tenantId = tenant.id || null;

@@ -37,15 +37,15 @@
  * participación entre métricas distintas exige el MISMO dueño («Saldo pendiente − Saldo vencido» de una cuenta): dos métricas y dos dueños a la vez no es una cifra del negocio — `metricas_distintas`; (d) el conteo de
  * DINERO contra una cantidad suelta solo admite 0 (la escala de «5» —¿$5 o $5M?— es ambigua): contra otra cifra entregada (su id) admite cualquier valor. */
 import { cifrasDeLaEntrega, llaveDeCifra } from "../continuidad/revalidar.js";
-import { formatoDeLaCasa, formatoDeReferencia } from "../notario/hechos.js";
-import { metricaPorClave, metricaDeClave, CLAVES_DE_METRICA } from "../notario/lexico.js";
+import { formatoDeLaCasa, formatoDeReferencia, DIRECCIONES_DE_TOP, EJES_VALIDOS } from "../notario/hechos.js";
+import { metricaPorClave, metricaDeClave, CLAVES_DE_METRICA, PLURAL_DE_EJE } from "../notario/lexico.js";
 import { normalizar } from "../notario/afirmacion.js";
 import { cifrasDeApoyo } from "./apoyo.js";
 import { supuestosDeLaEntrega, textoDeSupuestos } from "./supuestoTexto.js";   /* la frase de un supuesto es UNA (la misma de la Entrega) */
 import { etiquetaDeProcedencia, ORIGEN } from "../../config/businessPolicy.js";
 import { esMetricaComercial, textoDeLaLey, MOTIVO_VENTA_POR_BODEGA } from "./universoDeBodega.js";   // la hoja pura de la ley «la venta no se abre por bodega» (no importa nada del Core)
 
-export const OPERACIONES = Object.freeze(["suma", "diferencia", "participacion", "conteo", "razon"]);
+export const OPERACIONES = Object.freeze(["suma", "diferencia", "participacion", "conteo", "razon", "coincidencia"]);
 export const OPERADORES = Object.freeze([">", ">=", "<", "<=", "="]);
 /** lo que un universo lista a la vista (= `compacto.js:ENTIDADES_DE_UN_UNIVERSO_MAX`; el gate lo iguala: acá no se importa para no cerrar un ciclo con `acciones.js`) */
 export const OPERANDOS_MAX = 40;
@@ -58,6 +58,7 @@ export const MOTIVOS_DE_DERIVACION = Object.freeze([
   "otro_periodo", "otra_moneda", "otra_carga", MOTIVO_VENTA_POR_BODEGA,
   "base_cero", "numerador_mayor_que_base", "unidad_no_participable", "condicion_invalida",
   "bases_distintas", "criterio_invalido", "mezcla_de_realidades", "supuestos_distintos",
+  "coincidencia_invalida", "metrica_no_del_eje", "lado_no_resoluble", "k_fuera_de_rango",   /* ensayo 10 (owner 2026-10-09): la coincidencia entre dos órdenes (`coincidencia.js`) */
 ]);
 /** cómo se rotula lo que sale de un supuesto (no es una medición): «resultado de un supuesto» */
 export const ROTULO_DE_SUPUESTO = "resultado de un supuesto";
@@ -135,6 +136,11 @@ export const textoDeDerivada = (raw, unidad) => (unidad === "veces" ? textoDeVec
 /** llaveDeDerivacion({operacion, sobre, base?, condicion?}) → string · la IDENTIDAD de una derivación (para la idempotencia): misma operación, mismos operandos, misma base, misma condición. La suma y el conteo no dependen del orden
  *  de los operandos; la diferencia sí (primero − segundo). */
 export function llaveDeDerivacion(p) {
+  if (p && p.operacion === "coincidencia") {   /* ensayo 10: la identidad de una coincidencia es el eje, los dos órdenes (en ese orden: «m de k» usa el k del primero) y la carga de datos — otra carga es otra cifra */
+    const c = p.coincidencia && typeof p.coincidencia === "object" ? p.coincidencia : p;
+    const l = (x) => (x && typeof x === "object" ? `${x.metrica}|${x.direccion}|${x.k}` : "");
+    return ["coincidencia", c.eje, l(c.a), l(c.b), p.versionId == null ? "" : String(p.versionId)].join("¦");
+  }
   const sobre = Array.isArray(p && p.sobre) ? p.sobre.map(String) : [];
   const orden = p && p.operacion === "diferencia" ? sobre : sobre.slice().sort();
   const c = p && p.condicion && typeof p.condicion === "object" ? `${p.condicion.op}|${typeof p.condicion.valor === "number" ? `n:${p.condicion.valor}` : `id:${p.condicion.valor}`}` : "";
@@ -174,6 +180,53 @@ function _indiceDelLibro(libro) {
   return idx;
 }
 
+/* ═══ 1b · LA COINCIDENCIA ENTRE DOS ÓRDENES (ensayo 10, owner 2026-10-09) ═══════════════════════════════════════════════════════════════════════════════
+ * `derivar` con `operacion: "coincidencia"` y `{ eje, a: { metrica, direccion, k }, b: { metrica, direccion, k } }`: cuántas de las k primeras por A están entre las k primeras por B, y cuáles —una relación entre dos órdenes calculada por ADI sobre el eje
+ * COMPLETO (`coincidencia.js`, con el Core), nunca una inferencia del anfitrión sobre lo que vio impreso. Acá viven las piezas PURAS: la forma del pedido, el registro que guarda el libro y su descripción. */
+export const K_DE_COINCIDENCIA_MAX = 40;   /* = lo que un universo lista a la vista (`OPERANDOS_MAX`): la coincidencia nombra a todos sus miembros */
+const _EJES_DE_ENTIDADES = EJES_VALIDOS.filter((e) => e !== "mes");
+/** formaDeLaCoincidencia(pedido) → { ok:true, eje, a, b } | rechazo `coincidencia_invalida` · la FORMA del pedido: `pedido.eje`, `pedido.a` y `pedido.b` ({ metrica, direccion, k }) */
+export function formaDeLaCoincidencia(pedido) {
+  const c = pedido && typeof pedido === "object" ? pedido : {};
+  const esObj = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
+  if (typeof c.eje !== "string" || !_EJES_DE_ENTIDADES.includes(c.eje)) return { ..._rechazo("coincidencia_invalida", `«coincidencia» pide { eje, a: { metrica, direccion, k }, b: { metrica, direccion, k } }: «eje» es uno de ${_EJES_DE_ENTIDADES.join(" · ")} — el eje en el que se cruzan los dos órdenes`), ejes: _EJES_DE_ENTIDADES.slice() };
+  const lado = (x, nombre) => {
+    if (!esObj(x)) return _rechazo("coincidencia_invalida", `falta «${nombre}»: { metrica, direccion, k } — la métrica por la que se ordena, la dirección (${DIRECCIONES_DE_TOP.join(" · ")}) y cuántas primeras se cruzan (k)`);
+    if (typeof x.metrica !== "string" || !x.metrica.trim()) return _rechazo("coincidencia_invalida", `«${nombre}.metrica» es el concepto del catálogo por el que se ordena (el mismo de universo.top.metrica)`);
+    if (!DIRECCIONES_DE_TOP.includes(x.direccion)) return { ..._rechazo("coincidencia_invalida", `«${nombre}.direccion» debe ser ${DIRECCIONES_DE_TOP.join(" · ")} (mayor/menor por valor; peor/mejor según la polaridad de la métrica)`), direcciones: DIRECCIONES_DE_TOP.slice() };
+    if (!Number.isInteger(x.k) || x.k < 1 || x.k > K_DE_COINCIDENCIA_MAX) return _rechazo("coincidencia_invalida", `«${nombre}.k» debe ser un entero entre 1 y ${K_DE_COINCIDENCIA_MAX}: cuántas primeras de ese orden se cruzan`);
+    return { ok: true, metrica: x.metrica.trim(), direccion: x.direccion, k: x.k };
+  };
+  const a = lado(c.a, "a"); if (!a.ok) return a;
+  const b = lado(c.b, "b"); if (!b.ok) return b;
+  if (a.metrica === b.metrica && a.direccion === b.direccion && a.k === b.k) return _rechazo("coincidencia_invalida", "los dos órdenes son el mismo: una lista coincide consigo misma. Cruce dos órdenes distintos (otra métrica, la dirección contraria u otro k)");
+  return { ok: true, eje: c.eje, a, b };
+}
+/* «Falabella», «Falabella y Lider», «A, B y C» — todos los nombres, sin recorte (un miembro de la coincidencia que no se nombra es un hecho que se pierde) */
+const _lista = (xs) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+/** derivacionDeCoincidencia(calculo, { versionId }) → lo que `libro.js:registrarDerivacion` guarda (sin id) · el resultado es «m de n» (n = los servidos por el primer orden, empates incluidos); `entidad` = quiénes coinciden */
+export function derivacionDeCoincidencia(c, { versionId = null } = {}) {
+  const [A, B] = c.lados;
+  const nA = A.entidades.length;
+  const lado = (L) => ({ metrica: L.metrica, direccion: L.direccion, k: L.k, tema: L.tema, texto: L.texto, marco: L.marco || null, entidades: L.entidades.slice(), ...(L.empate ? { empate: L.empate } : {}) });
+  return {
+    operacion: "coincidencia", sobre: [],
+    coincidencia: { eje: c.eje, n: c.n, a: lado(A), b: lado(B), comunes: c.comunes.slice() },
+    resultado: { raw: c.m, unidad: "count", clave: null, texto: `${c.m} de ${nA}`, de: nA },
+    entidad: c.comunes.length ? _lista(c.comunes) : null,
+    metrica: `Coincidencia · ${A.texto} y ${B.texto}`,
+    versionId, periodo: null, moneda: null,
+  };
+}
+function _descripcionDeCoincidencia(d) {
+  const C = d.coincidencia; if (!C || !C.a || !C.b) return "";
+  const dosMarcos = Boolean(C.a.marco && C.b.marco && C.a.marco !== C.b.marco);   /* venta y saldo vencido: cada orden dice su marco (período cerrado · foto de cobranza), y nunca se suman */
+  const lado = (L) => `${L.texto} (${dosMarcos ? `${L.marco}: ` : ""}${_lista(L.entidades)})`;
+  const R = d.resultado || {};
+  let t = `Coincidencia entre ${lado(C.a)} y ${lado(C.b)}, de ${C.n} ${PLURAL_DE_EJE[C.eje] || `${C.eje}s`}, calculada sobre el eje completo: ${R.texto}${C.comunes.length ? `, ${_lista(C.comunes)}` : " (ninguno coincide)"}.`;
+  for (const L of [C.a, C.b]) if (L.empate) t += ` Empate en el filo de ${L.texto}: ${_lista(L.empate.entidades)} empatan en el puesto ${L.empate.puesto}; se sirven ${L.empate.servidos}.`;
+  return t;
+}
 /** cifrasDeLosOperandos(libro, ids) → Map id → { entidad, metrica, valor } · cómo se entregó cada cifra (lo que el anfitrión ve de un operando); una cifra que el libro ya no conserva simplemente no está en el mapa */
 export function cifrasDeLosOperandos(libro, ids) {
   const indice = _indiceDelLibro(libro);
@@ -210,6 +263,7 @@ function _resolverDerivada(libro, indice, idc) {
   }
   const R = d.resultado && typeof d.resultado === "object" ? d.resultado : null;
   if (!R || !_finito(R.raw) || !R.unidad) return _rechazo("operando_sin_valor_exacto", `la derivación ${idc} no conserva su valor exacto: no se puede derivar sobre ella`, [idc]);
+  if (d.operacion === "coincidencia") return _rechazo("derivacion_no_encadenable", `${idc} es la coincidencia entre dos órdenes («${R.texto}»): no se suma, no se resta ni se divide con otras cifras — pídale a ADI otra coincidencia o derive sobre las cifras entregadas`, [idc]);
   if (d.operacion === "conteo") return _rechazo("derivacion_no_encadenable", `${idc} es un conteo («${R.texto}»): un conteo no se suma, no se resta ni se divide con otras cifras — derive sobre las cifras que cuenta`, [idc]);
   if (d.criterio) return _rechazo("derivacion_no_encadenable", `${idc} se midió contra un criterio declarado por el usuario («${d.criterio.texto}»): no se encadena — derive de nuevo sobre las cifras entregadas y el criterio`, [idc]);
   /* el linaje: lo que la derivación guardó (las encadenadas lo traen) o, si es de cifras entregadas, sus propios operandos */
@@ -347,6 +401,12 @@ export function validarDerivacion(libro, pedido, { tenantId = null, deBodega = n
   if (libro.empresaId && tenantId && libro.empresaId !== tenantId) return _rechazo("otra_empresa", "esta conversación es de otra empresa");
   const operacion = p.operacion;
   if (!OPERACIONES.includes(operacion)) return _rechazo("operacion_desconocida", `la operación «${typeof operacion === "string" ? operacion : JSON.stringify(operacion)}» no existe: use ${OPERACIONES.join(", ")}`);
+
+  /* ENSAYO 10 (owner 2026-10-09): la COINCIDENCIA entre dos órdenes no opera sobre ids entregados sino sobre el eje completo: aquí solo se valida su FORMA; el cálculo (con el Core) es de `coincidencia.js`. */
+  if (operacion === "coincidencia") {
+    const f = formaDeLaCoincidencia(p);
+    return f.ok ? { ok: true, operacion, coincidencia: f } : f;
+  }
 
   const sobre = Array.isArray(p.sobre) ? p.sobre : [];
   const minimo = operacion === "suma" || operacion === "diferencia" ? 2 : 1;
@@ -612,6 +672,7 @@ const _unidadDeLoImpreso = (v) => { const t = String(v == null ? "" : v).trim();
 /** describirDerivacion(d, operandosPorId) → string · `operandosPorId`: Map id → { entidad, metrica, valor, universo? } (cómo se entregó cada cifra; `universo` = el conjunto acotado del que sale, si lo hay) */
 export function describirDerivacion(d, operandosPorId) {
   if (!d || !Array.isArray(d.sobre)) return "";
+  if (d.operacion === "coincidencia") return _descripcionDeCoincidencia(d);
   const O = operandosPorId instanceof Map ? operandosPorId : new Map();
   const rot = (id) => (id === CRITERIO_ID && d.criterio ? `el criterio declarado por el usuario («${d.criterio.texto}», ${textoDelCriterio(d.criterio.valor, d.criterio.unidad)})` : _rotuloDeOperando(id, O.get(id)));
   const M = String(d.metrica || "").split(" · ")[0];
@@ -660,6 +721,10 @@ export function respuestaDeLaDerivacion(d, operandosPorId) {
     hecho: { id: d.id, operacion: d.operacion, sobre: d.sobre.slice(), ...(d.base ? { base: d.base } : {}), ...(Array.isArray(d.linaje) && d.linaje.length ? { linaje: d.linaje.slice() } : {}), ...(d.entidad != null ? { entidad: d.entidad } : {}), metrica: d.metrica, valor: r.texto, procedencia: "derivado", ...(d.deSupuesto ? { deSupuesto: true, origen: ROTULO_DE_SUPUESTO, ...(d.supuestoTxt ? { supuesto: d.supuestoTxt } : {}) } : {}), descripcion: describirDerivacion(d, operandosPorId), ...(procs.size ? { procedencias: [...new Set([...procs.values()].map(rotulo))] } : {}) },
     operandos: d.sobre.map(pos),
   };
+  if (d.operacion === "coincidencia" && d.coincidencia) {
+    const C = d.coincidencia, lado = (L) => ({ metrica: metricaDeClave(L.metrica), orden: L.texto, direccion: L.direccion, k: L.k, ...(L.marco ? { marco: L.marco } : {}), entidades: L.entidades.slice(), ...(L.empate ? { empate: L.empate } : {}) });
+    out.coincidencia = { eje: C.eje, universo: `${C.n} ${PLURAL_DE_EJE[C.eje] || `${C.eje}s`}`, a: lado(C.a), b: lado(C.b), comunes: C.comunes.slice(), m: r.raw, de: r.de };
+  }
   if (d.base) out.base = pos(d.base);
   if (d.condicion) out.condicion = { op: d.condicion.op, valor: d.condicion.valor, ...(typeof d.condicion.valor === "string" ? { referencia: pos(d.condicion.valor) } : {}) };
   if (d.operacion === "conteo" && Array.isArray(r.cumplen)) {

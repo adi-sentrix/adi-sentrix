@@ -32,19 +32,35 @@ function _supuestoTexto(s) {
   const alcance = s.alcance && typeof s.alcance === "object" ? s.alcance.nombre : s.alcance;
   return `${alcance ? alcance + " · " : ""}${s.concepto || ""} ${valor}`.trim() + (s.turno ? ` (E${s.turno})` : "");
 }
-function _entregaTextoCorta(e) {
+/* LO YA ENTREGADO, CITABLE POR ID (ensayo 10, owner 2026-10-09 · `_ADI_DISENO_CONTRATO_ANFITRION.md` §16): cuando el anfitrión dice «como vimos antes» necesita saber DE QUIÉN y de QUÉ MÉTRICA es cada cifra entregada, con el id para consultarla —no recordarla—. Por cada métrica de la tabla de la Entrega
+ * (hasta `METRICAS_INDEXADAS_MAX`), los primeros `DUENOS_INDEXADOS_MAX` dueños con su id y cuántos más hay («Saldo vencido: Lider E2.h1, Falabella E2.h2, Sodimac E2.h3 (+10)»): es el orden de la tabla tal como se entregó, NO un orden por esa métrica (el orden se le pide a ADI: coincidencia o top).
+ * Solo de las Entregas anteriores a la de este turno (esa se acaba de recibir completa); va ANTES de la lista de entidades de siempre (que se conserva: quiénes se entregaron). El detalle completo de cada cifra sigue siendo `retomar`. Cabe en el mismo tope de 2 KB de este resumen: si sobra, se acorta primero `loEntregado`, lo más viejo primero. */
+export const METRICAS_INDEXADAS_MAX = 3;
+export const DUENOS_INDEXADOS_MAX = 3;
+function _indiceDeLaEntrega(tabla) {
+  const porMetrica = new Map();
+  for (const h of tabla) {
+    if (!h || !h.sujeto || !h.metrica || !h.id) continue;   /* un total del listado no tiene dueño: no se indexa por dueño */
+    if (!porMetrica.has(h.metrica)) porMetrica.set(h.metrica, []);
+    porMetrica.get(h.metrica).push(`${h.sujeto} ${h.id}`);
+  }
+  return [...porMetrica].slice(0, METRICAS_INDEXADAS_MAX).map(([m, xs]) => `${m}: ${xs.slice(0, DUENOS_INDEXADOS_MAX).join(", ")}${xs.length > DUENOS_INDEXADOS_MAX ? ` (+${xs.length - DUENOS_INDEXADOS_MAX})` : ""}`).join(" · ");
+}
+function _entregaTextoCorta(e, { conIndice = false } = {}) {
   const temas = Array.isArray(e.temas) && e.temas.length ? e.temas.join("+") : null;
   const entidades = Array.isArray(e.entidades) && e.entidades.length ? e.entidades.join(", ") : null;
   const _tabla = Array.isArray(e.hechos) ? e.hechos.filter((h) => !(h && h.fuera)) : [];   /* el rango es el de la tabla de la Entrega: las cifras de `fueraDelTexto` (con id, `fuera:true`) no lo mueven */
   const rango = _tabla.length ? (_tabla.length > 1 ? `${_tabla[0].id}–${_tabla[_tabla.length - 1].id}` : _tabla[0].id) : null;
-  return [`E${e.n}`, temas, entidades, e.cierre, rango].filter(Boolean).join(" · ");
+  const indice = conIndice ? _indiceDeLaEntrega(_tabla) : "";
+  return [`E${e.n}`, temas, indice, entidades, e.cierre, rango].filter(Boolean).join(" · ");
 }
 
 /** estadoVigenteDe(libro, {versionIdActual?}) → EstadoVigente (JSON compacto, ≤2KB) — lo que el LLM recibe en
  * la capa estructurada de CADA Entrega, con instrucción de NO narrarlo salvo que haya un evento (ver más abajo). */
 export function estadoVigenteDe(libro, { versionIdActual = null } = {}) {
   if (!libro) return null;
-  let loEntregado = (libro.entregas || []).slice(-6).map(_entregaTextoCorta);
+  const entregas = libro.entregas || [], ultima = entregas[entregas.length - 1];
+  let loEntregado = entregas.slice(-6).map((e) => _entregaTextoCorta(e, { conIndice: e !== ultima }));   /* el índice por dueño es de lo ya entregado ANTES: la Entrega de este turno el anfitrión la acaba de recibir completa */
   let estado = {
     conversacionId: libro.conversacionId,
     turno: libro.turno,

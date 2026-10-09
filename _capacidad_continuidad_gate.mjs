@@ -229,6 +229,33 @@ H("8 · CARNADA · un aporte sin confirmar jamás cuenta como dato — solo apar
   ok(!c2.pendientesDeConfirmar.some((h) => h.concepto === "plazo_de_pago_pactado"), "y deja de aparecer en pendientesDeConfirmar (ya no hay nada que confirmar)");
 }
 
+/* ═══ 9 · LO YA ENTREGADO, CITABLE POR ID (ensayo 10, owner 2026-10-09: el anfitrión dijo «Falabella es además tu mayor cliente en deuda, como vimos antes» y era Lider) ═════════════════════════════════
+ * Cuando el anfitrión se refiere a lo ya entregado necesita saber DE QUIÉN y de QUÉ MÉTRICA es cada cifra, con su id, para consultarla en vez de recordarla. El resumen del estado vigente que viaja en cada `consultar` (`loEntregado`) traía
+ * las entidades y el rango de ids, pero no la métrica ni qué id es de quién; ahora, de las Entregas ANTERIORES a la de este turno, trae por métrica los primeros dueños con su id y cuántos más hay. Sigue dentro de los 2 KB del estado. */
+H("9 · el estado vigente indexa lo ya entregado: dueño + métrica + id (para citar lo de antes sin recordarlo)");
+{
+  const store = crearAlmacenEnMemoria();
+  const { consultar } = crearAcciones({ continuidad: store });
+  const q = (tema, conceptos, conv) => ({ version: "encargo/v1", ...(conv ? { conversacionId: conv } : {}), partes: [{ id: "p1", tema, cierre: "cifra", conceptos, eje: "cliente" }] });
+  const c1 = await consultar({ tenant: TENANT_V1, encargo: q("comercial", ["ventas", "margen"]) });
+  const conv = c1.continuidad.conversacionId;
+  ok(c1.continuidad.estadoVigente.loEntregado.length === 1 && !/Venta: /.test(c1.continuidad.estadoVigente.loEntregado[0]), "★ la Entrega de ESTE turno no se indexa (el anfitrión la acaba de recibir completa): el resumen es el de siempre, entidades y rango de ids");
+  const c2 = await consultar({ tenant: TENANT_V1, encargo: q("cobranza", ["saldo_vencido"], conv) });
+  const lo = c2.continuidad.estadoVigente.loEntregado;
+  ok(lo.length === 2 && /^E1 · comercial · Venta: Falabella E1\.h1, Lider E1\.h3, Jumbo E1\.h5 \(\+\d+\) · Margen: Falabella E1\.h2, Lider E1\.h4, Jumbo E1\.h6 \(\+\d+\) · /.test(lo[0]), "★ la Entrega anterior trae por MÉTRICA los primeros dueños con su id y cuántos más hay: «Venta: Falabella E1.h1, Lider E1.h3… (+9)»", lo[0]);
+  ok(!/Saldo vencido: /.test(lo[1]) && /^E2 · cobranza · /.test(lo[1]), "…y la de este turno (E2) sigue en su forma de siempre");
+  /* cada par «dueño id» del índice es VERDAD del libro: ese id es de ese dueño y de esa métrica */
+  const libro = await store.leerLibro("demo", conv);
+  const pares = [...lo[0].matchAll(/(Venta|Margen): ([^·]*?)(?= \(\+\d+\)| ·|$)/g)].flatMap((m) => m[2].split(", ").map((p) => ({ metrica: m[1], dueno: p.slice(0, p.lastIndexOf(" ")), id: p.slice(p.lastIndexOf(" ") + 1) })));
+  const hechos = libro.entregas[0].hechos;
+  ok(pares.length === 6 && pares.every((p) => { const h = hechos.find((x) => x.id === p.id); return h && h.sujeto === p.dueno && h.metrica === p.metrica; }), "★ cada «dueño id» del índice resuelve, en el libro, a ESE dueño y ESA métrica (ningún id apunta a otra cifra)", JSON.stringify(pares));
+  ok(JSON.stringify(c2.continuidad.estadoVigente).length <= 2 * 1024, "el estado vigente sigue dentro de sus 2 KB");
+  /* con seis Entregas, el tope de 2 KB acorta primero lo más viejo (nunca el criterio ni las premisas) */
+  let conv6 = conv, ultimo = c2;
+  for (let i = 0; i < 5; i++) ultimo = await consultar({ tenant: TENANT_V1, encargo: q(i % 2 ? "cobranza" : "comercial", i % 2 ? ["saldo_vencido"] : ["ventas", "margen"], conv6) });
+  ok(JSON.stringify(ultimo.continuidad.estadoVigente).length <= 2 * 1024 && /^E7 /.test(ultimo.continuidad.estadoVigente.loEntregado.at(-1)), "con siete Entregas el estado sigue ≤ 2 KB y conserva lo más reciente (lo viejo cede primero)", String(JSON.stringify(ultimo.continuidad.estadoVigente).length));
+}
+
 console.log(`\n── _capacidad_continuidad_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 if (fail) { console.log("\nFALLOS:"); for (const f of fails) console.log("  ✗ " + f); }
 process.exit(fail ? 1 : 0);

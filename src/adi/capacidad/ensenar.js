@@ -9,6 +9,7 @@ import { CAMPOS_UNIVERSO, EJES_VALIDOS, DIRECCIONES_DE_TOP, SOBRE_DE_TOP } from 
 import { estadosValidosPara } from "../notario/estados.js";
 import { CONJUNTOS_DE_LA_CASA } from "../notario/conjuntosDeLaCasa.js";
 import { OPS } from "../notario/lexico.js";
+import { K_DE_COINCIDENCIA_MAX } from "./derivar.js";
 import { axisEntityNames, resolveCanonical } from "../oracle/entityIndex.js";
 import { DOMINIOS_REGISTRO, idsActivos } from "../../config/contract/dominios.js";
 import { ASSUMPTIONS } from "../../config/contract/assumptionRegistry.js";
@@ -57,7 +58,7 @@ export function guiaDeUniverso() {
     conjuntos,
     ejemplos: [_EJEMPLO_DE_TOP(eC), estadoDeC ? { eje: eC, estados: [estadoDeC] } : null, metricaDeFiltro ? { eje: eC, filtros: [{ metrica: metricaDeFiltro, op: ">", valor: _N }] } : null].filter(Boolean),
     extremo: {
-      texto: "El mayor, el menor, el que más creció o el más grave sobre el total se le pide a ADI: un top de 1 por esa métrica (direccion: mayor · menor · peor · mejor), calculado sobre el universo completo del eje. Una lista parcial (marcada «parcial» en la Entrega) no autoriza a afirmar el orden del total.",
+      texto: "El mayor, el menor, el que más creció o el más grave sobre el total se le pide a ADI: un top de 1 por esa métrica (direccion: mayor · menor · peor · mejor), calculado sobre el universo completo del eje. Una lista parcial (marcada «parcial» en la Entrega) no autoriza a afirmar el orden del total. La relación entre dos órdenes (¿los de mayor venta son los de menor margen?) también se le pide: derivar con operacion «coincidencia».",
       ejemplo: eC && metricasDelEje(eC)[0] ? { eje: eC, top: { metrica: metricasDelEje(eC)[0], k: _UNO, direccion: DIRECCIONES_DE_TOP[0] } } : null,
     },
     limite: "Un universo no se acota por la marca, la familia o el canal de otro eje (los SKU no se filtran por marca): pida el eje marca, familia o canal, o nombre las entidades. Y la venta, el margen, la contribución y las unidades vendidas no se abren por bodega: el dato no dice qué bodega despachó cada venta (la bodega solo tiene inventario).",
@@ -167,6 +168,23 @@ function _alternativasDe(nr, { parte, libro }) {
     case "venta_por_bodega": return _alternativasDeVentaPorBodega(nr);
     default: return [];
   }
+}
+
+/* ── LA COINCIDENCIA ENTRE DOS ÓRDENES, ENSEÑADA (ensayo 10, owner 2026-10-09) ──────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * Un rechazo de `derivar` con `operacion: "coincidencia"` dice qué es lo válido en el lugar donde falló, para esta empresa: la forma, los ejes, las direcciones, las métricas con cifras en ese eje (las mismas listas con las que decide el validador) y, si el Core no
+ * puede ordenar el eje entero, el camino que sí existe (el extremo con `consultar`, o una métrica/eje que sí tenga todas sus cifras). Sin cifras: el ejemplo trae «<cantidad>». */
+export function ensenarCoincidencia(r) {
+  const eje = r && typeof r.eje === "string" && EJES.includes(r.eje) ? r.eje : (EJES.includes("cliente") ? "cliente" : EJES[0]);
+  const ms = metricasDelEje(eje);
+  const forma = { operacion: "coincidencia", eje, a: { metrica: ms[0] || "<métrica>", direccion: DIRECCIONES_DE_TOP[0], k: _K }, b: { metrica: ms[1] || ms[0] || "<métrica>", direccion: DIRECCIONES_DE_TOP[1] || DIRECCIONES_DE_TOP[0], k: _K } };
+  const alt = [];
+  switch (r && r.motivo) {
+    case "metrica_no_del_eje": alt.push({ tipo: "metricas_del_eje", eje, validas: Array.isArray(r.metricas) && r.metricas.length ? r.metricas : ms }); break;
+    case "k_fuera_de_rango": alt.push({ tipo: "maximo", eje, k: r.n != null ? r.n : axisEntityNames(eje).length, nota: "k debe ser a lo más el número de entidades del eje" }); break;
+    case "lado_no_resoluble": alt.push({ tipo: "camino", nota: "ADI no ordena sobre una vista parcial: pida el extremo con consultar (universo {eje, top:{metrica, k:1, direccion}}) o cruce métricas que tengan todas sus cifras en ese eje", metricas_del_eje: ms }); break;
+    default: alt.push({ tipo: "forma_de_coincidencia", forma, ejes: EJES.filter((e) => axisEntityNames(e).length), direcciones: DIRECCIONES_DE_TOP.slice(), k: `entero de 1 a ${K_DE_COINCIDENCIA_MAX}` });
+  }
+  return alt;
 }
 
 /** ensenarRechazos(noResuelto, { encargo, libro }) → noResuelto con ALTERNATIVAS en cada rechazo que venía sin ellas. Copia: no muta lo que recibe. Un rechazo que ya trae alternativas queda idéntico; uno cuyo motivo no tiene tabla recibe el

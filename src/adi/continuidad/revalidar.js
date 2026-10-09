@@ -128,6 +128,7 @@ const MOTIVO = Object.freeze({
   deListado: "es la suma de las cifras de su listado, que se revalidan una por una: el total no se vuelve a comparar aparte, y no se afirma como vigente",
   filasDelTotal: "es la suma de las cifras de su listado y alguna de ellas no se pudo revalidar con las mismas filas (ya no figura, cambió de universo o no se pudo comparar): el total no se recalcula, y no se afirma como vigente",
   derivacion: "uno de sus operandos no se pudo revalidar: la derivación no se afirma vigente",
+  coincidenciaSinCalculo: "la coincidencia entre los dos órdenes ya no se pudo calcular con los datos actuales",
   derivacionDeSupuesto: "sale del resultado de un supuesto: un supuesto es de quien lo planteó y no se revalida contra los datos (lo medido en que se apoya sí puede haber cambiado: para saber qué resultaría hoy, pida de nuevo la simulación y derive sobre ella)",
   premisa: "una premisa es de quien la planteó en la consulta: no se revalida contra los datos",
 });
@@ -325,6 +326,30 @@ export function revalidarDerivacion(d, resultadosPorId, { versionIdActual = null
   };
 }
 
+/* ═══ 2c · REVALIDAR UNA COINCIDENCIA ENTRE DOS ÓRDENES (ensayo 10, owner 2026-10-09) ═══════════════════════════════════════════════════════════════════
+ * Una coincidencia no sale de cifras entregadas sino de dos órdenes sobre el eje completo: se revalida VOLVIENDO A CALCULARLA con los datos de hoy (`acciones.js:retomar` la calcula dentro del Core y la pasa acá, `hoy`) y comparando los miembros de cada orden y los que coinciden —el
+ * orden interno de una lista no cambia la coincidencia—. `igual` si los miembros son los mismos; `cambio` si no (antes · ahora · quiénes entraron y salieron); `no_se_revalida` si hoy ya no se puede calcular (la razón del Core). */
+const _mismosMiembros = (x, y) => Array.isArray(x) && Array.isArray(y) && x.length === y.length && x.every((v) => y.includes(v));
+const _listaDe = (xs) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+export function revalidarCoincidencia(d, hoy, { versionIdActual = null } = {}) {
+  const R = d && d.resultado && typeof d.resultado === "object" ? d.resultado : {};
+  const anterior = { valor: R.texto != null ? R.texto : null, raw: _finito(R.raw) ? R.raw : null, unidad: "count" };
+  const C = d && d.coincidencia;
+  if (!C || !C.a || !C.b) return { estado: "no_se_revalida", motivo: MOTIVO.derivacion, anterior };
+  if (!hoy || hoy.ok !== true || !Array.isArray(hoy.lados) || hoy.lados.length !== 2) return { estado: "no_se_revalida", motivo: `${MOTIVO.coincidenciaSinCalculo}${hoy && hoy.detalle ? `: ${hoy.detalle}` : ""}`, anterior };
+  const [A, B] = hoy.lados;
+  if (_mismosMiembros(C.a.entidades, A.entidades) && _mismosMiembros(C.b.entidades, B.entidades) && _mismosMiembros(C.comunes, hoy.comunes)) return { estado: "igual", anterior };
+  const valor = `${hoy.m} de ${A.entidades.length}`;
+  const entran = hoy.comunes.filter((x) => !C.comunes.includes(x)), salen = C.comunes.filter((x) => !hoy.comunes.includes(x));
+  const detalle = [salen.length ? `ya no coinciden ${_listaDe(salen)}` : null, entran.length ? `ahora coinciden ${_listaDe(entran)}` : null].filter(Boolean).join("; ") || "cambiaron los miembros de alguno de los dos órdenes";
+  const dif = _finito(R.raw) ? hoy.m - R.raw : null;
+  return {
+    estado: "cambio", detalle, anterior, actual: { valor, raw: hoy.m, unidad: "count", hecho: d.id },
+    ...(dif ? { diferencia: { valor: dif, texto: textoDeDerivada(Math.abs(dif), "count"), sentido: dif > 0 ? "sube" : "baja" } } : {}),
+    cargaAnterior: d.versionId != null ? d.versionId : null, cargaActual: versionIdActual,
+  };
+}
+
 /** resumirRevalidacion(revalidaciones) → { total, igual, cambio, ya_no_existe, no_comparable, no_se_revalida, sin_reverificar, noComparablePorMotivo } · el conteo por estado (la suma es siempre el total) */
 export function resumirRevalidacion(revalidaciones) {
   const lista = Array.isArray(revalidaciones) ? revalidaciones : [];
@@ -341,7 +366,7 @@ export function resumirRevalidacion(revalidaciones) {
 
 /** reverificadorDe(resultadosPorEntrega) → reverificar(h, ctx) · cumple la firma que `continuidad/retomar.js` ya espera: `resultadosPorEntrega` = Map n → { hechos: Map id → revalidacion }. Un hecho sin resultado
  *  (su Entrega no se revalidó) vuelve `sin_reverificar`: nunca se adivina un veredicto. */
-export function reverificadorDe(resultadosPorEntrega) {
+export function reverificadorDe(resultadosPorEntrega, { coincidenciasHoy = null } = {}) {
   const mapa = resultadosPorEntrega instanceof Map ? resultadosPorEntrega : new Map();
   /* LAS DERIVACIONES ENCADENADAS (ensayo 4, owner 2026-10-07): una `D` sobre otra `D` se revalida en CASCADA — primero la de abajo, después la de arriba con el resultado de aquella; si una cifra entregada cambia, cambian todas las que
    * salen de ella. Se resuelve una sola vez por derivación (memo) y `visitando` corta cualquier ciclo de un libro adulterado (por construcción no existe: una `D` solo se refiere a ids anteriores): lo que no se puede cerrar queda `sin_reverificar`. */
@@ -364,6 +389,11 @@ export function reverificadorDe(resultadosPorEntrega) {
     const id = String((h && h.id) || "");   // el id del libro (`E<n>.h<k>`): el `n` dice a qué re-corrida mirar
     if (id.length > 1 && id[0] === "D" && Number.isInteger(Number(id.slice(1)))) {   /* una DERIVACIÓN: se revalida por sus operandos (cifras de las Entregas), nunca re-corriendo nada */
       const libro = ctx && ctx.libro;
+      const dCoin = libro && Array.isArray(libro.derivaciones) ? libro.derivaciones.find((x) => x && x.id === id && x.operacion === "coincidencia") : null;
+      if (dCoin) {   /* una COINCIDENCIA entre dos órdenes: se vuelve a calcular con los datos de hoy (ya calculada por `acciones.js:retomar`, dentro del Core) y se comparan los miembros */
+        const rc = revalidarCoincidencia(dCoin, coincidenciasHoy instanceof Map ? coincidenciasHoy.get(id) : null, { versionIdActual: ctx && ctx.versionIdActual != null ? ctx.versionIdActual : null });
+        return { estado: rc.estado, ...(rc.actual ? { valorNuevo: rc.actual.valor } : {}), revalidacion: rc };
+      }
       const r = revalidarD(id, libro, ctx && ctx.versionIdActual != null ? ctx.versionIdActual : null, new Set());
       if (!r) return { estado: "sin_reverificar", revalidacion: { estado: "sin_reverificar", motivo: MOTIVO.sinRecorrida, anterior: _anteriorDe(h || {}) } };
       return { estado: r.estado, ...(r.actual ? { valorNuevo: r.actual.valor } : {}), revalidacion: r };
