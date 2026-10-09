@@ -10,13 +10,16 @@
  *
  * EL MODELO DE COSTO (`costModelOf`): un cambio de VOLUMEN mueve el costo solo si el negocio declaró que su costo es variable; sin ese modelo, volumen sin movimiento de costo se limita a la venta
  * (degrade honesto, como `simulateGeneral`) y volumen CON un movimiento de costo, carga o margen se rechaza — no hay forma honesta de combinar lo que el modelo no autoriza. Precio, costo, carga y
- * margen no necesitan el modelo: no dependen de cómo escala el costo con el volumen. */
+ * margen no necesitan el modelo: no dependen de cómo escala el costo con el volumen.
+ *
+ * LAS ACCIONES COMERCIALES CON EL PRECIO (owner 2026-10-09): un cambio de precio las mueve con la venta (mantienen su % de ella) salvo que la empresa haya declarado montos fijos
+ * (`perfil.accionesComerciales`, `accionesComercialesDe()`, el mismo camino de política que `costModelOf`). La regla aplicada y su origen viajan en `facts` para que la Entrega los diga. */
 import { rawRecordFor } from "../oracle/entityRecord.js";
 import { axisEntityNames, resolveCanonical } from "../oracle/entityIndex.js";
 import { fig } from "../boleta.js";
 import { getTenantData } from "../../data/tenantStore.js";
 import { factorComercialDe } from "../../config/contract/figureType.js";
-import { costModelOf, benchmarkOf } from "../../config/businessPolicy.js";
+import { costModelOf, benchmarkOf, accionesComercialesDe } from "../../config/businessPolicy.js";
 import { formatoDeLaCasa } from "../notario/hechos.js";
 import { baseDeFila, sumarBases, simularFila, resolverAlcance, parametrosDe, ES_COMERCIAL } from "../../engine/simulacionSupuestos.js";
 
@@ -49,6 +52,7 @@ export function simularSupuestos({ supuestos = [], entidades = [], pideTotal = f
   const eje = al.eje;
   const modelo = costModelOf();
   const costoVariable = Boolean(modelo && modelo.tipo === "variable_total");
+  const acciones = accionesComercialesDe();
   /* las filas del eje: el total del negocio y la venta del alcance de un crecimiento en dinero salen de ellas */
   const nombresEje = axisEntityNames(eje);
   const filas = new Map();
@@ -78,7 +82,7 @@ export function simularSupuestos({ supuestos = [], entidades = [], pideTotal = f
     for (const { n, b, sup } of filasDelBloque) {
       const p = parametrosDe(sup, { ventaDelAlcance, fx });
       if (!p.ok) return sin(p.razon);
-      const r = simularFila(b, p.a);
+      const r = simularFila(b, { ...p.a, accionesFijas: acciones.fijas });
       if (!r.ok) return sin(`${n}: ${r.razon}`);
       if (r.topadoPp != null) topados.push(`${n} (${r.topadoPp} puntos)`);
       acum.V0 += b.V; acum.C0 += b.C; acum.R0 += b.R; acum.K0 += b.K;
@@ -134,6 +138,7 @@ export function simularSupuestos({ supuestos = [], entidades = [], pideTotal = f
     ...(topados.length ? { topadas: topados } : {}),
     ...(!costoVariable && S.some((s) => s.tipo === "growth") ? { limitacion: "el negocio no declaró cómo escala su costo con el volumen: el cálculo del cambio de volumen se limita a la venta" } : {}),
     costModelAutorizado: costoVariable,
+    ...(S.some((s) => s.tipo === "price") ? { accionesComerciales: acciones.tipo, accionesComercialesOrigen: acciones.origen } : {}),
   };
   return { facts, boleta, coverage: { supported: true, figCount: boleta.length } };
 }

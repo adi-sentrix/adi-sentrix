@@ -18,7 +18,7 @@
  * dados. Sin red, sin estado global nuevo. Detrás de la bandera `ADI_ENTREGA` (APAGADA en todos los perfiles):
  * este módulo no se importa desde ningún camino de producción todavía — lo ejercita solo el gate. */
 import { ESCENARIO_INICIAL } from "../../config/scenarios.js";
-import { benchmarkOf, ETIQUETA_ORIGEN, umbral, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, NOMBRE_DE_UMBRAL, valorDeUmbralEnTexto, procedenciaDeMaterialidad, procedenciaDeSupuesto, etiquetaDeProcedencia, nombreSegunOrigen } from "../../config/businessPolicy.js";
+import { benchmarkOf, ETIQUETA_ORIGEN, ORIGEN as ORIGEN_DE_POLITICA, umbral, procedenciaDeUmbrales, procedenciaDeUmbral, esProcedenciaDeCriterio, NOMBRE_DE_UMBRAL, valorDeUmbralEnTexto, procedenciaDeMaterialidad, procedenciaDeSupuesto, etiquetaDeProcedencia, nombreSegunOrigen } from "../../config/businessPolicy.js";
 import { umbralesDeBases, umbralesDeConceptos, NOMBRE_CARGA_ALTA, referenciaDeBase, formaDeConjunto, conjuntoDeFormaEnEje } from "../notario/conjuntosDeLaCasa.js";   // R-BASE-BENCHMARK-SIN-REFERENCIA (diagnóstico v6): el valor del benchmark cuando ninguna fig de la boleta lo trae · ETIQUETA_ORIGEN: la procedencia del criterio de inventario (etapa 5, owner 2026-09-28, §7.3·30-34)
 import { runPlan } from "../oracle/toolRunner.js";
 import { TOOLS } from "../oracle/toolRegistry.js";
@@ -2948,13 +2948,22 @@ function _fraseDeSupuesto(s) {
 }
 const _capitaliza = (s) => { const t = String(s || ""); return t ? t.charAt(0).toUpperCase() + t.slice(1) : t; };
 /* las reglas con que la simulación combinó los supuestos, solo las de los tipos presentes: lo que cada uno mueve y lo que NO mueve (el costo de los productos es el que no incluye las acciones comerciales) */
-function _reglasDeLaSimulacion(supuestos) {
+/* LAS ACCIONES COMERCIALES CON EL PRECIO (owner 2026-10-09): la regla que se aplicó y SU ORIGEN, de la tabla única de origenes (`ETIQUETA_ORIGEN`): «criterio general de ADI» (las acciones mantienen su % de la venta) o «declarado por la empresa» (montos fijos, o el % declarado). */
+function _reglaDeAcciones(acc) {
+  const tipo = acc && acc.tipo === "monto_fijo" ? "monto_fijo" : "porcentaje";
+  const origen = acc && acc.origen === ORIGEN_DE_POLITICA.EMPRESA ? ORIGEN_DE_POLITICA.EMPRESA : ORIGEN_DE_POLITICA.ADI;
+  const quien = origen === ORIGEN_DE_POLITICA.EMPRESA ? ETIQUETA_ORIGEN[ORIGEN_DE_POLITICA.EMPRESA] : "criterio general de ADI";
+  return tipo === "monto_fijo"
+    ? `el precio mueve la venta, no las unidades, ni el costo ni las acciones comerciales, que quedan en los mismos pesos y por eso bajan como % de la venta (${quien}: montos fijos)`
+    : `el precio mueve la venta y las acciones comerciales mantienen su % de la venta, sin mover las unidades ni el costo (${quien}: las acciones mantienen su % de la venta)`;
+}
+function _reglasDeLaSimulacion(supuestos, acciones = null) {
   const tipos = new Set((supuestos || []).map((s) => s.tipo));
   const r = [];
-  if (tipos.has("price")) r.push("el precio mueve la venta, no las unidades ni el costo ni las acciones comerciales en pesos");
+  if (tipos.has("price")) r.push(_reglaDeAcciones(acciones));
   if (tipos.has("growth")) r.push("el volumen mueve la venta, el costo y las acciones comerciales en la misma proporción (la carga comercial como % de la venta no cambia)");
   if (tipos.has("costo")) r.push("el costo que se mueve es el de los productos, sin las acciones comerciales (la cifra de costo de una cuenta ya las incluye, por eso su cambio puede ser menor que el pedido)");
-  if (tipos.has("carga")) r.push("la carga comercial mueve las acciones comerciales en puntos de la venta y no baja de cero");
+  if (tipos.has("carga")) r.push(`la carga comercial mueve las acciones comerciales en puntos de la venta${tipos.has("price") ? " ya simulada (con el precio aplicado primero)" : ""} y no baja de cero`);
   if (tipos.has("margin")) r.push("el margen cambia en puntos con la venta igual y el costo absorbe el cambio");
   return r.length ? `Los supuestos se aplican juntos sobre el dato real: ${r.join("; ")}. Ninguna cifra fuera de lo supuesto cambia.` : null;
 }
@@ -3064,7 +3073,7 @@ function _planSimulacion(parte, figs, supuestos, ref, declararDerivada, I, facts
   }
   if (!bloques.length && !negocio.base.length && !negocio.resultado.length) return null;
 
-  return { kind: "simulacion", tema: parte.tema, parteId: parte.id, supuesto, supuestos: lista, fraseSupuesto, bloques, negocio, descartadasFueraDeUniverso: descartadas, universoPedido: entidadesPermitidas ? [...entidadesPermitidas].filter((n) => n !== "Negocio") : null, topadas: factsSim && Array.isArray(factsSim.topadas) ? factsSim.topadas : [], sinModeloDeCosto: Boolean(factsSim && factsSim.limitacion) };
+  return { kind: "simulacion", tema: parte.tema, parteId: parte.id, supuesto, supuestos: lista, fraseSupuesto, bloques, negocio, descartadasFueraDeUniverso: descartadas, universoPedido: entidadesPermitidas ? [...entidadesPermitidas].filter((n) => n !== "Negocio") : null, topadas: factsSim && Array.isArray(factsSim.topadas) ? factsSim.topadas : [], sinModeloDeCosto: Boolean(factsSim && factsSim.limitacion), acciones: factsSim && factsSim.accionesComerciales ? { tipo: factsSim.accionesComerciales, origen: factsSim.accionesComercialesOrigen } : null };
 }
 
 /* CORTE 3e (owner 2026-09-26, «LA ENTREGA NO LE HABLA A NADIE», resuelto por el owner) — «una sola verdad por
@@ -4493,7 +4502,7 @@ function _componerEntregaConCabeza(resolucion, nCabezaMax) {
         // CORTE 3e (owner 2026-09-26) — «lo declaró usted» → «lo declaró la empresa».
         entrega.limites.push({ titulo: "Esta simulación es un resultado hipotético, no lo que ya ocurrió", motivo: `El supuesto fue ${etiquetaDeProcedencia(procedenciaDeSupuesto())}; ADI calcula el efecto sobre el dato real, pero no afirma que vaya a pasar.` });
         /* ENSAYO 9 (owner 2026-10-09): cómo se calculó, UNA vez y solo con las reglas de los tipos de supuesto presentes (los supuestos de una parte se aplican JUNTOS: lo que cada uno mueve y lo que no) */
-        { const reglas = _reglasDeLaSimulacion(plan.supuestos); if (reglas) entrega.limites.push({ titulo: "Cómo se calculó la simulación", motivo: reglas }); }
+        { const reglas = _reglasDeLaSimulacion(plan.supuestos, plan.acciones); if (reglas) entrega.limites.push({ titulo: "Cómo se calculó la simulación", motivo: reglas }); }
         if (plan.topadas && plan.topadas.length) entrega.limites.push({ titulo: "La carga comercial no puede quedar negativa", motivo: `En ${plan.topadas.join("; ")} la baja efectiva de la carga comercial es menor que la pedida: su carga actual no alcanza y se detiene en cero.` });
         if (plan.descartadasFueraDeUniverso) entrega._simulacionDescartadas = (entrega._simulacionDescartadas || 0) + plan.descartadasFueraDeUniverso;
         if (descartadasJergaInterna) entrega._simulacionDescartadasJerga = (entrega._simulacionDescartadasJerga || 0) + descartadasJergaInterna;

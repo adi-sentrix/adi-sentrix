@@ -35,7 +35,7 @@ import { universoDe, historiaDeFiguras, LIMITE_HISTORICO } from "../../config/co
 import { compradoresSku } from "../../data/clienteSkuMatrix.js";
 import { resolveCanonical } from "./entityIndex.js";               // el nombre que el usuario escribió → el del dato   // la transpuesta de la matriz cliente×SKU (E4.t3)
 import { clientCapitalRelacion } from "../specRetrieval.js";      // ¿el cruce está OBSERVADO o es afinidad modelada? · una sola verdad                                    // cifra autorizada (para inyectar el benchmark en el perfil)
-import { POLICY, costModelOf, benchmarkOf } from "../../config/businessPolicy.js";  // la VARA (benchmark de margen) para anclar el juicio + el modelo de costo declarado (#56)
+import { POLICY, costModelOf, benchmarkOf, accionesComercialesDe } from "../../config/businessPolicy.js";  // la VARA (benchmark de margen) para anclar el juicio + el modelo de costo declarado (#56)
 import { buildEntityRecord, buildGrid, buildTension, guessDimension, guessDimensionDetallado, rawRecordFor, REFERENCIA_CAMPO, fieldLabel } from "./entityRecord.js";  // la FILA COMPLETA de una entidad + LA GRILLA (top-N × columnas) + LA TENSIÓN (cruce de 2 métricas del mismo eje) + a qué eje pertenece un nombre (con sus colisiones · decisión 8) + la vara autorizada por campo
 import { composeSpecTemporal, detectPeriodo } from "../composers/temporalTable.js";  // LA SERIE MENSUAL (evolutivo · misma verdad que Sentrix · honestidad declarada)
 import { buildGlobalEvolution, buildGlobalEvolutionAnclada } from "../sentrix/temporal.js";                       // la curva REAL del negocio (para el marco temporal y la dirección ya calculada)
@@ -971,13 +971,16 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
   const costModel = costModelOf();
   if (costModel && costModel.tipo === "variable_total" && typeof raw.costo === "number") {
     // costo escala SOLO con volumen (variable_total) — el precio no mueve el costo unitario ni las unidades.
+    // LAS ACCIONES COMERCIALES (owner 2026-10-09): mantienen su % de la venta cuando cambia el precio, salvo que la empresa las haya declarado montos fijos (perfil.accionesComerciales) — el MISMO modelo que la Entrega (engine/simulacionSupuestos.js).
     /* ENSAYO 9 (owner 2026-10-09): la contribución NO es venta − costo en todo eje (en marca, familia y producto el costo no incluye las acciones comerciales: Samsung salía con 27.7 % de margen donde el dato dice 23.4 %). El modelo único lo resuelve por la identidad de la propia fila. */
-    const _b = baseDeFila(raw), _s = _b ? simularFila(_b, { price: precioVar.pct, g: volumenVar.pct }) : null;
+    const _acc = accionesComercialesDe();
+    const _b = baseDeFila(raw), _s = _b ? simularFila(_b, { price: precioVar.pct, g: volumenVar.pct, accionesFijas: _acc.fijas }) : null;
     const costoActual = _b ? _b.C : raw.costo, costoNuevo = _s && _s.ok ? _s.C1 : raw.costo * factorVolumen;
     const contribActual = _b ? _b.K : ventaActual - costoActual, contribNueva = _s && _s.ok ? _s.K1 : ventaNueva - costoNuevo;
     const margenActual = ventaActual ? +((contribActual / ventaActual) * 100).toFixed(1) : null;
     const margenNuevo = ventaNueva ? +((contribNueva / ventaNueva) * 100).toFixed(1) : null;
     facts.costModelAutorizado = true;
+    facts.accionesComerciales = _acc.tipo; facts.accionesComercialesOrigen = _acc.origen;
     facts.costoActual = _moneyK(costoActual); facts.costoNuevo = _moneyK(costoNuevo);
     facts.contribucionActual = _moneyK(contribActual); facts.contribucionNueva = _moneyK(contribNueva);
     facts.margenActual = `${margenActual}%`; facts.margenNuevo = `${margenNuevo}%`;

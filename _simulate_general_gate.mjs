@@ -61,9 +61,12 @@ console.log("── 1 · DETERMINÍSTICO — TOOLS.simulateGeneral (sin LLM) ─
   const ventaEsperada = 19433 * 1.05 * 0.90;
   const figVentaNueva = r.boleta.find((f) => f.label === "Falabella · Venta supuesta");
   ok(figVentaNueva && Math.abs(figVentaNueva.raw - ventaEsperada * 1000) < 1, `venta supuesta = venta_actual × 1.05 × 0.90 EXACTA (miles) — esperaba ${ventaEsperada}, boleta raw/1000=${figVentaNueva && figVentaNueva.raw / 1000}`);
-  const costoEsperado = 15158 * 0.90;   // costo escala SOLO con volumen, nunca con precio
+  // El costo de la CUENTA ya incluye las acciones comerciales (V = costo + contribución). Owner 2026-10-09: las acciones mantienen su % de la venta cuando cambia el precio (salvo montos fijos declarados),
+  // así que el costo de los productos escala SOLO con el volumen y las acciones con la venta (precio × volumen). Falabella: acciones = 4.5 % de $19.433K.
+  const accionesFalabella = Math.round(19433 * (TENANT_DEMO.clientesMargen.find((x) => x.nombre === "Falabella").pctRebate / 100));
+  const costoEsperado = (15158 - accionesFalabella) * 0.90 + accionesFalabella * 1.05 * 0.90;
   const figCostoNuevo = r.boleta.find((f) => f.label === "Falabella · Costo supuesto");
-  ok(figCostoNuevo && Math.abs(figCostoNuevo.raw - costoEsperado * 1000) < 1, `costo supuesto = costo_actual × 0.90 SOLO (el precio no mueve el costo) — esperaba ${costoEsperado}, obtuvo ${figCostoNuevo && figCostoNuevo.raw / 1000}`);
+  ok(figCostoNuevo && Math.abs(figCostoNuevo.raw - costoEsperado * 1000) < 1, `costo supuesto = costo de los productos × 0.90 + acciones × 1.05 × 0.90 (el precio no mueve el costo de los productos; las acciones mantienen su % de la venta) — esperaba ${costoEsperado}, obtuvo ${figCostoNuevo && figCostoNuevo.raw / 1000}`);
   const contribEsperada = ventaEsperada - costoEsperado;
   const figContribNueva = r.boleta.find((f) => f.label === "Falabella · Contribución supuesta");
   ok(figContribNueva && Math.abs(figContribNueva.raw - contribEsperada * 1000) < 1, `contribución supuesta = venta supuesta − costo supuesto (identidad venta−costo=contribución, verificada contra el dato real) — esperaba ${contribEsperada}, obtuvo ${figContribNueva && figContribNueva.raw / 1000}`);
@@ -118,7 +121,7 @@ console.log("\n── 2b · guardC deja citar el % del supuesto CUANDO EL TURNO 
   // Las figs "Precio propuesto"/"Volumen propuesto" de la boleta (toolRegistry.js) cierran esto de raíz: el %
   // queda autorizado por SER una fig, sin depender de qué haya dicho el usuario en qué turno.
   const r = simulateGeneral({ dimension: "cliente", entity: "Lider", variableA: { campo: "precioLista", delta_pct: 8 }, variableB: { campo: "unidades", delta_pct: -2 } });
-  const narration = "(Datos del año cerrado.) Si le subís el precio a Lider un 8%, con un volumen que baja un 2%, la contribución sube de $3.8M a $5.2M y el margen mejora de 21.5% a 27.3%.";
+  const narration = "(Datos del año cerrado.) Si le subís el precio a Lider un 8%, con un volumen que baja un 2%, la contribución sube de $3.8M a $5.1M y el margen mejora de 21.5% a 27%.";
   const g = guardC(narration, { ledger: { figs: r.boleta }, results: [{ tool: "simulateGeneral", facts: r.facts }], trace: null, question: "el volumen baja 2%" });
   ok(g.ok, `2b: cita "8%" (supuesto del TURNO 1) con question del TURNO 2 (sin "8%") → SÍ autorizado — obtuvo ok=${g.ok} ${g.ok ? "" : JSON.stringify(g.violations)}`);
 

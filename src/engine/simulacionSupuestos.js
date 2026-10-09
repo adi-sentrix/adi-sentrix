@@ -11,12 +11,15 @@
  * cierra mejor), no por el nombre del eje. `Cex` = el costo SIN acciones comerciales, la parte que un movimiento del costo mueve.
  *
  * EL MODELO, un solo lugar (declarado en la Entrega como límite; el mismo del costo variable que `simulateGeneral` ya declaraba — «el costo escala con el volumen, nunca con el precio»):
- *   · precio p %      → V' = V·(1+p). El precio NO mueve las unidades, ni el costo, ni las acciones comerciales en pesos.
+ *   · precio p %      → V' = V·(1+p). El precio NO mueve las unidades ni el costo. LAS ACCIONES COMERCIALES MANTIENEN SU % DE LA VENTA (owner 2026-10-09: «es una representación más fiel de la carga comercial y evita
+ *                       inflar artificialmente el margen»): R' escala con la venta, salvo que la empresa haya declarado montos fijos (`perfil.accionesComerciales.tipo = "monto_fijo"`, `a.accionesFijas`): entonces
+ *                       el precio no las mueve (los pesos quedan) y la carga como % de la venta baja.
  *   · volumen g %     → V', el costo y las acciones comerciales escalan con g (la carga como % de la venta no cambia). Un crecimiento en DINERO es g = monto ÷ venta del alcance, a precio constante.
  *   · costo c %       → el costo de los productos (sin acciones comerciales) × (1+c). La venta y las acciones no se mueven.
- *   · carga d puntos  → las acciones comerciales pasan a (su valor + d % de la venta simulada); no bajan de cero (el tope se declara).
+ *   · carga d puntos  → las acciones comerciales pasan a (su valor + d % de la venta simulada); no bajan de cero (el tope se declara). EL ORDEN: primero el precio y el volumen (venta simulada, y las acciones que
+ *                       la acompañan con su %), DESPUÉS la carga, medida en puntos de la venta ya simulada: «carga +1 punto» sobre un precio +5 % suma 1 % de la venta CON el precio.
  *   · margen d puntos → con la venta igual, la contribución cambia en d % de la venta: el costo absorbe el cambio (la misma cuenta que «cuánto costo hay que mover para ese margen»).
- *   Todos a la vez: V' = V(1+p)(1+g) · Cex' = Cex(1+g)(1+c) − m·V' · R' = max(0, R(1+g) + d·V') · K' = K + (V' − V) − (Cex' − Cex) − (R' − R). Margen = K ÷ V. Las identidades del dato se conservan:
+ *   Todos a la vez: V' = V(1+p)(1+g) · Cex' = Cex(1+g)(1+c) − m·V' · R' = max(0, R(1+g)(1+p) + d·V') [montos fijos: R(1+g) + d·V'] · K' = K + (V' − V) − (Cex' − Cex) − (R' − R). Margen = K ÷ V. Las identidades del dato se conservan:
  *   (V' − costo' − acciones' − K') = (V − costo − acciones − K), el residuo de redondeo de la propia fila. */
 
 export const TIPOS_COMERCIALES = Object.freeze(["growth", "price", "costo", "margin", "carga"]);
@@ -44,14 +47,15 @@ export function sumarBases(bases) {
 }
 
 /** simularFila(b, a) → { ok:true, V1, C1, R1, K1, m0, m1, carga0, carga1, liberado, topadoPp } | { ok:false, razon }
- *  a = { price, g, costo, margin, carga } (porcentajes; carga y margin en puntos): los que no vienen valen 0 */
+ *  a = { price, g, costo, margin, carga, accionesFijas } (porcentajes; carga y margin en puntos): los que no vienen valen 0; `accionesFijas` (boolean, la declaración de la empresa) hace que el precio no mueva las acciones */
 export function simularFila(b, a = {}) {
   const p = (a.price || 0) / 100, g = (a.g || 0) / 100, c = (a.costo || 0) / 100, dm = (a.margin || 0) / 100, dc = (a.carga || 0) / 100;
   const Cex = b.incl ? b.C - b.R : b.C;
   const V1 = b.V * (1 + p) * (1 + g);
   const Cex1 = Cex * (1 + g) * (1 + c) - dm * V1;
   if (!(Cex1 >= 0)) return { ok: false, razon: "con ese supuesto el costo de los productos quedaría negativo: el supuesto deja de ser operable sobre el dato actual" };
-  const Rpre = b.R * (1 + g);
+  /* las acciones comerciales acompañan a la venta: con el volumen (siempre) y con el precio (salvo que la empresa las haya declarado montos fijos) */
+  const Rpre = b.R * (1 + g) * (a.accionesFijas ? 1 : 1 + p);
   let R1 = Rpre + dc * V1, topadoPp = null;
   if (R1 < 0) { topadoPp = V1 > 0 ? +(((Rpre) / V1) * 100).toFixed(2) : 0; R1 = 0; }
   const K1 = b.K + (V1 - b.V) - (Cex1 - Cex) - (R1 - b.R);

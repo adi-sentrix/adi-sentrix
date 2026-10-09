@@ -56,7 +56,9 @@ function filaCruda(ds, eje, nombre) {
 const nombresDe = (ds, eje) => (eje === "cliente" ? ds.clientesVentas.map((x) => x.nombre) : ds[TABLA[eje]].map((x) => x.nombre));
 
 /** unaEntidad(ds, fila, supuestos, ventaDelAlcance) → los números simulados de UNA entidad con los supuestos que la tocan (la cuenta, escrita de nuevo: factores en vez de deltas) */
-function simularCrudo(f, aplic, fx, ventaDelAlcance) {
+/** la declaración de la empresa sobre sus acciones comerciales, leída del PERFIL CRUDO del tenant (no de la política de la casa): monto_fijo → el precio no las mueve; sin declarar o «porcentaje» → mantienen su % de la venta (owner 2026-10-09) */
+const accionesFijasDe = (ds) => Boolean(ds.perfil && ds.perfil.accionesComerciales && ds.perfil.accionesComerciales.tipo === "monto_fijo");
+function simularCrudo(f, aplic, fx, ventaDelAlcance, fijas = false) {
   let p = 0, g = 0, c = 0, dm = 0, dc = 0;
   for (const s of aplic) {
     if (s.tipo === "price") p = s.valor / 100;
@@ -69,10 +71,12 @@ function simularCrudo(f, aplic, fx, ventaDelAlcance) {
   const residuo = f.V - costoProductos - f.R - f.K;                  // el redondeo de la propia fila: constante
   const V1 = f.V * (1 + p) * (1 + g);
   const productos1 = costoProductos * (1 + g) * (1 + c) - dm * V1;
-  const acciones1 = Math.max(0, f.R * (1 + g) + dc * V1);
+  /* las acciones comerciales acompañan a la venta: con el volumen (1+g) y con el precio (1+p) —mantienen su % de la venta—, salvo montos fijos declarados; la carga en puntos se mide sobre la venta ya simulada (V1) */
+  const antesDeLaCarga = f.R * (1 + g) * (fijas ? 1 : 1 + p);
+  const acciones1 = Math.max(0, antesDeLaCarga + dc * V1);
   const K1 = V1 - productos1 - acciones1 - residuo;
   const C1 = f.incl ? productos1 + acciones1 : productos1;
-  return { V0: f.V, C0: f.C, K0: f.K, R0: f.R, V1, C1, K1, R1: acciones1, residuo, libera: f.R * (1 + g) - acciones1, carga0: f.carga };
+  return { V0: f.V, C0: f.C, K0: f.K, R0: f.R, V1, C1, K1, R1: acciones1, residuo, libera: antesDeLaCarga - acciones1, carga0: f.carga };
 }
 
 /** esperado({ ds, eje, universo, conTotal, supuestos }) → Map nombre → números · aplica a cada entidad los supuestos que la tocan; el total del negocio suma TODAS las filas del eje */
@@ -83,9 +87,10 @@ function esperado({ ds, eje, universo, conTotal, supuestos }) {
   const ventaDelAlcance = (s) => (s.alcance === "negocio" ? Vtotal : filaCruda(ds, s.alcance.eje, s.alcance.nombre).V);
   const tocan = (n) => supuestos.filter((s) => s.alcance === "negocio" || (s.alcance.eje === eje && s.alcance.nombre === n));
   const out = new Map();
-  for (const n of universo) out.set(n, { ...simularCrudo(filaCruda(ds, eje, n), tocan(n), fx, ventaDelAlcance), aplicables: tocan(n) });
+  const fijas = accionesFijasDe(ds);
+  for (const n of universo) out.set(n, { ...simularCrudo(filaCruda(ds, eje, n), tocan(n), fx, ventaDelAlcance, fijas), aplicables: tocan(n) });
   if (conTotal) {
-    const filas = todas.map((n) => simularCrudo(filaCruda(ds, eje, n), tocan(n), fx, ventaDelAlcance));
+    const filas = todas.map((n) => simularCrudo(filaCruda(ds, eje, n), tocan(n), fx, ventaDelAlcance, fijas));
     const t = { V0: 0, C0: 0, K0: 0, R0: 0, V1: 0, C1: 0, K1: 0, R1: 0, residuo: 0, libera: 0 };
     for (const r of filas) for (const k of Object.keys(t)) t[k] += r[k];
     out.set("Negocio", { ...t, carga0: null, aplicables: supuestos, esTotal: true });
@@ -310,15 +315,42 @@ async function numerosDelEnsayo() {
   const S = (id, tipo, valor, alcance = { eje: "marca", nombre: "Samsung" }) => ({ id, tipo, valor, unidad: "pct", alcance });
   const P = (ids, ents = [{ nombre: "Samsung", eje: "marca" }]) => ({ id: "p1", tema: "comercial", cierre: "simulacion", supuestos: ids, ...(ents ? { eje: "marca", entidades: ents } : {}) });
   /* Samsung, a mano (miles): venta 31.600 · costo 22.854 · acciones 1.367 · contribución 7.379 → 31.600 = 22.854 + 1.367 + 7.379.
-   * precio +5 % y costo +10 %: venta 33.180 · costo 25.139,4 · acciones 1.367 → contribución 33.180 − 25.139,4 − 1.367 = 6.673,6 → margen 20,1 % (el sondeo daba 31,1 %). */
+   * precio +5 % y costo +10 %: venta 33.180 · costo 25.139,4 · acciones 1.367 × 1,05 = 1.435,35 (REGLA DEL OWNER 2026-10-09: las acciones comerciales mantienen su % de la venta cuando cambia el precio) → contribución
+   * 33.180 − 25.139,4 − 1.435,35 = 6.605,25 → margen 19,9 % (el sondeo del ensayo 9 daba 31,1 %; con las acciones fijas en pesos, la regla anterior, 20,1 %). */
   const r = await A.consultar({ tenant: T, encargo: { version: "encargo/v1", supuestos: [S("s1", "price", 5), S("s2", "costo", 10)], partes: [P(["s1", "s2"])] } });
   const m = leerSalida(r).get("Samsung").m;
-  ok(m["Venta supuesta"].raw === 33180000 && aprox(m["Costo supuesto"].raw, 25139400, 1e-9) && aprox(m["Contribución supuesta"].raw, 6673600, 1e-9) && m["Margen supuesto"].raw === 20.1, "★ ensayo 9 · precio +5 % y costo +10 % sobre Samsung: venta $33.180K, costo $25.139K, contribución $6.674K, margen 20.1 % (el sondeo daba 31.1 %: ignoraba el costo)", JSON.stringify(m));
+  ok(m["Venta supuesta"].raw === 33180000 && aprox(m["Costo supuesto"].raw, 25139400, 1e-9) && aprox(m["Contribución supuesta"].raw, 6605250, 1e-9) && m["Margen supuesto"].raw === 19.9, "★ ensayo 9 · precio +5 % y costo +10 % sobre Samsung: venta $33.180K, costo $25.139K, acciones $1.435K (mantienen su 4.3 % de la venta), contribución $6.605K, margen 19.9 % (el sondeo daba 31.1 %: ignoraba el costo)", JSON.stringify(m));
   ok(m["Margen actual"].raw === 23.4 && m["Contribución actual"].raw === 7379000, "★ el margen ACTUAL de la simulación es el del dato (23.4 %), no 27.7 % (venta − costo sin acciones) ni 23.4 % «según el orden de los supuestos»");
   /* el orden de los supuestos no cambia nada */
   const r2 = await A.consultar({ tenant: T, encargo: { version: "encargo/v1", supuestos: [S("s1", "costo", 10), S("s2", "price", 5)], partes: [P(["s1", "s2"])] } });
   const m2 = leerSalida(r2).get("Samsung").m;
   ok(JSON.stringify(Object.fromEntries(Object.entries(m).map(([k, x]) => [k, x.raw]))) === JSON.stringify(Object.fromEntries(Object.entries(m2).map(([k, x]) => [k, x.raw]))), "★ el ORDEN de los supuestos no cambia ninguna cifra (antes «Margen actual» salía 23.4 % o 27.7 % según el orden)");
+  /* LA REGLA DEL OWNER (2026-10-09): el precio mueve las acciones comerciales con la venta (mantienen su % de la venta) salvo montos fijos declarados */
+  const rp = await A.consultar({ tenant: T, encargo: { version: "encargo/v1", supuestos: [S("s1", "price", 5)], partes: [P(["s1"])] } });
+  const mp = leerSalida(rp).get("Samsung").m;
+  ok(mp["Venta supuesta"].raw === 33180000 && aprox(mp["Contribución supuesta"].raw, 7379000 + 1580000 - 68350, 1e-9) && mp["Margen supuesto"].raw === 26.8 && /el precio mueve la venta y las acciones comerciales mantienen su % de la venta[^.]*\(criterio general de ADI: las acciones mantienen su % de la venta\)/.test(rp.entrega.texto), "★ OWNER 2026-10-09 · precio +5 % sobre Samsung: las acciones pasan de $1.367K a $1.435K (su 4.3 % de la venta), contribución $7.379K → $8.891K (no $8.959K) y margen 23.4 % → 26.8 % (no 27.0 %); la Entrega dice la regla y su origen (criterio general de ADI)", JSON.stringify(mp));
+  /* la carga en puntos se mide sobre la venta YA SIMULADA con el precio: acciones 1.367 × 1,05 − 1 % × 33.180 = 1.103,55 · contribución 7.379 + 1.580 − (1.103,55 − 1.367) = 9.222,45 */
+  const rpc = await A.consultar({ tenant: T, encargo: { version: "encargo/v1", supuestos: [S("s1", "price", 5), { ...S("s2", "carga", -1), unidad: "pp" }], partes: [P(["s1", "s2"])] } });
+  const mpc = leerSalida(rpc).get("Samsung").m;
+  ok(aprox(mpc["Contribución supuesta"].raw, 9222450, 1e-9) && aprox(mpc["Liberado"].raw, 331800, 1e-9) && /ya simulada \(con el precio aplicado primero\)/.test(rpc.entrega.texto), "★ el ORDEN con la carga: primero el precio (las acciones suben a $1.435K), después «carga −1 punto» sobre la venta ya simulada ($331.8K de la venta de $33.180K): acciones $1.104K, contribución $9.222K, liberado $331.8K, y la Entrega declara el orden", JSON.stringify(mpc));
+  /* una empresa que DECLARÓ montos fijos: el precio no mueve las acciones (los números de la regla anterior) y la Entrega dice «declarado por la empresa» */
+  const dsFijo = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil, accionesComerciales: { tipo: "monto_fijo" } } };
+  initTenant(dsFijo);
+  const rf = await A.consultar({ tenant: { ...T, dataset: dsFijo }, encargo: { version: "encargo/v1", supuestos: [S("s1", "price", 5)], partes: [P(["s1"])] } });
+  const mf = leerSalida(rf).get("Samsung").m;
+  ok(mf["Contribución supuesta"].raw === 8959000 && mf["Margen supuesto"].raw === 27 && /que quedan en los mismos pesos[^.]*\(declarado por la empresa: montos fijos\)/.test(rf.entrega.texto) && !/criterio general de ADI/.test(rf.entrega.texto.split("Cómo se calculó la simulación")[1].split(String.fromCharCode(10))[0]), "★ OWNER 2026-10-09 · una empresa que DECLARÓ montos fijos (perfil.accionesComerciales): el precio +5 % deja las acciones en $1.367K (contribución $8.959K, margen 27.0 %) y la Entrega dice «declarado por la empresa: montos fijos»", JSON.stringify(mf));
+  const dsPct = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil, accionesComerciales: { tipo: "porcentaje" } } };
+  initTenant(dsPct);
+  const rd = await A.consultar({ tenant: { ...T, dataset: dsPct }, encargo: { version: "encargo/v1", supuestos: [S("s1", "price", 5)], partes: [P(["s1"])] } });
+  ok(leerSalida(rd).get("Samsung").m["Contribución supuesta"].raw === mp["Contribución supuesta"].raw && /\(declarado por la empresa: las acciones mantienen su % de la venta\)/.test(rd.entrega.texto), "una empresa que declaró «porcentaje» obtiene las mismas cifras que el criterio general, y la Entrega lo atribuye a la empresa (origen distinto, cifra igual)");
+  initTenant(TENANT_DEMO);
+  /* el mismo modelo en la herramienta del oráculo y del agente: precio +5 % → 8.9 M / 26.8 %; con montos fijos, 9.0 M / 27 % */
+  const gP = TOOLS.simulateGeneral({ dimension: "marca", entity: "Samsung", variableA: { campo: "precioLista", delta_pct: 5 }, variableB: { campo: "unidades", delta_pct: 0.0001 } });
+  ok(gP.facts.margenNuevo === "26.8%" && gP.facts.accionesComerciales === "porcentaje" && gP.facts.accionesComercialesOrigen === "adi", "★ simulateGeneral (agente) usa la MISMA regla: precio +5 % sobre Samsung → margen 26.8 % (no 27.0 %), con la regla y su origen en los facts", JSON.stringify(gP.facts).slice(0, 300));
+  initTenant(dsFijo);
+  const gF = TOOLS.simulateGeneral({ dimension: "marca", entity: "Samsung", variableA: { campo: "precioLista", delta_pct: 5 }, variableB: { campo: "unidades", delta_pct: 0.0001 } });
+  ok(gF.facts.margenNuevo === "27%" && gF.facts.accionesComerciales === "monto_fijo" && gF.facts.accionesComercialesOrigen === "empresa", "★ simulateGeneral con montos fijos declarados: margen 27 % (las acciones no se mueven con el precio), origen «empresa»", JSON.stringify(gF.facts).slice(0, 300));
+  initTenant(TENANT_DEMO);
   /* costo +10 % solo: ahora trae contribución y margen (antes devolvía únicamente el costo) */
   const rc = await A.consultar({ tenant: T, encargo: { version: "encargo/v1", supuestos: [S("s1", "costo", 10)], partes: [P(["s1"])] } });
   const mc = leerSalida(rc).get("Samsung").m;
@@ -382,23 +414,40 @@ async function carnadas() {
   const fila = baseDeFila({ venta: 1000, costo: 100, rebates: 50, contribucion: 850 });
   ok(simularFila(fila, { margin: 20 }).ok === false, "el modelo: un margen +20 puntos que dejaría el costo de los productos negativo se DECLINA (no se publica una contribución imposible)");
   ok(simularFila(fila, { costo: 10, price: 5 }).ok === true && simularFila(fila, { costo: 10, price: 5 }).K1 !== simularFila(fila, { price: 5 }).K1, "el modelo: el costo +10 % SÍ mueve la contribución cuando se combina con el precio");
+  /* 11 · LA REGLA DEL OWNER (2026-10-09): el precio mantiene la carga como % de la venta. La carnada es la regla ANTERIOR (acciones fijas en pesos por defecto) */
+  const cargaDe = (r) => (100 * r.R1) / r.V1;
+  ok(Math.abs(cargaDe(simularFila(fila, { price: 5 })) - (100 * fila.R) / fila.V) < 1e-9, "el modelo: un precio +5 % deja la carga comercial en el MISMO % de la venta (5 %), no en 4.76 %");
+  ok(Math.abs(cargaDe(simularFila(fila, { price: 5, accionesFijas: true })) - (100 * fila.R) / fila.V) > 0.1, "CARNADA «la regla anterior (acciones fijas en pesos) por defecto» → la carga baja a 4.76 % y el chequeo del modelo se pone ROJO");
+  ok(simularFila(fila, { price: 5 }).K1 < simularFila(fila, { price: 5, accionesFijas: true }).K1, "el modelo: con el precio, las acciones que se mueven con la venta restan contribución (la regla anterior inflaba el margen)");
+  /* el mismo caso en la Entrega: lo que publica una empresa con montos fijos es lo que la regla anterior publicaba por defecto → contra el oráculo del tenant SIN declaración, el comparador se pone ROJO; y a la inversa */
+  const dsFijo = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil, accionesComerciales: { tipo: "monto_fijo" } } };
+  const sup = [S("s1", "price", 5)];
+  initTenant(dsFijo);
+  const conFijos = await A.consultar({ tenant: { ...T, dataset: dsFijo }, encargo: { version: "encargo/v1", supuestos: sup, partes: [P(["s1"])] } });
+  initTenant(TENANT_DEMO);
+  const sFijos = leerSalida(conFijos), sDefecto = await correr(sup, ["s1"]);
+  ok(verificarCaso({ ...base, supuestos: sup, salida: sDefecto }).length === 0 && verificarCaso({ ...base, ds: dsFijo, supuestos: sup, salida: sFijos }).length === 0, "(control) precio +5 %: la salida por defecto pasa el oráculo del tenant sin declaración y la de montos fijos pasa el oráculo del tenant que los declaró");
+  ok(verificarCaso({ ...base, supuestos: sup, salida: sFijos }).length > 0, "CARNADA «acciones fijas en pesos POR DEFECTO (la regla anterior)» → el oráculo del criterio general se pone ROJO");
+  ok(verificarCaso({ ...base, ds: dsFijo, supuestos: sup, salida: sDefecto }).length > 0, "CARNADA «la empresa declaró montos fijos y ADI los movió con el precio» → el oráculo de la empresa se pone ROJO");
 }
 
 /* ═══ CORRIDA ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 H("1 · LA BATERÍA · cada combinación × alcance × forma × tenant contra el oráculo de las tablas");
+const DEMO_FIJOS = { ...TENANT_DEMO, perfil: { ...TENANT_DEMO.perfil, accionesComerciales: { tipo: "monto_fijo" } } };   // una empresa que DECLARÓ que sus acciones comerciales son montos fijos (owner 2026-10-09)
 const TENANTS = [
   ["demo", { id: "demo", nombre: "ADI Demo", dataset: TENANT_DEMO, version: 1, sello: null }],
+  ["demo · acciones en montos fijos (declarado)", { id: "demo", nombre: "ADI Demo", dataset: DEMO_FIJOS, version: 1, sello: null }],
   ["Río Claro v1", { id: EMPRESA_NO_DEMO.id, nombre: EMPRESA_NO_DEMO.nombre, dataset: packRenombrado({ version: 1 }), version: 1, sello: null }],
   ["Río Claro v2", { id: EMPRESA_NO_DEMO.id, nombre: EMPRESA_NO_DEMO.nombre, dataset: packRenombrado({ version: 2 }), version: 2, sello: null }],
 ];
 let totalCasos = 0;
 /* demo y Río Claro v1: TODAS las formas · Río Claro v2 (la carga que cambia entre sesiones): cuatro formas representativas — el tiempo de un gate también es un costo */
 const FORMAS_DE_V2 = ["negocio·total", "cliente·entidades y el total (universo negocio)", "cliente·una tocada y una intacta", "marca·entidad y total del negocio", "sku·negocio mezclado con la entidad", "familia·una tocada y una intacta"];
-for (const [etiqueta, tenant] of TENANTS) { initTenant(tenant.dataset); const r = await bateria(etiqueta, tenant, etiqueta === "Río Claro v2" ? FORMAS_DE_V2 : null); totalCasos += r.casos; }
+for (const [etiqueta, tenant] of TENANTS) { initTenant(tenant.dataset); const r = await bateria(etiqueta, tenant, etiqueta === "Río Claro v2" || /montos fijos/.test(etiqueta) ? FORMAS_DE_V2 : null); totalCasos += r.casos; }
 console.log(`   · ${totalCasos} simulaciones corridas contra el oráculo en ${TENANTS.length} empresas`);
 
 H("2 · EL RECHAZO ENSEÑA · lo que no se puede combinar vuelve con su razón y sin cifras");
-for (const [etiqueta, tenant] of TENANTS.slice(0, 2)) { initTenant(tenant.dataset); await rechazos(etiqueta, tenant); }
+for (const [etiqueta, tenant] of TENANTS.filter(([e]) => e === "demo" || e === "Río Claro v1")) { initTenant(tenant.dataset); await rechazos(etiqueta, tenant); }
 
 H("3 · SIN MODELO DE COSTO DECLARADO (empresa2)");
 await sinModeloDeCosto();

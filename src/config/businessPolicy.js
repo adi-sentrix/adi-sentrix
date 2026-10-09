@@ -279,6 +279,23 @@ export const costModelOf = () => (_costModelOverride != null ? _costModelOverrid
  * Se deja para la etapa que las consuma, con el owner al tanto (informe de esta etapa). */
 export const ORIGEN = Object.freeze({ EMPRESA: "empresa", ADI: "adi", CONSULTA: "consulta", SIN_DECLARAR: "sin_declarar", DOCUMENTAL: "documental" });
 
+/* ── ACCIONES COMERCIALES EN UNA SIMULACIÓN DE PRECIO (owner 2026-10-09) ── «En simulaciones, las acciones comerciales mantienen su % sobre la venta cuando cambia el precio, salvo que la empresa
+ * haya declarado que son montos fijos.» La declaración vive en el perfil del tenant, por la misma vía que `costModel` (no numérica → resolución propia, fuera del loop de `_resolvePolicy`):
+ *   perfil.accionesComerciales = { tipo: "porcentaje" | "monto_fijo" }
+ * Default (perfil sin la llave, o con un tipo desconocido): "porcentaje" con origen "adi" (el criterio general: la carga como % de la venta no se mueve con el precio). Con la llave: origen "empresa".
+ * Sin override de conversación (a propósito: ninguna acción conversacional declara esto todavía). `accionesComercialesDe()` → { tipo, origen, fijas } · `fijas` = los montos no se mueven con el precio. */
+export const ACCIONES_COMERCIALES_TIPOS = Object.freeze(["porcentaje", "monto_fijo"]);
+export const ACCIONES_COMERCIALES_DEFAULT = Object.freeze({ tipo: "porcentaje", origen: ORIGEN.ADI });
+function _resolveAccionesComerciales() {
+  const p = getTenantData() && getTenantData().perfil;
+  const d = p && p.accionesComerciales;
+  const t = d && typeof d === "object" ? d.tipo : null;
+  POLICY.accionesComerciales = ACCIONES_COMERCIALES_TIPOS.includes(t) ? { tipo: t, origen: ORIGEN.EMPRESA } : { ...ACCIONES_COMERCIALES_DEFAULT };
+}
+_resolveAccionesComerciales();
+onTenantChange(_resolveAccionesComerciales);
+export const accionesComercialesDe = () => { const a = POLICY.accionesComerciales || ACCIONES_COMERCIALES_DEFAULT; return { tipo: a.tipo, origen: a.origen, fijas: a.tipo === "monto_fijo" }; };
+
 /* ══ LAS DOS DEFINICIONES QUE ESTE BLOQUE AJUSTA: DECLARADO Y DOCUMENTAL (owner 2026-10-03, Etapa 2 · bloque 3, decisión §7.3·58) ═════════════════
  * «Una sola función de origen escribe la procedencia; ningún composer escribe la frase a mano.» El origen de una llave lo resuelve `procedenciaDeLlave` (más abajo) y devuelve
  * { origen, fuente, confirmado }; la FRASE sale de la tabla de aquí (`ETIQUETA_ORIGEN`) a través de `etiquetaDeProcedencia`: es el único sitio de la casa donde está escrita.
